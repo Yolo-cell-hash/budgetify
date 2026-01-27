@@ -17,6 +17,7 @@ class TransactionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isCredit = transaction.type == TransactionType.credit;
     final formatter = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
     final dateFormatter = DateFormat('MMM d, h:mm a');
@@ -61,16 +62,18 @@ class TransactionCard extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: isDark ? const Color(0xFF2C2C2C) : Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border(left: BorderSide(color: typeColor, width: 4)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          boxShadow: isDark
+              ? null
+              : [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
         ),
         child: Material(
           color: Colors.transparent,
@@ -190,7 +193,9 @@ class TransactionCard extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
-                              color: Colors.grey.shade800,
+                              color: isDark
+                                  ? Colors.grey.shade300
+                                  : Colors.grey.shade800,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -227,14 +232,18 @@ class TransactionCard extends StatelessWidget {
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
+                            color: isDark
+                                ? Colors.grey.shade800
+                                : Colors.grey.shade100,
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
                             transaction.accountInfo!,
                             style: TextStyle(
                               fontSize: 10,
-                              color: Colors.grey.shade600,
+                              color: isDark
+                                  ? Colors.grey.shade400
+                                  : Colors.grey.shade600,
                               fontWeight: FontWeight.w500,
                             ),
                           ),

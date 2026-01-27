@@ -27,7 +27,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -62,6 +62,7 @@ class DatabaseService {
         notes TEXT,
         account_info TEXT,
         bank_account_id INTEGER,
+        is_manual INTEGER NOT NULL DEFAULT 0,
         FOREIGN KEY (bank_account_id) REFERENCES bank_accounts(id)
       )
     ''');
@@ -137,6 +138,12 @@ class DatabaseService {
           notified_100 INTEGER NOT NULL DEFAULT 0
         )
       ''');
+    }
+
+    if (oldVersion < 4) {
+      await db.execute(
+        'ALTER TABLE transactions ADD COLUMN is_manual INTEGER NOT NULL DEFAULT 0',
+      );
     }
   }
 
@@ -524,13 +531,111 @@ class DatabaseService {
     if (n50 != null) updates['notified_50'] = n50 ? 1 : 0;
     if (n90 != null) updates['notified_90'] = n90 ? 1 : 0;
     if (n100 != null) updates['notified_100'] = n100 ? 1 : 0;
-    if (updates.isNotEmpty)
+    if (updates.isNotEmpty) {
       await db.update(
         'budgets',
         updates,
         where: 'id = ?',
         whereArgs: [budgetId],
       );
+    }
+  }
+
+  // ==================== ANALYTICS QUERIES ====================
+
+  /// Get spending breakdown by category for a period
+  Future<Map<String, double>> getSpendingByCategory({
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    final db = await database;
+    final result = await db.rawQuery(
+      '''
+      SELECT category, SUM(amount) as total FROM transactions
+      WHERE type = ? AND detected_at >= ? AND detected_at <= ? AND category IS NOT NULL
+      GROUP BY category ORDER BY total DESC
+    ''',
+      [
+        TransactionType.debit.index,
+        startDate.millisecondsSinceEpoch,
+        endDate.millisecondsSinceEpoch,
+      ],
+    );
+
+    return {
+      for (var row in result)
+        row['category'] as String: (row['total'] as num).toDouble(),
+    };
+  }
+
+  /// Get spending breakdown by bank account for a period
+  Future<Map<int, double>> getSpendingByBank({
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    final db = await database;
+    final result = await db.rawQuery(
+      '''
+      SELECT bank_account_id, SUM(amount) as total FROM transactions
+      WHERE type = ? AND detected_at >= ? AND detected_at <= ? AND bank_account_id IS NOT NULL
+      GROUP BY bank_account_id ORDER BY total DESC
+    ''',
+      [
+        TransactionType.debit.index,
+        startDate.millisecondsSinceEpoch,
+        endDate.millisecondsSinceEpoch,
+      ],
+    );
+
+    return {
+      for (var row in result)
+        row['bank_account_id'] as int: (row['total'] as num).toDouble(),
+    };
+  }
+
+  /// Get monthly spending totals for last N months
+  Future<List<Map<String, dynamic>>> getMonthlySpending({
+    int months = 6,
+  }) async {
+    final db = await database;
+    final now = DateTime.now();
+    final List<Map<String, dynamic>> monthlyData = [];
+
+    for (int i = 0; i < months; i++) {
+      final monthStart = DateTime(now.year, now.month - i, 1);
+      final monthEnd = DateTime(now.year, now.month - i + 1, 0, 23, 59, 59);
+
+      final result = await db.rawQuery(
+        '''
+        SELECT SUM(amount) as total FROM transactions
+        WHERE type = ? AND detected_at >= ? AND detected_at <= ?
+      ''',
+        [
+          TransactionType.debit.index,
+          monthStart.millisecondsSinceEpoch,
+          monthEnd.millisecondsSinceEpoch,
+        ],
+      );
+
+      monthlyData.add({
+        'month': monthStart,
+        'total': (result.first['total'] as num?)?.toDouble() ?? 0.0,
+      });
+    }
+
+    return monthlyData.reversed.toList();
+  }
+
+  /// Get cash transactions (category = 'Cash' or 'Cash Conversion')
+  Future<List<TransactionModel>> getCashTransactions() async {
+    final db = await database;
+    final result = await db.query(
+      'transactions',
+      where: "category IN (?, ?)",
+      whereArgs: ['Cash', 'Cash Conversion'],
+      orderBy: 'detected_at DESC',
+    );
+    return result.map((map) => TransactionModel.fromMap(map)).toList();
   }
 
   /// Close the database

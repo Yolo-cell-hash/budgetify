@@ -13,6 +13,7 @@ import 'transactions_screen.dart';
 import 'settings_screen.dart';
 import 'bank_accounts_screen.dart';
 import 'budget_screen.dart';
+import 'add_transaction_screen.dart';
 
 /// Home screen of the Budget Tracker app
 class HomeScreen extends StatefulWidget {
@@ -41,6 +42,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   List<BankAccount> _bankAccounts = [];
   Budget? _activeBudget;
   double _budgetSpent = 0;
+  List<TransactionModel> _cashTransactions = [];
+  double _totalCash = 0;
+  double _monthlyIncome = 0;
+  double _monthlyExpenses = 0;
 
   @override
   void initState() {
@@ -112,6 +117,34 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         );
       }
 
+      // Load cash data
+      final cashTxns = await _dbService.getCashTransactions();
+      final totalCash = cashTxns.fold(0.0, (sum, t) => sum + t.amount);
+
+      // Calculate monthly income/expenses
+      final now = DateTime.now();
+      final monthStart = DateTime(now.year, now.month, 1);
+      final monthEnd = DateTime(
+        now.year,
+        now.month + 1,
+        1,
+      ).subtract(const Duration(days: 1));
+
+      double monthlyIncome = 0;
+      double monthlyExpenses = 0;
+      for (final t in transactions) {
+        if (t.detectedAt.isAfter(
+              monthStart.subtract(const Duration(days: 1)),
+            ) &&
+            t.detectedAt.isBefore(monthEnd.add(const Duration(days: 1)))) {
+          if (t.type == TransactionType.credit) {
+            monthlyIncome += t.amount;
+          } else {
+            monthlyExpenses += t.amount;
+          }
+        }
+      }
+
       setState(() {
         _totalCredits = credits;
         _totalDebits = debits;
@@ -122,6 +155,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         _bankAccounts = bankAccounts;
         _activeBudget = budget;
         _budgetSpent = budgetSpent;
+        _cashTransactions = cashTxns;
+        _totalCash = totalCash;
+        _monthlyIncome = monthlyIncome;
+        _monthlyExpenses = monthlyExpenses;
       });
     } catch (e) {
       debugPrint('Error loading data: $e');
@@ -223,6 +260,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         const SizedBox(height: 16),
                         ExpenseChartWidget(transactions: _allTransactions),
                         _buildBudgetCard(),
+                        _buildCashSection(),
                         _buildQuickActions(),
                         _buildRecentTransactions(),
                       ],
@@ -247,23 +285,28 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Budget Tracker',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey.shade800,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Budget Tracker',
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey.shade800,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    DateFormat('EEEE, MMMM d').format(DateTime.now()),
-                    style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
-                  ),
-                ],
+                    const SizedBox(height: 4),
+                    Text(
+                      DateFormat('EEEE, MMMM d').format(DateTime.now()),
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
               ),
               if (_hasPermission)
                 Container(
@@ -316,8 +359,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Widget _buildBalanceCard() {
     final formatter = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
-    final balance = _totalCredits - _totalDebits;
-    final isPositive = balance >= 0;
+    final monthlyNet = _monthlyIncome - _monthlyExpenses;
+    final isPositive = monthlyNet >= 0;
+    final monthName = DateFormat('MMMM').format(DateTime.now());
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -344,118 +388,152 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Net Balance',
+                '$monthName Expenses',
                 style: TextStyle(
                   fontSize: 14,
                   color: Colors.white.withOpacity(0.8),
                 ),
               ),
-              Icon(
-                isPositive ? Icons.trending_up : Icons.trending_down,
-                color: Colors.white.withOpacity(0.8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.arrow_upward,
+                      size: 14,
+                      color: Colors.white.withOpacity(0.9),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Spent',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.white.withOpacity(0.9),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           Text(
-            formatter.format(balance.abs()),
+            formatter.format(_monthlyExpenses),
             style: const TextStyle(
               fontSize: 36,
               fontWeight: FontWeight.bold,
               color: Colors.white,
             ),
           ),
-          Text(
-            isPositive ? 'You\'re in profit! 🎉' : 'Spending exceeds income',
-            style: TextStyle(
-              fontSize: 13,
-              color: Colors.white.withOpacity(0.8),
-            ),
-          ),
           const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: Colors.green.withOpacity(0.3),
-                            borderRadius: BorderRadius.circular(4),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withOpacity(0.3),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Icon(
+                              Icons.arrow_downward,
+                              size: 12,
+                              color: Colors.white,
+                            ),
                           ),
-                          child: const Icon(
-                            Icons.arrow_downward,
-                            size: 14,
-                            color: Colors.white,
+                          const SizedBox(width: 6),
+                          Text(
+                            'Income',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.white.withOpacity(0.8),
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Income',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.white.withOpacity(0.8),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      formatter.format(_totalCredits),
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
+                        ],
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: Colors.red.withOpacity(0.3),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: const Icon(
-                            Icons.arrow_upward,
-                            size: 14,
-                            color: Colors.white,
-                          ),
+                      const SizedBox(height: 4),
+                      Text(
+                        formatter.format(_monthlyIncome),
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
                         ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Expenses',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.white.withOpacity(0.8),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      formatter.format(_totalDebits),
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+                Container(
+                  width: 1,
+                  height: 40,
+                  color: Colors.white.withOpacity(0.3),
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Text(
+                            'Net Balance',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.white.withOpacity(0.8),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: isPositive
+                                  ? Colors.green.withOpacity(0.3)
+                                  : Colors.red.withOpacity(0.3),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Icon(
+                              isPositive
+                                  ? Icons.trending_up
+                                  : Icons.trending_down,
+                              size: 12,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${isPositive ? '+' : ''}${formatter.format(monthlyNet)}',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: isPositive
+                              ? Colors.greenAccent
+                              : Colors.redAccent.shade100,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -627,6 +705,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildQuickActions() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Row(
@@ -637,6 +717,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               label: 'Transactions',
               value: _transactionCount.toString(),
               color: Colors.blue,
+              isDark: isDark,
               onTap: _openTransactionsScreen,
             ),
           ),
@@ -647,6 +728,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               label: 'Unclassified',
               value: _unclassifiedCount.toString(),
               color: Colors.orange,
+              isDark: isDark,
               onTap: _openTransactionsScreen,
             ),
           ),
@@ -657,6 +739,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               label: 'Scan SMS',
               value: _isScanning ? '...' : 'Scan',
               color: Colors.purple,
+              isDark: isDark,
               onTap: _isScanning ? null : _scanExistingSms,
             ),
           ),
@@ -670,6 +753,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     required String label,
     required String value,
     required Color color,
+    required bool isDark,
     VoidCallback? onTap,
   }) {
     return GestureDetector(
@@ -677,15 +761,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: isDark ? const Color(0xFF2C2C2C) : Colors.white,
           borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 2),
-            ),
-          ],
+          boxShadow: isDark
+              ? null
+              : [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
         ),
         child: Column(
           children: [
@@ -703,13 +789,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: Colors.grey.shade800,
+                color: isDark ? Colors.white : Colors.grey.shade800,
               ),
             ),
             const SizedBox(height: 4),
             Text(
               label,
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+              style: TextStyle(
+                fontSize: 11,
+                color: isDark ? Colors.grey.shade500 : Colors.grey.shade600,
+              ),
             ),
           ],
         ),
@@ -722,6 +811,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       return const SizedBox.shrink();
     }
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final formatter = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
     final dateFormatter = DateFormat('MMM d');
 
@@ -738,7 +828,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
-                  color: Colors.grey.shade800,
+                  color: isDark ? Colors.white : Colors.grey.shade800,
                 ),
               ),
               TextButton(
@@ -751,15 +841,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         Container(
           margin: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: isDark ? const Color(0xFF2C2C2C) : Colors.white,
             borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 2),
-              ),
-            ],
+            boxShadow: isDark
+                ? null
+                : [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
           ),
           child: Column(
             children: _recentTransactions.asMap().entries.map((entry) {
@@ -788,9 +880,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     ),
                     title: Text(
                       transaction.category ?? transaction.sender,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.w500,
                         fontSize: 14,
+                        color: isDark ? Colors.white : Colors.black87,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -816,7 +909,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       height: 1,
                       indent: 70,
                       endIndent: 16,
-                      color: Colors.grey.shade200,
+                      color: isDark
+                          ? Colors.grey.shade800
+                          : Colors.grey.shade200,
                     ),
                 ],
               );
@@ -955,6 +1050,105 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ),
                 ],
               ),
+      ),
+    );
+  }
+
+  Widget _buildCashSection() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final fmt = NumberFormat.currency(
+      locale: 'en_IN',
+      symbol: '₹',
+      decimalDigits: 0,
+    );
+    final conversions = _cashTransactions
+        .where((t) => t.category == 'Cash Conversion')
+        .length;
+
+    return GestureDetector(
+      onTap: () async {
+        final result = await Navigator.push<bool>(
+          context,
+          MaterialPageRoute(
+            builder: (_) =>
+                const AddTransactionScreen(initialCategory: 'Cash Conversion'),
+          ),
+        );
+        if (result == true) _loadData();
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: isDark
+                ? [const Color(0xFF2E4A3E), const Color(0xFF1E3A2E)]
+                : [const Color(0xFF2ECC40), const Color(0xFF27AE60)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withAlpha(50),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text('💵', style: TextStyle(fontSize: 20)),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Cash Transactions',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                Text(
+                  fmt.format(_totalCash),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            if (conversions > 0) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withAlpha(80),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('💱', style: TextStyle(fontSize: 14)),
+                    const SizedBox(width: 6),
+                    Text(
+                      '$conversions Cash Conversion${conversions > 1 ? 's' : ''}',
+                      style: const TextStyle(color: Colors.white, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

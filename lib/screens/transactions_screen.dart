@@ -5,6 +5,7 @@ import '../models/bank_account_model.dart';
 import '../services/database_service.dart';
 import '../widgets/transaction_card.dart';
 import 'transaction_detail_screen.dart';
+import 'add_transaction_screen.dart';
 
 /// Screen displaying all detected transactions with filtering
 class TransactionsScreen extends StatefulWidget {
@@ -134,6 +135,17 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             onPressed: _loadTransactions,
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () async {
+          final result = await Navigator.push<bool>(
+            context,
+            MaterialPageRoute(builder: (_) => const AddTransactionScreen()),
+          );
+          if (result == true) _loadTransactions();
+        },
+        icon: const Icon(Icons.add),
+        label: const Text('Add'),
       ),
       body: Column(
         children: [

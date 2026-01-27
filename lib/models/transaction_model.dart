@@ -12,7 +12,8 @@ class TransactionModel {
   final String? category;
   final String? notes;
   final String? accountInfo;
-  final int? bankAccountId; // Link to bank_accounts table
+  final int? bankAccountId;
+  final bool isManual;
 
   TransactionModel({
     this.id,
@@ -26,6 +27,7 @@ class TransactionModel {
     this.notes,
     this.accountInfo,
     this.bankAccountId,
+    this.isManual = false,
   });
 
   /// Create a TransactionModel from a database map
@@ -44,6 +46,7 @@ class TransactionModel {
       notes: map['notes'] as String?,
       accountInfo: map['account_info'] as String?,
       bankAccountId: map['bank_account_id'] as int?,
+      isManual: (map['is_manual'] as int?) == 1,
     );
   }
 
@@ -61,6 +64,7 @@ class TransactionModel {
       'notes': notes,
       'account_info': accountInfo,
       'bank_account_id': bankAccountId,
+      'is_manual': isManual ? 1 : 0,
     };
   }
 
@@ -77,6 +81,7 @@ class TransactionModel {
     String? notes,
     String? accountInfo,
     int? bankAccountId,
+    bool? isManual,
   }) {
     return TransactionModel(
       id: id ?? this.id,
@@ -90,6 +95,7 @@ class TransactionModel {
       notes: notes ?? this.notes,
       accountInfo: accountInfo ?? this.accountInfo,
       bankAccountId: bankAccountId ?? this.bankAccountId,
+      isManual: isManual ?? this.isManual,
     );
   }
 }
@@ -133,6 +139,8 @@ class ExpenseCategories {
     'Salary',
     'Transfer',
     'Refund',
+    'Cash',
+    'Cash Conversion',
     'Other',
   ];
 
@@ -163,6 +171,10 @@ class ExpenseCategories {
         return '🔄';
       case 'Refund':
         return '↩️';
+      case 'Cash':
+        return '💵';
+      case 'Cash Conversion':
+        return '💱';
       default:
         return '📌';
     }
@@ -195,6 +207,10 @@ class ExpenseCategories {
         return const Color(0xFF7F8C8D);
       case 'Refund':
         return const Color(0xFF16A085);
+      case 'Cash':
+        return const Color(0xFF2ECC40);
+      case 'Cash Conversion':
+        return const Color(0xFFFF851B);
       default:
         return const Color(0xFF95A5A6);
     }

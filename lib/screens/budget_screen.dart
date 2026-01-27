@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import '../models/budget_model.dart';
+import '../models/transaction_model.dart';
+import '../models/bank_account_model.dart';
 import '../services/database_service.dart';
 
 class BudgetScreen extends StatefulWidget {
@@ -11,38 +13,74 @@ class BudgetScreen extends StatefulWidget {
   State<BudgetScreen> createState() => _BudgetScreenState();
 }
 
-class _BudgetScreenState extends State<BudgetScreen> {
+class _BudgetScreenState extends State<BudgetScreen>
+    with SingleTickerProviderStateMixin {
   final DatabaseService _db = DatabaseService();
+  late TabController _tabController;
+
   Budget? _budget;
   double _spent = 0;
   Map<DateTime, double> _dailySpending = {};
+  Map<String, double> _categorySpending = {};
+  Map<int, double> _bankSpending = {};
+  List<Map<String, dynamic>> _monthlySpending = [];
+  List<BankAccount> _bankAccounts = [];
   bool _loading = true;
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 4, vsync: this);
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
     setState(() => _loading = true);
+
     final budget = await _db.getActiveBudget();
+    final bankAccounts = await _db.getAllBankAccounts();
+    final monthlySpending = await _db.getMonthlySpending(months: 6);
+
+    double spent = 0;
+    Map<DateTime, double> daily = {};
+    Map<String, double> byCategory = {};
+    Map<int, double> byBank = {};
+
     if (budget != null) {
-      final spent = await _db.getSpendingForPeriod(
+      spent = await _db.getSpendingForPeriod(
         startDate: budget.currentPeriodStart,
         endDate: budget.currentPeriodEnd,
       );
-      final daily = await _db.getDailySpending(
+      daily = await _db.getDailySpending(
         startDate: budget.currentPeriodStart,
         endDate: budget.currentPeriodEnd,
       );
-      setState(() {
-        _budget = budget;
-        _spent = spent;
-        _dailySpending = daily;
-      });
+      byCategory = await _db.getSpendingByCategory(
+        startDate: budget.currentPeriodStart,
+        endDate: budget.currentPeriodEnd,
+      );
+      byBank = await _db.getSpendingByBank(
+        startDate: budget.currentPeriodStart,
+        endDate: budget.currentPeriodEnd,
+      );
     }
-    setState(() => _loading = false);
+
+    setState(() {
+      _budget = budget;
+      _spent = spent;
+      _dailySpending = daily;
+      _categorySpending = byCategory;
+      _bankSpending = byBank;
+      _bankAccounts = bankAccounts;
+      _monthlySpending = monthlySpending;
+      _loading = false;
+    });
   }
 
   @override
@@ -56,31 +94,54 @@ class _BudgetScreenState extends State<BudgetScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Budget'),
+        title: const Text('Budget & Analytics'),
         actions: [
           IconButton(icon: const Icon(Icons.refresh), onPressed: _loadData),
         ],
+        bottom: TabBar(
+          controller: _tabController,
+          isScrollable: true,
+          tabs: const [
+            Tab(text: 'Overview'),
+            Tab(text: 'Categories'),
+            Tab(text: 'By Bank'),
+            Tab(text: 'Trends'),
+          ],
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showBudgetDialog(),
+        onPressed: _showBudgetDialog,
         icon: Icon(_budget == null ? Icons.add : Icons.edit),
         label: Text(_budget == null ? 'Set Budget' : 'Edit'),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : _budget == null
-          ? _buildEmpty(isDark)
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  _buildProgressCard(isDark, fmt),
-                  const SizedBox(height: 20),
-                  _buildChart(isDark),
-                  const SizedBox(height: 80),
-                ],
-              ),
+          : TabBarView(
+              controller: _tabController,
+              children: [
+                _buildOverviewTab(isDark, fmt),
+                _buildCategoriesTab(isDark, fmt),
+                _buildBankTab(isDark, fmt),
+                _buildTrendsTab(isDark, fmt),
+              ],
             ),
+    );
+  }
+
+  // ==================== OVERVIEW TAB ====================
+  Widget _buildOverviewTab(bool isDark, NumberFormat fmt) {
+    if (_budget == null) return _buildEmpty(isDark);
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          _buildProgressCard(isDark, fmt),
+          const SizedBox(height: 20),
+          _buildDailyChart(isDark),
+          const SizedBox(height: 80),
+        ],
+      ),
     );
   }
 
@@ -94,15 +155,12 @@ class _BudgetScreenState extends State<BudgetScreen> {
           color: Colors.grey,
         ),
         const SizedBox(height: 16),
-        Text(
+        const Text(
           'No Budget Set',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 8),
-        Text(
-          'Set a monthly budget to track spending',
-          style: TextStyle(color: Colors.grey),
-        ),
+        const Text('Tap the button below to set a budget'),
       ],
     ),
   );
@@ -178,7 +236,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
                     ),
                     Text(
                       'of ${fmt.format(_budget!.amount)}',
-                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
                     ),
                   ],
                 ),
@@ -220,7 +278,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
     );
   }
 
-  Widget _buildChart(bool isDark) {
+  Widget _buildDailyChart(bool isDark) {
     final start = _budget!.currentPeriodStart;
     final end = _budget!.currentPeriodEnd;
     final days = end.difference(start).inDays + 1;
@@ -251,7 +309,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Spending Trend',
+            'Daily Spending',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 16),
@@ -322,19 +380,355 @@ class _BudgetScreenState extends State<BudgetScreen> {
                     ),
                   ),
           ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(width: 12, height: 3, color: Colors.indigo),
-              const SizedBox(width: 4),
-              const Text('Spending', style: TextStyle(fontSize: 11)),
-              const SizedBox(width: 16),
-              Container(width: 12, height: 3, color: Colors.grey),
-              const SizedBox(width: 4),
-              const Text('Budget', style: TextStyle(fontSize: 11)),
-            ],
+        ],
+      ),
+    );
+  }
+
+  // ==================== CATEGORIES TAB ====================
+  Widget _buildCategoriesTab(bool isDark, NumberFormat fmt) {
+    if (_categorySpending.isEmpty) {
+      return const Center(child: Text('No spending data for this period'));
+    }
+
+    final total = _categorySpending.values.fold(0.0, (a, b) => a + b);
+    final sorted = _categorySpending.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          // Pie Chart
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: SizedBox(
+              height: 200,
+              child: PieChart(
+                PieChartData(
+                  sectionsSpace: 2,
+                  centerSpaceRadius: 40,
+                  sections: sorted.take(6).map((e) {
+                    final pct = (e.value / total * 100);
+                    return PieChartSectionData(
+                      value: e.value,
+                      color: ExpenseCategories.getColor(e.key),
+                      title: '${pct.toStringAsFixed(0)}%',
+                      radius: 50,
+                      titleStyle: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ),
           ),
+          const SizedBox(height: 16),
+          // Category List
+          ...sorted.map(
+            (e) => Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: ExpenseCategories.getColor(e.key).withAlpha(30),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Center(
+                      child: Text(
+                        ExpenseCategories.getIcon(e.key),
+                        style: const TextStyle(fontSize: 20),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          e.key,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        Text(
+                          '${(e.value / total * 100).toStringAsFixed(1)}%',
+                          style: TextStyle(color: Colors.grey, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    fmt.format(e.value),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==================== BY BANK TAB ====================
+  Widget _buildBankTab(bool isDark, NumberFormat fmt) {
+    if (_bankSpending.isEmpty) {
+      return const Center(child: Text('No bank spending data for this period'));
+    }
+
+    final sorted = _bankSpending.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final maxValue = sorted.first.value;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: sorted.map((e) {
+          final account = _bankAccounts.firstWhere(
+            (a) => a.id == e.key,
+            orElse: () => BankAccount(
+              name: 'Unknown',
+              bankCode: '???',
+              initialBalance: 0,
+              currentBalance: 0,
+              createdAt: DateTime.now(),
+            ),
+          );
+          final pct = e.value / maxValue;
+          final color = account.color ?? const Color(0xFF6366F1);
+
+          return Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: color.withAlpha(30),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            account.bankCode,
+                            style: TextStyle(
+                              color: color,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          account.name,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      fmt.format(e.value),
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: pct,
+                    backgroundColor: Colors.grey.shade200,
+                    valueColor: AlwaysStoppedAnimation(color),
+                    minHeight: 8,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  // ==================== TRENDS TAB ====================
+  Widget _buildTrendsTab(bool isDark, NumberFormat fmt) {
+    if (_monthlySpending.isEmpty) {
+      return const Center(child: Text('No historical data available'));
+    }
+
+    final maxValue = _monthlySpending
+        .map((m) => m['total'] as double)
+        .reduce((a, b) => a > b ? a : b);
+    final monthFormat = DateFormat('MMM');
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Monthly Spending Trend',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  height: 200,
+                  child: BarChart(
+                    BarChartData(
+                      alignment: BarChartAlignment.spaceAround,
+                      maxY: maxValue * 1.2,
+                      barTouchData: BarTouchData(enabled: true),
+                      titlesData: FlTitlesData(
+                        leftTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            reservedSize: 50,
+                            getTitlesWidget: (v, _) => Text(
+                              '₹${(v / 1000).toStringAsFixed(0)}k',
+                              style: const TextStyle(fontSize: 10),
+                            ),
+                          ),
+                        ),
+                        bottomTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            reservedSize: 30,
+                            getTitlesWidget: (v, _) {
+                              if (v.toInt() < _monthlySpending.length) {
+                                return Text(
+                                  monthFormat.format(
+                                    _monthlySpending[v.toInt()]['month'],
+                                  ),
+                                  style: const TextStyle(fontSize: 10),
+                                );
+                              }
+                              return const Text('');
+                            },
+                          ),
+                        ),
+                        topTitles: const AxisTitles(
+                          sideTitles: SideTitles(showTitles: false),
+                        ),
+                        rightTitles: const AxisTitles(
+                          sideTitles: SideTitles(showTitles: false),
+                        ),
+                      ),
+                      gridData: FlGridData(show: true, drawVerticalLine: false),
+                      borderData: FlBorderData(show: false),
+                      barGroups: _monthlySpending.asMap().entries.map((e) {
+                        final isCurrentMonth =
+                            e.key == _monthlySpending.length - 1;
+                        return BarChartGroupData(
+                          x: e.key,
+                          barRods: [
+                            BarChartRodData(
+                              toY: e.value['total'],
+                              color: isCurrentMonth
+                                  ? Colors.indigo
+                                  : Colors.indigo.withAlpha(120),
+                              width: 24,
+                              borderRadius: const BorderRadius.vertical(
+                                top: Radius.circular(6),
+                              ),
+                            ),
+                          ],
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Monthly breakdown list
+          ...(_monthlySpending.reversed.toList()).map((m) {
+            final month = m['month'] as DateTime;
+            final total = m['total'] as double;
+            final isCurrentMonth =
+                month.month == DateTime.now().month &&
+                month.year == DateTime.now().year;
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: isCurrentMonth
+                    ? Border.all(color: Colors.indigo, width: 2)
+                    : null,
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      if (isCurrentMonth)
+                        Container(
+                          margin: const EdgeInsets.only(right: 8),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.indigo,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'NOW',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      Text(
+                        DateFormat('MMMM yyyy').format(month),
+                        style: const TextStyle(fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    fmt.format(total),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            );
+          }),
         ],
       ),
     );
