@@ -1,0 +1,961 @@
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:permission_handler/permission_handler.dart';
+import '../models/transaction_model.dart';
+import '../models/bank_account_model.dart';
+import '../models/budget_model.dart';
+import '../services/database_service.dart';
+import '../services/sms_service.dart';
+import '../services/notification_service.dart';
+import '../widgets/permission_request_card.dart';
+import '../widgets/expense_chart.dart';
+import 'transactions_screen.dart';
+import 'settings_screen.dart';
+import 'bank_accounts_screen.dart';
+import 'budget_screen.dart';
+
+/// Home screen of the Budget Tracker app
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+  final SmsService _smsService = SmsService();
+  final DatabaseService _dbService = DatabaseService();
+  final NotificationService _notificationService = NotificationService();
+
+  bool _hasPermission = false;
+  bool _isPermanentlyDenied = false;
+  bool _isLoading = true;
+  bool _isScanning = false;
+
+  double _totalCredits = 0;
+  double _totalDebits = 0;
+  int _transactionCount = 0;
+  int _unclassifiedCount = 0;
+  List<TransactionModel> _recentTransactions = [];
+  List<TransactionModel> _allTransactions = [];
+  List<BankAccount> _bankAccounts = [];
+  Budget? _activeBudget;
+  double _budgetSpent = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _initialize();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkPermission();
+      _loadData();
+    }
+  }
+
+  Future<void> _initialize() async {
+    await _notificationService.initialize();
+    await _checkPermission();
+    await _loadData();
+    setState(() => _isLoading = false);
+  }
+
+  Future<void> _checkPermission() async {
+    final hasPermission = await _smsService.hasPermission();
+    final isPermanentlyDenied = await _smsService
+        .isPermissionPermanentlyDenied();
+
+    setState(() {
+      _hasPermission = hasPermission;
+      _isPermanentlyDenied = isPermanentlyDenied;
+    });
+
+    if (hasPermission) {
+      _startSmsListening();
+    }
+  }
+
+  Future<void> _loadData() async {
+    try {
+      final transactions = await _dbService.getAllTransactions();
+      final unclassified = await _dbService.getUnclassifiedTransactions();
+      final bankAccounts = await _dbService.getAllBankAccounts();
+
+      double credits = 0;
+      double debits = 0;
+
+      for (final t in transactions) {
+        if (t.type == TransactionType.credit) {
+          credits += t.amount;
+        } else {
+          debits += t.amount;
+        }
+      }
+
+      // Load budget data
+      final budget = await _dbService.getActiveBudget();
+      double budgetSpent = 0;
+      if (budget != null) {
+        budgetSpent = await _dbService.getSpendingForPeriod(
+          startDate: budget.currentPeriodStart,
+          endDate: budget.currentPeriodEnd,
+        );
+      }
+
+      setState(() {
+        _totalCredits = credits;
+        _totalDebits = debits;
+        _transactionCount = transactions.length;
+        _unclassifiedCount = unclassified.length;
+        _recentTransactions = transactions.take(5).toList();
+        _allTransactions = transactions;
+        _bankAccounts = bankAccounts;
+        _activeBudget = budget;
+        _budgetSpent = budgetSpent;
+      });
+    } catch (e) {
+      debugPrint('Error loading data: $e');
+    }
+  }
+
+  Future<void> _requestPermission() async {
+    final status = await _smsService.requestPermission();
+    await _checkPermission();
+
+    if (status == PermissionStatus.granted) {
+      _scanExistingSms();
+    }
+  }
+
+  Future<void> _openSettings() async {
+    await _smsService.openSettings();
+  }
+
+  void _startSmsListening() {
+    _smsService.startListening(
+      onTransactionDetected: (transaction) {
+        _loadData();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '${transaction.type == TransactionType.credit ? "Credited" : "Debited"}: ₹${transaction.amount.toStringAsFixed(2)}',
+            ),
+            action: SnackBarAction(
+              label: 'View',
+              onPressed: () => _openTransactionsScreen(),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _scanExistingSms() async {
+    setState(() => _isScanning = true);
+
+    try {
+      final transactions = await _smsService.scanExistingSms(maxCount: 50);
+      await _loadData();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Found ${transactions.length} transactions')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error scanning SMS: $e')));
+      }
+    } finally {
+      setState(() => _isScanning = false);
+    }
+  }
+
+  void _openTransactionsScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const TransactionsScreen()),
+    ).then((_) => _loadData());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Scaffold(
+      backgroundColor: isDark ? const Color(0xFF121212) : Colors.grey.shade100,
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SafeArea(
+              child: RefreshIndicator(
+                onRefresh: _loadData,
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildHeader(),
+
+                      if (!_hasPermission)
+                        PermissionRequestCard(
+                          onRequestPermission: _requestPermission,
+                          onOpenSettings: _openSettings,
+                          isPermanentlyDenied: _isPermanentlyDenied,
+                        )
+                      else ...[
+                        _buildBalanceCard(),
+                        if (_bankAccounts.isNotEmpty) ...[
+                          const SizedBox(height: 16),
+                          _buildBankAccountsSection(),
+                        ],
+                        const SizedBox(height: 16),
+                        ExpenseChartWidget(transactions: _allTransactions),
+                        _buildBudgetCard(),
+                        _buildQuickActions(),
+                        _buildRecentTransactions(),
+                      ],
+
+                      const SizedBox(height: 32),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+    );
+  }
+
+  Widget _buildHeader() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Budget Tracker',
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey.shade800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    DateFormat('EEEE, MMMM d').format(DateTime.now()),
+                    style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+              if (_hasPermission)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.check_circle,
+                        size: 16,
+                        color: Colors.green.shade600,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'SMS Active',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.green.shade600,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              IconButton(
+                icon: Icon(
+                  Icons.settings_outlined,
+                  color: isDark ? Colors.white : Colors.grey.shade700,
+                ),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                  ).then((_) => setState(() {}));
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBalanceCard() {
+    final formatter = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
+    final balance = _totalCredits - _totalDebits;
+    final isPositive = balance >= 0;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.indigo.shade700, Colors.indigo.shade500],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.indigo.withOpacity(0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Net Balance',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.white.withOpacity(0.8),
+                ),
+              ),
+              Icon(
+                isPositive ? Icons.trending_up : Icons.trending_down,
+                color: Colors.white.withOpacity(0.8),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            formatter.format(balance.abs()),
+            style: const TextStyle(
+              fontSize: 36,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          Text(
+            isPositive ? 'You\'re in profit! 🎉' : 'Spending exceeds income',
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.white.withOpacity(0.8),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.green.withOpacity(0.3),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Icon(
+                            Icons.arrow_downward,
+                            size: 14,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Income',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.white.withOpacity(0.8),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      formatter.format(_totalCredits),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withOpacity(0.3),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Icon(
+                            Icons.arrow_upward,
+                            size: 14,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Expenses',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.white.withOpacity(0.8),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      formatter.format(_totalDebits),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBankAccountsSection() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final formatter = NumberFormat.currency(
+      locale: 'en_IN',
+      symbol: '₹',
+      decimalDigits: 0,
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Bank Accounts',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.white : Colors.grey.shade800,
+                ),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const BankAccountsScreen(),
+                    ),
+                  ).then((_) => _loadData());
+                },
+                child: const Text('Manage'),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 130,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: _bankAccounts.length,
+            itemBuilder: (context, index) {
+              final account = _bankAccounts[index];
+              final bankColor =
+                  account.color ?? BankCodes.getBankColor(account.bankCode);
+              final diff = account.currentBalance - account.initialBalance;
+              final isPositive = diff >= 0;
+
+              return Container(
+                width: 180,
+                margin: const EdgeInsets.only(right: 12),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [bankColor, bankColor.withAlpha(200)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: bankColor.withAlpha(77),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const BankAccountsScreen(),
+                        ),
+                      ).then((_) => _loadData());
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  account.name,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withAlpha(51),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  account.bankCode,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const Spacer(),
+                          Text(
+                            formatter.format(account.currentBalance),
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Icon(
+                                isPositive
+                                    ? Icons.arrow_upward
+                                    : Icons.arrow_downward,
+                                color: Colors.white.withAlpha(200),
+                                size: 12,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${isPositive ? '+' : ''}${formatter.format(diff)}',
+                                style: TextStyle(
+                                  color: Colors.white.withAlpha(200),
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildQuickActions() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildActionCard(
+              icon: Icons.receipt_long,
+              label: 'Transactions',
+              value: _transactionCount.toString(),
+              color: Colors.blue,
+              onTap: _openTransactionsScreen,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _buildActionCard(
+              icon: Icons.pending_actions,
+              label: 'Unclassified',
+              value: _unclassifiedCount.toString(),
+              color: Colors.orange,
+              onTap: _openTransactionsScreen,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _buildActionCard(
+              icon: Icons.sync,
+              label: 'Scan SMS',
+              value: _isScanning ? '...' : 'Scan',
+              color: Colors.purple,
+              onTap: _isScanning ? null : _scanExistingSms,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionCard({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+    VoidCallback? onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: color, size: 22),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey.shade800,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecentTransactions() {
+    if (_recentTransactions.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final formatter = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
+    final dateFormatter = DateFormat('MMM d');
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Recent Transactions',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade800,
+                ),
+              ),
+              TextButton(
+                onPressed: _openTransactionsScreen,
+                child: const Text('See All'),
+              ),
+            ],
+          ),
+        ),
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            children: _recentTransactions.asMap().entries.map((entry) {
+              final index = entry.key;
+              final transaction = entry.value;
+              final isCredit = transaction.type == TransactionType.credit;
+              final isLast = index == _recentTransactions.length - 1;
+
+              return Column(
+                children: [
+                  ListTile(
+                    leading: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: isCredit
+                            ? Colors.green.withOpacity(0.1)
+                            : Colors.red.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        isCredit ? Icons.arrow_downward : Icons.arrow_upward,
+                        color: isCredit ? Colors.green : Colors.red,
+                        size: 20,
+                      ),
+                    ),
+                    title: Text(
+                      transaction.category ?? transaction.sender,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 14,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Text(
+                      dateFormatter.format(transaction.detectedAt),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade500,
+                      ),
+                    ),
+                    trailing: Text(
+                      '${isCredit ? '+' : '-'} ${formatter.format(transaction.amount)}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: isCredit ? Colors.green : Colors.red,
+                      ),
+                    ),
+                    onTap: _openTransactionsScreen,
+                  ),
+                  if (!isLast)
+                    Divider(
+                      height: 1,
+                      indent: 70,
+                      endIndent: 16,
+                      color: Colors.grey.shade200,
+                    ),
+                ],
+              );
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBudgetCard() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final fmt = NumberFormat.currency(
+      locale: 'en_IN',
+      symbol: '₹',
+      decimalDigits: 0,
+    );
+
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const BudgetScreen()),
+      ).then((_) => _loadData()),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: isDark
+                ? [const Color(0xFF2D2D44), const Color(0xFF1E1E2E)]
+                : [const Color(0xFF6366F1), const Color(0xFF4F46E5)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: _activeBudget == null
+            ? Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withAlpha(50),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.account_balance_wallet,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Set Your Budget',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Tap to set a monthly budget',
+                          style: TextStyle(color: Colors.white70, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(
+                    Icons.arrow_forward_ios,
+                    color: Colors.white70,
+                    size: 16,
+                  ),
+                ],
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        _activeBudget!.name,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      Text(
+                        '${((_budgetSpent / _activeBudget!.amount) * 100).clamp(0, 999).toStringAsFixed(0)}%',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: (_budgetSpent / _activeBudget!.amount).clamp(0, 1),
+                      backgroundColor: Colors.white.withAlpha(50),
+                      valueColor: AlwaysStoppedAnimation(
+                        _budgetSpent >= _activeBudget!.amount
+                            ? Colors.red.shade300
+                            : Colors.greenAccent,
+                      ),
+                      minHeight: 8,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '${fmt.format(_budgetSpent)} spent',
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                        ),
+                      ),
+                      Text(
+                        '${fmt.format(_activeBudget!.amount)} budget',
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+}
