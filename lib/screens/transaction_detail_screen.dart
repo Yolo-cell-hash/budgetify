@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/transaction_model.dart';
+import '../models/transaction_rule_model.dart';
 import '../services/database_service.dart';
 
 /// Screen for viewing and classifying a transaction
@@ -36,7 +37,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   }
 
   Future<void> _saveClassification() async {
-    if (_transaction.id == null) return;
+    if (_transaction.id == null || _selectedCategory == null) return;
 
     setState(() => _isSaving = true);
 
@@ -46,16 +47,14 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
         notes: _notesController.text.trim().isEmpty
             ? null
             : _notesController.text.trim(),
-        isClassified: _selectedCategory != null,
+        isClassified: true,
       );
 
       await _dbService.updateTransaction(updatedTransaction);
 
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Transaction saved')));
-        Navigator.pop(context, true);
+        // Show bulk flagging options dialog
+        await _showBulkFlaggingDialog();
       }
     } catch (e) {
       if (mounted) {
@@ -68,18 +67,244 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     }
   }
 
+  Future<void> _showBulkFlaggingDialog() async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark ? const Color(0xFF1C2333) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black87;
+
+    final result = await showModalBottomSheet<int>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: cardColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade400,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Apply to Similar Transactions?',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: textColor,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Found transactions from "${_transaction.sender}". How would you like to classify them?',
+              style: TextStyle(
+                color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+              ),
+            ),
+            const SizedBox(height: 24),
+            _buildOption(
+              ctx,
+              icon: Icons.select_all,
+              title: 'Apply to All',
+              subtitle: 'Classify all existing & auto-flag future transactions',
+              value: 1,
+              color: Colors.green,
+              isDark: isDark,
+            ),
+            const SizedBox(height: 12),
+            _buildOption(
+              ctx,
+              icon: Icons.history,
+              title: 'Apply to Existing Only',
+              subtitle:
+                  'Classify existing transactions, flag future ones manually',
+              value: 2,
+              color: Colors.orange,
+              isDark: isDark,
+            ),
+            const SizedBox(height: 12),
+            _buildOption(
+              ctx,
+              icon: Icons.touch_app,
+              title: 'Only This One',
+              subtitle: 'Tag only this transaction, handle others manually',
+              value: 3,
+              color: Colors.blue,
+              isDark: isDark,
+            ),
+            SizedBox(height: MediaQuery.of(ctx).padding.bottom + 16),
+          ],
+        ),
+      ),
+    );
+
+    if (result != null && mounted) {
+      await _processBulkFlagging(result);
+    }
+  }
+
+  Widget _buildOption(
+    BuildContext ctx, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required int value,
+    required Color color,
+    required bool isDark,
+  }) {
+    final cardBg = isDark ? const Color(0xFF2D3748) : Colors.grey.shade50;
+    final textColor = isDark ? Colors.white : Colors.black87;
+
+    return InkWell(
+      onTap: () => Navigator.pop(ctx, value),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isDark ? Colors.grey.shade700 : Colors.grey.shade200,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: color.withAlpha(30),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: color, size: 24),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
+                      color: textColor,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isDark
+                          ? Colors.grey.shade400
+                          : Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right, color: Colors.grey.shade400),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _processBulkFlagging(int option) async {
+    final senderPattern = _transaction.sender;
+    final category = _selectedCategory!;
+    final notes = _notesController.text.trim().isEmpty
+        ? null
+        : _notesController.text.trim();
+
+    String message = 'Transaction saved';
+
+    try {
+      if (option == 1 || option == 2) {
+        // Bulk update existing transactions
+        final updatedCount = await _dbService.bulkUpdateTransactionsByPattern(
+          senderPattern: senderPattern,
+          category: category,
+          notes: notes,
+        );
+        message = 'Updated $updatedCount similar transactions';
+      }
+
+      if (option == 1) {
+        // Create rule for future transactions
+        final rule = TransactionRule(
+          senderPattern: senderPattern,
+          category: category,
+          notes: notes,
+          applyToFuture: true,
+        );
+        await _dbService.insertTransactionRule(rule);
+        message += ' • Future transactions will be auto-classified';
+      } else if (option == 2) {
+        // Create rule but mark as not applying to future
+        final rule = TransactionRule(
+          senderPattern: senderPattern,
+          category: category,
+          notes: notes,
+          applyToFuture: false,
+        );
+        await _dbService.insertTransactionRule(rule);
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        Navigator.pop(context, true);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isCredit = _transaction.type == TransactionType.credit;
     final formatter = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
     final dateFormatter = DateFormat('EEEE, MMMM d, y • h:mm a');
 
+    final bgColor = isDark ? const Color(0xFF0D1117) : Colors.grey.shade100;
+    final cardColor = isDark ? const Color(0xFF1C2333) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subtextColor = isDark ? Colors.grey.shade400 : Colors.grey.shade600;
+    final chipBgUnselected = isDark
+        ? const Color(0xFF2D3748)
+        : Colors.grey.shade50;
+    final chipBorderUnselected = isDark
+        ? const Color(0xFF3D4758)
+        : Colors.grey.shade200;
+    final inputBgColor = isDark ? const Color(0xFF2D3748) : Colors.grey.shade50;
+    final messageBgColor = isDark
+        ? const Color(0xFF161B22)
+        : Colors.grey.shade50;
+
     return Scaffold(
-      backgroundColor: Colors.grey.shade100,
+      backgroundColor: bgColor,
       appBar: AppBar(
         title: const Text('Transaction Details'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
+        backgroundColor: cardColor,
+        foregroundColor: textColor,
         elevation: 0,
       ),
       body: SingleChildScrollView(
@@ -90,10 +315,10 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
             Container(
               padding: const EdgeInsets.symmetric(vertical: 32),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: cardColor,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withAlpha(13),
                     blurRadius: 10,
                     offset: const Offset(0, 2),
                   ),
@@ -105,8 +330,8 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: isCredit
-                          ? Colors.green.withOpacity(0.1)
-                          : Colors.red.withOpacity(0.1),
+                          ? Colors.green.withAlpha(26)
+                          : Colors.red.withAlpha(26),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
@@ -132,8 +357,8 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                     ),
                     decoration: BoxDecoration(
                       color: isCredit
-                          ? Colors.green.withOpacity(0.1)
-                          : Colors.red.withOpacity(0.1),
+                          ? Colors.green.withAlpha(26)
+                          : Colors.red.withAlpha(26),
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: Text(
@@ -147,7 +372,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                   const SizedBox(height: 8),
                   Text(
                     dateFormatter.format(_transaction.detectedAt),
-                    style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                    style: TextStyle(fontSize: 13, color: subtextColor),
                   ),
                 ],
               ),
@@ -160,41 +385,58 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
               margin: const EdgeInsets.symmetric(horizontal: 16),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: cardColor,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Details',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: textColor,
+                    ),
                   ),
                   const SizedBox(height: 16),
-                  _buildDetailRow('From', _transaction.sender),
+                  _buildDetailRow(
+                    'From',
+                    _transaction.sender,
+                    subtextColor,
+                    textColor,
+                  ),
                   if (_transaction.accountInfo != null)
-                    _buildDetailRow('Account', _transaction.accountInfo!),
-                  const Divider(height: 24),
-                  const Text(
+                    _buildDetailRow(
+                      'Account',
+                      _transaction.accountInfo!,
+                      subtextColor,
+                      textColor,
+                    ),
+                  Divider(
+                    height: 24,
+                    color: isDark ? Colors.grey.shade700 : null,
+                  ),
+                  Text(
                     'Original Message',
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
-                      color: Colors.grey,
+                      color: subtextColor,
                     ),
                   ),
                   const SizedBox(height: 8),
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade50,
+                      color: messageBgColor,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
                       _transaction.message,
                       style: TextStyle(
                         fontSize: 13,
-                        color: Colors.grey.shade700,
+                        color: subtextColor,
                         height: 1.4,
                       ),
                     ),
@@ -210,7 +452,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
               margin: const EdgeInsets.symmetric(horizontal: 16),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: cardColor,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Column(
@@ -218,11 +460,12 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                 children: [
                   Row(
                     children: [
-                      const Text(
+                      Text(
                         'Category',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
+                          color: textColor,
                         ),
                       ),
                       if (!_transaction.isClassified) ...[
@@ -233,7 +476,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.orange.withOpacity(0.1),
+                            color: Colors.orange.withAlpha(26),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: const Text(
@@ -267,13 +510,15 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                           ),
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? Colors.blue.shade50
-                                : Colors.grey.shade50,
+                                ? (isDark
+                                      ? Colors.blue.shade900.withAlpha(150)
+                                      : Colors.blue.shade50)
+                                : chipBgUnselected,
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
                               color: isSelected
                                   ? Colors.blue.shade300
-                                  : Colors.grey.shade200,
+                                  : chipBorderUnselected,
                             ),
                           ),
                           child: Row(
@@ -289,8 +534,12 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                                 style: TextStyle(
                                   fontSize: 13,
                                   color: isSelected
-                                      ? Colors.blue.shade700
-                                      : Colors.grey.shade700,
+                                      ? (isDark
+                                            ? Colors.blue.shade200
+                                            : Colors.blue.shade700)
+                                      : (isDark
+                                            ? Colors.grey.shade300
+                                            : Colors.grey.shade700),
                                   fontWeight: isSelected
                                       ? FontWeight.w600
                                       : FontWeight.normal,
@@ -313,25 +562,30 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
               margin: const EdgeInsets.symmetric(horizontal: 16),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: cardColor,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Notes',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: textColor,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: _notesController,
                     maxLines: 3,
+                    style: TextStyle(color: textColor),
                     decoration: InputDecoration(
                       hintText: 'Add notes about this transaction...',
-                      hintStyle: TextStyle(color: Colors.grey.shade400),
+                      hintStyle: TextStyle(color: subtextColor),
                       filled: true,
-                      fillColor: Colors.grey.shade50,
+                      fillColor: inputBgColor,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
                         borderSide: BorderSide.none,
@@ -349,15 +603,20 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: ElevatedButton(
-                onPressed: _isSaving ? null : _saveClassification,
+                onPressed: (_isSaving || _selectedCategory == null)
+                    ? null
+                    : _saveClassification,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
+                  backgroundColor: Theme.of(context).primaryColor,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                   elevation: 0,
+                  disabledBackgroundColor: isDark
+                      ? Colors.grey.shade800
+                      : Colors.grey.shade300,
                 ),
                 child: _isSaving
                     ? const SizedBox(
@@ -385,7 +644,12 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     );
   }
 
-  Widget _buildDetailRow(String label, String value) {
+  Widget _buildDetailRow(
+    String label,
+    String value,
+    Color subtextColor,
+    Color textColor,
+  ) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
@@ -395,13 +659,17 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
             width: 80,
             child: Text(
               label,
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+              style: TextStyle(fontSize: 13, color: subtextColor),
             ),
           ),
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: textColor,
+              ),
             ),
           ),
         ],

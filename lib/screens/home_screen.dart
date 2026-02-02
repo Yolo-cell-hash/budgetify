@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../models/transaction_model.dart';
-import '../models/bank_account_model.dart';
 import '../models/budget_model.dart';
 import '../services/database_service.dart';
 import '../services/sms_service.dart';
@@ -11,7 +10,6 @@ import '../widgets/permission_request_card.dart';
 import '../widgets/expense_chart.dart';
 import 'transactions_screen.dart';
 import 'settings_screen.dart';
-import 'bank_accounts_screen.dart';
 import 'budget_screen.dart';
 import 'add_transaction_screen.dart';
 
@@ -39,7 +37,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int _unclassifiedCount = 0;
   List<TransactionModel> _recentTransactions = [];
   List<TransactionModel> _allTransactions = [];
-  List<BankAccount> _bankAccounts = [];
   Budget? _activeBudget;
   double _budgetSpent = 0;
   List<TransactionModel> _cashTransactions = [];
@@ -94,7 +91,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     try {
       final transactions = await _dbService.getAllTransactions();
       final unclassified = await _dbService.getUnclassifiedTransactions();
-      final bankAccounts = await _dbService.getAllBankAccounts();
 
       double credits = 0;
       double debits = 0;
@@ -152,7 +148,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         _unclassifiedCount = unclassified.length;
         _recentTransactions = transactions.take(5).toList();
         _allTransactions = transactions;
-        _bankAccounts = bankAccounts;
         _activeBudget = budget;
         _budgetSpent = budgetSpent;
         _cashTransactions = cashTxns;
@@ -253,10 +248,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         )
                       else ...[
                         _buildBalanceCard(),
-                        if (_bankAccounts.isNotEmpty) ...[
-                          const SizedBox(height: 16),
-                          _buildBankAccountsSection(),
-                        ],
                         const SizedBox(height: 16),
                         ExpenseChartWidget(transactions: _allTransactions),
                         _buildBudgetCard(),
@@ -294,7 +285,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.bold,
-                        color: Colors.grey.shade800,
+                        color: isDark ? Colors.white : Colors.grey.shade800,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -302,7 +293,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       DateFormat('EEEE, MMMM d').format(DateTime.now()),
                       style: TextStyle(
                         fontSize: 14,
-                        color: Colors.grey.shade600,
+                        color: isDark
+                            ? Colors.grey.shade400
+                            : Colors.grey.shade600,
                       ),
                     ),
                   ],
@@ -540,170 +533,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildBankAccountsSection() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final formatter = NumberFormat.currency(
-      locale: 'en_IN',
-      symbol: '₹',
-      decimalDigits: 0,
-    );
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Bank Accounts',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? Colors.white : Colors.grey.shade800,
-                ),
-              ),
-              TextButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const BankAccountsScreen(),
-                    ),
-                  ).then((_) => _loadData());
-                },
-                child: const Text('Manage'),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        SizedBox(
-          height: 130,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: _bankAccounts.length,
-            itemBuilder: (context, index) {
-              final account = _bankAccounts[index];
-              final bankColor =
-                  account.color ?? BankCodes.getBankColor(account.bankCode);
-              final diff = account.currentBalance - account.initialBalance;
-              final isPositive = diff >= 0;
-
-              return Container(
-                width: 180,
-                margin: const EdgeInsets.only(right: 12),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [bankColor, bankColor.withAlpha(200)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: bankColor.withAlpha(77),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(16),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const BankAccountsScreen(),
-                        ),
-                      ).then((_) => _loadData());
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  account.name,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 14,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withAlpha(51),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  account.bankCode,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const Spacer(),
-                          Text(
-                            formatter.format(account.currentBalance),
-                            style: const TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Icon(
-                                isPositive
-                                    ? Icons.arrow_upward
-                                    : Icons.arrow_downward,
-                                color: Colors.white.withAlpha(200),
-                                size: 12,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                '${isPositive ? '+' : ''}${formatter.format(diff)}',
-                                style: TextStyle(
-                                  color: Colors.white.withAlpha(200),
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildQuickActions() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -761,7 +590,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF2C2C2C) : Colors.white,
+          color: isDark ? const Color(0xFF1C2333) : Colors.white,
           borderRadius: BorderRadius.circular(12),
           boxShadow: isDark
               ? null

@@ -62,7 +62,7 @@ class TransactionCard extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF2C2C2C) : Colors.white,
+          color: isDark ? const Color(0xFF1C2333) : Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border(left: BorderSide(color: typeColor, width: 4)),
           boxShadow: isDark

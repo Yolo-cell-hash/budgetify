@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:budget_tracker/screens/home_screen.dart';
 import 'package:budget_tracker/screens/onboarding_screen.dart';
 import 'package:budget_tracker/services/notification_service.dart';
+import 'package:budget_tracker/services/background_service.dart';
 import 'package:budget_tracker/providers/theme_provider.dart';
 import 'package:budget_tracker/providers/app_preferences.dart';
 
@@ -11,6 +12,9 @@ void main() async {
 
   // Initialize notification service
   await NotificationService().initialize();
+
+  // Initialize background service for scheduled SMS scans
+  await BackgroundService.initialize();
 
   // Create providers
   final themeProvider = ThemeProvider();

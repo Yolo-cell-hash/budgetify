@@ -1,10 +1,10 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/transaction_model.dart';
-import '../models/bank_account_model.dart';
 import '../models/budget_model.dart';
+import '../models/transaction_rule_model.dart';
 
-/// Database service for persisting transactions and bank accounts
+/// Database service for persisting transactions and budgets
 class DatabaseService {
   static final DatabaseService _instance = DatabaseService._internal();
   static Database? _database;
@@ -27,7 +27,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 4,
+      version: 6,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -35,20 +35,7 @@ class DatabaseService {
 
   /// Create database tables (fresh install)
   Future<void> _onCreate(Database db, int version) async {
-    // Bank accounts table
-    await db.execute('''
-      CREATE TABLE bank_accounts(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        bank_code TEXT NOT NULL,
-        initial_balance REAL NOT NULL,
-        current_balance REAL NOT NULL,
-        created_at INTEGER NOT NULL,
-        color INTEGER
-      )
-    ''');
-
-    // Transactions table with bank account link
+    // Transactions table
     await db.execute('''
       CREATE TABLE transactions(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -61,18 +48,13 @@ class DatabaseService {
         category TEXT,
         notes TEXT,
         account_info TEXT,
-        bank_account_id INTEGER,
-        is_manual INTEGER NOT NULL DEFAULT 0,
-        FOREIGN KEY (bank_account_id) REFERENCES bank_accounts(id)
+        is_manual INTEGER NOT NULL DEFAULT 0
       )
     ''');
 
     // Create indexes
     await db.execute(
       'CREATE INDEX idx_transactions_detected_at ON transactions(detected_at DESC)',
-    );
-    await db.execute(
-      'CREATE INDEX idx_transactions_bank_account ON transactions(bank_account_id)',
     );
     await db.execute(
       'CREATE INDEX idx_transactions_category ON transactions(category)',
@@ -92,38 +74,27 @@ class DatabaseService {
         notified_100 INTEGER NOT NULL DEFAULT 0
       )
     ''');
+
+    // Transaction rules table for auto-classification
+    await db.execute('''
+      CREATE TABLE transaction_rules(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sender_pattern TEXT NOT NULL,
+        message_keywords TEXT,
+        category TEXT NOT NULL,
+        notes TEXT,
+        apply_to_future INTEGER NOT NULL DEFAULT 1,
+        created_at INTEGER NOT NULL
+      )
+    ''');
+
+    await db.execute(
+      'CREATE INDEX idx_rules_sender ON transaction_rules(sender_pattern)',
+    );
   }
 
-  /// Upgrade database from version 1 to 2
+  /// Handle database upgrades
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    if (oldVersion < 2) {
-      // Add bank_accounts table
-      await db.execute('''
-        CREATE TABLE IF NOT EXISTS bank_accounts(
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          name TEXT NOT NULL,
-          bank_code TEXT NOT NULL,
-          initial_balance REAL NOT NULL,
-          current_balance REAL NOT NULL,
-          created_at INTEGER NOT NULL,
-          color INTEGER
-        )
-      ''');
-
-      // Add bank_account_id column to transactions
-      await db.execute(
-        'ALTER TABLE transactions ADD COLUMN bank_account_id INTEGER',
-      );
-
-      // Create new indexes
-      await db.execute(
-        'CREATE INDEX IF NOT EXISTS idx_transactions_bank_account ON transactions(bank_account_id)',
-      );
-      await db.execute(
-        'CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category)',
-      );
-    }
-
     if (oldVersion < 3) {
       await db.execute('''
         CREATE TABLE IF NOT EXISTS budgets(
@@ -141,97 +112,41 @@ class DatabaseService {
     }
 
     if (oldVersion < 4) {
+      try {
+        await db.execute(
+          'ALTER TABLE transactions ADD COLUMN is_manual INTEGER NOT NULL DEFAULT 0',
+        );
+      } catch (e) {
+        // Column may already exist
+      }
+    }
+
+    if (oldVersion < 5) {
+      // Clean up old bank accounts table if it exists
+      try {
+        await db.execute('DROP TABLE IF EXISTS bank_accounts');
+      } catch (e) {
+        // Ignore errors
+      }
+    }
+
+    if (oldVersion < 6) {
+      // Add transaction rules table for auto-classification
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS transaction_rules(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          sender_pattern TEXT NOT NULL,
+          message_keywords TEXT,
+          category TEXT NOT NULL,
+          notes TEXT,
+          apply_to_future INTEGER NOT NULL DEFAULT 1,
+          created_at INTEGER NOT NULL
+        )
+      ''');
       await db.execute(
-        'ALTER TABLE transactions ADD COLUMN is_manual INTEGER NOT NULL DEFAULT 0',
+        'CREATE INDEX IF NOT EXISTS idx_rules_sender ON transaction_rules(sender_pattern)',
       );
     }
-  }
-
-  // ==================== BANK ACCOUNT OPERATIONS ====================
-
-  /// Insert a new bank account
-  Future<int> insertBankAccount(BankAccount account) async {
-    final db = await database;
-    return await db.insert(
-      'bank_accounts',
-      account.toMap(),
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-  }
-
-  /// Update a bank account
-  Future<int> updateBankAccount(BankAccount account) async {
-    final db = await database;
-    return await db.update(
-      'bank_accounts',
-      account.toMap(),
-      where: 'id = ?',
-      whereArgs: [account.id],
-    );
-  }
-
-  /// Delete a bank account
-  Future<int> deleteBankAccount(int id) async {
-    final db = await database;
-    // Also unlink transactions from this account
-    await db.update(
-      'transactions',
-      {'bank_account_id': null},
-      where: 'bank_account_id = ?',
-      whereArgs: [id],
-    );
-    return await db.delete('bank_accounts', where: 'id = ?', whereArgs: [id]);
-  }
-
-  /// Get all bank accounts
-  Future<List<BankAccount>> getAllBankAccounts() async {
-    final db = await database;
-    final maps = await db.query('bank_accounts', orderBy: 'name ASC');
-    return maps.map((map) => BankAccount.fromMap(map)).toList();
-  }
-
-  /// Get bank account by ID
-  Future<BankAccount?> getBankAccountById(int id) async {
-    final db = await database;
-    final maps = await db.query(
-      'bank_accounts',
-      where: 'id = ?',
-      whereArgs: [id],
-    );
-    if (maps.isEmpty) return null;
-    return BankAccount.fromMap(maps.first);
-  }
-
-  /// Get bank account by bank code
-  Future<BankAccount?> getBankAccountByCode(String bankCode) async {
-    final db = await database;
-    final maps = await db.query(
-      'bank_accounts',
-      where: 'bank_code = ?',
-      whereArgs: [bankCode],
-    );
-    if (maps.isEmpty) return null;
-    return BankAccount.fromMap(maps.first);
-  }
-
-  /// Update bank account balance
-  Future<void> updateBankBalance(int accountId, double newBalance) async {
-    final db = await database;
-    await db.update(
-      'bank_accounts',
-      {'current_balance': newBalance},
-      where: 'id = ?',
-      whereArgs: [accountId],
-    );
-  }
-
-  /// Check if any bank accounts exist
-  Future<bool> hasBankAccounts() async {
-    final db = await database;
-    final result = await db.rawQuery(
-      'SELECT COUNT(*) as count FROM bank_accounts',
-    );
-    return ((result.first['count'] as int?) ?? 0) > 0;
   }
 
   // ==================== TRANSACTION OPERATIONS ====================
@@ -306,20 +221,6 @@ class DatabaseService {
     return maps.map((map) => TransactionModel.fromMap(map)).toList();
   }
 
-  /// Get transactions by bank account
-  Future<List<TransactionModel>> getTransactionsByBankAccount(
-    int bankAccountId,
-  ) async {
-    final db = await database;
-    final maps = await db.query(
-      'transactions',
-      where: 'bank_account_id = ?',
-      whereArgs: [bankAccountId],
-      orderBy: 'detected_at DESC',
-    );
-    return maps.map((map) => TransactionModel.fromMap(map)).toList();
-  }
-
   /// Get transactions by category
   Future<List<TransactionModel>> getTransactionsByCategory(
     String category,
@@ -338,7 +239,6 @@ class DatabaseService {
   Future<List<TransactionModel>> getFilteredTransactions({
     TransactionType? type,
     String? category,
-    int? bankAccountId,
     bool? unclassifiedOnly,
   }) async {
     final db = await database;
@@ -354,11 +254,6 @@ class DatabaseService {
     if (category != null) {
       whereClauses.add('category = ?');
       whereArgs.add(category);
-    }
-
-    if (bankAccountId != null) {
-      whereClauses.add('bank_account_id = ?');
-      whereArgs.add(bankAccountId);
     }
 
     if (unclassifiedOnly == true) {
@@ -395,19 +290,6 @@ class DatabaseService {
     final result = await db.rawQuery(
       'SELECT SUM(amount) as total FROM transactions WHERE type = ?',
       [type.index],
-    );
-    return (result.first['total'] as num?)?.toDouble() ?? 0.0;
-  }
-
-  /// Get total by type for a specific bank account
-  Future<double> getTotalByTypeForAccount(
-    TransactionType type,
-    int bankAccountId,
-  ) async {
-    final db = await database;
-    final result = await db.rawQuery(
-      'SELECT SUM(amount) as total FROM transactions WHERE type = ? AND bank_account_id = ?',
-      [type.index, bankAccountId],
     );
     return (result.first['total'] as num?)?.toDouble() ?? 0.0;
   }
@@ -568,31 +450,6 @@ class DatabaseService {
     };
   }
 
-  /// Get spending breakdown by bank account for a period
-  Future<Map<int, double>> getSpendingByBank({
-    required DateTime startDate,
-    required DateTime endDate,
-  }) async {
-    final db = await database;
-    final result = await db.rawQuery(
-      '''
-      SELECT bank_account_id, SUM(amount) as total FROM transactions
-      WHERE type = ? AND detected_at >= ? AND detected_at <= ? AND bank_account_id IS NOT NULL
-      GROUP BY bank_account_id ORDER BY total DESC
-    ''',
-      [
-        TransactionType.debit.index,
-        startDate.millisecondsSinceEpoch,
-        endDate.millisecondsSinceEpoch,
-      ],
-    );
-
-    return {
-      for (var row in result)
-        row['bank_account_id'] as int: (row['total'] as num).toDouble(),
-    };
-  }
-
   /// Get monthly spending totals for last N months
   Future<List<Map<String, dynamic>>> getMonthlySpending({
     int months = 6,
@@ -636,6 +493,120 @@ class DatabaseService {
       orderBy: 'detected_at DESC',
     );
     return result.map((map) => TransactionModel.fromMap(map)).toList();
+  }
+
+  /// Get transactions for a specific month
+  Future<List<TransactionModel>> getTransactionsByMonth(DateTime month) async {
+    final db = await database;
+    final startOfMonth = DateTime(month.year, month.month, 1);
+    final endOfMonth = DateTime(month.year, month.month + 1, 0, 23, 59, 59);
+
+    final result = await db.query(
+      'transactions',
+      where: 'detected_at >= ? AND detected_at <= ? AND type = ?',
+      whereArgs: [
+        startOfMonth.millisecondsSinceEpoch,
+        endOfMonth.millisecondsSinceEpoch,
+        TransactionType.debit.index,
+      ],
+      orderBy: 'detected_at DESC',
+      limit: 50,
+    );
+    return result.map((map) => TransactionModel.fromMap(map)).toList();
+  }
+
+  // ==================== TRANSACTION RULES OPERATIONS ====================
+
+  /// Insert a new transaction rule
+  Future<int> insertTransactionRule(TransactionRule rule) async {
+    final db = await database;
+    return await db.insert('transaction_rules', rule.toMap());
+  }
+
+  /// Get all transaction rules
+  Future<List<TransactionRule>> getAllTransactionRules() async {
+    final db = await database;
+    final result = await db.query(
+      'transaction_rules',
+      orderBy: 'created_at DESC',
+    );
+    return result.map((map) => TransactionRule.fromMap(map)).toList();
+  }
+
+  /// Get active rules (applyToFuture = true)
+  Future<List<TransactionRule>> getActiveRules() async {
+    final db = await database;
+    final result = await db.query(
+      'transaction_rules',
+      where: 'apply_to_future = 1',
+      orderBy: 'created_at DESC',
+    );
+    return result.map((map) => TransactionRule.fromMap(map)).toList();
+  }
+
+  /// Find a matching rule for a transaction
+  Future<TransactionRule?> findMatchingRule(
+    String sender,
+    String message,
+  ) async {
+    final rules = await getActiveRules();
+    for (final rule in rules) {
+      if (rule.matches(sender, message)) {
+        return rule;
+      }
+    }
+    return null;
+  }
+
+  /// Delete a transaction rule
+  Future<int> deleteTransactionRule(int id) async {
+    final db = await database;
+    return await db.delete(
+      'transaction_rules',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  /// Bulk update transactions matching a pattern with a category
+  Future<int> bulkUpdateTransactionsByPattern({
+    required String senderPattern,
+    String? messageKeywords,
+    required String category,
+    String? notes,
+  }) async {
+    final transactions = await getAllTransactions();
+    int updatedCount = 0;
+
+    for (final txn in transactions) {
+      // Check sender match
+      if (!txn.sender.toLowerCase().contains(senderPattern.toLowerCase())) {
+        continue;
+      }
+
+      // Check message keywords if provided
+      if (messageKeywords != null && messageKeywords.isNotEmpty) {
+        final keywords = messageKeywords
+            .toLowerCase()
+            .split(',')
+            .map((k) => k.trim());
+        final msgLower = txn.message.toLowerCase();
+        if (!keywords.any((keyword) => msgLower.contains(keyword))) {
+          continue;
+        }
+      }
+
+      // Update this transaction
+      final updated = txn.copyWith(
+        category: category,
+        notes: notes,
+        isClassified: true,
+      );
+      await updateTransaction(updated);
+      updatedCount++;
+    }
+
+    return updatedCount;
   }
 
   /// Close the database

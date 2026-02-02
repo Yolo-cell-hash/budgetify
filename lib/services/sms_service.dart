@@ -1,7 +1,6 @@
 import 'package:telephony/telephony.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../models/transaction_model.dart';
-import '../models/bank_account_model.dart';
 import 'database_service.dart';
 import 'sms_parser_service.dart';
 import 'notification_service.dart';
@@ -11,7 +10,7 @@ import 'notification_service.dart';
 Future<void> backgroundMessageHandler(SmsMessage message) async {
   final dbService = DatabaseService();
 
-  final transaction = SmsParserService.parseTransaction(
+  var transaction = SmsParserService.parseTransaction(
     message.address ?? 'Unknown',
     message.body ?? '',
     DateTime.now(),
@@ -24,26 +23,22 @@ Future<void> backgroundMessageHandler(SmsMessage message) async {
     );
 
     if (!exists) {
-      final bankCode = BankCodes.detectBankCode(message.address ?? '');
-      BankAccount? bankAccount;
-
-      if (bankCode != null) {
-        bankAccount = await dbService.getBankAccountByCode(bankCode);
+      // Try to auto-classify using rules
+      final rule = await dbService.findMatchingRule(
+        transaction.sender,
+        transaction.message,
+      );
+      if (rule != null) {
+        transaction = transaction.copyWith(
+          category: rule.category,
+          notes: rule.notes,
+          isClassified: true,
+        );
       }
 
-      final linkedTransaction = transaction.copyWith(
-        bankAccountId: bankAccount?.id,
-      );
+      await dbService.insertTransaction(transaction);
 
-      await dbService.insertTransaction(linkedTransaction);
-
-      if (bankAccount != null && bankAccount.id != null) {
-        await _updateBankBalance(dbService, bankAccount, transaction);
-      }
-
-      await NotificationService().showTransactionNotification(
-        linkedTransaction,
-      );
+      await NotificationService().showTransactionNotification(transaction);
 
       // Check budget thresholds for debit transactions
       if (transaction.type == TransactionType.debit) {
@@ -90,23 +85,6 @@ Future<void> _checkBudgetThresholds(
     );
     await db.updateBudgetNotificationFlags(budget.id!, n50: true);
   }
-}
-
-/// Update bank account balance based on transaction type
-Future<void> _updateBankBalance(
-  DatabaseService dbService,
-  BankAccount account,
-  TransactionModel transaction,
-) async {
-  double newBalance = account.currentBalance;
-
-  if (transaction.type == TransactionType.credit) {
-    newBalance += transaction.amount;
-  } else {
-    newBalance -= transaction.amount;
-  }
-
-  await dbService.updateBankBalance(account.id!, newBalance);
 }
 
 /// Service for handling SMS reading and processing
@@ -188,33 +166,23 @@ class SmsService {
       );
 
       if (!exists) {
-        // Detect bank code from sender and link to account
-        final bankCode = BankCodes.detectBankCode(message.address ?? '');
-        BankAccount? bankAccount;
-
-        if (bankCode != null) {
-          bankAccount = await _dbService.getBankAccountByCode(bankCode);
-        }
-
-        // Create transaction with bank account link
-        final linkedTransaction = transaction.copyWith(
-          bankAccountId: bankAccount?.id,
+        // Try to auto-classify using rules
+        var txnToSave = transaction;
+        final rule = await _dbService.findMatchingRule(
+          transaction.sender,
+          transaction.message,
         );
+        if (rule != null) {
+          txnToSave = transaction.copyWith(
+            category: rule.category,
+            notes: rule.notes,
+            isClassified: true,
+          );
+        }
 
         // Save to database
-        final id = await _dbService.insertTransaction(linkedTransaction);
-        final savedTransaction = linkedTransaction.copyWith(id: id);
-
-        // Update bank balance
-        if (bankAccount != null && bankAccount.id != null) {
-          double newBalance = bankAccount.currentBalance;
-          if (transaction.type == TransactionType.credit) {
-            newBalance += transaction.amount;
-          } else {
-            newBalance -= transaction.amount;
-          }
-          await _dbService.updateBankBalance(bankAccount.id!, newBalance);
-        }
+        final id = await _dbService.insertTransaction(txnToSave);
+        final savedTransaction = txnToSave.copyWith(id: id);
 
         // Notify callback
         onTransactionDetected(savedTransaction);
@@ -235,7 +203,6 @@ class SmsService {
   }
 
   /// Get existing SMS from inbox (for initial scan)
-  /// This also links transactions to bank accounts and updates balances
   Future<List<TransactionModel>> scanExistingSms({int maxCount = 100}) async {
     final hasPermissions = await hasPermission();
     if (!hasPermissions) return [];
@@ -268,39 +235,22 @@ class SmsService {
           );
 
           if (!exists) {
-            // Detect bank code and link
-            final bankCode = BankCodes.detectBankCode(message.address ?? '');
-            BankAccount? bankAccount;
-
-            if (bankCode != null) {
-              bankAccount = await _dbService.getBankAccountByCode(bankCode);
-            }
-
-            // Create linked transaction
-            final linkedTransaction = transaction.copyWith(
-              bankAccountId: bankAccount?.id,
+            // Try to auto-classify using rules
+            var txnToSave = transaction;
+            final rule = await _dbService.findMatchingRule(
+              transaction.sender,
+              transaction.message,
             );
-
-            final id = await _dbService.insertTransaction(linkedTransaction);
-            transactions.add(linkedTransaction.copyWith(id: id));
-
-            // Update bank balance
-            if (bankAccount != null && bankAccount.id != null) {
-              // Refetch to get current balance (may have been updated by previous transactions)
-              final currentAccount = await _dbService.getBankAccountById(
-                bankAccount.id!,
+            if (rule != null) {
+              txnToSave = transaction.copyWith(
+                category: rule.category,
+                notes: rule.notes,
+                isClassified: true,
               );
-              if (currentAccount != null) {
-                double newBalance = currentAccount.currentBalance;
-                if (transaction.type == TransactionType.credit) {
-                  newBalance += transaction.amount;
-                } else {
-                  newBalance -= transaction.amount;
-                }
-                await _dbService.updateBankBalance(bankAccount.id!, newBalance);
-              }
             }
 
+            final id = await _dbService.insertTransaction(txnToSave);
+            transactions.add(txnToSave.copyWith(id: id));
             count++;
           }
         }
@@ -310,44 +260,5 @@ class SmsService {
     }
 
     return transactions;
-  }
-
-  /// Link existing unlinked transactions to bank accounts
-  /// Useful for when user adds a bank account after transactions exist
-  Future<int> linkExistingTransactions() async {
-    final allTransactions = await _dbService.getAllTransactions();
-    int linkedCount = 0;
-
-    for (final transaction in allTransactions) {
-      if (transaction.bankAccountId == null) {
-        // Try to detect bank code from sender
-        final bankCode = BankCodes.detectBankCode(transaction.sender);
-
-        if (bankCode != null) {
-          final bankAccount = await _dbService.getBankAccountByCode(bankCode);
-
-          if (bankAccount != null && bankAccount.id != null) {
-            // Update transaction with bank account link
-            final linkedTransaction = transaction.copyWith(
-              bankAccountId: bankAccount.id,
-            );
-            await _dbService.updateTransaction(linkedTransaction);
-
-            // Update balance
-            double newBalance = bankAccount.currentBalance;
-            if (transaction.type == TransactionType.credit) {
-              newBalance += transaction.amount;
-            } else {
-              newBalance -= transaction.amount;
-            }
-            await _dbService.updateBankBalance(bankAccount.id!, newBalance);
-
-            linkedCount++;
-          }
-        }
-      }
-    }
-
-    return linkedCount;
   }
 }

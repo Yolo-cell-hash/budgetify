@@ -1,12 +1,95 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import '../providers/theme_provider.dart';
 import '../providers/app_preferences.dart';
-import 'bank_accounts_screen.dart';
+import '../services/background_service.dart';
 
-/// Settings screen with theme toggle and bank account management
-class SettingsScreen extends StatelessWidget {
+/// Settings screen with theme toggle and auto-scan configuration
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  bool _autoScanEnabled = false;
+  String _scanTime1 = '14:55';
+  String? _scanTime2 = '22:55';
+  DateTime? _lastScanTime;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    final settings = await BackgroundService.getScanSettings();
+    final lastScan = await BackgroundService.getLastScanTime();
+    setState(() {
+      _autoScanEnabled = settings['enabled'] as bool;
+      _scanTime1 = settings['time1'] as String;
+      _scanTime2 = settings['time2'] as String?;
+      _lastScanTime = lastScan;
+      _loading = false;
+    });
+  }
+
+  Future<void> _saveSettings() async {
+    await BackgroundService.saveScanSettings(
+      enabled: _autoScanEnabled,
+      time1: _scanTime1,
+      time2: _scanTime2,
+    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _autoScanEnabled ? 'Auto-scan enabled' : 'Auto-scan disabled',
+          ),
+        ),
+      );
+    }
+  }
+
+  String _formatTimeString(String time) {
+    final parts = time.split(':');
+    final hour = int.parse(parts[0]);
+    final minute = int.parse(parts[1]);
+    final period = hour >= 12 ? 'PM' : 'AM';
+    final displayHour = hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
+    return '$displayHour:${minute.toString().padLeft(2, '0')} $period';
+  }
+
+  Future<void> _pickTime(bool isFirstScan) async {
+    final currentTime = isFirstScan ? _scanTime1 : (_scanTime2 ?? '22:55');
+    final parts = currentTime.split(':');
+    final initialTime = TimeOfDay(
+      hour: int.parse(parts[0]),
+      minute: int.parse(parts[1]),
+    );
+
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: initialTime,
+    );
+
+    if (picked != null) {
+      final timeString =
+          '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+      setState(() {
+        if (isFirstScan) {
+          _scanTime1 = timeString;
+        } else {
+          _scanTime2 = timeString;
+        }
+      });
+      await _saveSettings();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -42,30 +125,104 @@ class SettingsScreen extends StatelessWidget {
 
           const SizedBox(height: 24),
 
-          // Bank Accounts Section
-          _buildSectionHeader('Bank Accounts', isDark),
+          // Auto-Scan Section
+          _buildSectionHeader('Auto-Scan', isDark),
           const SizedBox(height: 8),
           _buildSettingsCard(
             isDark: isDark,
-            child: ListTile(
-              leading: Icon(
-                Icons.account_balance,
-                color: Theme.of(context).primaryColor,
-              ),
-              title: const Text('Manage Bank Accounts'),
-              subtitle: Text(
-                'Add, edit or remove bank accounts',
-                style: TextStyle(
-                  color: isDark ? Colors.grey.shade500 : Colors.grey.shade600,
+            child: Column(
+              children: [
+                SwitchListTile(
+                  secondary: Icon(
+                    Icons.schedule,
+                    color: _autoScanEnabled ? Colors.green : Colors.grey,
+                  ),
+                  title: const Text('Automatic SMS Scanning'),
+                  subtitle: Text(
+                    _autoScanEnabled
+                        ? 'Transactions are scanned automatically'
+                        : 'Enable to auto-detect transactions in background',
+                    style: TextStyle(
+                      color: isDark
+                          ? Colors.grey.shade500
+                          : Colors.grey.shade600,
+                    ),
+                  ),
+                  value: _autoScanEnabled,
+                  onChanged: _loading
+                      ? null
+                      : (value) async {
+                          setState(() => _autoScanEnabled = value);
+                          await _saveSettings();
+                        },
                 ),
-              ),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const BankAccountsScreen()),
-                );
-              },
+                if (_autoScanEnabled) ...[
+                  Divider(
+                    height: 1,
+                    color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.access_time, color: Colors.blue),
+                    title: const Text('First Scan Time'),
+                    subtitle: Text(_formatTimeString(_scanTime1)),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => _pickTime(true),
+                  ),
+                  Divider(
+                    height: 1,
+                    color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+                  ),
+                  ListTile(
+                    leading: Icon(
+                      Icons.access_time,
+                      color: _scanTime2 != null ? Colors.blue : Colors.grey,
+                    ),
+                    title: const Text('Second Scan Time (Optional)'),
+                    subtitle: Text(
+                      _scanTime2 != null
+                          ? _formatTimeString(_scanTime2!)
+                          : 'Tap to add',
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (_scanTime2 != null)
+                          IconButton(
+                            icon: const Icon(Icons.clear, size: 20),
+                            onPressed: () async {
+                              setState(() => _scanTime2 = null);
+                              await _saveSettings();
+                            },
+                          ),
+                        const Icon(Icons.chevron_right),
+                      ],
+                    ),
+                    onTap: () => _pickTime(false),
+                  ),
+                  if (_lastScanTime != null) ...[
+                    Divider(
+                      height: 1,
+                      color: isDark
+                          ? Colors.grey.shade800
+                          : Colors.grey.shade200,
+                    ),
+                    ListTile(
+                      leading: Icon(Icons.history, color: Colors.grey.shade500),
+                      title: const Text('Last Scan'),
+                      subtitle: Text(
+                        DateFormat(
+                          'MMM d, yyyy • h:mm a',
+                        ).format(_lastScanTime!),
+                        style: TextStyle(
+                          color: isDark
+                              ? Colors.grey.shade500
+                              : Colors.grey.shade600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ],
             ),
           ),
 
@@ -123,6 +280,28 @@ class SettingsScreen extends StatelessWidget {
 
           const SizedBox(height: 24),
 
+          // Privacy Section
+          _buildSectionHeader('Privacy', isDark),
+          const SizedBox(height: 8),
+          _buildSettingsCard(
+            isDark: isDark,
+            child: ListTile(
+              leading: Icon(
+                Icons.shield_outlined,
+                color: Colors.green.shade600,
+              ),
+              title: const Text('Your Data is Private'),
+              subtitle: Text(
+                'All data stays on your device. We do not collect or upload any information.',
+                style: TextStyle(
+                  color: isDark ? Colors.grey.shade500 : Colors.grey.shade600,
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
           // About Section
           _buildSectionHeader('About', isDark),
           const SizedBox(height: 8),
@@ -157,13 +336,13 @@ class SettingsScreen extends StatelessWidget {
   Widget _buildSettingsCard({required bool isDark, required Widget child}) {
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF2C2C2C) : Colors.white,
+        color: isDark ? const Color(0xFF1C2333) : Colors.white,
         borderRadius: BorderRadius.circular(12),
         boxShadow: isDark
             ? null
             : [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withAlpha(13),
                   blurRadius: 10,
                   offset: const Offset(0, 2),
                 ),

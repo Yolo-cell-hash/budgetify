@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/transaction_model.dart';
-import '../models/bank_account_model.dart';
 import '../services/database_service.dart';
 
 class AddTransactionScreen extends StatefulWidget {
@@ -22,8 +21,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   TransactionType _type = TransactionType.debit;
   String _category = 'Other';
   DateTime _date = DateTime.now();
-  int? _bankAccountId;
-  List<BankAccount> _bankAccounts = [];
   bool _saving = false;
 
   @override
@@ -32,12 +29,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     if (widget.initialCategory != null) {
       _category = widget.initialCategory!;
     }
-    _loadBankAccounts();
-  }
-
-  Future<void> _loadBankAccounts() async {
-    final accounts = await _db.getAllBankAccounts();
-    setState(() => _bankAccounts = accounts);
   }
 
   @override
@@ -64,20 +55,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       isClassified: true,
       category: _category,
       notes: _notesController.text.isEmpty ? null : _notesController.text,
-      bankAccountId: _bankAccountId,
       isManual: true,
     );
 
     await _db.insertTransaction(transaction);
-
-    // Update bank balance if linked
-    if (_bankAccountId != null) {
-      final account = _bankAccounts.firstWhere((a) => a.id == _bankAccountId);
-      final newBalance = _type == TransactionType.credit
-          ? account.currentBalance + amount
-          : account.currentBalance - amount;
-      await _db.updateBankAccount(account.copyWith(currentBalance: newBalance));
-    }
 
     if (mounted) Navigator.pop(context, true);
   }
@@ -96,7 +77,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             // Transaction Type Toggle
             Container(
               decoration: BoxDecoration(
-                color: isDark ? Colors.grey.shade900 : Colors.grey.shade100,
+                color: isDark ? const Color(0xFF1C2333) : Colors.grey.shade100,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
@@ -135,7 +116,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   borderRadius: BorderRadius.circular(16),
                 ),
                 filled: true,
-                fillColor: isDark ? Colors.grey.shade900 : Colors.grey.shade50,
+                fillColor: isDark
+                    ? const Color(0xFF1C2333)
+                    : Colors.grey.shade50,
               ),
               validator: (v) {
                 if (v == null || v.isEmpty) return 'Enter amount';
@@ -176,33 +159,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Bank Account
-            if (_bankAccounts.isNotEmpty)
-              DropdownButtonFormField<int?>(
-                value: _bankAccountId,
-                decoration: InputDecoration(
-                  labelText: 'Bank Account (Optional)',
-                  prefixIcon: const Icon(Icons.account_balance),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                items: [
-                  const DropdownMenuItem(
-                    value: null,
-                    child: Text('No Bank Account'),
-                  ),
-                  ..._bankAccounts.map(
-                    (a) => DropdownMenuItem(
-                      value: a.id,
-                      child: Text('${a.name} (${a.bankCode})'),
-                    ),
-                  ),
-                ],
-                onChanged: (v) => setState(() => _bankAccountId = v),
-              ),
-            const SizedBox(height: 16),
-
             // Date Picker
             ListTile(
               contentPadding: const EdgeInsets.symmetric(
@@ -211,7 +167,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               ),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
-                side: BorderSide(color: Colors.grey.shade400),
+                side: BorderSide(
+                  color: isDark
+                      ? const Color(0xFF2D3748)
+                      : Colors.grey.shade400,
+                ),
               ),
               leading: const Icon(Icons.calendar_today),
               title: const Text('Date'),

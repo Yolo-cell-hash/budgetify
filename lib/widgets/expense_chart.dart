@@ -11,6 +11,7 @@ class ExpenseChartWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final dailyData = _calculateDailyExpenses();
     final maxExpense = dailyData.isEmpty
         ? 0.0
@@ -23,15 +24,17 @@ class ExpenseChartWidget extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF1C2333) : Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
-          ),
-        ],
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 15,
+                  offset: const Offset(0, 5),
+                ),
+              ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -44,7 +47,7 @@ class ExpenseChartWidget extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
-                  color: Colors.grey.shade800,
+                  color: isDark ? Colors.white : Colors.grey.shade800,
                 ),
               ),
               Container(
@@ -140,7 +143,9 @@ class ExpenseChartWidget extends StatelessWidget {
                         drawVerticalLine: false,
                         horizontalInterval: maxY / 4 > 0 ? maxY / 4 : 250,
                         getDrawingHorizontalLine: (value) => FlLine(
-                          color: Colors.grey.shade200,
+                          color: isDark
+                              ? const Color(0xFF2D3748)
+                              : Colors.grey.shade200,
                           strokeWidth: 1,
                           dashArray: [5, 5],
                         ),

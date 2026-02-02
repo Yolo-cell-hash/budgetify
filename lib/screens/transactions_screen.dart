@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/transaction_model.dart';
-import '../models/bank_account_model.dart';
 import '../services/database_service.dart';
 import '../widgets/transaction_card.dart';
 import 'transaction_detail_screen.dart';
@@ -18,14 +17,12 @@ class TransactionsScreen extends StatefulWidget {
 class _TransactionsScreenState extends State<TransactionsScreen> {
   final DatabaseService _dbService = DatabaseService();
   List<TransactionModel> _transactions = [];
-  List<BankAccount> _bankAccounts = [];
   List<String> _categories = [];
   bool _isLoading = true;
 
   // Filters
   TransactionType? _typeFilter;
   String? _categoryFilter;
-  int? _bankAccountFilter;
   bool _unclassifiedOnly = false;
 
   @override
@@ -37,10 +34,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
   Future<void> _loadFiltersData() async {
     try {
-      final accounts = await _dbService.getAllBankAccounts();
       final categories = await _dbService.getUsedCategories();
       setState(() {
-        _bankAccounts = accounts;
         _categories = categories;
       });
     } catch (e) {
@@ -55,7 +50,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       final transactions = await _dbService.getFilteredTransactions(
         type: _typeFilter,
         category: _categoryFilter,
-        bankAccountId: _bankAccountFilter,
         unclassifiedOnly: _unclassifiedOnly ? true : null,
       );
 
@@ -77,17 +71,13 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     setState(() {
       _typeFilter = null;
       _categoryFilter = null;
-      _bankAccountFilter = null;
       _unclassifiedOnly = false;
     });
     _loadTransactions();
   }
 
   bool get _hasActiveFilters =>
-      _typeFilter != null ||
-      _categoryFilter != null ||
-      _bankAccountFilter != null ||
-      _unclassifiedOnly;
+      _typeFilter != null || _categoryFilter != null || _unclassifiedOnly;
 
   Future<void> _deleteTransaction(TransactionModel transaction) async {
     if (transaction.id == null) return;
@@ -120,7 +110,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF121212) : Colors.grey.shade100,
+      backgroundColor: isDark ? const Color(0xFF0D1117) : Colors.grey.shade100,
       appBar: AppBar(
         title: const Text('Transactions'),
         actions: [
@@ -185,7 +175,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
   Widget _buildFilterSection(bool isDark) {
     return Container(
-      color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+      color: isDark ? const Color(0xFF161B22) : Colors.white,
       child: Column(
         children: [
           // Type filter row
@@ -252,34 +242,19 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             ),
           ),
 
-          // Category & Bank filters
-          if (_categories.isNotEmpty || _bankAccounts.isNotEmpty)
+          // Category filter
+          if (_categories.isNotEmpty)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                children: [
-                  // Category dropdown
-                  if (_categories.isNotEmpty)
-                    Expanded(
-                      child: _buildDropdownFilter(
-                        value: _categoryFilter,
-                        hint: 'Category',
-                        items: _categories,
-                        onChanged: (value) {
-                          setState(() => _categoryFilter = value);
-                          _loadTransactions();
-                        },
-                        isDark: isDark,
-                      ),
-                    ),
-
-                  if (_categories.isNotEmpty && _bankAccounts.isNotEmpty)
-                    const SizedBox(width: 12),
-
-                  // Bank account dropdown
-                  if (_bankAccounts.isNotEmpty)
-                    Expanded(child: _buildBankDropdownFilter(isDark)),
-                ],
+              child: _buildDropdownFilter(
+                value: _categoryFilter,
+                hint: 'Category',
+                items: _categories,
+                onChanged: (value) {
+                  setState(() => _categoryFilter = value);
+                  _loadTransactions();
+                },
+                isDark: isDark,
               ),
             ),
 
@@ -303,10 +278,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       label: Text(label),
       selected: isSelected,
       onSelected: (_) => onSelected(),
-      backgroundColor: isDark ? const Color(0xFF2C2C2C) : Colors.grey.shade100,
+      backgroundColor: isDark ? const Color(0xFF1C2333) : Colors.grey.shade100,
       selectedColor:
           color?.withOpacity(0.2) ??
-          (isDark ? Colors.indigo.shade800 : Colors.indigo.shade100),
+          (isDark ? const Color(0xFF1C2333) : Colors.indigo.shade100),
       checkmarkColor:
           color ?? (isDark ? Colors.indigo.shade200 : Colors.indigo.shade700),
       labelStyle: TextStyle(
@@ -329,7 +304,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF2C2C2C) : Colors.grey.shade100,
+        color: isDark ? const Color(0xFF1C2333) : Colors.grey.shade100,
         borderRadius: BorderRadius.circular(10),
       ),
       child: DropdownButtonHideUnderline(
@@ -346,7 +321,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             Icons.keyboard_arrow_down,
             color: isDark ? Colors.grey.shade400 : Colors.grey,
           ),
-          dropdownColor: isDark ? const Color(0xFF2C2C2C) : Colors.white,
+          dropdownColor: isDark ? const Color(0xFF1C2333) : Colors.white,
           items: [
             DropdownMenuItem<String>(
               value: null,
@@ -375,77 +350,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     );
   }
 
-  Widget _buildBankDropdownFilter(bool isDark) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF2C2C2C) : Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<int?>(
-          value: _bankAccountFilter,
-          hint: Text(
-            'Bank',
-            style: TextStyle(
-              color: isDark ? Colors.grey.shade500 : Colors.grey.shade600,
-            ),
-          ),
-          isExpanded: true,
-          icon: Icon(
-            Icons.keyboard_arrow_down,
-            color: isDark ? Colors.grey.shade400 : Colors.grey,
-          ),
-          dropdownColor: isDark ? const Color(0xFF2C2C2C) : Colors.white,
-          items: [
-            DropdownMenuItem<int?>(
-              value: null,
-              child: Text(
-                'All Banks',
-                style: TextStyle(
-                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
-                ),
-              ),
-            ),
-            ..._bankAccounts.map(
-              (account) => DropdownMenuItem(
-                value: account.id,
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 10,
-                      backgroundColor:
-                          account.color ??
-                          BankCodes.getBankColor(account.bankCode),
-                      child: Text(
-                        account.bankCode.substring(0, 1),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 8,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      account.name,
-                      style: TextStyle(
-                        color: isDark ? Colors.white : Colors.black87,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-          onChanged: (value) {
-            setState(() => _bankAccountFilter = value);
-            _loadTransactions();
-          },
-        ),
-      ),
-    );
-  }
-
   Widget _buildSummaryCard(bool isDark) {
     final formatter = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
 
@@ -464,7 +368,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF2C2C2C) : Colors.white,
+        color: isDark ? const Color(0xFF1C2333) : Colors.white,
         borderRadius: BorderRadius.circular(12),
         boxShadow: isDark
             ? null

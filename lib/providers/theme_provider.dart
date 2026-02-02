@@ -110,33 +110,38 @@ class AppTheme {
     );
   }
 
-  // ==================== DARK THEME (Minimalist) ====================
+  // ==================== DARK THEME (Navy - Elegant) ====================
   static ThemeData get darkTheme {
-    const backgroundColor = Color(0xFF121212);
-    const surfaceColor = Color(0xFF1E1E1E);
-    const cardColor = Color(0xFF2C2C2C);
+    // Navy color palette matching reference designs
+    const backgroundColor = Color(0xFF0D1117); // Deep navy background
+    const surfaceColor = Color(0xFF161B22); // Slightly lighter navy for app bar
+    const cardColor = Color(0xFF1C2333); // Navy-tinted card background
+    const primaryBlue = Color(0xFF2563EB); // Primary accent blue
 
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: Colors.indigo,
-        brightness: Brightness.dark,
+      colorScheme: ColorScheme.dark(
+        primary: primaryBlue,
+        secondary: primaryBlue,
         surface: surfaceColor,
+        onSurface: Colors.white,
+        onPrimary: Colors.white,
       ),
       fontFamily: 'Roboto',
       scaffoldBackgroundColor: backgroundColor,
       appBarTheme: const AppBarTheme(
         centerTitle: true,
         elevation: 0,
-        backgroundColor: surfaceColor,
+        backgroundColor: backgroundColor,
         foregroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
       ),
       cardTheme: const CardThemeData(color: cardColor, elevation: 0),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           elevation: 0,
-          backgroundColor: Colors.indigo,
+          backgroundColor: primaryBlue,
           foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -156,17 +161,49 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.indigo.shade300, width: 2),
+          borderSide: const BorderSide(color: primaryBlue, width: 2),
         ),
         hintStyle: TextStyle(color: Colors.grey.shade500),
+        labelStyle: const TextStyle(color: Colors.white70),
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: surfaceColor,
-        selectedItemColor: Colors.indigoAccent,
+        selectedItemColor: primaryBlue,
         unselectedItemColor: Colors.grey,
+        type: BottomNavigationBarType.fixed,
       ),
-      dividerColor: Colors.grey.shade800,
+      tabBarTheme: TabBarThemeData(
+        labelColor: primaryBlue,
+        unselectedLabelColor: Colors.grey.shade500,
+        indicatorColor: primaryBlue,
+      ),
+      dividerColor: const Color(0xFF2D3748),
       iconTheme: const IconThemeData(color: Colors.white70),
+      dialogTheme: const DialogThemeData(
+        backgroundColor: cardColor,
+        surfaceTintColor: Colors.transparent,
+      ),
+      popupMenuTheme: const PopupMenuThemeData(
+        color: cardColor,
+        surfaceTintColor: Colors.transparent,
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: cardColor,
+        selectedColor: primaryBlue,
+        labelStyle: const TextStyle(color: Colors.white),
+        side: BorderSide(color: Colors.grey.shade700),
+      ),
     );
   }
+}
+
+/// Dark mode color constants for easy access throughout the app
+class DarkModeColors {
+  static const background = Color(0xFF0D1117);
+  static const surface = Color(0xFF161B22);
+  static const card = Color(0xFF1C2333);
+  static const cardLight = Color(0xFF242D3D);
+  static const primary = Color(0xFF2563EB);
+  static const divider = Color(0xFF2D3748);
+  static const textSecondary = Color(0xFF8B949E);
 }
