@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../models/budget_model.dart';
 import '../models/transaction_model.dart';
 import '../services/database_service.dart';
+import 'transaction_detail_screen.dart';
 
 class BudgetScreen extends StatefulWidget {
   const BudgetScreen({super.key});
@@ -287,6 +288,7 @@ class _BudgetScreenState extends State<BudgetScreen>
 
     List<FlSpot> spots = [];
     double cum = 0;
+    double maxCum = 0;
     for (
       int i = 0;
       i < days &&
@@ -297,8 +299,12 @@ class _BudgetScreenState extends State<BudgetScreen>
     ) {
       final day = DateTime(start.year, start.month, start.day + i);
       cum += _dailySpending[day] ?? 0;
+      if (cum > maxCum) maxCum = cum;
       spots.add(FlSpot(i.toDouble(), cum));
     }
+
+    // Scale Y-axis to fit whichever is larger: the budget or actual spending
+    final chartMaxY = (maxCum > _budget!.amount ? maxCum : _budget!.amount) * 1.15;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -324,7 +330,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                       minX: 0,
                       maxX: (days - 1).toDouble(),
                       minY: 0,
-                      maxY: _budget!.amount * 1.2,
+                      maxY: chartMaxY,
                       titlesData: FlTitlesData(
                         leftTitles: AxisTitles(
                           sideTitles: SideTitles(
@@ -557,46 +563,63 @@ class _BudgetScreenState extends State<BudgetScreen>
             ),
             child: Column(
               children: _expandedTransactions.take(10).map((txn) {
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              txn.sender,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                color: textColor,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            Text(
-                              DateFormat('MMM d, yyyy').format(txn.detectedAt),
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: isDark
-                                    ? Colors.grey.shade500
-                                    : Colors.grey,
-                              ),
-                            ),
-                          ],
-                        ),
+                return GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => TransactionDetailScreen(transaction: txn),
                       ),
-                      Text(
-                        fmt.format(txn.amount),
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: txn.type == TransactionType.credit
-                              ? Colors.green
-                              : Colors.red,
+                    ).then((_) => _loadData());
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    color: Colors.transparent,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                txn.merchantName ?? txn.sender,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  color: textColor,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                DateFormat('MMM d, yyyy').format(txn.detectedAt),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: isDark
+                                      ? Colors.grey.shade500
+                                      : Colors.grey,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                        Text(
+                          fmt.format(txn.amount),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: txn.type == TransactionType.credit
+                                ? Colors.green
+                                : Colors.red,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.chevron_right,
+                          size: 16,
+                          color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
+                        ),
+                      ],
+                    ),
                   ),
                 );
               }).toList(),
@@ -818,61 +841,80 @@ class _BudgetScreenState extends State<BudgetScreen>
             ),
             child: Column(
               children: _expandedTransactions.take(15).map((txn) {
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          color: ExpenseCategories.getColor(
-                            txn.category ?? 'Other',
-                          ).withAlpha(30),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Center(
-                          child: Text(
-                            ExpenseCategories.getIcon(txn.category ?? 'Other'),
-                            style: const TextStyle(fontSize: 14),
+                return GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => TransactionDetailScreen(transaction: txn),
+                      ),
+                    ).then((_) => _loadData());
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    color: Colors.transparent,
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: ExpenseCategories.getColor(
+                              txn.category ?? 'Other',
+                            ).withAlpha(30),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Center(
+                            child: Text(
+                              ExpenseCategories.getIcon(txn.category ?? 'Other'),
+                              style: const TextStyle(fontSize: 14),
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              txn.category ?? 'Uncategorized',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                color: textColor,
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                txn.merchantName ?? txn.sender,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  color: textColor,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                            ),
-                            Text(
-                              txn.sender,
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: isDark
-                                    ? Colors.grey.shade500
-                                    : Colors.grey,
+                              Text(
+                                DateFormat('MMM d, yyyy').format(txn.detectedAt),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: isDark
+                                      ? Colors.grey.shade500
+                                      : Colors.grey,
+                                ),
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                      Text(
-                        fmt.format(txn.amount),
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: Colors.red,
+                        Text(
+                          fmt.format(txn.amount),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: txn.type == TransactionType.credit
+                                ? Colors.green
+                                : Colors.red,
+                          ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.chevron_right,
+                          size: 16,
+                          color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
+                        ),
+                      ],
+                    ),
                   ),
                 );
               }).toList(),
