@@ -23,10 +23,10 @@ Future<void> backgroundMessageHandler(SmsMessage message) async {
     );
 
     if (!exists) {
-      // Try to auto-classify using rules
+      // Try to auto-classify using rules (merchant name + type based)
       final rule = await dbService.findMatchingRule(
-        transaction.sender,
-        transaction.message,
+        transaction.merchantName,
+        transaction.type,
       );
       if (rule != null) {
         transaction = transaction.copyWith(
@@ -166,11 +166,11 @@ class SmsService {
       );
 
       if (!exists) {
-        // Try to auto-classify using rules
+        // Try to auto-classify using rules (merchant name + type based)
         var txnToSave = transaction;
         final rule = await _dbService.findMatchingRule(
-          transaction.sender,
-          transaction.message,
+          transaction.merchantName,
+          transaction.type,
         );
         if (rule != null) {
           txnToSave = transaction.copyWith(
@@ -235,11 +235,11 @@ class SmsService {
           );
 
           if (!exists) {
-            // Try to auto-classify using rules
+            // Try to auto-classify using rules (merchant name + type based)
             var txnToSave = transaction;
             final rule = await _dbService.findMatchingRule(
-              transaction.sender,
-              transaction.message,
+              transaction.merchantName,
+              transaction.type,
             );
             if (rule != null) {
               txnToSave = transaction.copyWith(

@@ -3,6 +3,7 @@ import 'package:path/path.dart';
 import '../models/transaction_model.dart';
 import '../models/budget_model.dart';
 import '../models/transaction_rule_model.dart';
+import 'sms_parser_service.dart';
 
 /// Database service for persisting transactions and budgets
 class DatabaseService {
@@ -27,7 +28,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 6,
+      version: 8,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -48,6 +49,7 @@ class DatabaseService {
         category TEXT,
         notes TEXT,
         account_info TEXT,
+        merchant_name TEXT,
         is_manual INTEGER NOT NULL DEFAULT 0
       )
     ''');
@@ -58,6 +60,9 @@ class DatabaseService {
     );
     await db.execute(
       'CREATE INDEX idx_transactions_category ON transactions(category)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_transactions_merchant ON transactions(merchant_name)',
     );
 
     // Budgets table
@@ -75,21 +80,24 @@ class DatabaseService {
       )
     ''');
 
-    // Transaction rules table for auto-classification
+    // Transaction rules table for auto-classification (merchant + type based)
     await db.execute('''
       CREATE TABLE transaction_rules(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        sender_pattern TEXT NOT NULL,
-        message_keywords TEXT,
+        sender_name TEXT NOT NULL,
+        transaction_type INTEGER NOT NULL,
         category TEXT NOT NULL,
         notes TEXT,
-        apply_to_future INTEGER NOT NULL DEFAULT 1,
+        is_active INTEGER NOT NULL DEFAULT 1,
         created_at INTEGER NOT NULL
       )
     ''');
 
     await db.execute(
-      'CREATE INDEX idx_rules_sender ON transaction_rules(sender_pattern)',
+      'CREATE INDEX idx_rules_sender ON transaction_rules(sender_name)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_rules_type ON transaction_rules(transaction_type)',
     );
   }
 
@@ -131,7 +139,7 @@ class DatabaseService {
     }
 
     if (oldVersion < 6) {
-      // Add transaction rules table for auto-classification
+      // Original transaction rules table (will be migrated in v7)
       await db.execute('''
         CREATE TABLE IF NOT EXISTS transaction_rules(
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -143,9 +151,71 @@ class DatabaseService {
           created_at INTEGER NOT NULL
         )
       ''');
+    }
+
+    if (oldVersion < 7) {
+      // Migrate to new sender-based + transaction-type-aware schema
+      // Drop old rules table and create new one
+      await db.execute('DROP TABLE IF EXISTS transaction_rules');
+      await db.execute('''
+        CREATE TABLE transaction_rules(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          sender_name TEXT NOT NULL,
+          transaction_type INTEGER NOT NULL,
+          category TEXT NOT NULL,
+          notes TEXT,
+          is_active INTEGER NOT NULL DEFAULT 1,
+          created_at INTEGER NOT NULL
+        )
+      ''');
       await db.execute(
-        'CREATE INDEX IF NOT EXISTS idx_rules_sender ON transaction_rules(sender_pattern)',
+        'CREATE INDEX IF NOT EXISTS idx_rules_sender ON transaction_rules(sender_name)',
       );
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_rules_type ON transaction_rules(transaction_type)',
+      );
+    }
+
+    if (oldVersion < 8) {
+      // Add merchant_name column to transactions
+      try {
+        await db.execute(
+          'ALTER TABLE transactions ADD COLUMN merchant_name TEXT',
+        );
+      } catch (e) {
+        // Column may already exist
+      }
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_transactions_merchant ON transactions(merchant_name)',
+      );
+
+      // Clear stale rules that were based on bank sender addresses
+      // (they cause the buggy "Apply to All" behavior)
+      await db.execute('DELETE FROM transaction_rules');
+
+      // Backfill merchant names for all existing transactions
+      await _backfillMerchantNamesInternal(db);
+    }
+  }
+
+  /// Internal backfill that works during migration (uses raw db handle)
+  Future<void> _backfillMerchantNamesInternal(Database db) async {
+    final rows = await db.query('transactions');
+    for (final row in rows) {
+      final message = row['message'] as String;
+      final accountInfo = row['account_info'] as String?;
+      final merchantName = SmsParserService.extractMerchantStatic(
+        message,
+        accountInfo,
+      );
+      if (merchantName != null) {
+        await db.update(
+          'transactions',
+          {'merchant_name': merchantName},
+          where: 'id = ?',
+          whereArgs: [row['id']],
+        );
+      }
     }
   }
 
@@ -533,29 +603,66 @@ class DatabaseService {
     return result.map((map) => TransactionRule.fromMap(map)).toList();
   }
 
-  /// Get active rules (applyToFuture = true)
+  /// Get active rules
   Future<List<TransactionRule>> getActiveRules() async {
     final db = await database;
     final result = await db.query(
       'transaction_rules',
-      where: 'apply_to_future = 1',
+      where: 'is_active = 1',
       orderBy: 'created_at DESC',
     );
     return result.map((map) => TransactionRule.fromMap(map)).toList();
   }
 
-  /// Find a matching rule for a transaction
+  /// Find a matching rule for a transaction (merchant name + type based)
   Future<TransactionRule?> findMatchingRule(
-    String sender,
-    String message,
+    String? merchantName,
+    TransactionType transactionType,
   ) async {
+    if (merchantName == null || merchantName.isEmpty) return null;
+
     final rules = await getActiveRules();
     for (final rule in rules) {
-      if (rule.matches(sender, message)) {
+      if (rule.matches(merchantName, transactionType)) {
         return rule;
       }
     }
     return null;
+  }
+
+  /// Check if a rule already exists for this merchant + type combination
+  Future<TransactionRule?> findExistingRule(
+    String merchantName,
+    TransactionType transactionType,
+  ) async {
+    final rules = await getAllTransactionRules();
+    final normalizedMerchant = merchantName.toLowerCase().replaceAll(
+      RegExp(r'[^a-z0-9]'),
+      '',
+    );
+
+    for (final rule in rules) {
+      final normalizedRule = rule.senderName.toLowerCase().replaceAll(
+        RegExp(r'[^a-z0-9]'),
+        '',
+      );
+      if (normalizedRule == normalizedMerchant &&
+          rule.transactionType == transactionType) {
+        return rule;
+      }
+    }
+    return null;
+  }
+
+  /// Update an existing rule
+  Future<int> updateTransactionRule(TransactionRule rule) async {
+    final db = await database;
+    return await db.update(
+      'transaction_rules',
+      rule.toMap(),
+      where: 'id = ?',
+      whereArgs: [rule.id],
+    );
   }
 
   /// Delete a transaction rule
@@ -568,33 +675,74 @@ class DatabaseService {
     );
   }
 
-  /// Bulk update transactions matching a pattern with a category
-  Future<int> bulkUpdateTransactionsByPattern({
-    required String senderPattern,
-    String? messageKeywords,
+  /// Backfill merchant names for all existing transactions.
+  /// Re-parses each SMS body to extract the merchant/payee name.
+  /// Called during "Apply to All" / "Apply to Existing" to ensure
+  /// all historical transactions have merchant names before bulk matching.
+  Future<void> backfillMerchantNames() async {
+    final db = await database;
+    // Only backfill transactions that don't have a merchant name yet
+    final rows = await db.query(
+      'transactions',
+      where: 'merchant_name IS NULL',
+    );
+
+    for (final row in rows) {
+      final message = row['message'] as String;
+      final accountInfo = row['account_info'] as String?;
+      final merchantName = SmsParserService.extractMerchantStatic(
+        message,
+        accountInfo,
+      );
+      if (merchantName != null) {
+        await db.update(
+          'transactions',
+          {'merchant_name': merchantName},
+          where: 'id = ?',
+          whereArgs: [row['id']],
+        );
+      }
+    }
+  }
+
+  /// Bulk update transactions by merchant name and type.
+  /// Only updates transactions that match BOTH merchant name and transaction type.
+  /// This is the corrected version that matches on extracted merchant/payee,
+  /// not on the bank SMS sender address.
+  Future<int> bulkUpdateByMerchant({
+    required String merchantName,
+    required TransactionType transactionType,
     required String category,
     String? notes,
   }) async {
     final transactions = await getAllTransactions();
     int updatedCount = 0;
 
+    // Normalize the merchant name for matching
+    final normalizedPattern = merchantName.toLowerCase().replaceAll(
+      RegExp(r'[^a-z0-9]'),
+      '',
+    );
+
     for (final txn in transactions) {
-      // Check sender match
-      if (!txn.sender.toLowerCase().contains(senderPattern.toLowerCase())) {
+      // Must match transaction type exactly
+      if (txn.type != transactionType) continue;
+
+      // Must have a merchant name to match against
+      if (txn.merchantName == null || txn.merchantName!.isEmpty) continue;
+
+      // Check merchant match (normalized)
+      final normalizedMerchant = txn.merchantName!.toLowerCase().replaceAll(
+        RegExp(r'[^a-z0-9]'),
+        '',
+      );
+      if (!normalizedMerchant.contains(normalizedPattern) &&
+          !normalizedPattern.contains(normalizedMerchant)) {
         continue;
       }
 
-      // Check message keywords if provided
-      if (messageKeywords != null && messageKeywords.isNotEmpty) {
-        final keywords = messageKeywords
-            .toLowerCase()
-            .split(',')
-            .map((k) => k.trim());
-        final msgLower = txn.message.toLowerCase();
-        if (!keywords.any((keyword) => msgLower.contains(keyword))) {
-          continue;
-        }
-      }
+      // Skip if already classified with this category
+      if (txn.category == category && txn.isClassified) continue;
 
       // Update this transaction
       final updated = txn.copyWith(
@@ -607,6 +755,22 @@ class DatabaseService {
     }
 
     return updatedCount;
+  }
+
+  /// @deprecated Use [bulkUpdateByMerchant] instead.
+  /// Kept for backward compatibility but now redirects to merchant-based matching.
+  Future<int> bulkUpdateBySenderAndType({
+    required String senderName,
+    required TransactionType transactionType,
+    required String category,
+    String? notes,
+  }) async {
+    return bulkUpdateByMerchant(
+      merchantName: senderName,
+      transactionType: transactionType,
+      category: category,
+      notes: notes,
+    );
   }
 
   /// Close the database

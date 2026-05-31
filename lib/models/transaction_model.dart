@@ -12,6 +12,7 @@ class TransactionModel {
   final String? category;
   final String? notes;
   final String? accountInfo;
+  final String? merchantName;
   final bool isManual;
 
   TransactionModel({
@@ -25,6 +26,7 @@ class TransactionModel {
     this.category,
     this.notes,
     this.accountInfo,
+    this.merchantName,
     this.isManual = false,
   });
 
@@ -43,6 +45,7 @@ class TransactionModel {
       category: map['category'] as String?,
       notes: map['notes'] as String?,
       accountInfo: map['account_info'] as String?,
+      merchantName: map['merchant_name'] as String?,
       isManual: (map['is_manual'] as int?) == 1,
     );
   }
@@ -60,6 +63,7 @@ class TransactionModel {
       'category': category,
       'notes': notes,
       'account_info': accountInfo,
+      'merchant_name': merchantName,
       'is_manual': isManual ? 1 : 0,
     };
   }
@@ -76,6 +80,7 @@ class TransactionModel {
     String? category,
     String? notes,
     String? accountInfo,
+    String? merchantName,
     bool? isManual,
   }) {
     return TransactionModel(
@@ -89,6 +94,7 @@ class TransactionModel {
       category: category ?? this.category,
       notes: notes ?? this.notes,
       accountInfo: accountInfo ?? this.accountInfo,
+      merchantName: merchantName ?? this.merchantName,
       isManual: isManual ?? this.isManual,
     );
   }

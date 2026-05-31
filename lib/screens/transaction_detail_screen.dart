@@ -36,6 +36,11 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     super.dispose();
   }
 
+  /// Display name for the merchant/payee used in dialogs
+  String get _merchantDisplayName {
+    return _transaction.merchantName ?? _transaction.sender;
+  }
+
   Future<void> _saveClassification() async {
     if (_transaction.id == null || _selectedCategory == null) return;
 
@@ -106,7 +111,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Found transactions from "${_transaction.sender}". How would you like to classify them?',
+              'Found transactions for "$_merchantDisplayName". How would you like to classify them?',
               style: TextStyle(
                 color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
               ),
@@ -221,7 +226,8 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   }
 
   Future<void> _processBulkFlagging(int option) async {
-    final senderPattern = _transaction.sender;
+    final merchantName = _transaction.merchantName;
+    final transactionType = _transaction.type;
     final category = _selectedCategory!;
     final notes = _notesController.text.trim().isEmpty
         ? null
@@ -231,35 +237,62 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
 
     try {
       if (option == 1 || option == 2) {
-        // Bulk update existing transactions
-        final updatedCount = await _dbService.bulkUpdateTransactionsByPattern(
-          senderPattern: senderPattern,
-          category: category,
-          notes: notes,
-        );
-        message = 'Updated $updatedCount similar transactions';
+        // Step 1: Backfill merchant names for any transactions that don't have them
+        // This re-parses ALL stored SMS bodies to extract merchant/payee
+        await _dbService.backfillMerchantNames();
+
+        if (merchantName != null && merchantName.isNotEmpty) {
+          // Step 2: Bulk update existing transactions matching this merchant + type
+          final updatedCount = await _dbService.bulkUpdateByMerchant(
+            merchantName: merchantName,
+            transactionType: transactionType,
+            category: category,
+            notes: notes,
+          );
+          final typeStr = transactionType == TransactionType.debit
+              ? 'debits'
+              : 'credits';
+          message = 'Updated $updatedCount similar $typeStr';
+        } else {
+          message = 'Transaction saved (no merchant to match)';
+        }
       }
 
       if (option == 1) {
-        // Create rule for future transactions
-        final rule = TransactionRule(
-          senderPattern: senderPattern,
-          category: category,
-          notes: notes,
-          applyToFuture: true,
-        );
-        await _dbService.insertTransactionRule(rule);
-        message += ' • Future transactions will be auto-classified';
-      } else if (option == 2) {
-        // Create rule but mark as not applying to future
-        final rule = TransactionRule(
-          senderPattern: senderPattern,
-          category: category,
-          notes: notes,
-          applyToFuture: false,
-        );
-        await _dbService.insertTransactionRule(rule);
+        // Create/update rule for future auto-classification
+        if (merchantName != null && merchantName.isNotEmpty) {
+          final existingRule = await _dbService.findExistingRule(
+            merchantName,
+            transactionType,
+          );
+          if (existingRule != null) {
+            // Update existing rule
+            final updatedRule = existingRule.copyWith(
+              category: category,
+              notes: notes,
+              isActive: true,
+            );
+            await _dbService.updateTransactionRule(updatedRule);
+          } else {
+            // Create new rule for future transactions using the MERCHANT name
+            final rule = TransactionRule(
+              senderName: merchantName, // Stores merchant, not bank sender
+              transactionType: transactionType,
+              category: category,
+              notes: notes,
+              isActive: true,
+            );
+            await _dbService.insertTransactionRule(rule);
+          }
+          final typeStr = transactionType == TransactionType.debit
+              ? 'debits'
+              : 'credits';
+          message +=
+              ' • Future $typeStr from "$_merchantDisplayName" will be auto-classified';
+        }
       }
+      // Option 2: Just bulk update, no rule for future (already handled above)
+      // Option 3: Only this one transaction (no bulk update, no rule)
 
       if (mounted) {
         ScaffoldMessenger.of(
@@ -406,6 +439,13 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                     subtextColor,
                     textColor,
                   ),
+                  if (_transaction.merchantName != null)
+                    _buildDetailRow(
+                      'Payee',
+                      _transaction.merchantName!,
+                      subtextColor,
+                      textColor,
+                    ),
                   if (_transaction.accountInfo != null)
                     _buildDetailRow(
                       'Account',

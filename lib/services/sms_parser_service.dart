@@ -6,6 +6,7 @@ class SmsParserService {
   static final List<String> _bankSenderPatterns = [
     'SBIINB',
     'SBIATM',
+    'SBISMS',
     'HDFCBK',
     'ICICIB',
     'ICICIT',
@@ -13,6 +14,7 @@ class SmsParserService {
     'KOTAKB',
     'PNBSMS',
     'BOIIND',
+    'BOISMS',
     'CANBNK',
     'UNIONB',
     'IABORB',
@@ -27,6 +29,12 @@ class SmsParserService {
     'PAYTM',
     'AMAZONP',
     'APAY',
+    'MAHABNK',
+    'BOMSMS',
+    'CENTBK',
+    'SCBSMS',
+    'CITIBNK',
+    'DBISHR',
   ];
 
   /// Merchant keywords for auto-categorization
@@ -187,6 +195,9 @@ class SmsParserService {
     // Extract account info
     final accountInfo = _extractAccountInfo(message);
 
+    // Extract merchant/payee name from SMS body
+    final merchantName = _extractMerchant(message, accountInfo);
+
     // Auto-detect category from merchant
     final category = detectCategory(message);
 
@@ -197,6 +208,7 @@ class SmsParserService {
       message: message,
       detectedAt: receivedAt,
       accountInfo: accountInfo,
+      merchantName: merchantName,
       category: category,
     );
   }
@@ -313,6 +325,26 @@ class SmsParserService {
       }
     }
 
+    // HDFC-style: "Sent Rs.X" at beginning is a strong debit
+    if (RegExp(r'^\s*SENT\s+RS', caseSensitive: false).hasMatch(upperMessage)) {
+      debitScore += 15;
+    }
+
+    // SBI-style: "UPI frm A/c" is a strong debit (money going from your account)
+    if (upperMessage.contains('UPI FRM') || upperMessage.contains('UPI FROM')) {
+      debitScore += 15;
+    }
+
+    // "IS DEBITED" pattern (BOM, ICICI)
+    if (upperMessage.contains('IS DEBITED')) {
+      debitScore += 15;
+    }
+
+    // "DEBITED BY" pattern (BOM)
+    if (upperMessage.contains('DEBITED BY')) {
+      debitScore += 15;
+    }
+
     // If we have a clear winner from strong keywords, return immediately
     if (debitScore > 0 && creditScore == 0) {
       return TransactionType.debit;
@@ -398,17 +430,19 @@ class SmsParserService {
   static String? _extractAccountInfo(String message) {
     // Patterns to match account numbers
     final patterns = [
-      // A/c XX1234 or A/c No. XX1234 or Acct XX1234
+      // A/c XX1234 or A/c No. XX1234 or Acct XX1234 or Ac XXXXXX1234
       RegExp(
-        r'A/?C(?:CT)?\.?\s*(?:NO\.?)?\s*[X*]*(\d{4})',
+        r'A/?C(?:CT)?\.?\s*(?:NO\.?)?\s*[X*]*([\d]{4})',
         caseSensitive: false,
       ),
       // Account ending 1234 or Account XX1234
-      RegExp(r'ACCOUNT\s*(?:ENDING)?\s*[X*]*(\d{4})', caseSensitive: false),
+      RegExp(r'ACCOUNT\s*(?:ENDING)?\s*[X*]*([\d]{4})', caseSensitive: false),
       // Card XX1234 or Card ending 1234
-      RegExp(r'CARD\s*(?:ENDING|NO\.?)?\s*[X*]*(\d{4})', caseSensitive: false),
+      RegExp(r'CARD\s*(?:ENDING|NO\.?)?\s*[X*]*([\d]{4})', caseSensitive: false),
+      // a/c **1234 or a/c *1234 (Axis, Kotak style)
+      RegExp(r'A/?C\s*\*+([\d]{4})', caseSensitive: false),
       // **1234 or XX1234 followed by typical separators
-      RegExp(r'[X*]{2,}(\d{4})'),
+      RegExp(r'[X*]{2,}([\d]{4})'),
     ];
 
     for (final pattern in patterns) {
@@ -419,5 +453,167 @@ class SmsParserService {
     }
 
     return null;
+  }
+
+  /// Public static method to extract merchant from a message.
+  /// Used by DatabaseService during backfill operations.
+  static String? extractMerchantStatic(String message, String? accountInfo) {
+    return _extractMerchant(message, accountInfo);
+  }
+
+  /// Extract merchant/payee name from the SMS body.
+  ///
+  /// Tries multiple bank-specific and generic patterns. Falls back to
+  /// the account number if no merchant name can be determined.
+  ///
+  /// Priority order:
+  /// 1. ICICI Info: field — `Info: UPI-RefNo-MerchantName`
+  /// 2. BOI/generic — `credited to {NAME} via UPI`
+  /// 3. HDFC — `To {NAME}` (on same or next line)
+  /// 4. Generic — `paid to / sent to / transferred to {NAME}`
+  /// 5. UPI VPA — `VPA {name}@bank` or `{name}@{bank}` → extract name
+  /// 6. Axis — `to VPA {name}@{bank}`
+  /// 7. Fallback — account number (A/cXX1234)
+  static String? _extractMerchant(String message, String? accountInfo) {
+    String? merchant;
+
+    // --- Pattern 1: ICICI "Info:" field ---
+    // "Info: UPI-123456789012-MerchantName"
+    // "Info: UPI/123456789012/MerchantName"
+    final infoMatch = RegExp(
+      r'Info:\s*UPI[-/]\d+[-/](.+?)(?:\.|$)',
+      caseSensitive: false,
+    ).firstMatch(message);
+    if (infoMatch != null) {
+      merchant = _cleanMerchant(infoMatch.group(1));
+      if (merchant != null) return merchant;
+    }
+
+    // --- Pattern 2: BOI "credited to {NAME} via UPI" ---
+    // "debited...and credited to KIRTI PRAHALAD PANCHAL via UPI"
+    final creditedToVia = RegExp(
+      r'credited\s+to\s+(.+?)\s+via\b',
+      caseSensitive: false,
+    ).firstMatch(message);
+    if (creditedToVia != null) {
+      merchant = _cleanMerchant(creditedToVia.group(1));
+      if (merchant != null) return merchant;
+    }
+
+    // --- Pattern 3: HDFC "To {NAME}" ---
+    // "Sent Rs.30.00\nFrom HDFC Bank A/C *9463\nTo Mumbai Metro Ghatkopar"
+    final toPattern = RegExp(
+      r'(?:^|\n)\s*To\s+(.+?)(?:\n|$)',
+      caseSensitive: false,
+    ).firstMatch(message);
+    if (toPattern != null) {
+      final candidate = toPattern.group(1)?.trim();
+      // Make sure it's not "To block" or "To 7308080808" (instruction text)
+      if (candidate != null &&
+          candidate.length > 2 &&
+          !RegExp(r'^\d+$').hasMatch(candidate) &&
+          !candidate.toUpperCase().startsWith('BLOCK') &&
+          !candidate.toUpperCase().startsWith('REPORT')) {
+        merchant = _cleanMerchant(candidate);
+        if (merchant != null) return merchant;
+      }
+    }
+
+    // --- Pattern 4: Generic "paid to / sent to / transferred to {NAME}" ---
+    // Avoid matching "sent to 9215676766" or "call to ..."
+    final paidTo = RegExp(
+      r'(?:paid|sent|transferred)\s+to\s+(.+?)(?:\s*\.|,|\s+on\s|\s+via\s|\s+ref\b|\s+Ref\b|\n|$)',
+      caseSensitive: false,
+    ).firstMatch(message);
+    if (paidTo != null) {
+      final candidate = paidTo.group(1)?.trim();
+      if (candidate != null &&
+          candidate.length > 2 &&
+          !RegExp(r'^\d+$').hasMatch(candidate) &&
+          !candidate.toUpperCase().startsWith('BLOCK')) {
+        merchant = _cleanMerchant(candidate);
+        if (merchant != null) return merchant;
+      }
+    }
+
+    // --- Pattern 5: UPI VPA in body ---
+    // "to VPA username@okaxis" or just "username@okaxis" or "username@ybl"
+    final vpaPatterns = [
+      // "to VPA username@bank"
+      RegExp(r'(?:to\s+)?VPA\s+([\w.]+)@[\w.]+', caseSensitive: false),
+      // Standalone UPI VPA like "username@okaxis", "name@ybl", "name@paytm"
+      RegExp(
+        r'\b([\w.]{3,})@(?:ok(?:axis|icici|sbi|hdfc)|ybl|paytm|upi|apl|ibl|axl|sbi|okhdfcbank|okbizaxis)\b',
+        caseSensitive: false,
+      ),
+    ];
+    for (final vpaRegex in vpaPatterns) {
+      final vpaMatch = vpaRegex.firstMatch(message);
+      if (vpaMatch != null) {
+        final vpaName = vpaMatch.group(1);
+        if (vpaName != null && vpaName.length > 2) {
+          // Clean up VPA name: replace dots/underscores with spaces, title case
+          final cleaned = vpaName
+              .replaceAll(RegExp(r'[._]'), ' ')
+              .trim();
+          if (cleaned.isNotEmpty) {
+            return _titleCase(cleaned);
+          }
+        }
+      }
+    }
+
+    // --- Pattern 6: "by UPI Ref No" with merchant in preceding text ---
+    // BOM: "debited by Rs 500.00 on 30-05-26 by UPI Ref No 123456789012"
+    // No merchant info available here, fall through
+
+    // --- Fallback: Use account number as merchant identifier ---
+    if (accountInfo != null && accountInfo.isNotEmpty) {
+      return accountInfo;
+    }
+
+    return null;
+  }
+
+  /// Clean up extracted merchant string
+  static String? _cleanMerchant(String? raw) {
+    if (raw == null) return null;
+
+    // Trim whitespace and trailing punctuation
+    var cleaned = raw.trim().replaceAll(RegExp(r'[.,;:!\s]+$'), '');
+
+    // Remove trailing "Ref" or "Ref No" fragments
+    cleaned = cleaned.replaceAll(
+      RegExp(r'\s*Ref(?:\s*No)?\.?\s*\d*\s*$', caseSensitive: false),
+      '',
+    ).trim();
+
+    // Remove phone numbers and "call/SMS/click" instructions
+    cleaned = cleaned.replaceAll(
+      RegExp(r'\s*(?:call|sms|click|fwd|forward)\s.*$', caseSensitive: false),
+      '',
+    ).trim();
+
+    // Remove "Not You?" or "If not done by u" trailing text
+    cleaned = cleaned.replaceAll(
+      RegExp(r'\s*(?:Not\s*You|If\s+not).*$', caseSensitive: false),
+      '',
+    ).trim();
+
+    // If too short or just numbers, return null
+    if (cleaned.length < 2 || RegExp(r'^\d+$').hasMatch(cleaned)) {
+      return null;
+    }
+
+    return _titleCase(cleaned);
+  }
+
+  /// Title-case a string: "MUMBAI METRO GHATKOPAR" → "Mumbai Metro Ghatkopar"
+  static String _titleCase(String input) {
+    if (input.isEmpty) return input;
+    return input.split(RegExp(r'\s+')).map((word) {
+      if (word.isEmpty) return word;
+      return '${word[0].toUpperCase()}${word.substring(1).toLowerCase()}';
+    }).join(' ');
   }
 }
