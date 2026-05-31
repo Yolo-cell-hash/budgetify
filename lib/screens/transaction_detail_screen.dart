@@ -155,6 +155,10 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
 
     if (result != null && mounted) {
       await _processBulkFlagging(result);
+    } else if (mounted) {
+      // User dismissed the dialog — transaction was already saved above,
+      // so pop with true to signal the calling screen to refresh.
+      Navigator.pop(context, true);
     }
   }
 

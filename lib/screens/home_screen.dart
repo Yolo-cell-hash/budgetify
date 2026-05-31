@@ -215,10 +215,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
-  void _openTransactionsScreen() {
+  void _openTransactionsScreen({bool unclassifiedOnly = false}) {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const TransactionsScreen()),
+      MaterialPageRoute(
+        builder: (context) => TransactionsScreen(
+          initialUnclassifiedOnly: unclassifiedOnly,
+        ),
+      ),
     ).then((_) => _loadData());
   }
 
@@ -558,7 +562,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               value: _unclassifiedCount.toString(),
               color: Colors.orange,
               isDark: isDark,
-              onTap: _openTransactionsScreen,
+              onTap: () => _openTransactionsScreen(unclassifiedOnly: true),
             ),
           ),
           const SizedBox(width: 12),

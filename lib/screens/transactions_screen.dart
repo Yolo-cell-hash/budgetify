@@ -8,7 +8,12 @@ import 'add_transaction_screen.dart';
 
 /// Screen displaying all detected transactions with filtering
 class TransactionsScreen extends StatefulWidget {
-  const TransactionsScreen({super.key});
+  final bool initialUnclassifiedOnly;
+
+  const TransactionsScreen({
+    super.key,
+    this.initialUnclassifiedOnly = false,
+  });
 
   @override
   State<TransactionsScreen> createState() => _TransactionsScreenState();
@@ -28,6 +33,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   @override
   void initState() {
     super.initState();
+    _unclassifiedOnly = widget.initialUnclassifiedOnly;
     _loadFiltersData();
     _loadTransactions();
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import '../models/transaction_model.dart';
+import '../screens/daily_analysis_screen.dart';
 
 /// A beautiful expense trend chart widget showing 7-day spending patterns
 class ExpenseChartWidget extends StatelessWidget {
@@ -70,6 +71,14 @@ class ExpenseChartWidget extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: 4),
+          Text(
+            'Tap a day for detailed analysis',
+            style: TextStyle(
+              fontSize: 12,
+              color: isDark ? Colors.grey.shade500 : Colors.grey.shade500,
+            ),
+          ),
           const SizedBox(height: 8),
           Text(
             'Total: ₹${_getTotalExpenses().toStringAsFixed(0)}',
@@ -94,15 +103,40 @@ class ExpenseChartWidget extends StatelessWidget {
                           getTooltipColor: (_) => Colors.grey.shade800,
                           getTooltipItem: (group, groupIndex, rod, rodIndex) {
                             return BarTooltipItem(
-                              '₹${rod.toY.toStringAsFixed(0)}',
+                              '₹${rod.toY.toStringAsFixed(0)}\n',
                               const TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w500,
                                 fontSize: 12,
                               ),
+                              children: [
+                                TextSpan(
+                                  text: 'Tap for details',
+                                  style: TextStyle(
+                                    color: Colors.white.withAlpha(180),
+                                    fontWeight: FontWeight.normal,
+                                    fontSize: 10,
+                                  ),
+                                ),
+                              ],
                             );
                           },
                         ),
+                        touchCallback: (FlTouchEvent event,
+                            BarTouchResponse? response) {
+                          if (event is FlTapUpEvent &&
+                              response != null &&
+                              response.spot != null) {
+                            final index =
+                                response.spot!.touchedBarGroupIndex;
+                            if (index >= 0 && index < dailyData.length) {
+                              _navigateToDailyAnalysis(
+                                context,
+                                dailyData[index].date,
+                              );
+                            }
+                          }
+                        },
                       ),
                       titlesData: FlTitlesData(
                         show: true,
@@ -184,6 +218,15 @@ class ExpenseChartWidget extends StatelessWidget {
                   ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _navigateToDailyAnalysis(BuildContext context, DateTime date) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DailyAnalysisScreen(date: date),
       ),
     );
   }
