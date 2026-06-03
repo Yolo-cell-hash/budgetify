@@ -297,7 +297,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   subtitle: Text(
                     'Month-wise categorized data (.csv)',
                     style: TextStyle(
-                      color: isDark ? Colors.grey.shade500 : Colors.grey.shade600,
+                      color: isDark
+                          ? Colors.grey.shade500
+                          : Colors.grey.shade600,
                     ),
                   ),
                   trailing: const Icon(Icons.chevron_right),
@@ -313,7 +315,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   subtitle: Text(
                     'Formatted summary report (.txt)',
                     style: TextStyle(
-                      color: isDark ? Colors.grey.shade500 : Colors.grey.shade600,
+                      color: isDark
+                          ? Colors.grey.shade500
+                          : Colors.grey.shade600,
                     ),
                   ),
                   trailing: const Icon(Icons.chevron_right),
@@ -355,7 +359,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: const ListTile(
               leading: Icon(Icons.info_outline),
               title: Text('Budget Tracker'),
-              subtitle: Text('Version 1.0.0'),
+              subtitle: Text('Version 1.0.1'),
             ),
           ),
         ],
