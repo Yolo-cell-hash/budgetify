@@ -31,8 +31,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _isLoading = true;
   bool _isScanning = false;
 
-  double _totalCredits = 0;
-  double _totalDebits = 0;
   int _transactionCount = 0;
   int _unclassifiedCount = 0;
   List<TransactionModel> _recentTransactions = [];
@@ -91,18 +89,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     try {
       final transactions = await _dbService.getAllTransactions();
       final unclassified = await _dbService.getUnclassifiedTransactions();
-
-      double credits = 0;
-      double debits = 0;
-
-      for (final t in transactions) {
-        if (t.type == TransactionType.credit) {
-          credits += t.amount;
-        } else {
-          debits += t.amount;
-        }
-      }
-
       // Load budget data
       final budget = await _dbService.getActiveBudget();
       double budgetSpent = 0;
@@ -142,8 +128,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       }
 
       setState(() {
-        _totalCredits = credits;
-        _totalDebits = debits;
         _transactionCount = transactions.length;
         _unclassifiedCount = unclassified.length;
         _recentTransactions = transactions.take(5).toList();
@@ -221,6 +205,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       MaterialPageRoute(
         builder: (context) => TransactionsScreen(
           initialUnclassifiedOnly: unclassifiedOnly,
+        ),
+      ),
+    ).then((_) => _loadData());
+  }
+
+  void _openMonthlyTransactions(TransactionType type) {
+    final now = DateTime.now();
+    final monthStart = DateTime(now.year, now.month, 1);
+    final monthEnd = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TransactionsScreen(
+          initialTypeFilter: type,
+          initialStartDate: monthStart,
+          initialEndDate: monthEnd,
         ),
       ),
     ).then((_) => _loadData());
@@ -356,8 +356,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Widget _buildBalanceCard() {
     final formatter = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
-    final monthlyNet = _monthlyIncome - _monthlyExpenses;
-    final isPositive = monthlyNet >= 0;
     final monthName = DateFormat('MMMM').format(DateTime.now());
 
     return Container(
@@ -438,43 +436,46 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             child: Row(
               children: [
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              color: Colors.green.withOpacity(0.3),
-                              borderRadius: BorderRadius.circular(4),
+                  child: GestureDetector(
+                    onTap: () => _openMonthlyTransactions(TransactionType.credit),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: Colors.green.withOpacity(0.3),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Icon(
+                                Icons.arrow_downward,
+                                size: 12,
+                                color: Colors.white,
+                              ),
                             ),
-                            child: const Icon(
-                              Icons.arrow_downward,
-                              size: 12,
-                              color: Colors.white,
+                            const SizedBox(width: 6),
+                            Text(
+                              'Income',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.white.withOpacity(0.8),
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Income',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.white.withOpacity(0.8),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        formatter.format(_monthlyIncome),
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
+                          ],
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 4),
+                        Text(
+                          formatter.format(_monthlyIncome),
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 Container(
@@ -483,50 +484,47 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   color: Colors.white.withOpacity(0.3),
                 ),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          Text(
-                            'Net Balance',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.white.withOpacity(0.8),
+                  child: GestureDetector(
+                    onTap: () => _openMonthlyTransactions(TransactionType.debit),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            Text(
+                              'Expenses',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.white.withOpacity(0.8),
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              color: isPositive
-                                  ? Colors.green.withOpacity(0.3)
-                                  : Colors.red.withOpacity(0.3),
-                              borderRadius: BorderRadius.circular(4),
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: Colors.red.withOpacity(0.3),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Icon(
+                                Icons.arrow_upward,
+                                size: 12,
+                                color: Colors.white,
+                              ),
                             ),
-                            child: Icon(
-                              isPositive
-                                  ? Icons.trending_up
-                                  : Icons.trending_down,
-                              size: 12,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${isPositive ? '+' : ''}${formatter.format(monthlyNet)}',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: isPositive
-                              ? Colors.greenAccent
-                              : Colors.redAccent.shade100,
+                          ],
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 4),
+                        Text(
+                          formatter.format(_monthlyExpenses),
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],

@@ -9,10 +9,16 @@ import 'add_transaction_screen.dart';
 /// Screen displaying all detected transactions with filtering
 class TransactionsScreen extends StatefulWidget {
   final bool initialUnclassifiedOnly;
+  final TransactionType? initialTypeFilter;
+  final DateTime? initialStartDate;
+  final DateTime? initialEndDate;
 
   const TransactionsScreen({
     super.key,
     this.initialUnclassifiedOnly = false,
+    this.initialTypeFilter,
+    this.initialStartDate,
+    this.initialEndDate,
   });
 
   @override
@@ -29,11 +35,20 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   TransactionType? _typeFilter;
   String? _categoryFilter;
   bool _unclassifiedOnly = false;
+  DateTime? _startDate;
+  DateTime? _endDate;
+
+  // Monthly totals (for summary card — always current month, unfiltered)
+  double _monthlyCredits = 0;
+  double _monthlyDebits = 0;
 
   @override
   void initState() {
     super.initState();
     _unclassifiedOnly = widget.initialUnclassifiedOnly;
+    _typeFilter = widget.initialTypeFilter;
+    _startDate = widget.initialStartDate;
+    _endDate = widget.initialEndDate;
     _loadFiltersData();
     _loadTransactions();
   }
@@ -53,14 +68,41 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final transactions = await _dbService.getFilteredTransactions(
+      var transactions = await _dbService.getFilteredTransactions(
         type: _typeFilter,
         category: _categoryFilter,
         unclassifiedOnly: _unclassifiedOnly ? true : null,
       );
 
+      // Apply date range filter client-side if set
+      if (_startDate != null && _endDate != null) {
+        transactions = transactions.where((t) {
+          return !t.detectedAt.isBefore(_startDate!) &&
+              !t.detectedAt.isAfter(_endDate!);
+        }).toList();
+      }
+
+      // Load current-month totals (always unfiltered) for the summary card
+      final now = DateTime.now();
+      final monthStart = DateTime(now.year, now.month, 1);
+      final monthEnd = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+      final allMonthTxns = await _dbService.getTransactionsByDateRange(
+        monthStart,
+        monthEnd,
+      );
+      double mCredits = 0, mDebits = 0;
+      for (final t in allMonthTxns) {
+        if (t.type == TransactionType.credit) {
+          mCredits += t.amount;
+        } else {
+          mDebits += t.amount;
+        }
+      }
+
       setState(() {
         _transactions = transactions;
+        _monthlyCredits = mCredits;
+        _monthlyDebits = mDebits;
         _isLoading = false;
       });
     } catch (e) {
@@ -78,12 +120,17 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       _typeFilter = null;
       _categoryFilter = null;
       _unclassifiedOnly = false;
+      _startDate = null;
+      _endDate = null;
     });
     _loadTransactions();
   }
 
   bool get _hasActiveFilters =>
-      _typeFilter != null || _categoryFilter != null || _unclassifiedOnly;
+      _typeFilter != null ||
+      _categoryFilter != null ||
+      _unclassifiedOnly ||
+      _startDate != null;
 
   Future<void> _deleteTransaction(TransactionModel transaction) async {
     if (transaction.id == null) return;
@@ -111,6 +158,18 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     }
   }
 
+  String get _appBarTitle {
+    if (_startDate != null && _typeFilter != null) {
+      final monthName = DateFormat('MMMM').format(_startDate!);
+      if (_typeFilter == TransactionType.credit) {
+        return '$monthName Income';
+      } else {
+        return '$monthName Expenses';
+      }
+    }
+    return 'Transactions';
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -118,7 +177,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0D1117) : Colors.grey.shade100,
       appBar: AppBar(
-        title: const Text('Transactions'),
+        title: Text(_appBarTitle),
         actions: [
           if (_hasActiveFilters)
             IconButton(
@@ -358,17 +417,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
   Widget _buildSummaryCard(bool isDark) {
     final formatter = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
-
-    double totalCredits = 0;
-    double totalDebits = 0;
-
-    for (final t in _transactions) {
-      if (t.type == TransactionType.credit) {
-        totalCredits += t.amount;
-      } else {
-        totalDebits += t.amount;
-      }
-    }
+    final monthName = DateFormat('MMMM').format(DateTime.now());
 
     return Container(
       margin: const EdgeInsets.all(16),
@@ -386,103 +435,126 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 ),
               ],
       ),
-      child: Row(
+      child: Column(
         children: [
-          Expanded(
-            child: Column(
-              children: [
-                Icon(
-                  Icons.arrow_downward,
-                  color: Colors.green.shade600,
-                  size: 20,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Income',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: isDark ? Colors.grey.shade500 : Colors.grey.shade600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  formatter.format(totalCredits),
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.green.shade600,
-                  ),
-                ),
-              ],
+          // "This Month" label
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Text(
+              '$monthName Summary',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: isDark ? Colors.grey.shade500 : Colors.grey.shade600,
+              ),
             ),
           ),
-          Container(
-            width: 1,
-            height: 50,
-            color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
-          ),
-          Expanded(
-            child: Column(
-              children: [
-                Icon(Icons.arrow_upward, color: Colors.red.shade600, size: 20),
-                const SizedBox(height: 4),
-                Text(
-                  'Expenses',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: isDark ? Colors.grey.shade500 : Colors.grey.shade600,
-                  ),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.arrow_downward,
+                      color: Colors.green.shade600,
+                      size: 20,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Income',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color:
+                            isDark ? Colors.grey.shade500 : Colors.grey.shade600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      formatter.format(_monthlyCredits),
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green.shade600,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  formatter.format(totalDebits),
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.red.shade600,
-                  ),
+              ),
+              Container(
+                width: 1,
+                height: 50,
+                color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+              ),
+              Expanded(
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.arrow_upward,
+                      color: Colors.red.shade600,
+                      size: 20,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Expenses',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color:
+                            isDark ? Colors.grey.shade500 : Colors.grey.shade600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      formatter.format(_monthlyDebits),
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.red.shade600,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
-          Container(
-            width: 1,
-            height: 50,
-            color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
-          ),
-          Expanded(
-            child: Column(
-              children: [
-                Icon(
-                  totalCredits >= totalDebits
-                      ? Icons.trending_up
-                      : Icons.trending_down,
-                  color: totalCredits >= totalDebits
-                      ? Colors.blue
-                      : Colors.orange,
-                  size: 20,
+              ),
+              Container(
+                width: 1,
+                height: 50,
+                color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+              ),
+              Expanded(
+                child: Column(
+                  children: [
+                    Icon(
+                      _monthlyCredits >= _monthlyDebits
+                          ? Icons.trending_up
+                          : Icons.trending_down,
+                      color: _monthlyCredits >= _monthlyDebits
+                          ? Colors.blue
+                          : Colors.orange,
+                      size: 20,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Net',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color:
+                            isDark ? Colors.grey.shade500 : Colors.grey.shade600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      formatter.format(_monthlyCredits - _monthlyDebits),
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: _monthlyCredits >= _monthlyDebits
+                            ? Colors.blue
+                            : Colors.orange,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Net',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: isDark ? Colors.grey.shade500 : Colors.grey.shade600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  formatter.format(totalCredits - totalDebits),
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: totalCredits >= totalDebits
-                        ? Colors.blue
-                        : Colors.orange,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ],
       ),

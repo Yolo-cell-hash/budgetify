@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/custom_tag_service.dart';
 
 /// Transaction model representing a detected bank SMS transaction
 class TransactionModel {
@@ -126,7 +127,7 @@ extension TransactionTypeExtension on TransactionType {
 
 /// Predefined expense categories
 class ExpenseCategories {
-  static const List<String> categories = [
+  static const List<String> predefined = [
     'Food & Dining',
     'Groceries',
     'Shopping',
@@ -144,8 +145,25 @@ class ExpenseCategories {
     'Other',
   ];
 
-  /// Get icon for category
+  /// Backward-compatible alias for predefined categories
+  static List<String> get categories => allCategories;
+
+  /// All categories: predefined + user-created custom tags
+  static List<String> get allCategories {
+    final custom = CustomTagService()
+        .getCustomTags()
+        .map((t) => t.name)
+        .where((name) => !predefined.contains(name))
+        .toList();
+    return [...predefined, ...custom];
+  }
+
+  /// Get icon for category (supports custom tags)
   static String getIcon(String category) {
+    // Check custom tags first
+    final customEmoji = CustomTagService().getTagEmoji(category);
+    if (customEmoji != null) return customEmoji;
+
     switch (category) {
       case 'Food & Dining':
         return '🍔';
@@ -180,8 +198,13 @@ class ExpenseCategories {
     }
   }
 
-  /// Get color for category
+  /// Get color for category (supports custom tags)
   static Color getColor(String category) {
+    // Check custom tags — generate a deterministic color from the name
+    if (CustomTagService().isCustomTag(category)) {
+      return CustomTagService.colorFromName(category);
+    }
+
     switch (category) {
       case 'Food & Dining':
         return const Color(0xFFFF6B6B);
@@ -216,3 +239,4 @@ class ExpenseCategories {
     }
   }
 }
+

@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../models/transaction_model.dart';
 import '../models/transaction_rule_model.dart';
 import '../services/database_service.dart';
+import '../services/custom_tag_service.dart';
 
 /// Screen for viewing and classifying a transaction
 class TransactionDetailScreen extends StatefulWidget {
@@ -314,6 +315,207 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     }
   }
 
+  Future<void> _showCreateTagDialog(bool isDark) async {
+    final nameController = TextEditingController();
+    String selectedEmoji = '🏷️';
+
+    const emojis = [
+      '🏠', '🎮', '💊', '🎁', '🐾', '🍕', '🏋️', '📱', '☕', '🎵',
+      '💇', '🧹', '🚕', '🎓', '👶', '💍', '🏦', '⛽', '🅿️', '📦',
+      '🛒', '🍿', '🏥', '✂️', '🧾', '💻', '📸', '🎂', '🌐', '🔧',
+    ];
+
+    final cardColor = isDark ? const Color(0xFF1C2333) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subtextColor = isDark ? Colors.grey.shade400 : Colors.grey.shade600;
+    final inputBg = isDark ? const Color(0xFF2D3748) : Colors.grey.shade50;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: cardColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 24,
+                right: 24,
+                top: 24,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade400,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Create Custom Tag',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: textColor,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Choose an emoji and name for your tag',
+                    style: TextStyle(color: subtextColor),
+                  ),
+                  const SizedBox(height: 20),
+                  // Tag name input
+                  TextField(
+                    controller: nameController,
+                    style: TextStyle(color: textColor),
+                    decoration: InputDecoration(
+                      hintText: 'Tag name (e.g. Rent, Gym)',
+                      hintStyle: TextStyle(color: subtextColor),
+                      filled: true,
+                      fillColor: inputBg,
+                      prefixIcon: Container(
+                        width: 48,
+                        alignment: Alignment.center,
+                        child: Text(
+                          selectedEmoji,
+                          style: const TextStyle(fontSize: 20),
+                        ),
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // Emoji picker grid
+                  Text(
+                    'Pick an emoji',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: subtextColor,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 180,
+                    child: GridView.builder(
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 6,
+                        mainAxisSpacing: 8,
+                        crossAxisSpacing: 8,
+                      ),
+                      itemCount: emojis.length,
+                      itemBuilder: (_, i) {
+                        final emoji = emojis[i];
+                        final isSelected = emoji == selectedEmoji;
+                        return GestureDetector(
+                          onTap: () {
+                            setDialogState(() => selectedEmoji = emoji);
+                          },
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? Colors.blue.withAlpha(40)
+                                  : (isDark
+                                      ? const Color(0xFF2D3748)
+                                      : Colors.grey.shade100),
+                              borderRadius: BorderRadius.circular(10),
+                              border: isSelected
+                                  ? Border.all(
+                                      color: Colors.blue.shade300, width: 2)
+                                  : null,
+                            ),
+                            child: Center(
+                              child: Text(
+                                emoji,
+                                style: const TextStyle(fontSize: 22),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  // Create button
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        final name = nameController.text.trim();
+                        if (name.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Please enter a tag name'),
+                            ),
+                          );
+                          return;
+                        }
+                        final success = await CustomTagService()
+                            .addCustomTag(name, selectedEmoji);
+                        if (!success) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'A tag with this name already exists',
+                                ),
+                              ),
+                            );
+                          }
+                          return;
+                        }
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        setState(() {
+                          _selectedCategory = name;
+                        });
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue.shade600,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: const Text(
+                        'Create Tag',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -539,61 +741,105 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
-                    children: ExpenseCategories.categories.map((category) {
-                      final isSelected = _selectedCategory == category;
-                      return GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            _selectedCategory = isSelected ? null : category;
-                          });
-                        },
+                    children: [
+                      ...ExpenseCategories.categories.map((category) {
+                        final isSelected = _selectedCategory == category;
+                        return GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _selectedCategory = isSelected ? null : category;
+                            });
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? (isDark
+                                        ? Colors.blue.shade900.withAlpha(150)
+                                        : Colors.blue.shade50)
+                                  : chipBgUnselected,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: isSelected
+                                    ? Colors.blue.shade300
+                                    : chipBorderUnselected,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  ExpenseCategories.getIcon(category),
+                                  style: const TextStyle(fontSize: 14),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  category,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: isSelected
+                                        ? (isDark
+                                              ? Colors.blue.shade200
+                                              : Colors.blue.shade700)
+                                        : (isDark
+                                              ? Colors.grey.shade300
+                                              : Colors.grey.shade700),
+                                    fontWeight: isSelected
+                                        ? FontWeight.w600
+                                        : FontWeight.normal,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }),
+                      // Create new tag button
+                      GestureDetector(
+                        onTap: () => _showCreateTagDialog(isDark),
                         child: Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
                             vertical: 8,
                           ),
                           decoration: BoxDecoration(
-                            color: isSelected
-                                ? (isDark
-                                      ? Colors.blue.shade900.withAlpha(150)
-                                      : Colors.blue.shade50)
-                                : chipBgUnselected,
+                            color: Colors.transparent,
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                              color: isSelected
-                                  ? Colors.blue.shade300
-                                  : chipBorderUnselected,
+                              color: isDark
+                                  ? Colors.grey.shade600
+                                  : Colors.grey.shade400,
+                              style: BorderStyle.solid,
                             ),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text(
-                                ExpenseCategories.getIcon(category),
-                                style: const TextStyle(fontSize: 14),
+                              Icon(
+                                Icons.add,
+                                size: 16,
+                                color: isDark
+                                    ? Colors.grey.shade400
+                                    : Colors.grey.shade600,
                               ),
-                              const SizedBox(width: 6),
+                              const SizedBox(width: 4),
                               Text(
-                                category,
+                                'New Tag',
                                 style: TextStyle(
                                   fontSize: 13,
-                                  color: isSelected
-                                      ? (isDark
-                                            ? Colors.blue.shade200
-                                            : Colors.blue.shade700)
-                                      : (isDark
-                                            ? Colors.grey.shade300
-                                            : Colors.grey.shade700),
-                                  fontWeight: isSelected
-                                      ? FontWeight.w600
-                                      : FontWeight.normal,
+                                  color: isDark
+                                      ? Colors.grey.shade400
+                                      : Colors.grey.shade600,
                                 ),
                               ),
                             ],
                           ),
                         ),
-                      );
-                    }).toList(),
+                      ),
+                    ],
                   ),
                 ],
               ),

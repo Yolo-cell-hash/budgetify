@@ -4,7 +4,13 @@ import '../models/transaction_model.dart';
 class SmsParserService {
   // Common Indian bank sender patterns
   static final List<String> _bankSenderPatterns = [
+    // --- Your Original List ---
     'SBIINB',
+    'SBIUPI',
+    'SBIBNK',
+    'SBIPSG',
+    'ATMSBI',
+    'CSBSBI',
     'SBIATM',
     'SBISMS',
     'HDFCBK',
@@ -30,112 +36,199 @@ class SmsParserService {
     'AMAZONP',
     'APAY',
     'MAHABNK',
+    'MAHABK',
     'BOMSMS',
     'CENTBK',
     'SCBSMS',
     'CITIBNK',
     'DBISHR',
+
+    // --- Newly Appended Extensions ---
+    'SBIFMS',
+    'SBIYONO',
+    'JOSBII',
+    'SBILDG',
+    'HDFCCN',
+    'HDFCAL',
+    'HDFCTX',
+    'HDFCBF',
+    'ICICIP',
+    'ICICIC',
+    'ICICIA',
+    'AXISBNK',
+    'AXISBI',
+    'AXCHG',
+    'BARODA',
+    'BOBTXN',
+    'BOBSMS',
+    'BOBBNK',
+    'PNBINF',
+    'PNBBNK',
+    'PNBPRD',
+    'IDBIBK',
+    'IDBIMS',
+    'IDBIEX',
+    'IOBAST',
+    'IOBANK',
+    'INDYAL',
+    'IDNBNK',
+    'CBIINB',
+    'UCOBNK',
+    'UCOFTN',
+    'CNRBNK',
+    'CANARA',
+    'UBIINB',
+    'UBISMS',
+    'INDUSI',
+    'BANDHN',
+    'BNDHNB',
+    'BDHNBK',
+    'SIBLTD',
+    'SIBPLZ',
+    'KVBLTD',
+    'KVBBNK',
+    'FEDBNK',
+    'RBLSMS',
+    'RBLCC',
+    'JKBNK',
+    'JKBANK',
+    'AIRTELP',
+    'ATLPAY',
+    'FINOPB',
+    'FINOBK',
+    'JIOSMS',
+    'JIOBPY',
+    'IPPBANK',
+    'IPPSMS',
+    'MOBIKW',
+    'KWIK24',
+    'FREECH',
+    'DREAMP',
+    'BAJAJF',
+    'BJFLTX',
+    'DBSBNK',
+    'CITIBK',
+    'HSBCBK',
+    'HSBNK',
+    'SCBLTD',
+    'AMEXBK',
   ];
 
   /// Merchant keywords for auto-categorization
   static const Map<String, List<String>> _merchantCategories = {
     'Food & Dining': [
-      'SWIGGY',
-      'ZOMATO',
-      'DOMINOS',
-      'MCDONALDS',
-      'KFC',
-      'STARBUCKS',
-      'BURGER KING',
-      'PIZZA HUT',
-      'SUBWAY',
-      'DUNKIN',
-      'CAFE COFFEE',
-      'CHAAYOS',
-      'HALDIRAM',
+      // --- Original ---
+      'PLATOS', 'SWIGGY', 'ZOMATO', 'DOMINOS', 'TOING', 'MC DONALDS',
+      'MCDONALDS', 'KFC', 'STARBUCKS', 'BURGER KING', 'PIZZA HUT', 'SUBWAY',
+      'DUNKIN', 'CAFE COFFEE', 'CHAAYOS', 'HALDIRAM',
+      // --- Appended ---
+      'BARBEQUE NATION', 'BEHROUZ', 'FAASOS', 'OVEN STORY', 'EATCLUB',
+      'THEOBROMA', 'WENDYS', 'COSTA COFFEE', 'TIM HORTONS', 'TACO BELL',
+      'BIKANERVALA', 'SOCIAL', 'SMOKE HOUSE', 'PIZZAEXPRESS', 'MOCHA',
+      'BARISTA', 'BASKIN ROBBINS', 'NATURALS ICE CREAM', 'PARADISE BIRYANI',
     ],
     'Groceries': [
-      'ZEPTO',
-      'BLINKIT',
-      'BIGBASKET',
-      'JIOMART',
-      'DMART',
-      'GROFERS',
-      'DUNZO',
-      'INSTAMART',
-      'SWIGGY INSTAMART',
-      'MILKBASKET',
-      'LICIOUS',
+      // --- Original ---
+      'ZEPTO', 'BLINKIT', 'BIGBASKET', 'JIOMART', 'DMART', 'GROFERS', 'DUNZO',
+      'INSTAMART', 'SWIGGY INSTAMART', 'MILKBASKET', 'LICIOUS',
+      // --- Appended ---
+      'NATURES BASKET', 'SPENCERS', 'MORE RETAIL', 'RELIANCE FRESH',
+      'RELIANCE SMART', 'SMARTBAZAAR', 'BB DAILY', 'COUNTRY DELIGHT',
+      'FRESH TO HOME', 'MEATIGO', 'TATA NEU', 'ONDC', 'SAHAKARI BHANDAR',
+      'FRESHTOHOME', 'TENDER CUTS',
     ],
     'Shopping': [
-      'AMAZON',
-      'FLIPKART',
-      'MYNTRA',
-      'AJIO',
-      'MEESHO',
-      'SNAPDEAL',
-      'NYKAA',
-      'TATA CLIQ',
-      'FIRSTCRY',
-      'LENSKART',
-      'CROMA',
+      // --- Original ---
+      'AMAZON', 'FLIPKART', 'MYNTRA', 'AJIO', 'MEESHO', 'SNAPDEAL', 'NYKAA',
+      'TATA CLIQ', 'FIRSTCRY', 'LENSKART', 'CROMA',
+      // --- Appended ---
+      'RELIANCE DIGITAL', 'SHOPPERS STOP', 'LIFESTYLE', 'MAX FASHION',
+      'PANTALOONS', 'WESTSIDE', 'DECATHLON', 'H&M', 'ZARA', 'RELIANCE TRENDS',
+      'BEWAKOOF', 'PURPLLE', 'SUGAR COSMETICS', 'MYGLAMM', 'CHUMBAK',
+      'PEPPERFRY', 'URBAN LADDER', 'TITAN', 'TANISHQ', 'KALYAN JEWELLERS',
+      'MALABAR', 'IKEA', 'VIJAY SALES',
     ],
     'Travel': [
+      // --- Original ---
+      'IRCTC UTS',
       'IRCTC',
       'MAKEMYTRIP',
       'GOIBIBO',
       'CLEARTRIP',
       'YATRA',
+      'Indian Railways Uts',
       'IXIGO',
       'REDBUS',
+      'Mumbai Metro',
       'ABHIBUS',
       'EASEMYTRIP',
       'INDIGO',
       'SPICEJET',
       'AIRINDIA',
+      // --- Appended ---
+      'BOOKING.COM', 'AGODA', 'EXPEDIA', 'OYO', 'FABHOTELS', 'TREEBO',
+      'VISTARA', 'AKASA AIR', 'AIR ASIA', 'CONFIRMTKT', 'PAYTM TICKET',
+      'TICKETNEW', 'MMT', 'QATAR AIRWAYS', 'EMIRATES',
     ],
-    'Transportation': ['UBER', 'OLA', 'RAPIDO', 'MERU', 'METRO', 'DMRC'],
+    'Transportation': [
+      // --- Original ---
+      'UBER', 'OLA', 'RAPIDO', 'MERU', 'METRO', 'DMRC',
+      // --- Appended ---
+      'BLABLACAR', 'INDRIVE', 'ZOOMCAR', 'REVV', 'BOUNCE', 'VOGO',
+      'QUICK RIDE', 'UBERAUTO', 'OLA AUTO', 'CHALO', 'TUMMOC', 'NMMT',
+      'BEST BUS', 'SMARTCARD', 'MAHA METRO', 'NASHIK METRO',
+    ],
     'Entertainment': [
-      'NETFLIX',
-      'HOTSTAR',
-      'PRIME VIDEO',
-      'SPOTIFY',
-      'GAANA',
-      'SONY LIV',
-      'ZEE5',
-      'BOOKMYSHOW',
-      'PVR',
-      'INOX',
+      // --- Original ---
+      'NETFLIX', 'HOTSTAR', 'PRIME VIDEO', 'SPOTIFY', 'GAANA', 'SONY LIV',
+      'ZEE5', 'BOOKMYSHOW', 'PVR', 'INOX',
+      // --- Appended ---
+      'JIO CINEMA', 'DISNEY+', 'APPLE TV', 'YOUTUBE PREMIUM', 'DISCOVERY+',
+      'AUDIBLE', 'KUKU FM', 'POCKET FM', 'STORYTEL', 'PAYTM INSIDER',
+      'CINEPOLIS', 'CARNIVAL CINEMAS', 'EPIC GAMES', 'STEAM', 'PLAYSTATION',
+      'XBOX', 'NINTENDO',
     ],
     'Health & Medical': [
-      'APOLLO',
-      'PHARMEASY',
-      'NETMEDS',
-      '1MG',
-      'TATA 1MG',
-      'PRACTO',
-      'CULT.FIT',
+      // --- Original ---
+      'APOLLO', 'PHARMEASY', 'NETMEDS', '1MG', 'TATA 1MG', 'PRACTO', 'CULT.FIT',
+      // --- Appended ---
+      'MEDPLUS', 'TRUEMEDS', 'APOLLO PHARMACY', 'THYROCARE', 'LAL PATHLABS',
+      'SRL DIAGNOSTICS', 'METROPOLIS', 'HEALTHKART', 'MYPROTEIN', 'FITPASS',
+      'CUREFIT', 'MAX HEALTHCARE', 'FORTIS', 'MEDANTA', 'MANIPAL',
     ],
     'Bills & Utilities': [
-      'AIRTEL',
-      'JIO',
-      'VI ',
-      'VODAFONE',
-      'BSNL',
-      'ELECTRICITY',
-      'BESCOM',
-      'TATA POWER',
-      'DTH',
-      'TATA SKY',
-      'DISH TV',
+      // --- Original ---
+      'AIRTEL', 'JIO', 'VI ', 'VODAFONE', 'BSNL', 'ELECTRICITY', 'BESCOM',
+      'TATA POWER', 'DTH', 'TATA SKY', 'DISH TV',
+      // --- Appended ---
+      'MSEDCL', 'MAHAVITARAN', 'ADANI ELECTRICITY', 'TORRENT POWER', // Power
+      'MGL',
+      'IGL',
+      'ADANI GAS',
+      'GUJARAT GAS',
+      'BHARAT GAS',
+      'HP GAS',
+      'INDANE', // Gas
+      'ACT FIBERNET',
+      'HATHWAY',
+      'EXCITEL',
+      'TIKONA',
+      'JIOFIBER',
+      'AIRTEL XSTREAM', // Broadband
+      'FASTAG',
+      'PAYTM FASTAG',
+      'PARK+',
+      'SUN DIRECT',
+      'WATER BILL',
+      'MUNICIPAL', // Misc
     ],
     'Education': [
-      'BYJU',
-      'UNACADEMY',
-      'VEDANTU',
-      'UPGRAD',
-      'COURSERA',
-      'UDEMY',
+      // --- Original ---
+      'BYJU', 'UNACADEMY', 'VEDANTU', 'UPGRAD', 'COURSERA', 'UDEMY',
+      // --- Appended ---
+      'PHYSICS WALLAH', 'SIMPLILEARN', 'TOPPR', 'ALLEN', 'AAKASH', 'FIITJEE',
+      'CHEGG', 'SKILLSHARE', 'EDX', 'DUOLINGO', 'SCRIBD', 'UNACADEMY',
+      'SCALER', 'GREAT LEARNING', 'TESTBOOK',
     ],
   };
 
@@ -438,7 +531,10 @@ class SmsParserService {
       // Account ending 1234 or Account XX1234
       RegExp(r'ACCOUNT\s*(?:ENDING)?\s*[X*]*([\d]{4})', caseSensitive: false),
       // Card XX1234 or Card ending 1234
-      RegExp(r'CARD\s*(?:ENDING|NO\.?)?\s*[X*]*([\d]{4})', caseSensitive: false),
+      RegExp(
+        r'CARD\s*(?:ENDING|NO\.?)?\s*[X*]*([\d]{4})',
+        caseSensitive: false,
+      ),
       // a/c **1234 or a/c *1234 (Axis, Kotak style)
       RegExp(r'A/?C\s*\*+([\d]{4})', caseSensitive: false),
       // **1234 or XX1234 followed by typical separators
@@ -553,9 +649,7 @@ class SmsParserService {
         final vpaName = vpaMatch.group(1);
         if (vpaName != null && vpaName.length > 2) {
           // Clean up VPA name: replace dots/underscores with spaces, title case
-          final cleaned = vpaName
-              .replaceAll(RegExp(r'[._]'), ' ')
-              .trim();
+          final cleaned = vpaName.replaceAll(RegExp(r'[._]'), ' ').trim();
           if (cleaned.isNotEmpty) {
             return _titleCase(cleaned);
           }
@@ -583,22 +677,31 @@ class SmsParserService {
     var cleaned = raw.trim().replaceAll(RegExp(r'[.,;:!\s]+$'), '');
 
     // Remove trailing "Ref" or "Ref No" fragments
-    cleaned = cleaned.replaceAll(
-      RegExp(r'\s*Ref(?:\s*No)?\.?\s*\d*\s*$', caseSensitive: false),
-      '',
-    ).trim();
+    cleaned = cleaned
+        .replaceAll(
+          RegExp(r'\s*Ref(?:\s*No)?\.?\s*\d*\s*$', caseSensitive: false),
+          '',
+        )
+        .trim();
 
     // Remove phone numbers and "call/SMS/click" instructions
-    cleaned = cleaned.replaceAll(
-      RegExp(r'\s*(?:call|sms|click|fwd|forward)\s.*$', caseSensitive: false),
-      '',
-    ).trim();
+    cleaned = cleaned
+        .replaceAll(
+          RegExp(
+            r'\s*(?:call|sms|click|fwd|forward)\s.*$',
+            caseSensitive: false,
+          ),
+          '',
+        )
+        .trim();
 
     // Remove "Not You?" or "If not done by u" trailing text
-    cleaned = cleaned.replaceAll(
-      RegExp(r'\s*(?:Not\s*You|If\s+not).*$', caseSensitive: false),
-      '',
-    ).trim();
+    cleaned = cleaned
+        .replaceAll(
+          RegExp(r'\s*(?:Not\s*You|If\s+not).*$', caseSensitive: false),
+          '',
+        )
+        .trim();
 
     // If too short or just numbers, return null
     if (cleaned.length < 2 || RegExp(r'^\d+$').hasMatch(cleaned)) {
@@ -611,9 +714,12 @@ class SmsParserService {
   /// Title-case a string: "MUMBAI METRO GHATKOPAR" → "Mumbai Metro Ghatkopar"
   static String _titleCase(String input) {
     if (input.isEmpty) return input;
-    return input.split(RegExp(r'\s+')).map((word) {
-      if (word.isEmpty) return word;
-      return '${word[0].toUpperCase()}${word.substring(1).toLowerCase()}';
-    }).join(' ');
+    return input
+        .split(RegExp(r'\s+'))
+        .map((word) {
+          if (word.isEmpty) return word;
+          return '${word[0].toUpperCase()}${word.substring(1).toLowerCase()}';
+        })
+        .join(' ');
   }
 }

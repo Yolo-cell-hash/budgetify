@@ -17,11 +17,20 @@ class DailyAnalysisScreen extends StatefulWidget {
 
 class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
   final DatabaseService _db = DatabaseService();
+  final ScrollController _scrollController = ScrollController();
+  final GlobalKey _expensesKey = GlobalKey();
+  final GlobalKey _incomeKey = GlobalKey();
   List<TransactionModel> _transactions = [];
   Map<String, double> _categoryBreakdown = {};
   double _totalSpent = 0;
   double _totalReceived = 0;
   bool _loading = true;
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -95,6 +104,7 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
               : RefreshIndicator(
                   onRefresh: _loadData,
                   child: SingleChildScrollView(
+                    controller: _scrollController,
                     physics: const AlwaysScrollableScrollPhysics(),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -216,23 +226,45 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
             children: [
               // Spent
               Expanded(
-                child: _buildSummaryItem(
-                  icon: Icons.arrow_upward,
-                  label: 'Spent',
-                  amount: fmt.format(_totalSpent),
-                  color: Colors.red,
-                  isDark: isDark,
+                child: GestureDetector(
+                  onTap: () {
+                    if (_expensesKey.currentContext != null) {
+                      Scrollable.ensureVisible(
+                        _expensesKey.currentContext!,
+                        duration: const Duration(milliseconds: 400),
+                        curve: Curves.easeInOut,
+                      );
+                    }
+                  },
+                  child: _buildSummaryItem(
+                    icon: Icons.arrow_upward,
+                    label: 'Spent',
+                    amount: fmt.format(_totalSpent),
+                    color: Colors.red,
+                    isDark: isDark,
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
               // Received
               Expanded(
-                child: _buildSummaryItem(
-                  icon: Icons.arrow_downward,
-                  label: 'Received',
-                  amount: fmt.format(_totalReceived),
-                  color: Colors.green,
-                  isDark: isDark,
+                child: GestureDetector(
+                  onTap: () {
+                    if (_incomeKey.currentContext != null) {
+                      Scrollable.ensureVisible(
+                        _incomeKey.currentContext!,
+                        duration: const Duration(milliseconds: 400),
+                        curve: Curves.easeInOut,
+                      );
+                    }
+                  },
+                  child: _buildSummaryItem(
+                    icon: Icons.arrow_downward,
+                    label: 'Received',
+                    amount: fmt.format(_totalReceived),
+                    color: Colors.green,
+                    isDark: isDark,
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -479,123 +511,251 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
   ) {
     final timeFormat = DateFormat('h:mm a');
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+    // Split transactions by type and classification
+    final classifiedDebits = _transactions
+        .where((t) => t.type == TransactionType.debit && t.isClassified)
+        .toList();
+    final unclassifiedDebits = _transactions
+        .where((t) => t.type == TransactionType.debit && !t.isClassified)
+        .toList();
+    final credits = _transactions
+        .where((t) => t.type == TransactionType.credit)
+        .toList();
+
+    Widget buildTxnTile(TransactionModel txn) {
+      final isCredit = txn.type == TransactionType.credit;
+      final cat = txn.category ?? 'Uncategorized';
+
+      return ListTile(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => TransactionDetailScreen(transaction: txn),
+            ),
+          ).then((result) {
+            if (result == true) _loadData();
+          });
+        },
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 4,
+        ),
+        leading: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: (isCredit ? Colors.green : _getCategoryColor(cat))
+                .withAlpha(25),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Center(
             child: Text(
-              'Transactions',
+              isCredit ? '💰' : _getCategoryIcon(cat),
+              style: const TextStyle(fontSize: 18),
+            ),
+          ),
+        ),
+        title: Text(
+          txn.merchantName ?? txn.category ?? txn.sender,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: textColor,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: Row(
+          children: [
+            Text(
+              timeFormat.format(txn.detectedAt),
+              style: TextStyle(fontSize: 12, color: subtextColor),
+            ),
+            if (txn.category != null) ...[
+              const SizedBox(width: 6),
+              Container(
+                width: 4,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: subtextColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  cat,
+                  style: TextStyle(fontSize: 12, color: subtextColor),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ],
+        ),
+        trailing: Text(
+          '${isCredit ? '+' : '-'} ${fmt.format(txn.amount)}',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: isCredit ? Colors.green : Colors.red,
+          ),
+        ),
+      );
+    }
+
+    Widget buildDivider() => Divider(
+      height: 1,
+      indent: 68,
+      endIndent: 16,
+      color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+    );
+
+    Widget buildSectionHeader({
+      required String title,
+      required IconData icon,
+      required Color color,
+      required String amount,
+      Key? key,
+    }) {
+      return Container(
+        key: key,
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: color.withAlpha(25),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: color, size: 16),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              title,
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
                 color: textColor,
               ),
             ),
-          ),
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _transactions.length,
-            separatorBuilder: (_, __) => Divider(
-              height: 1,
-              indent: 68,
-              endIndent: 16,
-              color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+            const Spacer(),
+            Text(
+              amount,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: color,
+              ),
             ),
-            itemBuilder: (context, index) {
-              final txn = _transactions[index];
-              final isCredit = txn.type == TransactionType.credit;
-              final cat = txn.category ?? 'Uncategorized';
+          ],
+        ),
+      );
+    }
 
-              return ListTile(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          TransactionDetailScreen(transaction: txn),
-                    ),
-                  ).then((result) {
-                    if (result == true) _loadData();
-                  });
-                },
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 4,
+    Widget buildSubHeader(String title, Color color) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+        child: Row(
+          children: [
+            Container(
+              width: 3,
+              height: 16,
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        // === EXPENSES SECTION ===
+        if (classifiedDebits.isNotEmpty || unclassifiedDebits.isNotEmpty)
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: cardColor,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                buildSectionHeader(
+                  key: _expensesKey,
+                  title: 'Expenses',
+                  icon: Icons.arrow_upward,
+                  color: Colors.red,
+                  amount: fmt.format(_totalSpent),
                 ),
-                leading: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: (isCredit ? Colors.green : _getCategoryColor(cat))
-                        .withAlpha(25),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Center(
-                    child: Text(
-                      isCredit ? '💰' : _getCategoryIcon(cat),
-                      style: const TextStyle(fontSize: 18),
-                    ),
-                  ),
-                ),
-                title: Text(
-                  txn.merchantName ?? txn.category ?? txn.sender,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: textColor,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                subtitle: Row(
-                  children: [
-                    Text(
-                      timeFormat.format(txn.detectedAt),
-                      style: TextStyle(fontSize: 12, color: subtextColor),
-                    ),
-                    if (txn.category != null) ...[
-                      const SizedBox(width: 6),
-                      Container(
-                        width: 4,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: subtextColor,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          cat,
-                          style: TextStyle(fontSize: 12, color: subtextColor),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-                trailing: Text(
-                  '${isCredit ? '+' : '-'} ${fmt.format(txn.amount)}',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: isCredit ? Colors.green : Colors.red,
-                  ),
-                ),
-              );
-            },
+                // Classified debits
+                ...classifiedDebits.expand((txn) sync* {
+                  yield buildTxnTile(txn);
+                  if (txn != classifiedDebits.last ||
+                      unclassifiedDebits.isNotEmpty) {
+                    yield buildDivider();
+                  }
+                }),
+                // Unclassified debits
+                if (unclassifiedDebits.isNotEmpty) ...[
+                  buildSubHeader('Unclassified', Colors.orange),
+                  ...unclassifiedDebits.expand((txn) sync* {
+                    yield buildTxnTile(txn);
+                    if (txn != unclassifiedDebits.last) {
+                      yield buildDivider();
+                    }
+                  }),
+                ],
+                const SizedBox(height: 8),
+              ],
+            ),
           ),
-        ],
-      ),
+
+        if (credits.isNotEmpty) const SizedBox(height: 16),
+
+        // === INCOME SECTION ===
+        if (credits.isNotEmpty)
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: cardColor,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                buildSectionHeader(
+                  key: _incomeKey,
+                  title: 'Income',
+                  icon: Icons.arrow_downward,
+                  color: Colors.green,
+                  amount: fmt.format(_totalReceived),
+                ),
+                ...credits.expand((txn) sync* {
+                  yield buildTxnTile(txn);
+                  if (txn != credits.last) {
+                    yield buildDivider();
+                  }
+                }),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+      ],
     );
   }
 
