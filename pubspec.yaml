@@ -62,6 +62,8 @@ dependencies:
   
   # Background task scheduling
   workmanager: ^0.9.0
+  path_provider: ^2.1.5
+  open_filex: ^4.7.0
 
 dev_dependencies:
   flutter_test:

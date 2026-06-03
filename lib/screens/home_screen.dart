@@ -99,11 +99,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         );
       }
 
-      // Load cash data
-      final cashTxns = await _dbService.getCashTransactions();
-      final totalCash = cashTxns.fold(0.0, (sum, t) => sum + t.amount);
-
-      // Calculate monthly income/expenses
+      // Calculate month boundaries (used by cash filter and monthly calculations)
       final now = DateTime.now();
       final monthStart = DateTime(now.year, now.month, 1);
       final monthEnd = DateTime(
@@ -112,6 +108,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         1,
       ).subtract(const Duration(days: 1));
 
+      // Load cash data (current month only)
+      final allCashTxns = await _dbService.getCashTransactions();
+      final cashTxns = allCashTxns.where((t) {
+        return !t.detectedAt.isBefore(monthStart.subtract(const Duration(days: 1))) &&
+            t.detectedAt.isBefore(monthEnd.add(const Duration(days: 1)));
+      }).toList();
+      final totalCash = cashTxns.fold(0.0, (sum, t) => sum + t.amount);
+
+      // Calculate monthly income/expenses
       double monthlyIncome = 0;
       double monthlyExpenses = 0;
       for (final t in transactions) {

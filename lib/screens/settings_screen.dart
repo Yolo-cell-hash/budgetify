@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:open_filex/open_filex.dart';
 import '../providers/theme_provider.dart';
 import '../providers/app_preferences.dart';
 import '../services/background_service.dart';
+import '../services/export_service.dart';
 
 /// Settings screen with theme toggle and auto-scan configuration
 class SettingsScreen extends StatefulWidget {
@@ -14,6 +17,7 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  final ExportService _exportService = ExportService();
   bool _autoScanEnabled = false;
   String _scanTime1 = '14:55';
   String? _scanTime2 = '22:55';
@@ -280,6 +284,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const SizedBox(height: 24),
 
+          // Export Section
+          _buildSectionHeader('Export', isDark),
+          const SizedBox(height: 8),
+          _buildSettingsCard(
+            isDark: isDark,
+            child: Column(
+              children: [
+                ListTile(
+                  leading: Icon(Icons.table_chart, color: Colors.blue.shade600),
+                  title: const Text('Export as Excel'),
+                  subtitle: Text(
+                    'Month-wise categorized data (.csv)',
+                    style: TextStyle(
+                      color: isDark ? Colors.grey.shade500 : Colors.grey.shade600,
+                    ),
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _exportData(isExcel: true),
+                ),
+                Divider(
+                  height: 1,
+                  color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+                ),
+                ListTile(
+                  leading: Icon(Icons.description, color: Colors.teal.shade600),
+                  title: const Text('Export as Text'),
+                  subtitle: Text(
+                    'Formatted summary report (.txt)',
+                    style: TextStyle(
+                      color: isDark ? Colors.grey.shade500 : Colors.grey.shade600,
+                    ),
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _exportData(isExcel: false),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
           // Privacy Section
           _buildSectionHeader('Privacy', isDark),
           const SizedBox(height: 8),
@@ -349,6 +394,186 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
       ),
       child: ClipRRect(borderRadius: BorderRadius.circular(12), child: child),
+    );
+  }
+
+  Future<void> _exportData({required bool isExcel}) async {
+    // Request storage permission
+    var status = await Permission.manageExternalStorage.status;
+    if (!status.isGranted) {
+      status = await Permission.manageExternalStorage.request();
+      if (!status.isGranted) {
+        // Try regular storage permission as fallback
+        final storageStatus = await Permission.storage.request();
+        if (!storageStatus.isGranted) {
+          if (mounted) {
+            _showStyledSnackBar(
+              icon: Icons.error_outline,
+              message: 'Storage permission is required to export data',
+              color: Colors.red,
+            );
+          }
+          return;
+        }
+      }
+    }
+
+    if (!mounted) return;
+
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => Center(
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Theme.of(context).brightness == Brightness.dark
+                ? const Color(0xFF1C2333)
+                : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(
+                'Exporting ${isExcel ? 'CSV' : 'TXT'}...',
+                style: TextStyle(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.white
+                      : Colors.black87,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    try {
+      final path = isExcel
+          ? await _exportService.exportToExcel()
+          : await _exportService.exportToTxt();
+
+      if (mounted) Navigator.pop(context); // dismiss loading
+
+      // Extract just the filename from the path
+      final fileName = path.split('/').last;
+
+      if (mounted) {
+        _showStyledSnackBar(
+          icon: Icons.check_circle,
+          message: 'Saved to Downloads/$fileName',
+          color: Colors.green,
+          actionLabel: 'Open',
+          onAction: () => OpenFilex.open(path),
+        );
+      }
+    } catch (e) {
+      if (mounted) Navigator.pop(context); // dismiss loading
+      if (mounted) {
+        _showStyledSnackBar(
+          icon: Icons.error_outline,
+          message: 'Export failed: $e',
+          color: Colors.red,
+        );
+      }
+    }
+  }
+
+  void _showStyledSnackBar({
+    required IconData icon,
+    required String message,
+    required Color color,
+    String? actionLabel,
+    VoidCallback? onAction,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+        padding: EdgeInsets.zero,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        duration: const Duration(seconds: 4),
+        content: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: isDark
+                  ? [const Color(0xFF1E293B), const Color(0xFF0F172A)]
+                  : [Colors.grey.shade900, Colors.grey.shade800],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withAlpha(60),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: color.withAlpha(40),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: color, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  message,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (actionLabel != null && onAction != null) ...[
+                const SizedBox(width: 8),
+                TextButton(
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).clearSnackBars();
+                    onAction();
+                  },
+                  style: TextButton.styleFrom(
+                    backgroundColor: color.withAlpha(30),
+                    foregroundColor: color,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: Text(
+                    actionLabel,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

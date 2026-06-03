@@ -133,10 +133,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               value: _category,
               decoration: InputDecoration(
                 labelText: 'Category',
-                prefixIcon: Text(
-                  ExpenseCategories.getIcon(_category),
-                  style: const TextStyle(fontSize: 24),
-                ),
+                prefixIcon: const Icon(Icons.category_outlined),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),

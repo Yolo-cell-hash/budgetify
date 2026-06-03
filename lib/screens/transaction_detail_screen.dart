@@ -320,9 +320,36 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     String selectedEmoji = '🏷️';
 
     const emojis = [
-      '🏠', '🎮', '💊', '🎁', '🐾', '🍕', '🏋️', '📱', '☕', '🎵',
-      '💇', '🧹', '🚕', '🎓', '👶', '💍', '🏦', '⛽', '🅿️', '📦',
-      '🛒', '🍿', '🏥', '✂️', '🧾', '💻', '📸', '🎂', '🌐', '🔧',
+      '🏠',
+      '🎮',
+      '💊',
+      '🎁',
+      '🐾',
+      '🍕',
+      '🏋️',
+      '📱',
+      '☕',
+      '🎵',
+      '💇',
+      '🧹',
+      '🚕',
+      '🎓',
+      '👶',
+      '💍',
+      '🏦',
+      '⛽',
+      '🅿️',
+      '📦',
+      '🛒',
+      '🍿',
+      '🏥',
+      '✂️',
+      '🧾',
+      '💻',
+      '📸',
+      '🎂',
+      '🌐',
+      '🔧',
     ];
 
     final cardColor = isDark ? const Color(0xFF1C2333) : Colors.white;
@@ -419,10 +446,10 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                     child: GridView.builder(
                       gridDelegate:
                           const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 6,
-                        mainAxisSpacing: 8,
-                        crossAxisSpacing: 8,
-                      ),
+                            crossAxisCount: 6,
+                            mainAxisSpacing: 8,
+                            crossAxisSpacing: 8,
+                          ),
                       itemCount: emojis.length,
                       itemBuilder: (_, i) {
                         final emoji = emojis[i];
@@ -436,12 +463,14 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                               color: isSelected
                                   ? Colors.blue.withAlpha(40)
                                   : (isDark
-                                      ? const Color(0xFF2D3748)
-                                      : Colors.grey.shade100),
+                                        ? const Color(0xFF2D3748)
+                                        : Colors.grey.shade100),
                               borderRadius: BorderRadius.circular(10),
                               border: isSelected
                                   ? Border.all(
-                                      color: Colors.blue.shade300, width: 2)
+                                      color: Colors.blue.shade300,
+                                      width: 2,
+                                    )
                                   : null,
                             ),
                             child: Center(
@@ -470,8 +499,10 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                           );
                           return;
                         }
-                        final success = await CustomTagService()
-                            .addCustomTag(name, selectedEmoji);
+                        final success = await CustomTagService().addCustomTag(
+                          name,
+                          selectedEmoji,
+                        );
                         if (!success) {
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
