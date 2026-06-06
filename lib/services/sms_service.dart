@@ -42,14 +42,44 @@ Future<void> backgroundMessageHandler(SmsMessage message) async {
 
       // Check budget thresholds for debit transactions
       if (transaction.type == TransactionType.debit) {
-        await _checkBudgetThresholds(dbService, NotificationService());
+        await checkBudgetThresholds(dbService, NotificationService());
       }
     }
   }
 }
 
-/// Check and notify budget thresholds
-Future<void> _checkBudgetThresholds(
+/// Defined thresholds for budget notifications.
+/// Returns the sorted list of thresholds up to [maxPercent].
+List<int> _getThresholds(double currentPercent) {
+  // Fixed thresholds below 200%
+  final List<int> thresholds = [50, 75, 90, 100, 120, 150, 200];
+
+  // Dynamic thresholds beyond 200% in 50% increments
+  int next = 250;
+  while (next <= currentPercent + 50) {
+    thresholds.add(next);
+    next += 50;
+  }
+
+  return thresholds;
+}
+
+/// Determine the highest threshold that has been crossed.
+/// Returns 0 if no threshold has been crossed yet.
+int _computeCurrentThreshold(double percent) {
+  final thresholds = _getThresholds(percent);
+  int currentThreshold = 0;
+  for (final t in thresholds) {
+    if (percent >= t) {
+      currentThreshold = t;
+    }
+  }
+  return currentThreshold;
+}
+
+/// Check and notify budget thresholds.
+/// This is public so HomeScreen can also call it when the app is open.
+Future<void> checkBudgetThresholds(
   DatabaseService db,
   NotificationService ns,
 ) async {
@@ -61,29 +91,18 @@ Future<void> _checkBudgetThresholds(
     endDate: budget.currentPeriodEnd,
   );
 
-  final pct = budget.amount > 0 ? (spent / budget.amount) * 100 : 0;
+  final percent = budget.amount > 0 ? (spent / budget.amount) * 100 : 0.0;
+  final currentThreshold = _computeCurrentThreshold(percent);
 
-  if (pct >= 100 && !budget.notified100) {
+  // Only notify if a new (higher) threshold has been crossed
+  if (currentThreshold > 0 &&
+      currentThreshold > budget.lastNotifiedThreshold) {
     await ns.showBudgetNotification(
-      threshold: 100,
+      threshold: currentThreshold,
       spent: spent,
       budget: budget.amount,
     );
-    await db.updateBudgetNotificationFlags(budget.id!, n100: true);
-  } else if (pct >= 90 && !budget.notified90) {
-    await ns.showBudgetNotification(
-      threshold: 90,
-      spent: spent,
-      budget: budget.amount,
-    );
-    await db.updateBudgetNotificationFlags(budget.id!, n90: true);
-  } else if (pct >= 50 && !budget.notified50) {
-    await ns.showBudgetNotification(
-      threshold: 50,
-      spent: spent,
-      budget: budget.amount,
-    );
-    await db.updateBudgetNotificationFlags(budget.id!, n50: true);
+    await db.updateLastNotifiedThreshold(budget.id!, currentThreshold);
   }
 }
 
@@ -191,6 +210,11 @@ class SmsService {
         await NotificationService().showTransactionNotification(
           savedTransaction,
         );
+
+        // Check budget thresholds for debit transactions
+        if (savedTransaction.type == TransactionType.debit) {
+          await checkBudgetThresholds(_dbService, NotificationService());
+        }
       }
     }
   }
@@ -254,6 +278,11 @@ class SmsService {
             count++;
           }
         }
+      }
+
+      // After scanning, check budget thresholds
+      if (transactions.any((t) => t.type == TransactionType.debit)) {
+        await checkBudgetThresholds(_dbService, NotificationService());
       }
     } catch (e) {
       // Silently handle errors - logging would be better in production

@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/transaction_model.dart';
 import '../models/budget_model.dart';
 import '../services/database_service.dart';
 import '../services/sms_service.dart';
 import '../services/notification_service.dart';
+import '../services/background_service.dart';
 import '../widgets/permission_request_card.dart';
 import '../widgets/expense_chart.dart';
 import 'transactions_screen.dart';
@@ -59,7 +61,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _checkPermission();
-      _loadData();
+      // Auto-scan and reload on resume
+      _autoScanSms();
     }
   }
 
@@ -68,6 +71,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     await _checkPermission();
     await _loadData();
     setState(() => _isLoading = false);
+
+    // Auto-scan SMS after initial load
+    if (_hasPermission) {
+      await _autoScanSms();
+    }
   }
 
   Future<void> _checkPermission() async {
@@ -188,6 +196,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final transactions = await _smsService.scanExistingSms(maxCount: 50);
       await _loadData();
 
+      // Check budget thresholds after scan
+      await checkBudgetThresholds(_dbService, _notificationService);
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Found ${transactions.length} transactions')),
@@ -201,6 +212,85 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       }
     } finally {
       setState(() => _isScanning = false);
+    }
+  }
+
+  /// Silently auto-scan SMS. On first install, show feedback.
+  /// On subsequent opens, scan silently and only show feedback if new transactions found.
+  Future<void> _autoScanSms() async {
+    if (!_hasPermission || _isScanning) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final isFirstScan = prefs.getBool('needs_initial_scan') ?? false;
+
+    setState(() => _isScanning = true);
+
+    if (isFirstScan) {
+      // First install: do a full scan with UI feedback
+      try {
+        final transactions = await BackgroundService.performForegroundScan(
+          maxCount: 200,
+        );
+        await _loadData();
+
+        // Check budget thresholds
+        await checkBudgetThresholds(_dbService, _notificationService);
+
+        // Clear the first-scan flag
+        await prefs.setBool('needs_initial_scan', false);
+
+        if (mounted && transactions.isNotEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Found ${transactions.length} transactions from your SMS',
+              ),
+              action: SnackBarAction(
+                label: 'View',
+                onPressed: () => _openTransactionsScreen(),
+              ),
+            ),
+          );
+        }
+      } catch (e) {
+        // Silently fail on auto-scan
+      } finally {
+        if (mounted) setState(() => _isScanning = false);
+      }
+    } else {
+      // Subsequent opens: silent scan in background
+      try {
+        final transactions = await BackgroundService.performForegroundScan(
+          maxCount: 100,
+        );
+
+        if (transactions.isNotEmpty) {
+          await _loadData();
+
+          // Check budget thresholds
+          await checkBudgetThresholds(_dbService, _notificationService);
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  '${transactions.length} new transaction${transactions.length > 1 ? 's' : ''} found',
+                ),
+              ),
+            );
+          }
+        } else {
+          // Still reload data from DB even if no new SMS transactions
+          await _loadData();
+          // Still check budget thresholds
+          await checkBudgetThresholds(_dbService, _notificationService);
+        }
+      } catch (e) {
+        // Silently fail on auto-scan, but still load from DB
+        await _loadData();
+      } finally {
+        if (mounted) setState(() => _isScanning = false);
+      }
     }
   }
 

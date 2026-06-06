@@ -13,6 +13,8 @@ class SmsParserService {
     'CSBSBI',
     'SBIATM',
     'SBISMS',
+    'IDBIBK',
+    'INDUSN',
     'HDFCBK',
     'ICICIB',
     'ICICIT',
@@ -42,6 +44,11 @@ class SmsParserService {
     'SCBSMS',
     'CITIBNK',
     'DBISHR',
+    'SimplPL',
+    'Bank of Baroda',
+    'Bank of Maharashtra',
+    'IDBI Bank Limited',
+    'Bank of India',
 
     // --- Newly Appended Extensions ---
     'SBIFMS',
@@ -112,6 +119,24 @@ class SmsParserService {
     'HSBNK',
     'SCBLTD',
     'AMEXBK',
+    // --- Additional Banks / Neo Banks ---
+    'JUPITR',
+    'FIMONY',
+    'NIYOGB',
+    'AUBNK',
+    'AUSFB',
+    'EQUIBNK',
+    'ESFB',
+    'UJJIVN',
+    'SARASW',
+    'KVBSMS',
+    'SIBBNK',
+    'CUBANK',
+    'CUBSMS',
+    'KBLBNK',
+    'KBLSMS',
+    'DHANBK',
+    'TMBSMS',
   ];
 
   /// Merchant keywords for auto-categorization

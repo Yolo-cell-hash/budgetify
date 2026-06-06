@@ -1,5 +1,6 @@
 import 'package:workmanager/workmanager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../models/transaction_model.dart';
 import 'sms_service.dart';
 
 /// Background service for scheduled SMS scanning
@@ -132,6 +133,34 @@ class BackgroundService {
       await _recordScanTime();
     } catch (e) {
       // Silently fail in background
+    }
+  }
+
+  /// Perform a foreground SMS scan (called when app opens).
+  /// Returns the list of newly found transactions.
+  static Future<List<TransactionModel>> performForegroundScan({
+    int maxCount = 100,
+  }) async {
+    try {
+      final smsService = SmsService();
+
+      // Check if we have permission
+      if (!await smsService.hasPermission()) {
+        return [];
+      }
+
+      // Scan SMS and auto-classify
+      final transactions = await smsService.scanExistingSms(
+        maxCount: maxCount,
+      );
+
+      // Record scan time
+      await _recordScanTime();
+
+      return transactions;
+    } catch (e) {
+      // Silently fail
+      return [];
     }
   }
 }

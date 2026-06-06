@@ -6,9 +6,10 @@ class Budget {
   final String period; // 'monthly', 'weekly'
   final String? category; // null = overall budget
   final DateTime startDate;
-  final bool notified50;
-  final bool notified90;
-  final bool notified100;
+  /// The highest budget threshold percentage the user has been notified about.
+  /// Thresholds: 50, 75, 90, 100, 120, 150, 200, 250, 300, ...
+  /// 0 means no notification has been sent yet.
+  final int lastNotifiedThreshold;
 
   Budget({
     this.id,
@@ -17,12 +18,23 @@ class Budget {
     this.period = 'monthly',
     this.category,
     required this.startDate,
-    this.notified50 = false,
-    this.notified90 = false,
-    this.notified100 = false,
+    this.lastNotifiedThreshold = 0,
   });
 
   factory Budget.fromMap(Map<String, dynamic> map) {
+    // Support both old boolean flags and new threshold integer
+    int threshold = (map['last_notified_threshold'] as int?) ?? 0;
+    if (threshold == 0) {
+      // Backward compatibility: derive from old boolean flags if present
+      if ((map['notified_100'] as int?) == 1) {
+        threshold = 100;
+      } else if ((map['notified_90'] as int?) == 1) {
+        threshold = 90;
+      } else if ((map['notified_50'] as int?) == 1) {
+        threshold = 50;
+      }
+    }
+
     return Budget(
       id: map['id'] as int?,
       name: map['name'] as String,
@@ -30,9 +42,7 @@ class Budget {
       period: map['period'] as String? ?? 'monthly',
       category: map['category'] as String?,
       startDate: DateTime.parse(map['start_date'] as String),
-      notified50: (map['notified_50'] as int?) == 1,
-      notified90: (map['notified_90'] as int?) == 1,
-      notified100: (map['notified_100'] as int?) == 1,
+      lastNotifiedThreshold: threshold,
     );
   }
 
@@ -44,9 +54,11 @@ class Budget {
       'period': period,
       'category': category,
       'start_date': startDate.toIso8601String(),
-      'notified_50': notified50 ? 1 : 0,
-      'notified_90': notified90 ? 1 : 0,
-      'notified_100': notified100 ? 1 : 0,
+      'last_notified_threshold': lastNotifiedThreshold,
+      // Keep old columns for backward compat during migration
+      'notified_50': lastNotifiedThreshold >= 50 ? 1 : 0,
+      'notified_90': lastNotifiedThreshold >= 90 ? 1 : 0,
+      'notified_100': lastNotifiedThreshold >= 100 ? 1 : 0,
     };
   }
 
@@ -57,9 +69,7 @@ class Budget {
     String? period,
     String? category,
     DateTime? startDate,
-    bool? notified50,
-    bool? notified90,
-    bool? notified100,
+    int? lastNotifiedThreshold,
   }) {
     return Budget(
       id: id ?? this.id,
@@ -68,9 +78,8 @@ class Budget {
       period: period ?? this.period,
       category: category ?? this.category,
       startDate: startDate ?? this.startDate,
-      notified50: notified50 ?? this.notified50,
-      notified90: notified90 ?? this.notified90,
-      notified100: notified100 ?? this.notified100,
+      lastNotifiedThreshold:
+          lastNotifiedThreshold ?? this.lastNotifiedThreshold,
     );
   }
 

@@ -28,7 +28,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 8,
+      version: 9,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -76,7 +76,8 @@ class DatabaseService {
         start_date TEXT NOT NULL,
         notified_50 INTEGER NOT NULL DEFAULT 0,
         notified_90 INTEGER NOT NULL DEFAULT 0,
-        notified_100 INTEGER NOT NULL DEFAULT 0
+        notified_100 INTEGER NOT NULL DEFAULT 0,
+        last_notified_threshold INTEGER NOT NULL DEFAULT 0
       )
     ''');
 
@@ -195,6 +196,28 @@ class DatabaseService {
 
       // Backfill merchant names for all existing transactions
       await _backfillMerchantNamesInternal(db);
+    }
+
+    if (oldVersion < 9) {
+      // Add last_notified_threshold column to budgets
+      try {
+        await db.execute(
+          'ALTER TABLE budgets ADD COLUMN last_notified_threshold INTEGER NOT NULL DEFAULT 0',
+        );
+      } catch (e) {
+        // Column may already exist
+      }
+
+      // Migrate old boolean flags to new threshold integer
+      // Compute the highest threshold from existing flags
+      await db.rawUpdate('''
+        UPDATE budgets SET last_notified_threshold = CASE
+          WHEN notified_100 = 1 THEN 100
+          WHEN notified_90 = 1 THEN 90
+          WHEN notified_50 = 1 THEN 50
+          ELSE 0
+        END
+      ''');
     }
   }
 
@@ -472,25 +495,25 @@ class DatabaseService {
     return daily;
   }
 
-  Future<void> updateBudgetNotificationFlags(
-    int budgetId, {
-    bool? n50,
-    bool? n90,
-    bool? n100,
-  }) async {
+  /// Update the last notified budget threshold for a budget.
+  /// [threshold] is the percentage value (e.g. 50, 75, 90, 100, 120, 150, 200, ...).
+  Future<void> updateLastNotifiedThreshold(
+    int budgetId,
+    int threshold,
+  ) async {
     final db = await database;
-    final updates = <String, dynamic>{};
-    if (n50 != null) updates['notified_50'] = n50 ? 1 : 0;
-    if (n90 != null) updates['notified_90'] = n90 ? 1 : 0;
-    if (n100 != null) updates['notified_100'] = n100 ? 1 : 0;
-    if (updates.isNotEmpty) {
-      await db.update(
-        'budgets',
-        updates,
-        where: 'id = ?',
-        whereArgs: [budgetId],
-      );
-    }
+    await db.update(
+      'budgets',
+      {
+        'last_notified_threshold': threshold,
+        // Keep old flags in sync for backward compat
+        'notified_50': threshold >= 50 ? 1 : 0,
+        'notified_90': threshold >= 90 ? 1 : 0,
+        'notified_100': threshold >= 100 ? 1 : 0,
+      },
+      where: 'id = ?',
+      whereArgs: [budgetId],
+    );
   }
 
   // ==================== ANALYTICS QUERIES ====================

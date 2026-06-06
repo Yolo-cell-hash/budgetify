@@ -46,7 +46,7 @@ class NotificationService {
         'budget_channel',
         'Budget Alerts',
         description: 'Notifications for budget thresholds',
-        importance: Importance.high,
+        importance: Importance.max,
       ),
     );
 
@@ -80,7 +80,8 @@ class NotificationService {
     );
   }
 
-  /// Show budget threshold notification
+  /// Show budget threshold notification for any percentage threshold.
+  /// Supports 50, 75, 90, 100, 120, 150, 200, 250, 300, ...
   Future<void> showBudgetNotification({
     required int threshold,
     required double spent,
@@ -93,30 +94,56 @@ class NotificationService {
       symbol: '₹',
       decimalDigits: 0,
     );
-    String title, body;
 
-    switch (threshold) {
-      case 50:
-        title = '⚠️ 50% Budget Used';
-        body =
-            'Spent ${fmt.format(spent)} of ${fmt.format(budget)}. Stay on track!';
-        break;
-      case 90:
-        title = '🔶 90% Budget Used';
-        body =
-            'Spent ${fmt.format(spent)} of ${fmt.format(budget)}. Only ${fmt.format(budget - spent)} left!';
-        break;
-      case 100:
-        title = '🚨 Budget Exceeded!';
-        body =
-            'You\'ve exceeded ${fmt.format(budget)}. Total: ${fmt.format(spent)}';
-        break;
-      default:
-        return;
+    String title;
+    String body;
+    String emoji;
+
+    if (threshold <= 50) {
+      emoji = '⚠️';
+      title = '$emoji 50% Budget Used';
+      body =
+          'You\'ve spent ${fmt.format(spent)} of your ${fmt.format(budget)} budget. Stay on track!';
+    } else if (threshold <= 75) {
+      emoji = '🔶';
+      title = '$emoji 75% Budget Used';
+      body =
+          'Spent ${fmt.format(spent)} of ${fmt.format(budget)}. Only ${fmt.format(budget - spent)} left!';
+    } else if (threshold <= 90) {
+      emoji = '🟠';
+      title = '$emoji 90% Budget Used';
+      body =
+          'Spent ${fmt.format(spent)} of ${fmt.format(budget)}. You\'re approaching your limit!';
+    } else if (threshold <= 100) {
+      emoji = '🚨';
+      title = '$emoji Budget Limit Reached!';
+      body =
+          'You\'ve hit ${fmt.format(budget)}. Total spent: ${fmt.format(spent)}.';
+    } else if (threshold <= 120) {
+      emoji = '🔴';
+      title = '$emoji 120% — Budget Exceeded!';
+      body =
+          'You\'ve exceeded your ${fmt.format(budget)} budget by ${fmt.format(spent - budget)}. Total: ${fmt.format(spent)}.';
+    } else if (threshold <= 150) {
+      emoji = '🔴';
+      title = '$emoji 150% — Overspending Alert!';
+      body =
+          'Spending is 1.5× your budget. ${fmt.format(spent)} of ${fmt.format(budget)}.';
+    } else if (threshold <= 200) {
+      emoji = '🚫';
+      title = '$emoji 200% — Double Budget!';
+      body =
+          'You\'ve spent DOUBLE your ${fmt.format(budget)} budget! Total: ${fmt.format(spent)}.';
+    } else {
+      // 250%, 300%, etc.
+      emoji = '🚫';
+      title = '$emoji ${threshold}% — Critical Overspend!';
+      body =
+          'Spending is ${(threshold / 100).toStringAsFixed(1)}× your budget. ${fmt.format(spent)} of ${fmt.format(budget)}.';
     }
 
     await _notifications.show(
-      1000 + threshold,
+      1000 + threshold, // Unique ID per threshold level
       title,
       body,
       const NotificationDetails(
@@ -124,8 +151,8 @@ class NotificationService {
           'budget_channel',
           'Budget Alerts',
           channelDescription: 'Notifications for budget thresholds',
-          importance: Importance.high,
-          priority: Priority.high,
+          importance: Importance.max,
+          priority: Priority.max,
           showWhen: true,
         ),
       ),

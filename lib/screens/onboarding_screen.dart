@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/app_preferences.dart';
+import '../services/background_service.dart';
 import 'home_screen.dart';
 
 /// Onboarding screen for first-time users
@@ -41,10 +43,23 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     }
   }
 
-  Future<void> _completeOnboarding() async {
+  Future<void> _completeOnboarding({bool smsGranted = false}) async {
     setState(() => _isLoading = true);
 
     try {
+      if (smsGranted) {
+        // Auto-enable background scanning with default times
+        await BackgroundService.saveScanSettings(
+          enabled: true,
+          time1: '14:55',
+          time2: '22:55',
+        );
+
+        // Set flag so HomeScreen triggers an initial scan on first load
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('needs_initial_scan', true);
+      }
+
       // Mark onboarding complete
       if (mounted) {
         await context.read<AppPreferences>().completeOnboarding();
@@ -244,11 +259,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   ? const CircularProgressIndicator()
                   : ElevatedButton(
                       onPressed: () async {
-                        final status = await Permission.sms.request();
-                        if (status.isGranted || status.isDenied) {
-                          // Continue even if denied - user can grant later
-                          await _completeOnboarding();
-                        }
+                        // Request SMS permission
+                        final smsStatus = await Permission.sms.request();
+
+                        // Also request notification permission for Android 13+
+                        await Permission.notification.request();
+
+                        // Continue even if denied - user can grant later
+                        await _completeOnboarding(
+                          smsGranted: smsStatus.isGranted,
+                        );
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Theme.of(context).primaryColor,
