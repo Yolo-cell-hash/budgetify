@@ -6,6 +6,9 @@ import '../models/transaction_model.dart';
 import '../services/database_service.dart';
 import 'transaction_detail_screen.dart';
 
+/// Chart display mode for trends
+enum _TrendsChartMode { bar, line }
+
 class BudgetScreen extends StatefulWidget {
   const BudgetScreen({super.key});
 
@@ -21,19 +24,38 @@ class _BudgetScreenState extends State<BudgetScreen>
   Budget? _budget;
   double _spent = 0;
   Map<DateTime, double> _dailySpending = {};
-  Map<String, double> _categorySpending = {};
   List<Map<String, dynamic>> _monthlySpending = [];
   bool _loading = true;
 
-  // For expandable categories and months
-  String? _expandedCategory;
+  // Month selector - generated list of last 6 months
+  List<DateTime> _availableMonths = [];
+
+  // Overview tab month selection
+  DateTime _selectedOverviewMonth = DateTime.now();
+  double _overviewMonthSpent = 0;
+  double _overviewMonthIncome = 0;
+  Map<String, double> _overviewTopCategories = {};
+
+  // Categories tab month selection
+  DateTime _selectedCategoryMonth = DateTime.now();
+  Map<String, double> _selectedCategorySpending = {};
+
+  // Trends tab state
+  _TrendsChartMode _trendsChartMode = _TrendsChartMode.bar;
+
+  // For expandable months in trends - now category-based
   DateTime? _expandedMonth;
+  Map<String, double> _expandedMonthCategories = {};
+
+  // For expandable categories
+  String? _expandedCategory;
   List<TransactionModel> _expandedTransactions = [];
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _generateAvailableMonths();
     _loadData();
   }
 
@@ -41,6 +63,16 @@ class _BudgetScreenState extends State<BudgetScreen>
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  void _generateAvailableMonths() {
+    final now = DateTime.now();
+    _availableMonths = List.generate(
+      6,
+      (i) => DateTime(now.year, now.month - i, 1),
+    );
+    _selectedOverviewMonth = _availableMonths.first;
+    _selectedCategoryMonth = _availableMonths.first;
   }
 
   Future<void> _loadData() async {
@@ -51,7 +83,6 @@ class _BudgetScreenState extends State<BudgetScreen>
 
     double spent = 0;
     Map<DateTime, double> daily = {};
-    Map<String, double> byCategory = {};
 
     if (budget != null) {
       spent = await _db.getSpendingForPeriod(
@@ -62,20 +93,79 @@ class _BudgetScreenState extends State<BudgetScreen>
         startDate: budget.currentPeriodStart,
         endDate: budget.currentPeriodEnd,
       );
-      byCategory = await _db.getSpendingByCategory(
-        startDate: budget.currentPeriodStart,
-        endDate: budget.currentPeriodEnd,
-      );
     }
 
     setState(() {
       _budget = budget;
       _spent = spent;
       _dailySpending = daily;
-      _categorySpending = byCategory;
       _monthlySpending = monthlySpending;
       _loading = false;
     });
+
+    // Load data for default selected months
+    await _loadOverviewMonth(_selectedOverviewMonth);
+    await _loadCategoryMonth(_selectedCategoryMonth);
+  }
+
+  /// Load overview data for a specific month
+  Future<void> _loadOverviewMonth(DateTime month) async {
+    final start = DateTime(month.year, month.month, 1);
+    final end = DateTime(month.year, month.month + 1, 0, 23, 59, 59);
+
+    final spent = await _db.getSpendingForPeriod(
+      startDate: start,
+      endDate: end,
+    );
+
+    // Get income for the month
+    final transactions = await _db.getTransactionsByDateRange(start, end);
+    double income = 0;
+    for (final t in transactions) {
+      if (t.type == TransactionType.credit) {
+        income += t.amount;
+      }
+    }
+
+    // Get top categories
+    final catSpending = await _db.getSpendingByCategory(
+      startDate: start,
+      endDate: end,
+    );
+    // Take top 3
+    final sorted = catSpending.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final topCats = Map<String, double>.fromEntries(sorted.take(3));
+
+    if (mounted) {
+      setState(() {
+        _selectedOverviewMonth = month;
+        _overviewMonthSpent = spent;
+        _overviewMonthIncome = income;
+        _overviewTopCategories = topCats;
+      });
+    }
+  }
+
+  /// Load category spending for a specific month
+  Future<void> _loadCategoryMonth(DateTime month) async {
+    final start = DateTime(month.year, month.month, 1);
+    final end = DateTime(month.year, month.month + 1, 0, 23, 59, 59);
+
+    final catSpending = await _db.getSpendingByCategory(
+      startDate: start,
+      endDate: end,
+    );
+
+    if (mounted) {
+      setState(() {
+        _selectedCategoryMonth = month;
+        _selectedCategorySpending = catSpending;
+        // Reset expanded category when month changes
+        _expandedCategory = null;
+        _expandedTransactions = [];
+      });
+    }
   }
 
   @override
@@ -121,42 +211,305 @@ class _BudgetScreenState extends State<BudgetScreen>
     );
   }
 
+  // ==================== MONTH SELECTOR ====================
+  Widget _buildMonthSelector({
+    required DateTime selected,
+    required ValueChanged<DateTime> onSelect,
+  }) {
+    final monthFormat = DateFormat('MMM yyyy');
+    final now = DateTime.now();
+
+    return SizedBox(
+      height: 44,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        itemCount: _availableMonths.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final month = _availableMonths[index];
+          final isSelected = month.year == selected.year &&
+              month.month == selected.month;
+          final isCurrent = month.year == now.year &&
+              month.month == now.month;
+          final isDark = Theme.of(context).brightness == Brightness.dark;
+
+          return GestureDetector(
+            onTap: () => onSelect(month),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? Colors.indigo
+                    : isDark
+                        ? const Color(0xFF2D3748)
+                        : Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(20),
+                border: isCurrent && !isSelected
+                    ? Border.all(color: Colors.indigo.shade300, width: 1.5)
+                    : null,
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                isCurrent ? 'This Month' : monthFormat.format(month),
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                  color: isSelected
+                      ? Colors.white
+                      : isDark
+                          ? Colors.grey.shade300
+                          : Colors.grey.shade700,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   // ==================== OVERVIEW TAB ====================
   Widget _buildOverviewTab(bool isDark, NumberFormat fmt) {
-    if (_budget == null) return _buildEmpty(isDark);
+    final now = DateTime.now();
+    final isCurrentMonth = _selectedOverviewMonth.year == now.year &&
+        _selectedOverviewMonth.month == now.month;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          _buildProgressCard(isDark, fmt),
-          const SizedBox(height: 20),
-          _buildDailyChart(isDark),
+          _buildMonthSelector(
+            selected: _selectedOverviewMonth,
+            onSelect: _loadOverviewMonth,
+          ),
+          const SizedBox(height: 16),
+          if (isCurrentMonth && _budget != null) ...[
+            _buildProgressCard(isDark, fmt),
+            const SizedBox(height: 20),
+            _buildDailyChart(isDark),
+          ] else ...[
+            _buildMonthSummaryCard(isDark, fmt),
+          ],
           const SizedBox(height: 80),
         ],
       ),
     );
   }
 
-  Widget _buildEmpty(bool isDark) => Center(
-    child: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(
-          Icons.account_balance_wallet_outlined,
-          size: 80,
-          color: Colors.grey,
-        ),
-        const SizedBox(height: 16),
-        const Text(
-          'No Budget Set',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(height: 8),
-        const Text('Tap the button below to set a budget'),
-      ],
-    ),
-  );
+  /// Summary card for a previous (or current) month when no budget context
+  Widget _buildMonthSummaryCard(bool isDark, NumberFormat fmt) {
+    final monthName = DateFormat('MMMM yyyy').format(_selectedOverviewMonth);
+    final net = _overviewMonthIncome - _overviewMonthSpent;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1C2333) : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            monthName,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 20),
+          // Income & Expenses row
+          Row(
+            children: [
+              Expanded(
+                child: _buildSummaryItem(
+                  label: 'Income',
+                  amount: _overviewMonthIncome,
+                  fmt: fmt,
+                  color: Colors.green,
+                  icon: Icons.arrow_downward,
+                  isDark: isDark,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildSummaryItem(
+                  label: 'Expenses',
+                  amount: _overviewMonthSpent,
+                  fmt: fmt,
+                  color: Colors.red,
+                  icon: Icons.arrow_upward,
+                  isDark: isDark,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // Net balance
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: net >= 0 ? Colors.green.withAlpha(30) : Colors.red.withAlpha(30),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  net >= 0 ? Icons.trending_up : Icons.trending_down,
+                  color: net >= 0 ? Colors.green : Colors.red,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  net >= 0
+                      ? 'Net Savings: ${fmt.format(net)}'
+                      : 'Net Deficit: ${fmt.format(net.abs())}',
+                  style: TextStyle(
+                    color: net >= 0 ? Colors.green : Colors.red,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (_overviewTopCategories.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            Text(
+              'Top Spending Categories',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+              ),
+            ),
+            const SizedBox(height: 12),
+            ..._overviewTopCategories.entries.map((e) {
+              final pct = _overviewMonthSpent > 0
+                  ? (e.value / _overviewMonthSpent * 100)
+                  : 0.0;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: ExpenseCategories.getColor(e.key).withAlpha(30),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Center(
+                        child: Text(
+                          ExpenseCategories.getIcon(e.key),
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            e.key,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w500,
+                              color: isDark ? Colors.white : Colors.black87,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: LinearProgressIndicator(
+                              value: pct / 100,
+                              backgroundColor: isDark
+                                  ? Colors.grey.shade800
+                                  : Colors.grey.shade200,
+                              valueColor: AlwaysStoppedAnimation(
+                                ExpenseCategories.getColor(e.key),
+                              ),
+                              minHeight: 6,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      fmt.format(e.value),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        color: isDark ? Colors.white : Colors.black87,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryItem({
+    required String label,
+    required double amount,
+    required NumberFormat fmt,
+    required Color color,
+    required IconData icon,
+    required bool isDark,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withAlpha(20),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: color.withAlpha(40),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Icon(icon, size: 14, color: color),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            fmt.format(amount),
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: isDark ? Colors.white : Colors.black87,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+
 
   Widget _buildProgressCard(bool isDark, NumberFormat fmt) {
     final pct = _budget!.amount > 0 ? _spent / _budget!.amount : 0.0;
@@ -395,63 +748,97 @@ class _BudgetScreenState extends State<BudgetScreen>
 
   // ==================== CATEGORIES TAB ====================
   Widget _buildCategoriesTab(bool isDark, NumberFormat fmt) {
-    if (_categorySpending.isEmpty) {
-      return const Center(child: Text('No spending data for this period'));
-    }
-
-    final total = _categorySpending.values.fold(0.0, (a, b) => a + b);
-    final sorted = _categorySpending.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
+    final spendingData = _selectedCategorySpending;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          // Pie Chart
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1C2333) : Colors.white,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: SizedBox(
-              height: 200,
-              child: PieChart(
-                PieChartData(
-                  sectionsSpace: 2,
-                  centerSpaceRadius: 40,
-                  sections: sorted.take(6).map((e) {
-                    final pct = (e.value / total * 100);
-                    return PieChartSectionData(
-                      value: e.value,
-                      color: ExpenseCategories.getColor(e.key),
-                      title: '${pct.toStringAsFixed(0)}%',
-                      radius: 50,
-                      titleStyle: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
-            ),
+          _buildMonthSelector(
+            selected: _selectedCategoryMonth,
+            onSelect: _loadCategoryMonth,
           ),
           const SizedBox(height: 16),
-          // Category List - Expandable
-          ...sorted.map(
-            (e) => _buildExpandableCategoryItem(
-              e.key,
-              e.value,
-              total,
-              fmt,
-              isDark,
-            ),
-          ),
+          if (spendingData.isEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 60),
+              child: Column(
+                children: [
+                  Icon(Icons.pie_chart_outline, size: 48, color: Colors.grey.shade400),
+                  const SizedBox(height: 12),
+                  Text(
+                    'No spending data for this month',
+                    style: TextStyle(color: Colors.grey.shade500),
+                  ),
+                ],
+              ),
+            )
+          else ...[
+            _buildCategoryPieChart(spendingData, isDark),
+            const SizedBox(height: 16),
+            ..._buildCategoryList(spendingData, fmt, isDark),
+          ],
+          const SizedBox(height: 80),
         ],
       ),
     );
+  }
+
+  Widget _buildCategoryPieChart(Map<String, double> spending, bool isDark) {
+    final total = spending.values.fold(0.0, (a, b) => a + b);
+    final sorted = spending.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1C2333) : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: SizedBox(
+        height: 200,
+        child: PieChart(
+          PieChartData(
+            sectionsSpace: 2,
+            centerSpaceRadius: 40,
+            sections: sorted.take(6).map((e) {
+              final pct = (e.value / total * 100);
+              return PieChartSectionData(
+                value: e.value,
+                color: ExpenseCategories.getColor(e.key),
+                title: '${pct.toStringAsFixed(0)}%',
+                radius: 50,
+                titleStyle: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildCategoryList(
+    Map<String, double> spending,
+    NumberFormat fmt,
+    bool isDark,
+  ) {
+    final total = spending.values.fold(0.0, (a, b) => a + b);
+    final sorted = spending.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    return sorted.map(
+      (e) => _buildExpandableCategoryItem(
+        e.key,
+        e.value,
+        total,
+        fmt,
+        isDark,
+      ),
+    ).toList();
   }
 
   Widget _buildExpandableCategoryItem(
@@ -475,13 +862,27 @@ class _BudgetScreenState extends State<BudgetScreen>
                 _expandedTransactions = [];
               });
             } else {
-              // Load transactions for this category
-              final transactions = await _db.getTransactionsByCategory(
-                category,
+              // Load transactions for this category in the selected month
+              final start = DateTime(
+                _selectedCategoryMonth.year,
+                _selectedCategoryMonth.month,
+                1,
               );
+              final end = DateTime(
+                _selectedCategoryMonth.year,
+                _selectedCategoryMonth.month + 1,
+                0,
+                23, 59, 59,
+              );
+              final allCatTxns = await _db.getTransactionsByCategory(category);
+              final filtered = allCatTxns.where((t) {
+                return t.detectedAt.isAfter(start.subtract(const Duration(days: 1))) &&
+                    t.detectedAt.isBefore(end.add(const Duration(days: 1)));
+              }).toList();
+
               setState(() {
                 _expandedCategory = category;
-                _expandedTransactions = transactions;
+                _expandedTransactions = filtered;
               });
             }
           },
@@ -638,6 +1039,7 @@ class _BudgetScreenState extends State<BudgetScreen>
     final maxValue = _monthlySpending
         .map((m) => m['total'] as double)
         .reduce((a, b) => a > b ? a : b);
+    final maxY = maxValue > 0 ? maxValue * 1.2 : 1000.0;
     final monthFormat = DateFormat('MMM');
 
     return SingleChildScrollView(
@@ -653,88 +1055,225 @@ class _BudgetScreenState extends State<BudgetScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Monthly Spending Trend',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Monthly Spending Trend',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
+                    _buildTrendsChartToggle(isDark),
+                  ],
                 ),
                 const SizedBox(height: 20),
                 SizedBox(
                   height: 200,
-                  child: BarChart(
-                    BarChartData(
-                      alignment: BarChartAlignment.spaceAround,
-                      maxY: maxValue * 1.2,
-                      barTouchData: BarTouchData(enabled: true),
-                      titlesData: FlTitlesData(
-                        leftTitles: AxisTitles(
-                          sideTitles: SideTitles(
-                            showTitles: true,
-                            reservedSize: 50,
-                            getTitlesWidget: (v, _) => Text(
-                              '₹${(v / 1000).toStringAsFixed(0)}k',
-                              style: const TextStyle(fontSize: 10),
-                            ),
-                          ),
-                        ),
-                        bottomTitles: AxisTitles(
-                          sideTitles: SideTitles(
-                            showTitles: true,
-                            reservedSize: 30,
-                            getTitlesWidget: (v, _) {
-                              if (v.toInt() < _monthlySpending.length) {
-                                return Text(
-                                  monthFormat.format(
-                                    _monthlySpending[v.toInt()]['month'],
-                                  ),
-                                  style: const TextStyle(fontSize: 10),
-                                );
-                              }
-                              return const Text('');
-                            },
-                          ),
-                        ),
-                        topTitles: const AxisTitles(
-                          sideTitles: SideTitles(showTitles: false),
-                        ),
-                        rightTitles: const AxisTitles(
-                          sideTitles: SideTitles(showTitles: false),
-                        ),
-                      ),
-                      gridData: FlGridData(show: true, drawVerticalLine: false),
-                      borderData: FlBorderData(show: false),
-                      barGroups: _monthlySpending.asMap().entries.map((e) {
-                        final isCurrentMonth =
-                            e.key == _monthlySpending.length - 1;
-                        return BarChartGroupData(
-                          x: e.key,
-                          barRods: [
-                            BarChartRodData(
-                              toY: e.value['total'],
-                              color: isCurrentMonth
-                                  ? Colors.indigo
-                                  : Colors.indigo.withAlpha(120),
-                              width: 24,
-                              borderRadius: const BorderRadius.vertical(
-                                top: Radius.circular(6),
-                              ),
-                            ),
-                          ],
-                        );
-                      }).toList(),
-                    ),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 350),
+                    child: _trendsChartMode == _TrendsChartMode.bar
+                        ? _buildTrendsBarChart(maxY, monthFormat, isDark)
+                        : _buildTrendsLineChart(maxY, monthFormat, isDark),
                   ),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 16),
-          // Monthly breakdown list - Expandable
+          // Monthly breakdown list - Expandable with category data
           ...(_monthlySpending.reversed.toList()).map((m) {
             final month = m['month'] as DateTime;
             final total = m['total'] as double;
             return _buildExpandableMonthItem(month, total, fmt, isDark);
           }),
         ],
+      ),
+    );
+  }
+
+  /// Toggle control for bar/line chart mode in Trends
+  Widget _buildTrendsChartToggle(bool isDark) {
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF2D3748) : Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildToggleBtn(
+            icon: Icons.bar_chart_rounded,
+            isSelected: _trendsChartMode == _TrendsChartMode.bar,
+            onTap: () => setState(() => _trendsChartMode = _TrendsChartMode.bar),
+            isDark: isDark,
+          ),
+          _buildToggleBtn(
+            icon: Icons.show_chart_rounded,
+            isSelected: _trendsChartMode == _TrendsChartMode.line,
+            onTap: () => setState(() => _trendsChartMode = _TrendsChartMode.line),
+            isDark: isDark,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildToggleBtn({
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+    required bool isDark,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? (isDark ? Colors.indigo.shade700 : Colors.indigo)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(7),
+        ),
+        child: Icon(
+          icon,
+          size: 18,
+          color: isSelected
+              ? Colors.white
+              : (isDark ? Colors.grey.shade400 : Colors.grey.shade600),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTrendsBarChart(double maxY, DateFormat monthFormat, bool isDark) {
+    return BarChart(
+      key: const ValueKey('trends_bar'),
+      BarChartData(
+        alignment: BarChartAlignment.spaceAround,
+        maxY: maxY,
+        barTouchData: BarTouchData(enabled: true),
+        titlesData: _buildTrendsTitles(monthFormat),
+        gridData: FlGridData(show: true, drawVerticalLine: false),
+        borderData: FlBorderData(show: false),
+        barGroups: _monthlySpending.asMap().entries.map((e) {
+          final isCurrentMonth = e.key == _monthlySpending.length - 1;
+          return BarChartGroupData(
+            x: e.key,
+            barRods: [
+              BarChartRodData(
+                toY: e.value['total'],
+                color: isCurrentMonth
+                    ? Colors.indigo
+                    : Colors.indigo.withAlpha(120),
+                width: 24,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(6),
+                ),
+              ),
+            ],
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildTrendsLineChart(double maxY, DateFormat monthFormat, bool isDark) {
+    return LineChart(
+      key: const ValueKey('trends_line'),
+      LineChartData(
+        maxY: maxY,
+        minY: 0,
+        titlesData: _buildTrendsTitles(monthFormat),
+        gridData: FlGridData(show: true, drawVerticalLine: false),
+        borderData: FlBorderData(show: false),
+        lineTouchData: LineTouchData(
+          enabled: true,
+          touchTooltipData: LineTouchTooltipData(
+            getTooltipColor: (_) => Colors.grey.shade800,
+            getTooltipItems: (spots) => spots.map((spot) {
+              return LineTooltipItem(
+                '₹${spot.y.toStringAsFixed(0)}',
+                const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 12,
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        lineBarsData: [
+          LineChartBarData(
+            spots: _monthlySpending.asMap().entries.map((e) {
+              return FlSpot(e.key.toDouble(), (e.value['total'] as double));
+            }).toList(),
+            isCurved: true,
+            curveSmoothness: 0.35,
+            preventCurveOverShooting: true,
+            color: Colors.indigo,
+            barWidth: 3,
+            isStrokeCapRound: true,
+            dotData: FlDotData(
+              show: true,
+              getDotPainter: (spot, percent, barData, index) {
+                final isLast = index == _monthlySpending.length - 1;
+                return FlDotCirclePainter(
+                  radius: isLast ? 5 : 3.5,
+                  color: isLast ? Colors.indigo : Colors.indigo.shade200,
+                  strokeWidth: isLast ? 2.5 : 1.5,
+                  strokeColor: Colors.white,
+                );
+              },
+            ),
+            belowBarData: BarAreaData(
+              show: true,
+              gradient: LinearGradient(
+                colors: [
+                  Colors.indigo.withAlpha(80),
+                  Colors.indigo.withAlpha(10),
+                ],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  FlTitlesData _buildTrendsTitles(DateFormat monthFormat) {
+    return FlTitlesData(
+      leftTitles: AxisTitles(
+        sideTitles: SideTitles(
+          showTitles: true,
+          reservedSize: 50,
+          getTitlesWidget: (v, _) => Text(
+            '₹${(v / 1000).toStringAsFixed(0)}k',
+            style: const TextStyle(fontSize: 10),
+          ),
+        ),
+      ),
+      bottomTitles: AxisTitles(
+        sideTitles: SideTitles(
+          showTitles: true,
+          reservedSize: 30,
+          getTitlesWidget: (v, _) {
+            if (v.toInt() < _monthlySpending.length) {
+              return Text(
+                monthFormat.format(_monthlySpending[v.toInt()]['month']),
+                style: const TextStyle(fontSize: 10),
+              );
+            }
+            return const Text('');
+          },
+        ),
+      ),
+      topTitles: const AxisTitles(
+        sideTitles: SideTitles(showTitles: false),
+      ),
+      rightTitles: const AxisTitles(
+        sideTitles: SideTitles(showTitles: false),
       ),
     );
   }
@@ -761,13 +1300,19 @@ class _BudgetScreenState extends State<BudgetScreen>
             if (isExpanded) {
               setState(() {
                 _expandedMonth = null;
-                _expandedTransactions = [];
+                _expandedMonthCategories = {};
               });
             } else {
-              final transactions = await _db.getTransactionsByMonth(month);
+              // Load category-wise spending for this month
+              final start = DateTime(month.year, month.month, 1);
+              final end = DateTime(month.year, month.month + 1, 0, 23, 59, 59);
+              final catSpending = await _db.getSpendingByCategory(
+                startDate: start,
+                endDate: end,
+              );
               setState(() {
                 _expandedMonth = month;
-                _expandedTransactions = transactions;
+                _expandedMonthCategories = catSpending;
               });
             }
           },
@@ -830,97 +1375,112 @@ class _BudgetScreenState extends State<BudgetScreen>
             ),
           ),
         ),
-        // Expanded transaction list
-        if (isExpanded && _expandedTransactions.isNotEmpty)
-          Container(
-            margin: const EdgeInsets.only(bottom: 12, left: 16),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF161B22) : Colors.grey.shade50,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Column(
-              children: _expandedTransactions.take(15).map((txn) {
-                return GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => TransactionDetailScreen(transaction: txn),
-                      ),
-                    ).then((_) => _loadData());
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    color: Colors.transparent,
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            color: ExpenseCategories.getColor(
-                              txn.category ?? 'Other',
-                            ).withAlpha(30),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Center(
-                            child: Text(
-                              ExpenseCategories.getIcon(txn.category ?? 'Other'),
-                              style: const TextStyle(fontSize: 14),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                txn.merchantName ?? txn.sender,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                  color: textColor,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              Text(
-                                DateFormat('MMM d, yyyy').format(txn.detectedAt),
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: isDark
-                                      ? Colors.grey.shade500
-                                      : Colors.grey,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Text(
-                          fmt.format(txn.amount),
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: txn.type == TransactionType.credit
-                                ? Colors.green
-                                : Colors.red,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Icon(
-                          Icons.chevron_right,
-                          size: 16,
-                          color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
-                        ),
-                      ],
+        // Expanded category breakdown
+        if (isExpanded && _expandedMonthCategories.isNotEmpty)
+          _buildExpandedMonthCategories(fmt, isDark, total),
+      ],
+    );
+  }
+
+  /// Build category-wise breakdown for an expanded month in Trends
+  Widget _buildExpandedMonthCategories(
+    NumberFormat fmt,
+    bool isDark,
+    double monthTotal,
+  ) {
+    final sorted = _expandedMonthCategories.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final catTotal = _expandedMonthCategories.values.fold(0.0, (a, b) => a + b);
+    final textColor = isDark ? Colors.white : Colors.black87;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12, left: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF161B22) : Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        children: [
+          // Mini pie chart
+          SizedBox(
+            height: 140,
+            child: PieChart(
+              PieChartData(
+                sectionsSpace: 2,
+                centerSpaceRadius: 28,
+                sections: sorted.take(6).map((e) {
+                  final pct = catTotal > 0 ? (e.value / catTotal * 100) : 0.0;
+                  return PieChartSectionData(
+                    value: e.value,
+                    color: ExpenseCategories.getColor(e.key),
+                    title: pct >= 8 ? '${pct.toStringAsFixed(0)}%' : '',
+                    radius: 35,
+                    titleStyle: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
                     ),
-                  ),
-                );
-              }).toList(),
+                  );
+                }).toList(),
+              ),
             ),
           ),
-      ],
+          const SizedBox(height: 12),
+          // Category list
+          ...sorted.map((e) {
+            final pct = catTotal > 0 ? (e.value / catTotal * 100) : 0.0;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: ExpenseCategories.getColor(e.key).withAlpha(30),
+                      borderRadius: BorderRadius.circular(7),
+                    ),
+                    child: Center(
+                      child: Text(
+                        ExpenseCategories.getIcon(e.key),
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      e.key,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: textColor,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    '${pct.toStringAsFixed(1)}%',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isDark ? Colors.grey.shade500 : Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    fmt.format(e.value),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: textColor,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
     );
   }
 
