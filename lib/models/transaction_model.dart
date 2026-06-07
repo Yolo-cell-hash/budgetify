@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/custom_tag_service.dart';
+import 'dart:convert';
 
 /// Transaction model representing a detected bank SMS transaction
 class TransactionModel {
@@ -15,6 +16,7 @@ class TransactionModel {
   final String? accountInfo;
   final String? merchantName;
   final bool isManual;
+  final String? fingerprint;
 
   TransactionModel({
     this.id,
@@ -29,7 +31,59 @@ class TransactionModel {
     this.accountInfo,
     this.merchantName,
     this.isManual = false,
+    this.fingerprint,
   });
+
+  /// Compute a deterministic fingerprint for deduplication.
+  /// Two SMS messages that represent the same real-world transaction will
+  /// produce the same fingerprint even if their timestamps differ slightly.
+  static String computeFingerprint({
+    required double amount,
+    required TransactionType type,
+    required String sender,
+    required String message,
+    required DateTime detectedAt,
+  }) {
+    // Normalize the SMS body: uppercase, collapse whitespace, strip non-alnum
+    final normalizedMsg = message
+        .toUpperCase()
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+
+    // Round timestamp to the nearest hour to tolerate minor differences
+    final roundedDate = DateTime(
+      detectedAt.year,
+      detectedAt.month,
+      detectedAt.day,
+      detectedAt.hour,
+    );
+
+    // Build a canonical string and hash it
+    final canonical =
+        '${amount.toStringAsFixed(2)}|${type.index}|${sender.toUpperCase()}|$normalizedMsg|${roundedDate.millisecondsSinceEpoch}';
+    // Use a simple but effective hash: convert to bytes, compute hashCode-chain
+    final bytes = utf8.encode(canonical);
+    var hash = 0xcbf29ce484222325; // FNV-1a offset basis (64-bit)
+    for (final byte in bytes) {
+      hash ^= byte;
+      hash = (hash * 0x100000001b3) & 0x7fffffffffffffff; // FNV prime, keep 63 bits
+    }
+    return hash.toRadixString(36);
+  }
+
+  /// Return a copy of this transaction with the fingerprint computed and set.
+  TransactionModel withFingerprint() {
+    if (fingerprint != null) return this;
+    return copyWith(
+      fingerprint: computeFingerprint(
+        amount: amount,
+        type: type,
+        sender: sender,
+        message: message,
+        detectedAt: detectedAt,
+      ),
+    );
+  }
 
   /// Create a TransactionModel from a database map
   factory TransactionModel.fromMap(Map<String, dynamic> map) {
@@ -48,6 +102,7 @@ class TransactionModel {
       accountInfo: map['account_info'] as String?,
       merchantName: map['merchant_name'] as String?,
       isManual: (map['is_manual'] as int?) == 1,
+      fingerprint: map['fingerprint'] as String?,
     );
   }
 
@@ -66,6 +121,7 @@ class TransactionModel {
       'account_info': accountInfo,
       'merchant_name': merchantName,
       'is_manual': isManual ? 1 : 0,
+      'fingerprint': fingerprint,
     };
   }
 
@@ -83,6 +139,7 @@ class TransactionModel {
     String? accountInfo,
     String? merchantName,
     bool? isManual,
+    String? fingerprint,
   }) {
     return TransactionModel(
       id: id ?? this.id,
@@ -97,6 +154,7 @@ class TransactionModel {
       accountInfo: accountInfo ?? this.accountInfo,
       merchantName: merchantName ?? this.merchantName,
       isManual: isManual ?? this.isManual,
+      fingerprint: fingerprint ?? this.fingerprint,
     );
   }
 }

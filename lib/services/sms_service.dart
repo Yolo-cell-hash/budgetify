@@ -17,9 +17,13 @@ Future<void> backgroundMessageHandler(SmsMessage message) async {
   );
 
   if (transaction != null) {
+    // Compute fingerprint for deduplication
+    transaction = transaction.withFingerprint();
+
     final exists = await dbService.transactionExists(
       transaction.message,
       transaction.detectedAt,
+      fingerprint: transaction.fingerprint,
     );
 
     if (!exists) {
@@ -171,17 +175,21 @@ class SmsService {
     SmsMessage message,
     Function(TransactionModel) onTransactionDetected,
   ) async {
-    final transaction = SmsParserService.parseTransaction(
+    var transaction = SmsParserService.parseTransaction(
       message.address ?? 'Unknown',
       message.body ?? '',
       DateTime.now(),
     );
 
     if (transaction != null) {
+      // Compute fingerprint for deduplication
+      transaction = transaction.withFingerprint();
+
       // Check for duplicates
       final exists = await _dbService.transactionExists(
         transaction.message,
         transaction.detectedAt,
+        fingerprint: transaction.fingerprint,
       );
 
       if (!exists) {
@@ -243,7 +251,7 @@ class SmsService {
       for (final message in messages) {
         if (count >= maxCount) break;
 
-        final transaction = SmsParserService.parseTransaction(
+        var transaction = SmsParserService.parseTransaction(
           message.address ?? 'Unknown',
           message.body ?? '',
           message.date != null
@@ -252,10 +260,14 @@ class SmsService {
         );
 
         if (transaction != null) {
+          // Compute fingerprint for deduplication
+          transaction = transaction.withFingerprint();
+
           // Check if already in database
           final exists = await _dbService.transactionExists(
             transaction.message,
             transaction.detectedAt,
+            fingerprint: transaction.fingerprint,
           );
 
           if (!exists) {
@@ -274,8 +286,11 @@ class SmsService {
             }
 
             final id = await _dbService.insertTransaction(txnToSave);
-            transactions.add(txnToSave.copyWith(id: id));
-            count++;
+            // Only add if actually inserted (id > 0 means success)
+            if (id > 0) {
+              transactions.add(txnToSave.copyWith(id: id));
+              count++;
+            }
           }
         }
       }

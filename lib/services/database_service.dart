@@ -28,7 +28,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 9,
+      version: 10,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -50,7 +50,8 @@ class DatabaseService {
         notes TEXT,
         account_info TEXT,
         merchant_name TEXT,
-        is_manual INTEGER NOT NULL DEFAULT 0
+        is_manual INTEGER NOT NULL DEFAULT 0,
+        fingerprint TEXT
       )
     ''');
 
@@ -63,6 +64,9 @@ class DatabaseService {
     );
     await db.execute(
       'CREATE INDEX idx_transactions_merchant ON transactions(merchant_name)',
+    );
+    await db.execute(
+      'CREATE UNIQUE INDEX idx_transactions_fingerprint ON transactions(fingerprint)',
     );
 
     // Budgets table
@@ -219,6 +223,28 @@ class DatabaseService {
         END
       ''');
     }
+
+    if (oldVersion < 10) {
+      // Add fingerprint column for deduplication
+      try {
+        await db.execute(
+          'ALTER TABLE transactions ADD COLUMN fingerprint TEXT',
+        );
+      } catch (e) {
+        // Column may already exist
+      }
+
+      // Backfill fingerprints for all existing transactions
+      await _backfillFingerprintsInternal(db);
+
+      // Remove duplicates (keep the row with the lowest id)
+      await _deduplicateTransactionsInternal(db);
+
+      // Now create the unique index
+      await db.execute(
+        'CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_fingerprint ON transactions(fingerprint)',
+      );
+    }
   }
 
   /// Internal backfill that works during migration (uses raw db handle)
@@ -242,25 +268,87 @@ class DatabaseService {
     }
   }
 
+  /// Backfill fingerprints for all existing transactions during migration.
+  Future<void> _backfillFingerprintsInternal(Database db) async {
+    final rows = await db.query('transactions');
+    for (final row in rows) {
+      final amount = row['amount'] as double;
+      final type = TransactionType.values[row['type'] as int];
+      final sender = row['sender'] as String;
+      final message = row['message'] as String;
+      final detectedAt = DateTime.fromMillisecondsSinceEpoch(
+        row['detected_at'] as int,
+      );
+
+      final fingerprint = TransactionModel.computeFingerprint(
+        amount: amount,
+        type: type,
+        sender: sender,
+        message: message,
+        detectedAt: detectedAt,
+      );
+
+      await db.update(
+        'transactions',
+        {'fingerprint': fingerprint},
+        where: 'id = ?',
+        whereArgs: [row['id']],
+      );
+    }
+  }
+
+  /// Remove duplicate transactions during migration.
+  /// For each group of rows sharing the same fingerprint, keep only the one
+  /// with the smallest id (the original) and delete the rest.
+  Future<void> _deduplicateTransactionsInternal(Database db) async {
+    await db.execute('''
+      DELETE FROM transactions
+      WHERE id NOT IN (
+        SELECT MIN(id)
+        FROM transactions
+        WHERE fingerprint IS NOT NULL
+        GROUP BY fingerprint
+      ) AND fingerprint IS NOT NULL
+    ''');
+  }
+
   // ==================== TRANSACTION OPERATIONS ====================
 
-  /// Insert a new transaction
+  /// Insert a new transaction.
+  /// Computes fingerprint if not set, and silently ignores duplicates.
   Future<int> insertTransaction(TransactionModel transaction) async {
     final db = await database;
+    final txn = transaction.withFingerprint();
     return await db.insert(
       'transactions',
-      transaction.toMap(),
-      conflictAlgorithm: ConflictAlgorithm.replace,
+      txn.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.ignore,
     );
   }
 
-  /// Check if a transaction with the same message already exists (avoid duplicates)
-  Future<bool> transactionExists(String message, DateTime detectedAt) async {
+  /// Check if a transaction already exists by fingerprint (primary) or
+  /// by exact message + timestamp (fallback for un-fingerprinted rows).
+  Future<bool> transactionExists(String message, DateTime detectedAt,
+      {String? fingerprint}) async {
     final db = await database;
+
+    // Primary check: fingerprint match
+    if (fingerprint != null) {
+      final fpResult = await db.query(
+        'transactions',
+        where: 'fingerprint = ?',
+        whereArgs: [fingerprint],
+        limit: 1,
+      );
+      if (fpResult.isNotEmpty) return true;
+    }
+
+    // Fallback: exact message + timestamp match
     final result = await db.query(
       'transactions',
       where: 'message = ? AND detected_at = ?',
       whereArgs: [message, detectedAt.millisecondsSinceEpoch],
+      limit: 1,
     );
     return result.isNotEmpty;
   }
