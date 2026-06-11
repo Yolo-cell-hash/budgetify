@@ -175,7 +175,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0D1117) : Colors.grey.shade100,
+      backgroundColor: isDark ? const Color(0xFF0A0B0E) : Color(0xFFF6F6F3),
       appBar: AppBar(
         title: Text(_appBarTitle),
         actions: [
@@ -240,7 +240,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
   Widget _buildFilterSection(bool isDark) {
     return Container(
-      color: isDark ? const Color(0xFF161B22) : Colors.white,
+      color: isDark ? const Color(0xFF121318) : Colors.white,
       child: Column(
         children: [
           // Type filter row
@@ -272,7 +272,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                     });
                     _loadTransactions();
                   },
-                  color: Colors.green,
+                  color: Color(0xFF2AA76F),
                   isDark: isDark,
                 ),
                 const SizedBox(width: 8),
@@ -286,7 +286,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                     });
                     _loadTransactions();
                   },
-                  color: Colors.red,
+                  color: Color(0xFFD25A5F),
                   isDark: isDark,
                 ),
                 const SizedBox(width: 8),
@@ -300,7 +300,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                     });
                     _loadTransactions();
                   },
-                  color: Colors.orange,
+                  color: Color(0xFFD79A3C),
                   isDark: isDark,
                 ),
               ],
@@ -325,7 +325,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
           Divider(
             height: 1,
-            color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+            color: isDark ? Color(0xFF2E313A) : Color(0xFFE9E9E4),
           ),
         ],
       ),
@@ -343,17 +343,17 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       label: Text(label),
       selected: isSelected,
       onSelected: (_) => onSelected(),
-      backgroundColor: isDark ? const Color(0xFF1C2333) : Colors.grey.shade100,
+      backgroundColor: isDark ? const Color(0xFF16181E) : Color(0xFFF6F6F3),
       selectedColor:
           color?.withOpacity(0.2) ??
-          (isDark ? const Color(0xFF1C2333) : Colors.indigo.shade100),
+          (isDark ? const Color(0xFF16181E) : Color(0xFFEFE6D2)),
       checkmarkColor:
-          color ?? (isDark ? Colors.indigo.shade200 : Colors.indigo.shade700),
+          color ?? (isDark ? Color(0xFFD8BC7E) : Color(0xFFA8843C)),
       labelStyle: TextStyle(
         color: isSelected
             ? (color ??
-                  (isDark ? Colors.indigo.shade200 : Colors.indigo.shade700))
-            : (isDark ? Colors.grey.shade400 : Colors.grey.shade700),
+                  (isDark ? Color(0xFFD8BC7E) : Color(0xFFA8843C)))
+            : (isDark ? Color(0xFF9A9DA6) : Color(0xFF4E525C)),
         fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
       ),
     );
@@ -369,7 +369,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1C2333) : Colors.grey.shade100,
+        color: isDark ? const Color(0xFF16181E) : Color(0xFFF6F6F3),
         borderRadius: BorderRadius.circular(10),
       ),
       child: DropdownButtonHideUnderline(
@@ -378,22 +378,22 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           hint: Text(
             hint,
             style: TextStyle(
-              color: isDark ? Colors.grey.shade500 : Colors.grey.shade600,
+              color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
             ),
           ),
           isExpanded: true,
           icon: Icon(
             Icons.keyboard_arrow_down,
-            color: isDark ? Colors.grey.shade400 : Colors.grey,
+            color: isDark ? Color(0xFF9A9DA6) : Color(0xFF8A8D96),
           ),
-          dropdownColor: isDark ? const Color(0xFF1C2333) : Colors.white,
+          dropdownColor: isDark ? const Color(0xFF16181E) : Colors.white,
           items: [
             DropdownMenuItem<String>(
               value: null,
               child: Text(
                 'All $hint',
                 style: TextStyle(
-                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                  color: isDark ? Color(0xFF9A9DA6) : Color(0xFF6E727C),
                 ),
               ),
             ),
@@ -423,7 +423,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1C2333) : Colors.white,
+        color: isDark ? const Color(0xFF16181E) : Colors.white,
         borderRadius: BorderRadius.circular(12),
         boxShadow: isDark
             ? null
@@ -445,7 +445,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
-                color: isDark ? Colors.grey.shade500 : Colors.grey.shade600,
+                color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
               ),
             ),
           ),
@@ -456,7 +456,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   children: [
                     Icon(
                       Icons.arrow_downward,
-                      color: Colors.green.shade600,
+                      color: Color(0xFF178A5B),
                       size: 20,
                     ),
                     const SizedBox(height: 4),
@@ -465,7 +465,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       style: TextStyle(
                         fontSize: 12,
                         color:
-                            isDark ? Colors.grey.shade500 : Colors.grey.shade600,
+                            isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -474,7 +474,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
-                        color: Colors.green.shade600,
+                        color: Color(0xFF178A5B),
                       ),
                     ),
                   ],
@@ -483,14 +483,14 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               Container(
                 width: 1,
                 height: 50,
-                color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+                color: isDark ? Color(0xFF2E313A) : Color(0xFFE9E9E4),
               ),
               Expanded(
                 child: Column(
                   children: [
                     Icon(
                       Icons.arrow_upward,
-                      color: Colors.red.shade600,
+                      color: Color(0xFFC94A50),
                       size: 20,
                     ),
                     const SizedBox(height: 4),
@@ -499,7 +499,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       style: TextStyle(
                         fontSize: 12,
                         color:
-                            isDark ? Colors.grey.shade500 : Colors.grey.shade600,
+                            isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -508,7 +508,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
-                        color: Colors.red.shade600,
+                        color: Color(0xFFC94A50),
                       ),
                     ),
                   ],
@@ -517,7 +517,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               Container(
                 width: 1,
                 height: 50,
-                color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+                color: isDark ? Color(0xFF2E313A) : Color(0xFFE9E9E4),
               ),
               Expanded(
                 child: Column(
@@ -527,8 +527,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                           ? Icons.trending_up
                           : Icons.trending_down,
                       color: _monthlyCredits >= _monthlyDebits
-                          ? Colors.blue
-                          : Colors.orange,
+                          ? Color(0xFF4A6489)
+                          : Color(0xFFD79A3C),
                       size: 20,
                     ),
                     const SizedBox(height: 4),
@@ -537,7 +537,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       style: TextStyle(
                         fontSize: 12,
                         color:
-                            isDark ? Colors.grey.shade500 : Colors.grey.shade600,
+                            isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -547,8 +547,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
                         color: _monthlyCredits >= _monthlyDebits
-                            ? Colors.blue
-                            : Colors.orange,
+                            ? Color(0xFF4A6489)
+                            : Color(0xFFD79A3C),
                       ),
                     ),
                   ],
@@ -569,7 +569,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           Icon(
             Icons.receipt_long_outlined,
             size: 80,
-            color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+            color: isDark ? Color(0xFF4E525C) : Color(0xFFD5D5CF),
           ),
           const SizedBox(height: 16),
           Text(
@@ -579,7 +579,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
-              color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+              color: isDark ? Color(0xFF9A9DA6) : Color(0xFF6E727C),
             ),
           ),
           const SizedBox(height: 8),
@@ -589,7 +589,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 : 'Transactions from bank SMS will appear here',
             style: TextStyle(
               fontSize: 14,
-              color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
+              color: isDark ? Color(0xFF6E727C) : Color(0xFF9A9DA6),
             ),
           ),
           if (_hasActiveFilters) ...[

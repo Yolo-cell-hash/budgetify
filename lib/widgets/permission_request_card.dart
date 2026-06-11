@@ -20,14 +20,14 @@ class PermissionRequestCard extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Colors.blue.shade800, Colors.blue.shade600],
+          colors: [Color(0xFF33486A), Color(0xFF4A6489)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.blue.withOpacity(0.3),
+            color: Color(0xFF4A6489).withOpacity(0.3),
             blurRadius: 12,
             offset: const Offset(0, 6),
           ),
@@ -92,7 +92,7 @@ class PermissionRequestCard extends StatelessWidget {
                   : onRequestPermission,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.white,
-                foregroundColor: Colors.blue.shade800,
+                foregroundColor: Color(0xFF33486A),
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -132,7 +132,7 @@ class PermissionRequestCard extends StatelessWidget {
           Icon(
             Icons.check_circle,
             size: 18,
-            color: Colors.greenAccent.shade200,
+            color: Color(0xFF4CC795),
           ),
           const SizedBox(width: 8),
           Text(

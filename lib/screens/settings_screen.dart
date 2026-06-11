@@ -119,7 +119,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               subtitle: Text(
                 isDark ? 'Switch to light theme' : 'Switch to dark theme',
                 style: TextStyle(
-                  color: isDark ? Colors.grey.shade500 : Colors.grey.shade600,
+                  color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
                 ),
               ),
               value: themeProvider.isDarkMode,
@@ -139,7 +139,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 SwitchListTile(
                   secondary: Icon(
                     Icons.schedule,
-                    color: _autoScanEnabled ? Colors.green : Colors.grey,
+                    color: _autoScanEnabled ? Color(0xFF2AA76F) : Color(0xFF8A8D96),
                   ),
                   title: const Text('Automatic SMS Scanning'),
                   subtitle: Text(
@@ -148,8 +148,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         : 'Enable to auto-detect transactions in background',
                     style: TextStyle(
                       color: isDark
-                          ? Colors.grey.shade500
-                          : Colors.grey.shade600,
+                          ? Color(0xFF8A8D96)
+                          : Color(0xFF6E727C),
                     ),
                   ),
                   value: _autoScanEnabled,
@@ -163,10 +163,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 if (_autoScanEnabled) ...[
                   Divider(
                     height: 1,
-                    color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+                    color: isDark ? Color(0xFF2E313A) : Color(0xFFE9E9E4),
                   ),
                   ListTile(
-                    leading: const Icon(Icons.access_time, color: Colors.blue),
+                    leading: const Icon(Icons.access_time, color: Color(0xFF4A6489)),
                     title: const Text('First Scan Time'),
                     subtitle: Text(_formatTimeString(_scanTime1)),
                     trailing: const Icon(Icons.chevron_right),
@@ -174,12 +174,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   Divider(
                     height: 1,
-                    color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+                    color: isDark ? Color(0xFF2E313A) : Color(0xFFE9E9E4),
                   ),
                   ListTile(
                     leading: Icon(
                       Icons.access_time,
-                      color: _scanTime2 != null ? Colors.blue : Colors.grey,
+                      color: _scanTime2 != null ? Color(0xFF4A6489) : Color(0xFF8A8D96),
                     ),
                     title: const Text('Second Scan Time (Optional)'),
                     subtitle: Text(
@@ -207,11 +207,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Divider(
                       height: 1,
                       color: isDark
-                          ? Colors.grey.shade800
-                          : Colors.grey.shade200,
+                          ? Color(0xFF2E313A)
+                          : Color(0xFFE9E9E4),
                     ),
                     ListTile(
-                      leading: Icon(Icons.history, color: Colors.grey.shade500),
+                      leading: Icon(Icons.history, color: Color(0xFF8A8D96)),
                       title: const Text('Last Scan'),
                       subtitle: Text(
                         DateFormat(
@@ -219,8 +219,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ).format(_lastScanTime!),
                         style: TextStyle(
                           color: isDark
-                              ? Colors.grey.shade500
-                              : Colors.grey.shade600,
+                              ? Color(0xFF8A8D96)
+                              : Color(0xFF6E727C),
                         ),
                       ),
                     ),
@@ -238,12 +238,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildSettingsCard(
             isDark: isDark,
             child: ListTile(
-              leading: Icon(Icons.refresh, color: Colors.orange.shade600),
+              leading: Icon(Icons.refresh, color: Color(0xFFC68A2E)),
               title: const Text('Reset Onboarding'),
               subtitle: Text(
                 'Show first-time setup again',
                 style: TextStyle(
-                  color: isDark ? Colors.grey.shade500 : Colors.grey.shade600,
+                  color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
                 ),
               ),
               onTap: () async {
@@ -292,14 +292,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Column(
               children: [
                 ListTile(
-                  leading: Icon(Icons.table_chart, color: Colors.blue.shade600),
+                  leading: Icon(Icons.table_chart, color: Color(0xFF4A6489)),
                   title: const Text('Export as Excel'),
                   subtitle: Text(
                     'Month-wise categorized data (.csv)',
                     style: TextStyle(
                       color: isDark
-                          ? Colors.grey.shade500
-                          : Colors.grey.shade600,
+                          ? Color(0xFF8A8D96)
+                          : Color(0xFF6E727C),
                     ),
                   ),
                   trailing: const Icon(Icons.chevron_right),
@@ -307,17 +307,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 Divider(
                   height: 1,
-                  color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+                  color: isDark ? Color(0xFF2E313A) : Color(0xFFE9E9E4),
                 ),
                 ListTile(
-                  leading: Icon(Icons.description, color: Colors.teal.shade600),
+                  leading: Icon(Icons.description, color: Color(0xFF178A5B)),
                   title: const Text('Export as Text'),
                   subtitle: Text(
                     'Formatted summary report (.txt)',
                     style: TextStyle(
                       color: isDark
-                          ? Colors.grey.shade500
-                          : Colors.grey.shade600,
+                          ? Color(0xFF8A8D96)
+                          : Color(0xFF6E727C),
                     ),
                   ),
                   trailing: const Icon(Icons.chevron_right),
@@ -337,13 +337,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: ListTile(
               leading: Icon(
                 Icons.shield_outlined,
-                color: Colors.green.shade600,
+                color: Color(0xFF178A5B),
               ),
               title: const Text('Your Data is Private'),
               subtitle: Text(
                 'All data stays on your device. We do not collect or upload any information.',
                 style: TextStyle(
-                  color: isDark ? Colors.grey.shade500 : Colors.grey.shade600,
+                  color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
                 ),
               ),
             ),
@@ -375,7 +375,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         style: TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.w600,
-          color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+          color: isDark ? Color(0xFF9A9DA6) : Color(0xFF6E727C),
           letterSpacing: 0.5,
         ),
       ),
@@ -385,7 +385,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildSettingsCard({required bool isDark, required Widget child}) {
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1C2333) : Colors.white,
+        color: isDark ? const Color(0xFF16181E) : Colors.white,
         borderRadius: BorderRadius.circular(12),
         boxShadow: isDark
             ? null
@@ -414,7 +414,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _showStyledSnackBar(
               icon: Icons.error_outline,
               message: 'Storage permission is required to export data',
-              color: Colors.red,
+              color: Color(0xFFD25A5F),
             );
           }
           return;
@@ -433,7 +433,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
             color: Theme.of(context).brightness == Brightness.dark
-                ? const Color(0xFF1C2333)
+                ? const Color(0xFF16181E)
                 : Colors.white,
             borderRadius: BorderRadius.circular(16),
           ),
@@ -471,7 +471,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _showStyledSnackBar(
           icon: Icons.check_circle,
           message: 'Saved to Downloads/$fileName',
-          color: Colors.green,
+          color: Color(0xFF2AA76F),
           actionLabel: 'Open',
           onAction: () => OpenFilex.open(path),
         );
@@ -482,7 +482,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _showStyledSnackBar(
           icon: Icons.error_outline,
           message: 'Export failed: $e',
-          color: Colors.red,
+          color: Color(0xFFD25A5F),
         );
       }
     }
@@ -511,7 +511,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             gradient: LinearGradient(
               colors: isDark
                   ? [const Color(0xFF1E293B), const Color(0xFF0F172A)]
-                  : [Colors.grey.shade900, Colors.grey.shade800],
+                  : [Color(0xFF1B1E28), Color(0xFF2E313A)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),

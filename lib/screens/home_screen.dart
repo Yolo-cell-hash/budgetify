@@ -4,6 +4,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/transaction_model.dart';
 import '../models/budget_model.dart';
+import '../providers/theme_provider.dart';
 import '../services/database_service.dart';
 import '../services/sms_service.dart';
 import '../services/notification_service.dart';
@@ -323,10 +324,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF121212) : Colors.grey.shade100,
+      backgroundColor: AppColors.of(context).background,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SafeArea(
@@ -365,10 +364,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildHeader() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colors = AppColors.of(context);
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 20, 12, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -382,9 +381,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     Text(
                       'Budget Tracker',
                       style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.white : Colors.grey.shade800,
+                        fontSize: 26,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.6,
+                        color: colors.text,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -392,9 +392,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       DateFormat('EEEE, MMMM d').format(DateTime.now()),
                       style: TextStyle(
                         fontSize: 14,
-                        color: isDark
-                            ? Colors.grey.shade400
-                            : Colors.grey.shade600,
+                        letterSpacing: -0.1,
+                        color: colors.textSecondary,
                       ),
                     ),
                   ],
@@ -407,24 +406,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.green.withOpacity(0.1),
+                    color: colors.success.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: colors.success.withOpacity(0.25),
+                    ),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
                         Icons.check_circle,
-                        size: 16,
-                        color: Colors.green.shade600,
+                        size: 14,
+                        color: colors.success,
                       ),
                       const SizedBox(width: 4),
                       Text(
                         'SMS Active',
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.green.shade600,
-                          fontWeight: FontWeight.w500,
+                          color: colors.success,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
@@ -433,7 +435,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               IconButton(
                 icon: Icon(
                   Icons.settings_outlined,
-                  color: isDark ? Colors.white : Colors.grey.shade700,
+                  color: colors.textSecondary,
                 ),
                 onPressed: () {
                   Navigator.push(
@@ -457,17 +459,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.indigo.shade700, Colors.indigo.shade500],
+        gradient: const LinearGradient(
+          colors: AppColors.heroGradient,
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.gold.withOpacity(0.35)),
         boxShadow: [
           BoxShadow(
-            color: Colors.indigo.withOpacity(0.3),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+            color: Colors.black.withOpacity(0.25),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
           ),
         ],
       ),
@@ -478,32 +481,35 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '$monthName Expenses',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.white.withOpacity(0.8),
+                '$monthName Expenses'.toUpperCase(),
+                style: const TextStyle(
+                  fontSize: 12,
+                  letterSpacing: 1.4,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.gold,
                 ),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withOpacity(0.08),
                   borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.white.withOpacity(0.12)),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
                       Icons.arrow_upward,
-                      size: 14,
-                      color: Colors.white.withOpacity(0.9),
+                      size: 13,
+                      color: Colors.white.withOpacity(0.85),
                     ),
                     const SizedBox(width: 4),
                     Text(
                       'Spent',
                       style: TextStyle(
                         fontSize: 11,
-                        color: Colors.white.withOpacity(0.9),
+                        color: Colors.white.withOpacity(0.85),
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -512,21 +518,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           Text(
             formatter.format(_monthlyExpenses),
             style: const TextStyle(
-              fontSize: 36,
-              fontWeight: FontWeight.bold,
+              fontSize: 38,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -1.2,
               color: Colors.white,
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 22),
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(12),
+              color: Colors.white.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white.withOpacity(0.08)),
             ),
             child: Row(
               children: [
@@ -541,13 +549,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             Container(
                               padding: const EdgeInsets.all(4),
                               decoration: BoxDecoration(
-                                color: Colors.green.withOpacity(0.3),
-                                borderRadius: BorderRadius.circular(4),
+                                color: AppColors.successDark.withOpacity(0.18),
+                                borderRadius: BorderRadius.circular(5),
                               ),
                               child: const Icon(
                                 Icons.arrow_downward,
                                 size: 12,
-                                color: Colors.white,
+                                color: AppColors.successDark,
                               ),
                             ),
                             const SizedBox(width: 6),
@@ -555,17 +563,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                               'Income',
                               style: TextStyle(
                                 fontSize: 11,
-                                color: Colors.white.withOpacity(0.8),
+                                letterSpacing: 0.3,
+                                color: Colors.white.withOpacity(0.65),
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 6),
                         Text(
                           formatter.format(_monthlyIncome),
                           style: const TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
+                            letterSpacing: -0.2,
                             color: Colors.white,
                           ),
                         ),
@@ -576,7 +586,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 Container(
                   width: 1,
                   height: 40,
-                  color: Colors.white.withOpacity(0.3),
+                  color: Colors.white.withOpacity(0.12),
                 ),
                 Expanded(
                   child: GestureDetector(
@@ -591,30 +601,32 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                               'Expenses',
                               style: TextStyle(
                                 fontSize: 11,
-                                color: Colors.white.withOpacity(0.8),
+                                letterSpacing: 0.3,
+                                color: Colors.white.withOpacity(0.65),
                               ),
                             ),
                             const SizedBox(width: 6),
                             Container(
                               padding: const EdgeInsets.all(4),
                               decoration: BoxDecoration(
-                                color: Colors.red.withOpacity(0.3),
-                                borderRadius: BorderRadius.circular(4),
+                                color: AppColors.dangerDark.withOpacity(0.18),
+                                borderRadius: BorderRadius.circular(5),
                               ),
                               child: const Icon(
                                 Icons.arrow_upward,
                                 size: 12,
-                                color: Colors.white,
+                                color: AppColors.dangerDark,
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 6),
                         Text(
                           formatter.format(_monthlyExpenses),
                           style: const TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
+                            letterSpacing: -0.2,
                             color: Colors.white,
                           ),
                         ),
@@ -631,7 +643,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildQuickActions() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colors = AppColors.of(context);
 
     return Padding(
       padding: const EdgeInsets.all(16),
@@ -639,22 +651,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         children: [
           Expanded(
             child: _buildActionCard(
-              icon: Icons.receipt_long,
+              icon: Icons.receipt_long_outlined,
               label: 'Transactions',
               value: _transactionCount.toString(),
-              color: Colors.blue,
-              isDark: isDark,
+              color: colors.accent,
               onTap: _openTransactionsScreen,
             ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: _buildActionCard(
-              icon: Icons.pending_actions,
+              icon: Icons.pending_actions_outlined,
               label: 'Unclassified',
               value: _unclassifiedCount.toString(),
-              color: Colors.orange,
-              isDark: isDark,
+              color: AppColors.goldDeep,
               onTap: () => _openTransactionsScreen(unclassifiedOnly: true),
             ),
           ),
@@ -664,8 +674,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               icon: Icons.sync,
               label: 'Scan SMS',
               value: _isScanning ? '...' : 'Scan',
-              color: Colors.purple,
-              isDark: isDark,
+              color: colors.success,
               onTap: _isScanning ? null : _scanExistingSms,
             ),
           ),
@@ -679,25 +688,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     required String label,
     required String value,
     required Color color,
-    required bool isDark,
     VoidCallback? onTap,
   }) {
+    final colors = AppColors.of(context);
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1C2333) : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: isDark
-              ? null
-              : [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
+          color: colors.card,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: colors.border),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Column(
           children: [
@@ -705,7 +714,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(icon, color: color, size: 22),
             ),
@@ -714,8 +723,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               value,
               style: TextStyle(
                 fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : Colors.grey.shade800,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.4,
+                color: colors.text,
               ),
             ),
             const SizedBox(height: 4),
@@ -723,7 +733,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               label,
               style: TextStyle(
                 fontSize: 11,
-                color: isDark ? Colors.grey.shade500 : Colors.grey.shade600,
+                letterSpacing: 0.1,
+                color: colors.textSecondary,
               ),
             ),
           ],
@@ -737,7 +748,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       return const SizedBox.shrink();
     }
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colors = AppColors.of(context);
     final formatter = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
     final dateFormatter = DateFormat('MMM d');
 
@@ -752,9 +763,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               Text(
                 'Recent Transactions',
                 style: TextStyle(
-                  fontSize: 18,
+                  fontSize: 17,
                   fontWeight: FontWeight.w600,
-                  color: isDark ? Colors.white : Colors.grey.shade800,
+                  letterSpacing: -0.3,
+                  color: colors.text,
                 ),
               ),
               TextButton(
@@ -767,17 +779,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         Container(
           margin: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF2C2C2C) : Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: isDark
-                ? null
-                : [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
+            color: colors.card,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: colors.border),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           child: Column(
             children: _recentTransactions.asMap().entries.map((entry) {
@@ -793,15 +804,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: isCredit
-                            ? Colors.green.withOpacity(0.1)
-                            : Colors.red.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(10),
+                        color: (isCredit ? colors.success : colors.danger)
+                            .withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                       child: Icon(
                         isCredit ? Icons.arrow_downward : Icons.arrow_upward,
-                        color: isCredit ? Colors.green : Colors.red,
-                        size: 20,
+                        color: isCredit ? colors.success : colors.danger,
+                        size: 18,
                       ),
                     ),
                     title: Text(
@@ -809,7 +819,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       style: TextStyle(
                         fontWeight: FontWeight.w500,
                         fontSize: 14,
-                        color: isDark ? Colors.white : Colors.black87,
+                        letterSpacing: -0.1,
+                        color: colors.text,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -818,14 +829,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       dateFormatter.format(transaction.detectedAt),
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.grey.shade500,
+                        color: colors.textTertiary,
                       ),
                     ),
                     trailing: Text(
                       '${isCredit ? '+' : '-'} ${formatter.format(transaction.amount)}',
                       style: TextStyle(
                         fontWeight: FontWeight.w600,
-                        color: isCredit ? Colors.green : Colors.red,
+                        letterSpacing: -0.2,
+                        color: isCredit ? colors.success : colors.danger,
                       ),
                     ),
                     onTap: _openTransactionsScreen,
@@ -835,9 +847,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       height: 1,
                       indent: 70,
                       endIndent: 16,
-                      color: isDark
-                          ? Colors.grey.shade800
-                          : Colors.grey.shade200,
+                      color: colors.border,
                     ),
                 ],
               );
@@ -849,7 +859,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildBudgetCard() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colors = AppColors.of(context);
     final fmt = NumberFormat.currency(
       locale: 'en_IN',
       symbol: '₹',
@@ -865,14 +875,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: isDark
-                ? [const Color(0xFF2D2D44), const Color(0xFF1E1E2E)]
-                : [const Color(0xFF6366F1), const Color(0xFF4F46E5)],
+          gradient: const LinearGradient(
+            colors: [Color(0xFF2A2E42), Color(0xFF191B28)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.white.withOpacity(0.06)),
         ),
         child: _activeBudget == null
             ? Row(
@@ -945,13 +954,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     borderRadius: BorderRadius.circular(4),
                     child: LinearProgressIndicator(
                       value: (_budgetSpent / _activeBudget!.amount).clamp(0, 1),
-                      backgroundColor: Colors.white.withAlpha(50),
+                      backgroundColor: Colors.white.withAlpha(30),
                       valueColor: AlwaysStoppedAnimation(
                         _budgetSpent >= _activeBudget!.amount
-                            ? Colors.red.shade300
-                            : Colors.greenAccent,
+                            ? colors.danger
+                            : AppColors.gold,
                       ),
-                      minHeight: 8,
+                      minHeight: 6,
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -981,7 +990,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildCashSection() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final fmt = NumberFormat.currency(
       locale: 'en_IN',
       symbol: '₹',
@@ -1006,14 +1014,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: isDark
-                ? [const Color(0xFF2E4A3E), const Color(0xFF1E3A2E)]
-                : [const Color(0xFF2ECC40), const Color(0xFF27AE60)],
+          gradient: const LinearGradient(
+            colors: [Color(0xFF1E4636), Color(0xFF12291F)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.white.withOpacity(0.06)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1057,7 +1064,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.orange.withAlpha(80),
+                  color: AppColors.gold.withOpacity(0.22),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(

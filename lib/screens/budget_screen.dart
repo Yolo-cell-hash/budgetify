@@ -241,13 +241,13 @@ class _BudgetScreenState extends State<BudgetScreen>
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
                 color: isSelected
-                    ? Colors.indigo
+                    ? Color(0xFFA8843C)
                     : isDark
-                        ? const Color(0xFF2D3748)
-                        : Colors.grey.shade100,
+                        ? const Color(0xFF262931)
+                        : Color(0xFFF6F6F3),
                 borderRadius: BorderRadius.circular(20),
                 border: isCurrent && !isSelected
-                    ? Border.all(color: Colors.indigo.shade300, width: 1.5)
+                    ? Border.all(color: Color(0xFFC8A75E), width: 1.5)
                     : null,
               ),
               alignment: Alignment.center,
@@ -259,8 +259,8 @@ class _BudgetScreenState extends State<BudgetScreen>
                   color: isSelected
                       ? Colors.white
                       : isDark
-                          ? Colors.grey.shade300
-                          : Colors.grey.shade700,
+                          ? Color(0xFFD5D5CF)
+                          : Color(0xFF4E525C),
                 ),
               ),
             ),
@@ -306,7 +306,7 @@ class _BudgetScreenState extends State<BudgetScreen>
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1C2333) : Colors.white,
+        color: isDark ? const Color(0xFF16181E) : Colors.white,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)],
       ),
@@ -329,7 +329,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                   label: 'Income',
                   amount: _overviewMonthIncome,
                   fmt: fmt,
-                  color: Colors.green,
+                  color: Color(0xFF2AA76F),
                   icon: Icons.arrow_downward,
                   isDark: isDark,
                 ),
@@ -340,7 +340,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                   label: 'Expenses',
                   amount: _overviewMonthSpent,
                   fmt: fmt,
-                  color: Colors.red,
+                  color: Color(0xFFD25A5F),
                   icon: Icons.arrow_upward,
                   isDark: isDark,
                 ),
@@ -352,7 +352,7 @@ class _BudgetScreenState extends State<BudgetScreen>
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: net >= 0 ? Colors.green.withAlpha(30) : Colors.red.withAlpha(30),
+              color: net >= 0 ? Color(0xFF2AA76F).withAlpha(30) : Color(0xFFD25A5F).withAlpha(30),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
@@ -360,7 +360,7 @@ class _BudgetScreenState extends State<BudgetScreen>
               children: [
                 Icon(
                   net >= 0 ? Icons.trending_up : Icons.trending_down,
-                  color: net >= 0 ? Colors.green : Colors.red,
+                  color: net >= 0 ? Color(0xFF2AA76F) : Color(0xFFD25A5F),
                   size: 20,
                 ),
                 const SizedBox(width: 8),
@@ -369,7 +369,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                       ? 'Net Savings: ${fmt.format(net)}'
                       : 'Net Deficit: ${fmt.format(net.abs())}',
                   style: TextStyle(
-                    color: net >= 0 ? Colors.green : Colors.red,
+                    color: net >= 0 ? Color(0xFF2AA76F) : Color(0xFFD25A5F),
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -383,7 +383,7 @@ class _BudgetScreenState extends State<BudgetScreen>
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
-                color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+                color: isDark ? Color(0xFFD5D5CF) : Color(0xFF4E525C),
               ),
             ),
             const SizedBox(height: 12),
@@ -428,8 +428,8 @@ class _BudgetScreenState extends State<BudgetScreen>
                             child: LinearProgressIndicator(
                               value: pct / 100,
                               backgroundColor: isDark
-                                  ? Colors.grey.shade800
-                                  : Colors.grey.shade200,
+                                  ? Color(0xFF2E313A)
+                                  : Color(0xFFE9E9E4),
                               valueColor: AlwaysStoppedAnimation(
                                 ExpenseCategories.getColor(e.key),
                               ),
@@ -490,7 +490,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                 label,
                 style: TextStyle(
                   fontSize: 12,
-                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                  color: isDark ? Color(0xFF9A9DA6) : Color(0xFF6E727C),
                 ),
               ),
             ],
@@ -515,17 +515,17 @@ class _BudgetScreenState extends State<BudgetScreen>
     final pct = _budget!.amount > 0 ? _spent / _budget!.amount : 0.0;
     final remaining = _budget!.amount - _spent;
     final color = pct >= 1
-        ? Colors.red
+        ? Color(0xFFD25A5F)
         : pct >= 0.9
-        ? Colors.orange
+        ? Color(0xFFD79A3C)
         : pct >= 0.5
-        ? Colors.amber
-        : Colors.green;
+        ? Color(0xFFD79A3C)
+        : Color(0xFF2AA76F);
 
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1C2333) : Colors.white,
+        color: isDark ? const Color(0xFF16181E) : Colors.white,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)],
       ),
@@ -571,8 +571,8 @@ class _BudgetScreenState extends State<BudgetScreen>
                     value: pct.clamp(0, 1),
                     strokeWidth: 14,
                     backgroundColor: isDark
-                        ? Colors.grey.shade700
-                        : Colors.grey.shade300,
+                        ? Color(0xFF4E525C)
+                        : Color(0xFFD5D5CF),
                     valueColor: AlwaysStoppedAnimation(color),
                   ),
                 ),
@@ -591,7 +591,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                       'of ${fmt.format(_budget!.amount)}',
                       style: TextStyle(
                         fontSize: 12,
-                        color: isDark ? Colors.grey.shade400 : Colors.grey,
+                        color: isDark ? Color(0xFF9A9DA6) : Color(0xFF8A8D96),
                       ),
                     ),
                   ],
@@ -604,8 +604,8 @@ class _BudgetScreenState extends State<BudgetScreen>
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: remaining >= 0
-                  ? Colors.green.withAlpha(30)
-                  : Colors.red.withAlpha(30),
+                  ? Color(0xFF2AA76F).withAlpha(30)
+                  : Color(0xFFD25A5F).withAlpha(30),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
@@ -613,7 +613,7 @@ class _BudgetScreenState extends State<BudgetScreen>
               children: [
                 Icon(
                   remaining >= 0 ? Icons.savings : Icons.warning,
-                  color: remaining >= 0 ? Colors.green : Colors.red,
+                  color: remaining >= 0 ? Color(0xFF2AA76F) : Color(0xFFD25A5F),
                   size: 20,
                 ),
                 const SizedBox(width: 8),
@@ -622,7 +622,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                       ? '${fmt.format(remaining)} left'
                       : '${fmt.format(remaining.abs())} over!',
                   style: TextStyle(
-                    color: remaining >= 0 ? Colors.green : Colors.red,
+                    color: remaining >= 0 ? Color(0xFF2AA76F) : Color(0xFFD25A5F),
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -662,7 +662,7 @@ class _BudgetScreenState extends State<BudgetScreen>
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1C2333) : Colors.white,
+        color: isDark ? const Color(0xFF16181E) : Colors.white,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)],
       ),
@@ -721,7 +721,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                             FlSpot((days - 1).toDouble(), _budget!.amount),
                           ],
                           isCurved: false,
-                          color: Colors.grey,
+                          color: Color(0xFF8A8D96),
                           barWidth: 2,
                           dotData: const FlDotData(show: false),
                           dashArray: [5, 5],
@@ -729,12 +729,12 @@ class _BudgetScreenState extends State<BudgetScreen>
                         LineChartBarData(
                           spots: spots,
                           isCurved: true,
-                          color: Colors.indigo,
+                          color: Color(0xFFA8843C),
                           barWidth: 3,
                           dotData: const FlDotData(show: false),
                           belowBarData: BarAreaData(
                             show: true,
-                            color: Colors.indigo.withAlpha(40),
+                            color: Color(0xFFA8843C).withAlpha(40),
                           ),
                         ),
                       ],
@@ -764,11 +764,11 @@ class _BudgetScreenState extends State<BudgetScreen>
               padding: const EdgeInsets.symmetric(vertical: 60),
               child: Column(
                 children: [
-                  Icon(Icons.pie_chart_outline, size: 48, color: Colors.grey.shade400),
+                  Icon(Icons.pie_chart_outline, size: 48, color: Color(0xFF9A9DA6)),
                   const SizedBox(height: 12),
                   Text(
                     'No spending data for this month',
-                    style: TextStyle(color: Colors.grey.shade500),
+                    style: TextStyle(color: Color(0xFF8A8D96)),
                   ),
                 ],
               ),
@@ -792,7 +792,7 @@ class _BudgetScreenState extends State<BudgetScreen>
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1C2333) : Colors.white,
+        color: isDark ? const Color(0xFF16181E) : Colors.white,
         borderRadius: BorderRadius.circular(20),
       ),
       child: SizedBox(
@@ -849,7 +849,7 @@ class _BudgetScreenState extends State<BudgetScreen>
     bool isDark,
   ) {
     final isExpanded = _expandedCategory == category;
-    final cardColor = isDark ? const Color(0xFF1C2333) : Colors.white;
+    final cardColor = isDark ? const Color(0xFF16181E) : Colors.white;
     final textColor = isDark ? Colors.white : Colors.black87;
 
     return Column(
@@ -930,7 +930,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                       Text(
                         '${(amount / total * 100).toStringAsFixed(1)}%',
                         style: TextStyle(
-                          color: isDark ? Colors.grey.shade400 : Colors.grey,
+                          color: isDark ? Color(0xFF9A9DA6) : Color(0xFF8A8D96),
                           fontSize: 12,
                         ),
                       ),
@@ -947,7 +947,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                 const SizedBox(width: 8),
                 Icon(
                   isExpanded ? Icons.expand_less : Icons.expand_more,
-                  color: Colors.grey,
+                  color: Color(0xFF8A8D96),
                 ),
               ],
             ),
@@ -959,7 +959,7 @@ class _BudgetScreenState extends State<BudgetScreen>
             margin: const EdgeInsets.only(bottom: 12, left: 16),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF161B22) : Colors.grey.shade50,
+              color: isDark ? const Color(0xFF121318) : Color(0xFFFAFAF8),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Column(
@@ -997,8 +997,8 @@ class _BudgetScreenState extends State<BudgetScreen>
                                 style: TextStyle(
                                   fontSize: 11,
                                   color: isDark
-                                      ? Colors.grey.shade500
-                                      : Colors.grey,
+                                      ? Color(0xFF8A8D96)
+                                      : Color(0xFF8A8D96),
                                 ),
                               ),
                             ],
@@ -1009,15 +1009,15 @@ class _BudgetScreenState extends State<BudgetScreen>
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
                             color: txn.type == TransactionType.credit
-                                ? Colors.green
-                                : Colors.red,
+                                ? Color(0xFF2AA76F)
+                                : Color(0xFFD25A5F),
                           ),
                         ),
                         const SizedBox(width: 4),
                         Icon(
                           Icons.chevron_right,
                           size: 16,
-                          color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
+                          color: isDark ? Color(0xFF6E727C) : Color(0xFF9A9DA6),
                         ),
                       ],
                     ),
@@ -1049,7 +1049,7 @@ class _BudgetScreenState extends State<BudgetScreen>
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1C2333) : Colors.white,
+              color: isDark ? const Color(0xFF16181E) : Colors.white,
               borderRadius: BorderRadius.circular(20),
             ),
             child: Column(
@@ -1094,7 +1094,7 @@ class _BudgetScreenState extends State<BudgetScreen>
   Widget _buildTrendsChartToggle(bool isDark) {
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF2D3748) : Colors.grey.shade100,
+        color: isDark ? const Color(0xFF262931) : Color(0xFFF6F6F3),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -1130,7 +1130,7 @@ class _BudgetScreenState extends State<BudgetScreen>
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: isSelected
-              ? (isDark ? Colors.indigo.shade700 : Colors.indigo)
+              ? (isDark ? Color(0xFFA8843C) : Color(0xFFA8843C))
               : Colors.transparent,
           borderRadius: BorderRadius.circular(7),
         ),
@@ -1139,7 +1139,7 @@ class _BudgetScreenState extends State<BudgetScreen>
           size: 18,
           color: isSelected
               ? Colors.white
-              : (isDark ? Colors.grey.shade400 : Colors.grey.shade600),
+              : (isDark ? Color(0xFF9A9DA6) : Color(0xFF6E727C)),
         ),
       ),
     );
@@ -1163,8 +1163,8 @@ class _BudgetScreenState extends State<BudgetScreen>
               BarChartRodData(
                 toY: e.value['total'],
                 color: isCurrentMonth
-                    ? Colors.indigo
-                    : Colors.indigo.withAlpha(120),
+                    ? Color(0xFFA8843C)
+                    : Color(0xFFA8843C).withAlpha(120),
                 width: 24,
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(6),
@@ -1189,7 +1189,7 @@ class _BudgetScreenState extends State<BudgetScreen>
         lineTouchData: LineTouchData(
           enabled: true,
           touchTooltipData: LineTouchTooltipData(
-            getTooltipColor: (_) => Colors.grey.shade800,
+            getTooltipColor: (_) => Color(0xFF2E313A),
             getTooltipItems: (spots) => spots.map((spot) {
               return LineTooltipItem(
                 '₹${spot.y.toStringAsFixed(0)}',
@@ -1210,7 +1210,7 @@ class _BudgetScreenState extends State<BudgetScreen>
             isCurved: true,
             curveSmoothness: 0.35,
             preventCurveOverShooting: true,
-            color: Colors.indigo,
+            color: Color(0xFFA8843C),
             barWidth: 3,
             isStrokeCapRound: true,
             dotData: FlDotData(
@@ -1219,7 +1219,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                 final isLast = index == _monthlySpending.length - 1;
                 return FlDotCirclePainter(
                   radius: isLast ? 5 : 3.5,
-                  color: isLast ? Colors.indigo : Colors.indigo.shade200,
+                  color: isLast ? Color(0xFFA8843C) : Color(0xFFD8BC7E),
                   strokeWidth: isLast ? 2.5 : 1.5,
                   strokeColor: Colors.white,
                 );
@@ -1229,8 +1229,8 @@ class _BudgetScreenState extends State<BudgetScreen>
               show: true,
               gradient: LinearGradient(
                 colors: [
-                  Colors.indigo.withAlpha(80),
-                  Colors.indigo.withAlpha(10),
+                  Color(0xFFA8843C).withAlpha(80),
+                  Color(0xFFA8843C).withAlpha(10),
                 ],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
@@ -1290,7 +1290,7 @@ class _BudgetScreenState extends State<BudgetScreen>
     final isExpanded =
         _expandedMonth?.month == month.month &&
         _expandedMonth?.year == month.year;
-    final cardColor = isDark ? const Color(0xFF1C2333) : Colors.white;
+    final cardColor = isDark ? const Color(0xFF16181E) : Colors.white;
     final textColor = isDark ? Colors.white : Colors.black87;
 
     return Column(
@@ -1323,9 +1323,9 @@ class _BudgetScreenState extends State<BudgetScreen>
               color: cardColor,
               borderRadius: BorderRadius.circular(12),
               border: isCurrentMonth
-                  ? Border.all(color: Colors.indigo, width: 2)
+                  ? Border.all(color: Color(0xFFA8843C), width: 2)
                   : isExpanded
-                  ? Border.all(color: Colors.indigo.shade300, width: 1)
+                  ? Border.all(color: Color(0xFFC8A75E), width: 1)
                   : null,
             ),
             child: Row(
@@ -1338,7 +1338,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.indigo,
+                      color: Color(0xFFA8843C),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: const Text(
@@ -1369,7 +1369,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                 const SizedBox(width: 8),
                 Icon(
                   isExpanded ? Icons.expand_less : Icons.expand_more,
-                  color: Colors.grey,
+                  color: Color(0xFF8A8D96),
                 ),
               ],
             ),
@@ -1397,7 +1397,7 @@ class _BudgetScreenState extends State<BudgetScreen>
       margin: const EdgeInsets.only(bottom: 12, left: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF161B22) : Colors.grey.shade50,
+        color: isDark ? const Color(0xFF121318) : Color(0xFFFAFAF8),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
@@ -1463,7 +1463,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                     '${pct.toStringAsFixed(1)}%',
                     style: TextStyle(
                       fontSize: 11,
-                      color: isDark ? Colors.grey.shade500 : Colors.grey,
+                      color: isDark ? Color(0xFF8A8D96) : Color(0xFF8A8D96),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -1540,7 +1540,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                         _loadData();
                       },
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.red,
+                        foregroundColor: Color(0xFFD25A5F),
                       ),
                       child: const Text('Delete'),
                     ),
