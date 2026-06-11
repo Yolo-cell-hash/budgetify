@@ -92,8 +92,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             LinearProgressIndicator(
               value: (_currentPage + 1) / 2,
               backgroundColor: isDark
-                  ? Colors.grey.shade800
-                  : Colors.grey.shade200,
+                  ? Color(0xFF2E313A)
+                  : Color(0xFFE9E9E4),
               valueColor: AlwaysStoppedAnimation(
                 Theme.of(context).primaryColor,
               ),
@@ -144,7 +144,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 16,
-              color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+              color: isDark ? Color(0xFF9A9DA6) : Color(0xFF6E727C),
             ),
           ),
           const SizedBox(height: 24),
@@ -152,17 +152,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1C2333) : Colors.blue.shade50,
+              color: isDark ? const Color(0xFF16181E) : Color(0xFFEDF2F8),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: isDark ? const Color(0xFF2D3748) : Colors.blue.shade100,
+                color: isDark ? const Color(0xFF262931) : Color(0xFFD8E2EE),
               ),
             ),
             child: Row(
               children: [
                 Icon(
                   Icons.shield_outlined,
-                  color: isDark ? Colors.blue.shade300 : Colors.blue.shade700,
+                  color: isDark ? Color(0xFF8FA9C7) : Color(0xFF3E5577),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -171,8 +171,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     style: TextStyle(
                       fontSize: 13,
                       color: isDark
-                          ? Colors.blue.shade200
-                          : Colors.blue.shade800,
+                          ? Color(0xFFAFC2D9)
+                          : Color(0xFF33486A),
                     ),
                   ),
                 ),
@@ -224,26 +224,26 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 14,
-              color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+              color: isDark ? Color(0xFF9A9DA6) : Color(0xFF6E727C),
             ),
           ),
           const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1C2333) : Colors.green.shade50,
+              color: isDark ? const Color(0xFF16181E) : Color(0xFFE9F6F0),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
               children: [
-                Icon(Icons.shield_outlined, color: Colors.green.shade600),
+                Icon(Icons.shield_outlined, color: Color(0xFF178A5B)),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     'Your SMS stays private and is never uploaded to any server. All processing happens locally on your device.',
                     style: TextStyle(
                       fontSize: 12,
-                      color: Colors.green.shade700,
+                      color: Color(0xFF11744C),
                     ),
                   ),
                 ),

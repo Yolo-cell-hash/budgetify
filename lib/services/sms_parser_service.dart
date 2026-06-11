@@ -44,11 +44,13 @@ class SmsParserService {
     'SCBSMS',
     'CITIBNK',
     'DBISHR',
-    'SimplPL',
-    'Bank of Baroda',
-    'Bank of Maharashtra',
-    'IDBI Bank Limited',
-    'Bank of India',
+    // NOTE: entries must be uppercase — they are matched against an
+    // uppercased sender in isBankSms().
+    'SIMPLPL',
+    'BANK OF BARODA',
+    'BANK OF MAHARASHTRA',
+    'IDBI BANK LIMITED',
+    'BANK OF INDIA',
 
     // --- Newly Appended Extensions ---
     'SBIFMS',
@@ -120,6 +122,9 @@ class SmsParserService {
     'SCBLTD',
     'AMEXBK',
     // --- Additional Banks / Neo Banks ---
+    'SARBNK',
+    'SBIYONO',
+    'MAHAMB',
     'JUPITR',
     'FIMONY',
     'NIYOGB',
@@ -1760,15 +1765,35 @@ class SmsParserService {
     return null;
   }
 
+  /// Strip the DLT routing parts from a sender ID, leaving the stable
+  /// bank header that `_bankSenderPatterns` actually lists.
+  ///
+  /// Indian SMS senders arrive as `<operator+circle>-<header>[-<route>]`,
+  /// e.g. "BV-SBIUPI-S", "JD-MAHABK", "AD-SBIINB-T". The 2-char prefix
+  /// changes with the user's telecom operator and circle, and the 1-char
+  /// suffix (S/T/P/G, mandated since 2024) varies by message route — only
+  /// the middle header is stable per bank.
+  static String normalizeSender(String sender) {
+    var s = sender.trim().toUpperCase();
+    s = s.replaceFirst(RegExp(r'-[A-Z]$'), ''); // route suffix: "-S", "-T"...
+    s = s.replaceFirst(RegExp(r'^[A-Z]{2}-'), ''); // operator+circle prefix
+    return s;
+  }
+
   /// Check if the SMS is from a bank
   static bool isBankSms(String sender) {
     final upperSender = sender.toUpperCase();
+    final coreHeader = normalizeSender(sender);
+
     return _bankSenderPatterns.any(
-          (pattern) => upperSender.contains(pattern),
+          (pattern) =>
+              coreHeader == pattern || upperSender.contains(pattern),
         ) ||
         // Generic patterns for bank SMS
         upperSender.contains('BANK') ||
-        RegExp(r'^[A-Z]{2}-[A-Z]+$').hasMatch(upperSender);
+        // DLT sender format, with optional route suffix and digits in the
+        // header (e.g. "VM-SBIUPI", "BV-MAHABK-S", "JM-100022-T")
+        RegExp(r'^[A-Z]{2}-[A-Z0-9]{3,11}(-[A-Z])?$').hasMatch(upperSender);
   }
 
   /// Parse an SMS message to extract transaction details
@@ -1814,36 +1839,76 @@ class SmsParserService {
     );
   }
 
+  /// Regex matching a completed-transaction verb. Used to decide whether a
+  /// message that contains promo/security keywords is still a real
+  /// debit/credit alert (PSU banks append "Download YONO", "Never share
+  /// OTP/PIN", "...your registered mobile" footers to genuine alerts).
+  /// "DEBIT BY/OF" covers SBI's "has a debit by transfer of Rs X" phrasing
+  /// while staying narrower than \bDEBIT\b, which would match "debit card"
+  /// in OTP messages.
+  static final RegExp _transactionVerbRegex = RegExp(
+    r'\b(?:DEBITED|CREDITED|WITHDRAWN|DEPOSITED|SPENT|TRANSFERRED|TRF|(?:DEBIT|CREDIT)\s+(?:BY|OF|FOR|WITH))\b',
+  );
+
   /// Check if this is a non-transaction message (OTP, alerts, etc.)
   static bool _isNonTransactionMessage(String upperMessage) {
-    final nonTransactionKeywords = [
-      'OTP',
-      'ONE TIME PASSWORD',
-      'VERIFICATION CODE',
-      'PIN',
-      'CVV',
-      'CARD BLOCKED',
-      'CARD ACTIVATED',
-      'LOGIN',
-      'LOGGED IN',
-      'PASSWORD CHANGED',
-      'UPDATED YOUR',
-      'REGISTERED',
-      'LINKED',
-      'REWARD POINTS',
-      'CASHBACK EARNED',
-      'OFFER',
-      'PROMO',
-      'DISCOUNT',
-      'DUE DATE',
-      'MINIMUM DUE',
-      'STATEMENT',
-      'BILL GENERATED',
+    // Hard rejects: these messages are never completed transactions, even
+    // when they mention amounts or words like "debited".
+    final hardRejectPatterns = <RegExp>[
+      RegExp(r'\bSTATEMENT\b'),
+      RegExp(r'BILL GENERATED'),
+      RegExp(r'MINIMUM\s+(?:AMOUNT\s+)?DUE'),
+      RegExp(r'\bMIN\.?\s+(?:AMT\.?\s+)?DUE\b'),
+      // Autopay/mandate reminders for future debits
+      RegExp(r'WILL BE DEBITED'),
+      RegExp(r'\bAUTOPAY\b'),
+      RegExp(r'E-?MANDATE'),
+      // UPI collect requests — money has not moved yet
+      RegExp(r'HAS REQUESTED'),
+      RegExp(r'COLLECT REQUEST'),
+      RegExp(r'PAYMENT REQUEST'),
+      // Failed/declined attempts
+      RegExp(r'\bFAILED\b'),
+      RegExp(r'\bDECLINED\b'),
+      RegExp(r'INSUFFICIENT'),
+      // Card lifecycle / security notices
+      RegExp(r'CARD\s+(?:IS\s+)?BLOCKED'),
+      RegExp(r'CARD\s+(?:IS\s+)?ACTIVATED'),
+      RegExp(r'PASSWORD CHANGED'),
+      RegExp(r'\bLOGIN\b'),
+      RegExp(r'LOGGED IN'),
     ];
+    if (hardRejectPatterns.any((p) => p.hasMatch(upperMessage))) {
+      return true;
+    }
 
-    return nonTransactionKeywords.any(
-      (keyword) => upperMessage.contains(keyword),
-    );
+    // Soft rejects: these words flag OTPs and marketing SMS, but banks also
+    // put them in footers of genuine alerts. Only reject when the message
+    // carries no completed-transaction verb. 'PIN' is word-bounded so it no
+    // longer matches inside SHOPPING / PINELABS etc.
+    final softRejectPatterns = <RegExp>[
+      RegExp(r'\bOTP\b'),
+      RegExp(r'ONE TIME PASSWORD'),
+      RegExp(r'VERIFICATION CODE'),
+      RegExp(r'\bPIN\b'),
+      RegExp(r'\bCVV\b'),
+      RegExp(r'UPDATED YOUR'),
+      RegExp(r'\bREGISTERED\b'),
+      RegExp(r'\bLINKED\b'),
+      RegExp(r'REWARD POINTS'),
+      RegExp(r'CASHBACK EARNED'),
+      RegExp(r'\bOFFER\b'),
+      RegExp(r'\bPROMO\b'),
+      RegExp(r'\bDISCOUNT\b'),
+      RegExp(r'DUE DATE'),
+    ];
+    final hasTransactionVerb = _transactionVerbRegex.hasMatch(upperMessage);
+    if (!hasTransactionVerb &&
+        softRejectPatterns.any((p) => p.hasMatch(upperMessage))) {
+      return true;
+    }
+
+    return false;
   }
 
   /// Determine if it's a credit or debit transaction using weighted scoring
@@ -1870,6 +1935,8 @@ class SmsParserService {
     final strongDebitKeywords = [
       'DEBITED',
       'DEBITED FROM',
+      'DEBIT BY',
+      'DEBIT OF',
       'WITHDRAWN',
       'SPENT',
       'DR.',
@@ -1883,6 +1950,8 @@ class SmsParserService {
 
     final strongCreditKeywords = [
       'CREDITED',
+      'CREDIT BY',
+      'CREDIT OF',
       'RECEIVED',
       'DEPOSITED',
       'CR.',
@@ -1996,24 +2065,42 @@ class SmsParserService {
 
   /// Extract amount from the message
   static double? _extractAmount(String message) {
-    // Patterns to match amounts in various formats
+    // Strip balance fragments ("Avl Bal Rs.12,345.67", "Bal: INR 5000") so
+    // the generic currency patterns below never pick up the account balance
+    // instead of the transaction amount.
+    final cleaned = message.replaceAll(
+      RegExp(
+        r'(?:(?:AVL|AVBL|AVL?BL|AVAILABLE|TOTAL|CLR|CLEAR)\.?\s*)?BAL(?:ANCE)?\.?\s*(?:IS|:|-)?\s*(?:RS\.?|INR|₹)?\s*[\d,]+(?:\.\d+)?',
+        caseSensitive: false,
+      ),
+      ' ',
+    );
+
+    // Patterns to match amounts in various formats, most specific first
     final patterns = [
-      // Rs. 1,234.56 or Rs 1234.56 or Rs.1234
-      RegExp(r'RS\.?\s*([\d,]+\.?\d*)', caseSensitive: false),
+      // Verb-anchored with optional currency marker — covers SBI's bare
+      // format "debited by 35.0" / "credited by 120.0" (no Rs/INR at all)
+      RegExp(
+        r'(?:DEBITED|CREDITED)\s+(?:BY|FOR|WITH)\s+(?:RS\.?|INR|₹)?\s*([\d,]+(?:\.\d+)?)',
+        caseSensitive: false,
+      ),
+      // Rs. 1,234.56 or Rs 1234.56 or Rs.1234 (\b keeps "48 HRS 1800..."
+      // from matching as an amount)
+      RegExp(r'\bRS\.?\s*([\d,]+\.?\d*)', caseSensitive: false),
       // INR 1,234.56 or INR1234
-      RegExp(r'INR\.?\s*([\d,]+\.?\d*)', caseSensitive: false),
+      RegExp(r'\bINR\.?\s*([\d,]+\.?\d*)', caseSensitive: false),
       // ₹1,234.56 or ₹ 1234
       RegExp(r'₹\s*([\d,]+\.?\d*)'),
       // Rupees 1234
-      RegExp(r'RUPEES?\s*([\d,]+\.?\d*)', caseSensitive: false),
+      RegExp(r'\bRUPEES?\s*([\d,]+\.?\d*)', caseSensitive: false),
       // Amount: 1234.56 or Amt: 1234
-      RegExp(r'AMT\.?:?\s*RS?\.?\s*([\d,]+\.?\d*)', caseSensitive: false),
+      RegExp(r'\bAMT\.?:?\s*RS?\.?\s*([\d,]+\.?\d*)', caseSensitive: false),
       // for Rs.1234 (specific format)
       RegExp(r'(?:FOR|OF)\s+RS\.?\s*([\d,]+\.?\d*)', caseSensitive: false),
     ];
 
     for (final pattern in patterns) {
-      final match = pattern.firstMatch(message);
+      final match = pattern.firstMatch(cleaned);
       if (match != null && match.group(1) != null) {
         // Remove commas and parse
         final amountStr = match.group(1)!.replaceAll(',', '');

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import '../models/transaction_model.dart';
+import '../providers/theme_provider.dart';
 import '../screens/daily_analysis_screen.dart';
 
 /// Chart display mode
@@ -36,17 +37,16 @@ class _ExpenseChartWidgetState extends State<ExpenseChartWidget> {
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1C2333) : Colors.white,
+        color: AppColors.of(context).card,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: isDark
-            ? null
-            : [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 15,
-                  offset: const Offset(0, 5),
-                ),
-              ],
+        border: Border.all(color: AppColors.of(context).border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -57,9 +57,10 @@ class _ExpenseChartWidgetState extends State<ExpenseChartWidget> {
               Text(
                 'Expense Trend',
                 style: TextStyle(
-                  fontSize: 18,
+                  fontSize: 17,
                   fontWeight: FontWeight.w600,
-                  color: isDark ? Colors.white : Colors.grey.shade800,
+                  letterSpacing: -0.3,
+                  color: AppColors.of(context).text,
                 ),
               ),
               Row(
@@ -72,14 +73,14 @@ class _ExpenseChartWidgetState extends State<ExpenseChartWidget> {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.red.shade50,
+                      color: AppColors.gold.withOpacity(0.12),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Text(
+                    child: const Text(
                       'Last 7 Days',
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.red.shade400,
+                        color: AppColors.goldDeep,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -93,7 +94,7 @@ class _ExpenseChartWidgetState extends State<ExpenseChartWidget> {
             'Tap a day for detailed analysis',
             style: TextStyle(
               fontSize: 12,
-              color: isDark ? Colors.grey.shade500 : Colors.grey.shade500,
+              color: isDark ? Color(0xFF8A8D96) : Color(0xFF8A8D96),
             ),
           ),
           const SizedBox(height: 8),
@@ -101,8 +102,9 @@ class _ExpenseChartWidgetState extends State<ExpenseChartWidget> {
             'Total: ₹${_getTotalExpenses().toStringAsFixed(0)}',
             style: TextStyle(
               fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.red.shade400,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.6,
+              color: AppColors.of(context).text,
             ),
           ),
           const SizedBox(height: 24),
@@ -128,7 +130,7 @@ class _ExpenseChartWidgetState extends State<ExpenseChartWidget> {
   Widget _buildChartModeToggle(bool isDark) {
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF2D3748) : Colors.grey.shade100,
+        color: isDark ? const Color(0xFF262931) : Color(0xFFF6F6F3),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -163,9 +165,7 @@ class _ExpenseChartWidgetState extends State<ExpenseChartWidget> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected
-              ? (isDark ? Colors.red.shade700 : Colors.red.shade400)
-              : Colors.transparent,
+          color: isSelected ? AppColors.goldDeep : Colors.transparent,
           borderRadius: BorderRadius.circular(7),
         ),
         child: Icon(
@@ -173,7 +173,7 @@ class _ExpenseChartWidgetState extends State<ExpenseChartWidget> {
           size: 18,
           color: isSelected
               ? Colors.white
-              : (isDark ? Colors.grey.shade400 : Colors.grey.shade600),
+              : (isDark ? Color(0xFF9A9DA6) : Color(0xFF6E727C)),
         ),
       ),
     );
@@ -193,7 +193,7 @@ class _ExpenseChartWidgetState extends State<ExpenseChartWidget> {
         barTouchData: BarTouchData(
           enabled: true,
           touchTooltipData: BarTouchTooltipData(
-            getTooltipColor: (_) => Colors.grey.shade800,
+            getTooltipColor: (_) => Color(0xFF2E313A),
             getTooltipItem: (group, groupIndex, rod, rodIndex) {
               return BarTooltipItem(
                 '₹${rod.toY.toStringAsFixed(0)}\n',
@@ -250,10 +250,10 @@ class _ExpenseChartWidgetState extends State<ExpenseChartWidget> {
                 ),
                 gradient: LinearGradient(
                   colors: isToday
-                      ? [Colors.red.shade400, Colors.red.shade300]
+                      ? [AppColors.goldDeep, AppColors.gold]
                       : [
-                          Colors.red.shade200,
-                          Colors.red.shade100,
+                          AppColors.gold.withOpacity(0.45),
+                          AppColors.gold.withOpacity(0.25),
                         ],
                   begin: Alignment.bottomCenter,
                   end: Alignment.topCenter,
@@ -280,7 +280,7 @@ class _ExpenseChartWidgetState extends State<ExpenseChartWidget> {
         lineTouchData: LineTouchData(
           enabled: true,
           touchTooltipData: LineTouchTooltipData(
-            getTooltipColor: (_) => Colors.grey.shade800,
+            getTooltipColor: (_) => Color(0xFF2E313A),
             getTooltipItems: (touchedSpots) {
               return touchedSpots.map((spot) {
                 return LineTooltipItem(
@@ -331,7 +331,7 @@ class _ExpenseChartWidgetState extends State<ExpenseChartWidget> {
             isCurved: true,
             curveSmoothness: 0.35,
             preventCurveOverShooting: true,
-            color: Colors.red.shade400,
+            color: AppColors.gold,
             barWidth: 3,
             isStrokeCapRound: true,
             dotData: FlDotData(
@@ -340,9 +340,7 @@ class _ExpenseChartWidgetState extends State<ExpenseChartWidget> {
                 final isToday = index == dailyData.length - 1;
                 return FlDotCirclePainter(
                   radius: isToday ? 5 : 3.5,
-                  color: isToday
-                      ? Colors.red.shade400
-                      : Colors.red.shade200,
+                  color: isToday ? AppColors.goldDeep : AppColors.gold,
                   strokeWidth: isToday ? 2.5 : 1.5,
                   strokeColor: Colors.white,
                 );
@@ -352,8 +350,8 @@ class _ExpenseChartWidgetState extends State<ExpenseChartWidget> {
               show: true,
               gradient: LinearGradient(
                 colors: [
-                  Colors.red.shade300.withOpacity(0.35),
-                  Colors.red.shade100.withOpacity(0.05),
+                  AppColors.gold.withOpacity(0.30),
+                  AppColors.gold.withOpacity(0.03),
                 ],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
@@ -381,7 +379,7 @@ class _ExpenseChartWidgetState extends State<ExpenseChartWidget> {
               child: Text(
                 dailyData[value.toInt()].dayLabel,
                 style: TextStyle(
-                  color: Colors.grey.shade500,
+                  color: Color(0xFF8A8D96),
                   fontSize: 11,
                   fontWeight: FontWeight.w500,
                 ),
@@ -410,7 +408,7 @@ class _ExpenseChartWidgetState extends State<ExpenseChartWidget> {
       drawVerticalLine: false,
       horizontalInterval: maxY / 4 > 0 ? maxY / 4 : 250,
       getDrawingHorizontalLine: (value) => FlLine(
-        color: isDark ? const Color(0xFF2D3748) : Colors.grey.shade200,
+        color: isDark ? const Color(0xFF262931) : Color(0xFFE9E9E4),
         strokeWidth: 1,
         dashArray: [5, 5],
       ),
@@ -431,11 +429,11 @@ class _ExpenseChartWidgetState extends State<ExpenseChartWidget> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.bar_chart_rounded, size: 48, color: Colors.grey.shade300),
+          Icon(Icons.bar_chart_rounded, size: 48, color: Color(0xFFD5D5CF)),
           const SizedBox(height: 8),
           Text(
             'No expense data yet',
-            style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+            style: TextStyle(color: Color(0xFF9A9DA6), fontSize: 14),
           ),
         ],
       ),

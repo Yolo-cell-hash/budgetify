@@ -1,0 +1,243 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:budget_tracker/models/transaction_model.dart';
+import 'package:budget_tracker/services/sms_parser_service.dart';
+
+void main() {
+  final now = DateTime(2026, 6, 1, 10, 30);
+
+  group('isBankSms — sender matching', () {
+    test('matches bare bank headers', () {
+      expect(SmsParserService.isBankSms('SBIUPI'), isTrue);
+      expect(SmsParserService.isBankSms('MAHABK'), isTrue);
+    });
+
+    test('matches DLT senders with operator/circle prefix', () {
+      expect(SmsParserService.isBankSms('VM-SBIINB'), isTrue);
+      expect(SmsParserService.isBankSms('JD-MAHABK'), isTrue);
+      expect(SmsParserService.isBankSms('bv-sbiupi'), isTrue);
+    });
+
+    test('matches post-2024 DLT senders with route suffix', () {
+      expect(SmsParserService.isBankSms('BV-SBIUPI-S'), isTrue);
+      expect(SmsParserService.isBankSms('AD-MAHABK-T'), isTrue);
+      expect(SmsParserService.isBankSms('JM-BOIIND-S'), isTrue);
+    });
+
+    test('matches full bank names regardless of case', () {
+      expect(SmsParserService.isBankSms('Bank of Maharashtra'), isTrue);
+      expect(SmsParserService.isBankSms('BANK OF BARODA'), isTrue);
+    });
+
+    test('normalizeSender strips prefix and suffix only', () {
+      expect(SmsParserService.normalizeSender('BV-SBIUPI-S'), 'SBIUPI');
+      expect(SmsParserService.normalizeSender('JD-MAHABK'), 'MAHABK');
+      expect(SmsParserService.normalizeSender('SBIUPI'), 'SBIUPI');
+    });
+  });
+
+  group('SBI message formats', () {
+    test('parses UPI debit with bare amount (no Rs/INR marker)', () {
+      final txn = SmsParserService.parseTransaction(
+        'BV-SBIUPI-S',
+        'Dear UPI user A/C X4321 debited by 35.0 on date 01Jun26 trf to '
+        'RAMESH KUMAR Refno 612345678901. If not u? call 1800111109. -SBI',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 35.0);
+      expect(txn.type, TransactionType.debit);
+    });
+
+    test('parses UPI credit with bare amount', () {
+      final txn = SmsParserService.parseTransaction(
+        'AD-SBIUPI-S',
+        'Dear SBI UPI User, ur A/cX4321 credited by Rs100 on 01Jun26 by '
+        '(Ref no 612345678902)',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 100.0);
+      expect(txn.type, TransactionType.credit);
+    });
+
+    test('keeps transaction despite YONO promo footer with OFFER keyword', () {
+      final txn = SmsParserService.parseTransaction(
+        'VM-SBIINB-S',
+        'Your A/C XXXXX4321 has a debit by transfer of Rs 2,500.00 on '
+        '01Jun26. Avl Bal Rs 18,450.50. Download YONO for exciting offers!',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 2500.0);
+      expect(txn.type, TransactionType.debit);
+    });
+
+    test('does not pick the balance as the amount', () {
+      final txn = SmsParserService.parseTransaction(
+        'BV-SBIUPI-S',
+        'Dear UPI user A/C X4321 credited by 250.0 on date 01Jun26. '
+        'Avl Bal Rs 99,999.99 -SBI',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 250.0);
+    });
+
+    test('ATM withdrawal', () {
+      final txn = SmsParserService.parseTransaction(
+        'ATMSBI',
+        'Dear Customer, Rs.2000 withdrawn at SBI ATM S1NW000123001 from '
+        'A/cX4321 on 01Jun26. Avl Bal Rs 5,000.00',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 2000.0);
+      expect(txn.type, TransactionType.debit);
+    });
+  });
+
+  group('Bank of Maharashtra message formats', () {
+    test('debit with Avl Bal footer and "registered" security note', () {
+      final txn = SmsParserService.parseTransaction(
+        'JD-MAHABK-S',
+        'Your a/c no. XX1234 is debited for Rs.500.00 on 01-06-2026 by UPI '
+        'Ref No 612345678903. Avl Bal Rs.12,345.67. If not done by you, '
+        'call from registered mobile - Bank of Maharashtra',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 500.0);
+      expect(txn.type, TransactionType.debit);
+      expect(txn.accountInfo, 'XX1234');
+    });
+
+    test('credit alert', () {
+      final txn = SmsParserService.parseTransaction(
+        'BOMSMS',
+        'A/c XX1234 Credited by Rs.15,000.00 on 01-06-2026 by Mob Banking. '
+        'Avl Bal Rs.27,345.67 - Bank of Maharashtra',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 15000.0);
+      expect(txn.type, TransactionType.credit);
+    });
+  });
+
+  group('Non-transaction rejection', () {
+    test('rejects OTP messages even when they mention an amount', () {
+      final txn = SmsParserService.parseTransaction(
+        'BV-SBIOTP-S',
+        'OTP for txn of Rs.5,000.00 at AMAZON on your card XX1234 is '
+        '482910. Valid for 10 mins. Do not share with anyone. -SBI',
+        now,
+      );
+      expect(txn, isNull);
+    });
+
+    test('keeps real debit with "Never share OTP/PIN" footer', () {
+      final txn = SmsParserService.parseTransaction(
+        'JM-BOIIND-S',
+        'Rs.750.00 debited from A/c XX5678 on 01Jun26 via UPI Ref '
+        '612345678904. Never share OTP/PIN with anyone. -Bank of India',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 750.0);
+    });
+
+    test('rejects UPI collect requests (money not moved yet)', () {
+      final txn = SmsParserService.parseTransaction(
+        'VM-SBIUPI-S',
+        'RAMESH KUMAR has requested money of Rs.1,200.00 from you on UPI. '
+        'Approve before 02Jun26 -SBI',
+        now,
+      );
+      expect(txn, isNull);
+    });
+
+    test('rejects autopay reminders for future debits', () {
+      final txn = SmsParserService.parseTransaction(
+        'HDFCBK',
+        'Rs.199.00 will be debited from your A/c XX5678 on 05-06-2026 '
+        'towards NETFLIX autopay mandate.',
+        now,
+      );
+      expect(txn, isNull);
+    });
+
+    test('rejects failed transaction alerts', () {
+      final txn = SmsParserService.parseTransaction(
+        'BV-SBIUPI-S',
+        'UPI txn of Rs.300.00 on 01Jun26 failed due to insufficient '
+        'balance in A/c X4321. -SBI',
+        now,
+      );
+      expect(txn, isNull);
+    });
+
+    test('rejects credit card statement messages', () {
+      final txn = SmsParserService.parseTransaction(
+        'HDFCBK',
+        'Your HDFC Bank Credit Card statement is generated. Total due '
+        'Rs.5,430.00, Minimum due Rs.270.00, Due date 15-06-2026.',
+        now,
+      );
+      expect(txn, isNull);
+    });
+
+    test('keeps transaction at merchant containing PIN substring', () {
+      final txn = SmsParserService.parseTransaction(
+        'ICICIB',
+        'INR 899.00 spent on ICICI Bank Card XX9012 on 01-Jun-26 at '
+        'SHOPPING STOP. Avl Lmt: INR 45,000.',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 899.0);
+      expect(txn.type, TransactionType.debit);
+    });
+  });
+
+  group('Other banks still parse', () {
+    test('HDFC sent format', () {
+      final txn = SmsParserService.parseTransaction(
+        'HDFCBK',
+        'Sent Rs.30.00\nFrom HDFC Bank A/C *9463\nTo Mumbai Metro '
+        'Ghatkopar\nOn 01/06/26\nRef 612345678905',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 30.0);
+      expect(txn.type, TransactionType.debit);
+      expect(txn.merchantName, isNotNull);
+    });
+
+    test('ICICI Info format with merchant', () {
+      final txn = SmsParserService.parseTransaction(
+        'ICICIT',
+        'ICICI Bank Acct XX012 debited for Rs 450.00 on 01-Jun-26; '
+        'Info: UPI-612345678906-SWIGGY. Call 18002662 for dispute.',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 450.0);
+      expect(txn.merchantName, 'Swiggy');
+      expect(txn.category, 'Food & Dining');
+    });
+  });
+
+  group('Fingerprint dedup across sender variants', () {
+    test('same alert via different DLT prefixes produces same fingerprint',
+        () {
+      const body =
+          'Dear UPI user A/C X4321 debited by 35.0 on date 01Jun26 trf to '
+          'RAMESH KUMAR Refno 612345678901. -SBI';
+      final a = SmsParserService.parseTransaction('BV-SBIUPI-S', body, now)!
+          .withFingerprint();
+      final b = SmsParserService.parseTransaction('AD-SBIUPI-T', body, now)!
+          .withFingerprint();
+      expect(a.fingerprint, b.fingerprint);
+    });
+  });
+}

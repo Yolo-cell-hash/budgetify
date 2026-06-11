@@ -77,7 +77,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             // Transaction Type Toggle
             Container(
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1C2333) : Colors.grey.shade100,
+                color: isDark ? const Color(0xFF16181E) : Color(0xFFF6F6F3),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
@@ -86,14 +86,14 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     child: _buildTypeButton(
                       TransactionType.debit,
                       '💸 Expense',
-                      Colors.red,
+                      Color(0xFFD25A5F),
                     ),
                   ),
                   Expanded(
                     child: _buildTypeButton(
                       TransactionType.credit,
                       '💰 Income',
-                      Colors.green,
+                      Color(0xFF2AA76F),
                     ),
                   ),
                 ],
@@ -117,8 +117,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 ),
                 filled: true,
                 fillColor: isDark
-                    ? const Color(0xFF1C2333)
-                    : Colors.grey.shade50,
+                    ? const Color(0xFF16181E)
+                    : Color(0xFFFAFAF8),
               ),
               validator: (v) {
                 if (v == null || v.isEmpty) return 'Enter amount';
@@ -166,8 +166,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 borderRadius: BorderRadius.circular(12),
                 side: BorderSide(
                   color: isDark
-                      ? const Color(0xFF2D3748)
-                      : Colors.grey.shade400,
+                      ? const Color(0xFF262931)
+                      : Color(0xFF9A9DA6),
                 ),
               ),
               leading: const Icon(Icons.calendar_today),
@@ -206,8 +206,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 onPressed: _saving ? null : _save,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _type == TransactionType.debit
-                      ? Colors.red
-                      : Colors.green,
+                      ? Color(0xFFD25A5F)
+                      : Color(0xFF2AA76F),
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
@@ -244,7 +244,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           label,
           textAlign: TextAlign.center,
           style: TextStyle(
-            color: selected ? Colors.white : Colors.grey,
+            color: selected ? Colors.white : Color(0xFF8A8D96),
             fontWeight: FontWeight.w600,
             fontSize: 16,
           ),

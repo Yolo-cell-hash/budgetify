@@ -84,10 +84,10 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
     final dateStr = DateFormat('EEEE, MMMM d, y').format(widget.date);
     final fmt = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
 
-    final bgColor = isDark ? const Color(0xFF0D1117) : Colors.grey.shade100;
-    final cardColor = isDark ? const Color(0xFF1C2333) : Colors.white;
+    final bgColor = isDark ? const Color(0xFF0A0B0E) : Color(0xFFF6F6F3);
+    final cardColor = isDark ? const Color(0xFF16181E) : Colors.white;
     final textColor = isDark ? Colors.white : Colors.black87;
-    final subtextColor = isDark ? Colors.grey.shade400 : Colors.grey.shade600;
+    final subtextColor = isDark ? Color(0xFF9A9DA6) : Color(0xFF6E727C);
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -163,7 +163,7 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
           Icon(
             Icons.event_busy_outlined,
             size: 80,
-            color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+            color: isDark ? Color(0xFF4E525C) : Color(0xFFD5D5CF),
           ),
           const SizedBox(height: 16),
           Text(
@@ -171,7 +171,7 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
-              color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+              color: isDark ? Color(0xFF9A9DA6) : Color(0xFF6E727C),
             ),
           ),
           const SizedBox(height: 8),
@@ -179,7 +179,7 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
             dateStr,
             style: TextStyle(
               fontSize: 14,
-              color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
+              color: isDark ? Color(0xFF6E727C) : Color(0xFF9A9DA6),
             ),
           ),
         ],
@@ -240,7 +240,7 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
                     icon: Icons.arrow_upward,
                     label: 'Spent',
                     amount: fmt.format(_totalSpent),
-                    color: Colors.red,
+                    color: Color(0xFFD25A5F),
                     isDark: isDark,
                   ),
                 ),
@@ -262,7 +262,7 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
                     icon: Icons.arrow_downward,
                     label: 'Received',
                     amount: fmt.format(_totalReceived),
-                    color: Colors.green,
+                    color: Color(0xFF2AA76F),
                     isDark: isDark,
                   ),
                 ),
@@ -274,7 +274,7 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
                   icon: isPositive ? Icons.trending_up : Icons.trending_down,
                   label: 'Net',
                   amount: '${isPositive ? '+' : ''}${fmt.format(netAmount)}',
-                  color: isPositive ? Colors.blue : Colors.orange,
+                  color: isPositive ? Color(0xFF4A6489) : Color(0xFFD79A3C),
                   isDark: isDark,
                 ),
               ),
@@ -286,15 +286,15 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
               color: isDark
-                  ? Colors.indigo.withAlpha(30)
-                  : Colors.indigo.shade50,
+                  ? Color(0xFFA8843C).withAlpha(30)
+                  : Color(0xFFF5EFE3),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
               '${_transactions.length} transaction${_transactions.length == 1 ? '' : 's'}',
               style: TextStyle(
                 fontSize: 13,
-                color: Colors.indigo.shade400,
+                color: Color(0xFFC8A75E),
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -325,7 +325,7 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
             label,
             style: TextStyle(
               fontSize: 11,
-              color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+              color: isDark ? Color(0xFF9A9DA6) : Color(0xFF6E727C),
             ),
           ),
           const SizedBox(height: 4),
@@ -464,8 +464,8 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
                         child: LinearProgressIndicator(
                           value: total > 0 ? entry.value / total : 0,
                           backgroundColor: isDark
-                              ? Colors.grey.shade800
-                              : Colors.grey.shade200,
+                              ? Color(0xFF2E313A)
+                              : Color(0xFFE9E9E4),
                           valueColor: AlwaysStoppedAnimation(color),
                           minHeight: 4,
                         ),
@@ -545,7 +545,7 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: (isCredit ? Colors.green : _getCategoryColor(cat))
+            color: (isCredit ? Color(0xFF2AA76F) : _getCategoryColor(cat))
                 .withAlpha(25),
             borderRadius: BorderRadius.circular(10),
           ),
@@ -599,7 +599,7 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w600,
-            color: isCredit ? Colors.green : Colors.red,
+            color: isCredit ? Color(0xFF2AA76F) : Color(0xFFD25A5F),
           ),
         ),
       );
@@ -609,7 +609,7 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
       height: 1,
       indent: 68,
       endIndent: 16,
-      color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+      color: isDark ? Color(0xFF2E313A) : Color(0xFFE9E9E4),
     );
 
     Widget buildSectionHeader({
@@ -699,7 +699,7 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
                   key: _expensesKey,
                   title: 'Expenses',
                   icon: Icons.arrow_upward,
-                  color: Colors.red,
+                  color: Color(0xFFD25A5F),
                   amount: fmt.format(_totalSpent),
                 ),
                 // Classified debits
@@ -712,7 +712,7 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
                 }),
                 // Unclassified debits
                 if (unclassifiedDebits.isNotEmpty) ...[
-                  buildSubHeader('Unclassified', Colors.orange),
+                  buildSubHeader('Unclassified', Color(0xFFD79A3C)),
                   ...unclassifiedDebits.expand((txn) sync* {
                     yield buildTxnTile(txn);
                     if (txn != unclassifiedDebits.last) {
@@ -742,7 +742,7 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
                   key: _incomeKey,
                   title: 'Income',
                   icon: Icons.arrow_downward,
-                  color: Colors.green,
+                  color: Color(0xFF2AA76F),
                   amount: fmt.format(_totalReceived),
                 ),
                 ...credits.expand((txn) sync* {

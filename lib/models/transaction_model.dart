@@ -50,6 +50,15 @@ class TransactionModel {
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
 
+    // Normalize the sender to its DLT core header: the operator+circle
+    // prefix and route suffix vary per delivery ("BV-SBIUPI-S" vs
+    // "AD-SBIUPI-T"), so the same alert must not fingerprint differently.
+    final coreSender = sender
+        .trim()
+        .toUpperCase()
+        .replaceFirst(RegExp(r'-[A-Z]$'), '')
+        .replaceFirst(RegExp(r'^[A-Z]{2}-'), '');
+
     // Round timestamp to the nearest hour to tolerate minor differences
     final roundedDate = DateTime(
       detectedAt.year,
@@ -60,7 +69,7 @@ class TransactionModel {
 
     // Build a canonical string and hash it
     final canonical =
-        '${amount.toStringAsFixed(2)}|${type.index}|${sender.toUpperCase()}|$normalizedMsg|${roundedDate.millisecondsSinceEpoch}';
+        '${amount.toStringAsFixed(2)}|${type.index}|$coreSender|$normalizedMsg|${roundedDate.millisecondsSinceEpoch}';
     // Use a simple but effective hash: convert to bytes, compute hashCode-chain
     final bytes = utf8.encode(canonical);
     var hash = 0xcbf29ce484222325; // FNV-1a offset basis (64-bit)

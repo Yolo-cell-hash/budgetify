@@ -58,152 +58,392 @@ class ThemeProvider extends ChangeNotifier {
   }
 }
 
-/// App theme definitions
+/// App theme definitions — "midnight ink & champagne gold" design system.
+///
+/// Light mode: warm porcelain background, white cards with hairline borders,
+/// deep ink as the interactive color. Dark mode: rich near-black surfaces
+/// with champagne-gold accents. Both share the same semantic palette via
+/// [AppColors].
 class AppTheme {
-  // ==================== LIGHT THEME ====================
+  // ==================== LIGHT THEME (Porcelain) ====================
   static ThemeData get lightTheme {
+    const c = AppColors.light;
+
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: Colors.indigo,
-        brightness: Brightness.light,
+      colorScheme: const ColorScheme.light(
+        primary: AppColors.inkPrimary,
+        onPrimary: Colors.white,
+        secondary: AppColors.gold,
+        onSecondary: Colors.white,
+        surface: Colors.white,
+        onSurface: AppColors.inkPrimary,
+        error: AppColors.dangerLight,
       ),
       fontFamily: 'Roboto',
-      scaffoldBackgroundColor: const Color(0xFFF5F5F5),
-      appBarTheme: const AppBarTheme(
+      scaffoldBackgroundColor: c.background,
+      textTheme: _textTheme(c.text, c.textSecondary),
+      appBarTheme: AppBarTheme(
         centerTitle: true,
         elevation: 0,
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
+        scrolledUnderElevation: 0,
+        backgroundColor: c.background,
+        foregroundColor: c.text,
+        surfaceTintColor: Colors.transparent,
+        titleTextStyle: TextStyle(
+          color: c.text,
+          fontSize: 17,
+          fontWeight: FontWeight.w600,
+          letterSpacing: -0.2,
+        ),
       ),
-      cardTheme: const CardThemeData(color: Colors.white, elevation: 0),
+      cardTheme: CardThemeData(
+        color: c.card,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: c.border),
+        ),
+      ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           elevation: 0,
+          backgroundColor: AppColors.inkPrimary,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          textStyle: const TextStyle(
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.2,
+          ),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
           ),
         ),
       ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(foregroundColor: AppColors.inkPrimary),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.inkPrimary,
+          side: BorderSide(color: c.border),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+      ),
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        backgroundColor: AppColors.inkPrimary,
+        foregroundColor: Colors.white,
+        elevation: 2,
+      ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: Colors.grey.shade100,
+        fillColor: Colors.white,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: c.border),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: c.border),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.indigo, width: 2),
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: AppColors.inkPrimary, width: 1.5),
         ),
+        hintStyle: TextStyle(color: c.textTertiary),
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: Colors.white,
-        selectedItemColor: Colors.indigo,
-        unselectedItemColor: Colors.grey,
+        selectedItemColor: AppColors.inkPrimary,
+        unselectedItemColor: Color(0xFFA0A2A8),
+        type: BottomNavigationBarType.fixed,
+      ),
+      tabBarTheme: TabBarThemeData(
+        labelColor: AppColors.inkPrimary,
+        unselectedLabelColor: c.textSecondary,
+        indicatorColor: AppColors.gold,
+      ),
+      dividerColor: c.border,
+      dialogTheme: const DialogThemeData(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+      ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: AppColors.inkPrimary,
+        contentTextStyle: const TextStyle(color: Colors.white),
+        actionTextColor: AppColors.gold,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: Colors.white,
+        selectedColor: AppColors.inkPrimary,
+        labelStyle: TextStyle(color: c.text),
+        side: BorderSide(color: c.border),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
       ),
     );
   }
 
-  // ==================== DARK THEME (Navy - Elegant) ====================
+  // ==================== DARK THEME (Midnight & Gold) ====================
   static ThemeData get darkTheme {
-    // Navy color palette matching reference designs
-    const backgroundColor = Color(0xFF0D1117); // Deep navy background
-    const surfaceColor = Color(0xFF161B22); // Slightly lighter navy for app bar
-    const cardColor = Color(0xFF1C2333); // Navy-tinted card background
-    const primaryBlue = Color(0xFF2563EB); // Primary accent blue
+    const c = AppColors.dark;
 
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
-      colorScheme: ColorScheme.dark(
-        primary: primaryBlue,
-        secondary: primaryBlue,
-        surface: surfaceColor,
-        onSurface: Colors.white,
-        onPrimary: Colors.white,
+      colorScheme: const ColorScheme.dark(
+        primary: AppColors.gold,
+        onPrimary: Color(0xFF15110A),
+        secondary: AppColors.gold,
+        onSecondary: Color(0xFF15110A),
+        surface: DarkModeColors.surface,
+        onSurface: Color(0xFFF2F2EF),
+        error: AppColors.dangerDark,
       ),
       fontFamily: 'Roboto',
-      scaffoldBackgroundColor: backgroundColor,
-      appBarTheme: const AppBarTheme(
+      scaffoldBackgroundColor: c.background,
+      textTheme: _textTheme(c.text, c.textSecondary),
+      appBarTheme: AppBarTheme(
         centerTitle: true,
         elevation: 0,
-        backgroundColor: backgroundColor,
-        foregroundColor: Colors.white,
+        scrolledUnderElevation: 0,
+        backgroundColor: c.background,
+        foregroundColor: c.text,
         surfaceTintColor: Colors.transparent,
+        titleTextStyle: TextStyle(
+          color: c.text,
+          fontSize: 17,
+          fontWeight: FontWeight.w600,
+          letterSpacing: -0.2,
+        ),
       ),
-      cardTheme: const CardThemeData(color: cardColor, elevation: 0),
+      cardTheme: CardThemeData(
+        color: c.card,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: c.border),
+        ),
+      ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           elevation: 0,
-          backgroundColor: primaryBlue,
-          foregroundColor: Colors.white,
+          backgroundColor: AppColors.gold,
+          foregroundColor: const Color(0xFF15110A),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          textStyle: const TextStyle(
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.2,
+          ),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
           ),
         ),
       ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(foregroundColor: AppColors.gold),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: c.text,
+          side: BorderSide(color: c.border),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+      ),
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        backgroundColor: AppColors.gold,
+        foregroundColor: Color(0xFF15110A),
+        elevation: 2,
+      ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: cardColor,
+        fillColor: c.card,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: c.border),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: c.border),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: primaryBlue, width: 2),
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: AppColors.gold, width: 1.5),
         ),
-        hintStyle: TextStyle(color: Colors.grey.shade500),
-        labelStyle: const TextStyle(color: Colors.white70),
+        hintStyle: TextStyle(color: c.textTertiary),
+        labelStyle: TextStyle(color: c.textSecondary),
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-        backgroundColor: surfaceColor,
-        selectedItemColor: primaryBlue,
-        unselectedItemColor: Colors.grey,
+        backgroundColor: DarkModeColors.surface,
+        selectedItemColor: AppColors.gold,
+        unselectedItemColor: Color(0xFF6E7178),
         type: BottomNavigationBarType.fixed,
       ),
       tabBarTheme: TabBarThemeData(
-        labelColor: primaryBlue,
-        unselectedLabelColor: Colors.grey.shade500,
-        indicatorColor: primaryBlue,
+        labelColor: AppColors.gold,
+        unselectedLabelColor: c.textSecondary,
+        indicatorColor: AppColors.gold,
       ),
-      dividerColor: const Color(0xFF2D3748),
-      iconTheme: const IconThemeData(color: Colors.white70),
+      dividerColor: c.border,
+      iconTheme: IconThemeData(color: c.textSecondary),
       dialogTheme: const DialogThemeData(
-        backgroundColor: cardColor,
+        backgroundColor: DarkModeColors.cardLight,
         surfaceTintColor: Colors.transparent,
       ),
       popupMenuTheme: const PopupMenuThemeData(
-        color: cardColor,
+        color: DarkModeColors.cardLight,
         surfaceTintColor: Colors.transparent,
       ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: DarkModeColors.cardLight,
+        contentTextStyle: TextStyle(color: c.text),
+        actionTextColor: AppColors.gold,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
       chipTheme: ChipThemeData(
-        backgroundColor: cardColor,
-        selectedColor: primaryBlue,
-        labelStyle: const TextStyle(color: Colors.white),
-        side: BorderSide(color: Colors.grey.shade700),
+        backgroundColor: c.card,
+        selectedColor: AppColors.gold,
+        labelStyle: TextStyle(color: c.text),
+        side: BorderSide(color: c.border),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ),
+    );
+  }
+
+  /// Shared type scale: tighter tracking on display sizes for a more
+  /// refined, editorial feel; relaxed tracking on labels.
+  static TextTheme _textTheme(Color text, Color secondary) {
+    return TextTheme(
+      displayLarge: TextStyle(
+        color: text,
+        fontWeight: FontWeight.w700,
+        letterSpacing: -1.0,
+      ),
+      headlineMedium: TextStyle(
+        color: text,
+        fontWeight: FontWeight.w700,
+        letterSpacing: -0.5,
+      ),
+      titleLarge: TextStyle(
+        color: text,
+        fontWeight: FontWeight.w600,
+        letterSpacing: -0.3,
+      ),
+      titleMedium: TextStyle(
+        color: text,
+        fontWeight: FontWeight.w600,
+        letterSpacing: -0.2,
+      ),
+      bodyLarge: TextStyle(color: text, letterSpacing: -0.1),
+      bodyMedium: TextStyle(color: text, letterSpacing: -0.1),
+      bodySmall: TextStyle(color: secondary),
+      labelLarge: TextStyle(
+        color: text,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0.2,
       ),
     );
   }
 }
 
+/// Semantic palette shared by both modes. Use `AppColors.of(context)` in
+/// widgets so colors track the active theme automatically.
+class AppColors {
+  // Brand constants (mode-independent)
+  static const gold = Color(0xFFC8A75E); // champagne gold accent
+  static const goldDeep = Color(0xFFA8843C);
+  static const inkPrimary = Color(0xFF1B1E28); // deep ink (light-mode accent)
+  static const successLight = Color(0xFF178A5B);
+  static const successDark = Color(0xFF4CC795);
+  static const dangerLight = Color(0xFFC94A50);
+  static const dangerDark = Color(0xFFE8888C);
+
+  // Hero card gradient — the dark "luxury card" used in both modes
+  static const heroGradient = [Color(0xFF23273A), Color(0xFF131520)];
+
+  final Color background;
+  final Color surface;
+  final Color card;
+  final Color cardAlt;
+  final Color border;
+  final Color text;
+  final Color textSecondary;
+  final Color textTertiary;
+  final Color accent;
+  final Color success;
+  final Color danger;
+
+  const AppColors._({
+    required this.background,
+    required this.surface,
+    required this.card,
+    required this.cardAlt,
+    required this.border,
+    required this.text,
+    required this.textSecondary,
+    required this.textTertiary,
+    required this.accent,
+    required this.success,
+    required this.danger,
+  });
+
+  static const light = AppColors._(
+    background: Color(0xFFF6F6F3),
+    surface: Colors.white,
+    card: Colors.white,
+    cardAlt: Color(0xFFFAFAF8),
+    border: Color(0xFFE9E9E4),
+    text: Color(0xFF1B1E28),
+    textSecondary: Color(0xFF6E727C),
+    textTertiary: Color(0xFFA0A2A8),
+    accent: inkPrimary,
+    success: successLight,
+    danger: dangerLight,
+  );
+
+  static const dark = AppColors._(
+    background: Color(0xFF0A0B0E),
+    surface: Color(0xFF121318),
+    card: Color(0xFF16181E),
+    cardAlt: Color(0xFF1D2026),
+    border: Color(0xFF262931),
+    text: Color(0xFFF2F2EF),
+    textSecondary: Color(0xFF9A9DA6),
+    textTertiary: Color(0xFF6E7178),
+    accent: gold,
+    success: successDark,
+    danger: dangerDark,
+  );
+
+  static AppColors of(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.dark ? dark : light;
+  }
+}
+
 /// Dark mode color constants for easy access throughout the app
 class DarkModeColors {
-  static const background = Color(0xFF0D1117);
-  static const surface = Color(0xFF161B22);
-  static const card = Color(0xFF1C2333);
-  static const cardLight = Color(0xFF242D3D);
-  static const primary = Color(0xFF2563EB);
-  static const divider = Color(0xFF2D3748);
-  static const textSecondary = Color(0xFF8B949E);
+  static const background = Color(0xFF0A0B0E);
+  static const surface = Color(0xFF121318);
+  static const card = Color(0xFF16181E);
+  static const cardLight = Color(0xFF1D2026);
+  static const primary = AppColors.gold;
+  static const divider = Color(0xFF262931);
+  static const textSecondary = Color(0xFF9A9DA6);
 }

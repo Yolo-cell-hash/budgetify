@@ -21,7 +21,7 @@ class TransactionCard extends StatelessWidget {
     final isCredit = transaction.type == TransactionType.credit;
     final formatter = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
     final dateFormatter = DateFormat('MMM d, h:mm a');
-    final typeColor = isCredit ? Colors.green : Colors.red;
+    final typeColor = isCredit ? Color(0xFF2AA76F) : Color(0xFFD25A5F);
 
     return Dismissible(
       key: Key(transaction.id?.toString() ?? transaction.message),
@@ -30,7 +30,7 @@ class TransactionCard extends StatelessWidget {
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
         decoration: BoxDecoration(
-          color: Colors.red.shade400,
+          color: Color(0xFFD96C70),
           borderRadius: BorderRadius.circular(16),
         ),
         child: const Icon(Icons.delete_outline, color: Colors.white, size: 28),
@@ -50,7 +50,7 @@ class TransactionCard extends StatelessWidget {
                   ),
                   TextButton(
                     onPressed: () => Navigator.pop(context, true),
-                    style: TextButton.styleFrom(foregroundColor: Colors.red),
+                    style: TextButton.styleFrom(foregroundColor: Color(0xFFD25A5F)),
                     child: const Text('Delete'),
                   ),
                 ],
@@ -62,18 +62,18 @@ class TransactionCard extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1C2333) : Colors.white,
+          color: isDark ? const Color(0xFF16181E) : Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border(left: BorderSide(color: typeColor, width: 4)),
-          boxShadow: isDark
-              ? null
-              : [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
+          border: Border.all(
+            color: isDark ? const Color(0xFF262931) : const Color(0xFFE9E9E4),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Material(
           color: Colors.transparent,
@@ -86,32 +86,20 @@ class TransactionCard extends StatelessWidget {
                 children: [
                   // Type indicator with icon
                   Container(
-                    width: 52,
-                    height: 52,
+                    width: 48,
+                    height: 48,
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: isCredit
-                            ? [Colors.green.shade400, Colors.green.shade300]
-                            : [Colors.red.shade400, Colors.red.shade300],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
+                      color: typeColor.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(14),
-                      boxShadow: [
-                        BoxShadow(
-                          color: typeColor.withOpacity(0.3),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
+                      border: Border.all(color: typeColor.withOpacity(0.18)),
                     ),
                     child: Center(
                       child: Icon(
                         isCredit
                             ? Icons.arrow_downward_rounded
                             : Icons.arrow_upward_rounded,
-                        color: Colors.white,
-                        size: 26,
+                        color: typeColor,
+                        size: 22,
                       ),
                     ),
                   ),
@@ -152,10 +140,10 @@ class TransactionCard extends StatelessWidget {
                                   vertical: 3,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: Colors.orange.shade50,
+                                  color: Color(0xFFFAF1E0),
                                   borderRadius: BorderRadius.circular(6),
                                   border: Border.all(
-                                    color: Colors.orange.shade200,
+                                    color: Color(0xFFEED3A4),
                                     width: 1,
                                   ),
                                 ),
@@ -165,14 +153,14 @@ class TransactionCard extends StatelessWidget {
                                     Icon(
                                       Icons.pending_outlined,
                                       size: 10,
-                                      color: Colors.orange.shade700,
+                                      color: Color(0xFFB57A22),
                                     ),
                                     const SizedBox(width: 3),
                                     Text(
                                       'Unclassified',
                                       style: TextStyle(
                                         fontSize: 9,
-                                        color: Colors.orange.shade700,
+                                        color: Color(0xFFB57A22),
                                         fontWeight: FontWeight.w600,
                                       ),
                                     ),
@@ -194,8 +182,8 @@ class TransactionCard extends StatelessWidget {
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
                               color: isDark
-                                  ? Colors.grey.shade300
-                                  : Colors.grey.shade800,
+                                  ? Color(0xFFD5D5CF)
+                                  : Color(0xFF2E313A),
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -205,7 +193,7 @@ class TransactionCard extends StatelessWidget {
                           dateFormatter.format(transaction.detectedAt),
                           style: TextStyle(
                             fontSize: 11,
-                            color: Colors.grey.shade500,
+                            color: Color(0xFF8A8D96),
                           ),
                         ),
                       ],
@@ -233,8 +221,8 @@ class TransactionCard extends StatelessWidget {
                           ),
                           decoration: BoxDecoration(
                             color: isDark
-                                ? Colors.grey.shade800
-                                : Colors.grey.shade100,
+                                ? Color(0xFF2E313A)
+                                : Color(0xFFF6F6F3),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
@@ -242,8 +230,8 @@ class TransactionCard extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 10,
                               color: isDark
-                                  ? Colors.grey.shade400
-                                  : Colors.grey.shade600,
+                                  ? Color(0xFF9A9DA6)
+                                  : Color(0xFF6E727C),
                               fontWeight: FontWeight.w500,
                             ),
                           ),
