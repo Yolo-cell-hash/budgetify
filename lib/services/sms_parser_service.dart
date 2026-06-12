@@ -1780,8 +1780,26 @@ class SmsParserService {
     return s;
   }
 
-  /// Check if the SMS is from a bank
+  /// TRAI DLT route suffix of a sender ("VM-HDFCBK-P" → "P"), or null when
+  /// the sender uses the old suffix-less format.
+  static String? routeSuffix(String sender) {
+    final match = RegExp(r'-([A-Z])$').firstMatch(sender.trim().toUpperCase());
+    return match?.group(1);
+  }
+
+  /// Check if the SMS is from a bank.
+  ///
+  /// Matching is strict: the sender must correspond to a known bank header.
+  /// There is deliberately no "looks like a DLT sender" fallback — that let
+  /// any college/store/OTT sender through, and a scholarship or promo SMS
+  /// mentioning an amount would be logged as a transaction.
   static bool isBankSms(String sender) {
+    // Route suffix: -S (service) and -T (transactional) carry genuine bank
+    // alerts, -G carries government DBT credits. -P is promotional by
+    // regulation and never a real transaction — drop it outright, even from
+    // a real bank header.
+    if (routeSuffix(sender) == 'P') return false;
+
     final upperSender = sender.toUpperCase();
     final coreHeader = normalizeSender(sender);
 
@@ -1789,11 +1807,9 @@ class SmsParserService {
           (pattern) =>
               coreHeader == pattern || upperSender.contains(pattern),
         ) ||
-        // Generic patterns for bank SMS
-        upperSender.contains('BANK') ||
-        // DLT sender format, with optional route suffix and digits in the
-        // header (e.g. "VM-SBIUPI", "BV-MAHABK-S", "JM-100022-T")
-        RegExp(r'^[A-Z]{2}-[A-Z0-9]{3,11}(-[A-Z])?$').hasMatch(upperSender);
+        // Full-name senders ("Bank of Maharashtra") and bank headers the
+        // list may miss — still subject to the -P rejection above.
+        upperSender.contains('BANK');
   }
 
   /// Parse an SMS message to extract transaction details

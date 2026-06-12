@@ -134,6 +134,25 @@ class TransactionModel {
     };
   }
 
+  /// Copy with the tag removed (copyWith can't null out the category).
+  TransactionModel untagged() {
+    return TransactionModel(
+      id: id,
+      amount: amount,
+      type: type,
+      sender: sender,
+      message: message,
+      detectedAt: detectedAt,
+      isClassified: false,
+      category: null,
+      notes: notes,
+      accountInfo: accountInfo,
+      merchantName: merchantName,
+      isManual: isManual,
+      fingerprint: fingerprint,
+    );
+  }
+
   /// Create a copy with updated fields
   TransactionModel copyWith({
     int? id,

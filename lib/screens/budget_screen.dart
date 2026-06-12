@@ -5,6 +5,7 @@ import '../models/budget_model.dart';
 import '../models/transaction_model.dart';
 import '../providers/theme_provider.dart';
 import '../services/database_service.dart';
+import '../widgets/category_donut.dart';
 import '../widgets/glass.dart';
 import '../widgets/motion.dart';
 import 'transaction_detail_screen.dart';
@@ -26,18 +27,16 @@ class _BudgetScreenState extends State<BudgetScreen>
 
   Budget? _budget;
   double _spent = 0;
-  Map<DateTime, double> _dailySpending = {};
   List<Map<String, dynamic>> _monthlySpending = [];
   bool _loading = true;
 
-  // Month selector - generated list of last 6 months
+  // Month selector - generated list of recent months
   List<DateTime> _availableMonths = [];
 
-  // Overview tab month selection
+  // Overview tab: swipeable month pager with per-month data cache
+  late PageController _overviewPageController;
   DateTime _selectedOverviewMonth = DateTime.now();
-  double _overviewMonthSpent = 0;
-  double _overviewMonthIncome = 0;
-  Map<String, double> _overviewTopCategories = {};
+  final Map<DateTime, _MonthOverviewData> _overviewCache = {};
 
   // Categories tab month selection
   DateTime _selectedCategoryMonth = DateTime.now();
@@ -58,6 +57,7 @@ class _BudgetScreenState extends State<BudgetScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _overviewPageController = PageController();
     _generateAvailableMonths();
     _loadData();
   }
@@ -65,13 +65,14 @@ class _BudgetScreenState extends State<BudgetScreen>
   @override
   void dispose() {
     _tabController.dispose();
+    _overviewPageController.dispose();
     super.dispose();
   }
 
   void _generateAvailableMonths() {
     final now = DateTime.now();
     _availableMonths = List.generate(
-      6,
+      12,
       (i) => DateTime(now.year, now.month - i, 1),
     );
     _selectedOverviewMonth = _availableMonths.first;
@@ -85,14 +86,9 @@ class _BudgetScreenState extends State<BudgetScreen>
     final monthlySpending = await _db.getMonthlySpending(months: 6);
 
     double spent = 0;
-    Map<DateTime, double> daily = {};
 
     if (budget != null) {
       spent = await _db.getSpendingForPeriod(
-        startDate: budget.currentPeriodStart,
-        endDate: budget.currentPeriodEnd,
-      );
-      daily = await _db.getDailySpending(
         startDate: budget.currentPeriodStart,
         endDate: budget.currentPeriodEnd,
       );
@@ -101,51 +97,53 @@ class _BudgetScreenState extends State<BudgetScreen>
     setState(() {
       _budget = budget;
       _spent = spent;
-      _dailySpending = daily;
       _monthlySpending = monthlySpending;
       _loading = false;
     });
 
-    // Load data for default selected months
-    await _loadOverviewMonth(_selectedOverviewMonth);
+    // Load data for the overview pager and the categories tab
+    await _loadOverviewMonths();
     await _loadCategoryMonth(_selectedCategoryMonth);
   }
 
-  /// Load overview data for a specific month
-  Future<void> _loadOverviewMonth(DateTime month) async {
-    final start = DateTime(month.year, month.month, 1);
-    final end = DateTime(month.year, month.month + 1, 0, 23, 59, 59);
+  /// Preload overview data for every pager month. Months fill in order
+  /// (current month first) and the UI refreshes as each arrives, so the
+  /// visible page renders immediately.
+  Future<void> _loadOverviewMonths() async {
+    for (final month in _availableMonths) {
+      final start = DateTime(month.year, month.month, 1);
+      final end = DateTime(month.year, month.month + 1, 0, 23, 59, 59);
 
-    final spent = await _db.getSpendingForPeriod(
-      startDate: start,
-      endDate: end,
-    );
+      final spent = await _db.getSpendingForPeriod(
+        startDate: start,
+        endDate: end,
+      );
 
-    // Get income for the month
-    final transactions = await _db.getTransactionsByDateRange(start, end);
-    double income = 0;
-    for (final t in transactions) {
-      if (t.type == TransactionType.credit) {
-        income += t.amount;
+      final transactions = await _db.getTransactionsByDateRange(start, end);
+      double income = 0;
+      for (final t in transactions) {
+        if (t.type == TransactionType.credit) {
+          income += t.amount;
+        }
       }
-    }
 
-    // Get top categories
-    final catSpending = await _db.getSpendingByCategory(
-      startDate: start,
-      endDate: end,
-    );
-    // Take top 3
-    final sorted = catSpending.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    final topCats = Map<String, double>.fromEntries(sorted.take(3));
+      final categories = await _db.getSpendingByCategory(
+        startDate: start,
+        endDate: end,
+      );
+      final daily = await _db.getDailySpending(
+        startDate: start,
+        endDate: end,
+      );
 
-    if (mounted) {
+      if (!mounted) return;
       setState(() {
-        _selectedOverviewMonth = month;
-        _overviewMonthSpent = spent;
-        _overviewMonthIncome = income;
-        _overviewTopCategories = topCats;
+        _overviewCache[month] = _MonthOverviewData(
+          spent: spent,
+          income: income,
+          categories: categories,
+          daily: daily,
+        );
       });
     }
   }
@@ -276,29 +274,160 @@ class _BudgetScreenState extends State<BudgetScreen>
   }
 
   // ==================== OVERVIEW TAB ====================
+  // Swipeable month pager: every month gets the same full view —
+  // stats, category donut, and daily spending — instead of the old
+  // tap-a-chip selector that only showed a partial summary.
   Widget _buildOverviewTab(bool isDark, NumberFormat fmt) {
-    final now = DateTime.now();
-    final isCurrentMonth = _selectedOverviewMonth.year == now.year &&
-        _selectedOverviewMonth.month == now.month;
+    return Column(
+      children: [
+        const SizedBox(height: 4),
+        _buildMonthPagerHeader(isDark),
+        Expanded(
+          child: PageView.builder(
+            controller: _overviewPageController,
+            // Current month sits at the right edge; dragging right reveals
+            // older months, matching calendar intuition
+            reverse: true,
+            itemCount: _availableMonths.length,
+            onPageChanged: (i) => setState(
+              () => _selectedOverviewMonth = _availableMonths[i],
+            ),
+            itemBuilder: (_, i) =>
+                _buildOverviewMonthPage(_availableMonths[i], isDark, fmt),
+          ),
+        ),
+      ],
+    );
+  }
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
+  Widget _buildMonthPagerHeader(bool isDark) {
+    final now = DateTime.now();
+    final month = _selectedOverviewMonth;
+    final isCurrent = month.year == now.year && month.month == now.month;
+    final index = _availableMonths.indexWhere(
+      (m) => m.year == month.year && m.month == month.month,
+    );
+    final colors = AppColors.of(context);
+
+    void goTo(int i) {
+      _overviewPageController.animateToPage(
+        i,
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOutCubic,
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Row(
         children: [
-          FadeSlideIn(
-            order: 0,
-            child: _buildMonthSelector(
-              selected: _selectedOverviewMonth,
-              onSelect: _loadOverviewMonth,
+          IconButton(
+            onPressed: index < _availableMonths.length - 1
+                ? () => goTo(index + 1)
+                : null,
+            icon: const Icon(Icons.chevron_left_rounded, size: 28),
+          ),
+          Expanded(
+            child: Column(
+              children: [
+                Text(
+                  isCurrent
+                      ? 'This Month'
+                      : DateFormat('MMMM yyyy').format(month),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.3,
+                    color: colors.text,
+                  ),
+                ),
+                Text(
+                  'Swipe for other months',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: colors.textTertiary,
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 16),
-          if (isCurrentMonth && _budget != null) ...[
-            FadeSlideIn(order: 1, child: _buildProgressCard(isDark, fmt)),
-            const SizedBox(height: 20),
-            FadeSlideIn(order: 2, child: _buildDailyChart(isDark)),
-          ] else ...[
-            FadeSlideIn(order: 1, child: _buildMonthSummaryCard(isDark, fmt)),
+          IconButton(
+            onPressed: index > 0 ? () => goTo(index - 1) : null,
+            icon: const Icon(Icons.chevron_right_rounded, size: 28),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOverviewMonthPage(
+    DateTime month,
+    bool isDark,
+    NumberFormat fmt,
+  ) {
+    final data = _overviewCache[month];
+    if (data == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final now = DateTime.now();
+    final isCurrentMonth = month.year == now.year && month.month == now.month;
+    final hasBudgetGauge = isCurrentMonth && _budget != null;
+    final hasData = data.spent > 0 || data.income > 0;
+    var order = 0;
+
+    if (!hasData) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.inbox_outlined,
+              size: 56,
+              color: AppColors.of(context).textTertiary,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'No activity in ${DateFormat('MMMM yyyy').format(month)}',
+              style: TextStyle(
+                color: AppColors.of(context).textSecondary,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      child: Column(
+        children: [
+          if (hasBudgetGauge) ...[
+            FadeSlideIn(order: order++, child: _buildProgressCard(isDark, fmt)),
+            const SizedBox(height: 16),
+          ],
+          FadeSlideIn(
+            order: order++,
+            child: _buildMonthStatsCard(data, isDark, fmt),
+          ),
+          if (data.categories.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            FadeSlideIn(
+              order: order++,
+              child: _buildOverviewCard(
+                isDark: isDark,
+                title: 'Where it went',
+                child: CategoryDonut(spending: data.categories),
+              ),
+            ),
+          ],
+          if (data.daily.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            FadeSlideIn(
+              order: order++,
+              child: _buildMonthDailyChart(month, data, isDark),
+            ),
           ],
           const SizedBox(height: 80),
         ],
@@ -306,11 +435,12 @@ class _BudgetScreenState extends State<BudgetScreen>
     );
   }
 
-  /// Summary card for a previous (or current) month when no budget context
-  Widget _buildMonthSummaryCard(bool isDark, NumberFormat fmt) {
-    final monthName = DateFormat('MMMM yyyy').format(_selectedOverviewMonth);
-    final net = _overviewMonthIncome - _overviewMonthSpent;
-
+  /// Card shell shared by the overview sections.
+  Widget _buildOverviewCard({
+    required bool isDark,
+    required String title,
+    required Widget child,
+  }) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -331,22 +461,50 @@ class _BudgetScreenState extends State<BudgetScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            monthName,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-            ),
+            title,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
           ),
-          const SizedBox(height: 20),
-          // Income & Expenses row
+          const SizedBox(height: 16),
+          child,
+        ],
+      ),
+    );
+  }
+
+  /// Income / Expenses / Net for the selected month.
+  Widget _buildMonthStatsCard(
+    _MonthOverviewData data,
+    bool isDark,
+    NumberFormat fmt,
+  ) {
+    final net = data.income - data.spent;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF16181E) : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isDark ? const Color(0xFF262931) : const Color(0xFFE9E9E4),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
           Row(
             children: [
               Expanded(
                 child: _buildSummaryItem(
                   label: 'Income',
-                  amount: _overviewMonthIncome,
+                  amount: data.income,
                   fmt: fmt,
-                  color: Color(0xFF2AA76F),
+                  color: const Color(0xFF2AA76F),
                   icon: Icons.arrow_downward,
                   isDark: isDark,
                 ),
@@ -355,21 +513,24 @@ class _BudgetScreenState extends State<BudgetScreen>
               Expanded(
                 child: _buildSummaryItem(
                   label: 'Expenses',
-                  amount: _overviewMonthSpent,
+                  amount: data.spent,
                   fmt: fmt,
-                  color: Color(0xFFD25A5F),
+                  color: const Color(0xFFD25A5F),
                   icon: Icons.arrow_upward,
                   isDark: isDark,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          // Net balance
+          const SizedBox(height: 12),
           Container(
+            width: double.infinity,
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: net >= 0 ? Color(0xFF2AA76F).withAlpha(30) : Color(0xFFD25A5F).withAlpha(30),
+              color: (net >= 0
+                      ? const Color(0xFF2AA76F)
+                      : const Color(0xFFD25A5F))
+                  .withAlpha(26),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
@@ -377,8 +538,10 @@ class _BudgetScreenState extends State<BudgetScreen>
               children: [
                 Icon(
                   net >= 0 ? Icons.trending_up : Icons.trending_down,
-                  color: net >= 0 ? Color(0xFF2AA76F) : Color(0xFFD25A5F),
-                  size: 20,
+                  color: net >= 0
+                      ? const Color(0xFF2AA76F)
+                      : const Color(0xFFD25A5F),
+                  size: 18,
                 ),
                 const SizedBox(width: 8),
                 Text(
@@ -386,90 +549,15 @@ class _BudgetScreenState extends State<BudgetScreen>
                       ? 'Net Savings: ${fmt.format(net)}'
                       : 'Net Deficit: ${fmt.format(net.abs())}',
                   style: TextStyle(
-                    color: net >= 0 ? Color(0xFF2AA76F) : Color(0xFFD25A5F),
+                    color: net >= 0
+                        ? const Color(0xFF2AA76F)
+                        : const Color(0xFFD25A5F),
                     fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
             ),
           ),
-          if (_overviewTopCategories.isNotEmpty) ...[
-            const SizedBox(height: 20),
-            Text(
-              'Top Spending Categories',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: isDark ? Color(0xFFD5D5CF) : Color(0xFF4E525C),
-              ),
-            ),
-            const SizedBox(height: 12),
-            ..._overviewTopCategories.entries.map((e) {
-              final pct = _overviewMonthSpent > 0
-                  ? (e.value / _overviewMonthSpent * 100)
-                  : 0.0;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: ExpenseCategories.getColor(e.key).withAlpha(30),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Center(
-                        child: Text(
-                          ExpenseCategories.getIcon(e.key),
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            e.key,
-                            style: TextStyle(
-                              fontWeight: FontWeight.w500,
-                              color: isDark ? Colors.white : Colors.black87,
-                              fontSize: 13,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(4),
-                            child: LinearProgressIndicator(
-                              value: pct / 100,
-                              backgroundColor: isDark
-                                  ? Color(0xFF2E313A)
-                                  : Color(0xFFE9E9E4),
-                              valueColor: AlwaysStoppedAnimation(
-                                ExpenseCategories.getColor(e.key),
-                              ),
-                              minHeight: 6,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      fmt.format(e.value),
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                        color: isDark ? Colors.white : Colors.black87,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }),
-          ],
         ],
       ),
     );
@@ -681,10 +769,20 @@ class _BudgetScreenState extends State<BudgetScreen>
     );
   }
 
-  Widget _buildDailyChart(bool isDark) {
-    final start = _budget!.currentPeriodStart;
-    final end = _budget!.currentPeriodEnd;
+  /// Cumulative spending across [month]. When viewing the current month
+  /// with an active budget, a dashed budget pace line is drawn for context.
+  Widget _buildMonthDailyChart(
+    DateTime month,
+    _MonthOverviewData data,
+    bool isDark,
+  ) {
+    final start = DateTime(month.year, month.month, 1);
+    final end = DateTime(month.year, month.month + 1, 0);
     final days = end.difference(start).inDays + 1;
+
+    final now = DateTime.now();
+    final isCurrentMonth = month.year == now.year && month.month == now.month;
+    final showBudgetLine = isCurrentMonth && _budget != null;
 
     List<FlSpot> spots = [];
     double cum = 0;
@@ -698,13 +796,15 @@ class _BudgetScreenState extends State<BudgetScreen>
       i++
     ) {
       final day = DateTime(start.year, start.month, start.day + i);
-      cum += _dailySpending[day] ?? 0;
+      cum += data.daily[day] ?? 0;
       if (cum > maxCum) maxCum = cum;
       spots.add(FlSpot(i.toDouble(), cum));
     }
 
     // Scale Y-axis to fit whichever is larger: the budget or actual spending
-    final chartMaxY = (maxCum > _budget!.amount ? maxCum : _budget!.amount) * 1.15;
+    final reference = showBudgetLine ? _budget!.amount : 0.0;
+    final chartMaxY =
+        ((maxCum > reference ? maxCum : reference) * 1.15).clamp(1.0, double.infinity);
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -771,17 +871,18 @@ class _BudgetScreenState extends State<BudgetScreen>
                       gridData: FlGridData(show: true, drawVerticalLine: false),
                       borderData: FlBorderData(show: false),
                       lineBarsData: [
-                        LineChartBarData(
-                          spots: [
-                            FlSpot(0, 0),
-                            FlSpot((days - 1).toDouble(), _budget!.amount),
-                          ],
-                          isCurved: false,
-                          color: Color(0xFF8A8D96),
-                          barWidth: 2,
-                          dotData: const FlDotData(show: false),
-                          dashArray: [5, 5],
-                        ),
+                        if (showBudgetLine)
+                          LineChartBarData(
+                            spots: [
+                              FlSpot(0, 0),
+                              FlSpot((days - 1).toDouble(), _budget!.amount),
+                            ],
+                            isCurved: false,
+                            color: Color(0xFF8A8D96),
+                            barWidth: 2,
+                            dotData: const FlDotData(show: false),
+                            dashArray: [5, 5],
+                          ),
                         LineChartBarData(
                           spots: spots,
                           isCurved: true,
@@ -852,39 +953,18 @@ class _BudgetScreenState extends State<BudgetScreen>
   }
 
   Widget _buildCategoryPieChart(Map<String, double> spending, bool isDark) {
-    final total = spending.values.fold(0.0, (a, b) => a + b);
-    final sorted = spending.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF16181E) : Colors.white,
         borderRadius: BorderRadius.circular(20),
-      ),
-      child: SizedBox(
-        height: 200,
-        child: PieChart(
-          PieChartData(
-            sectionsSpace: 2,
-            centerSpaceRadius: 40,
-            sections: sorted.take(6).map((e) {
-              final pct = (e.value / total * 100);
-              return PieChartSectionData(
-                value: e.value,
-                color: ExpenseCategories.getColor(e.key),
-                title: '${pct.toStringAsFixed(0)}%',
-                radius: 50,
-                titleStyle: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              );
-            }).toList(),
-          ),
+        border: Border.all(
+          color: isDark ? const Color(0xFF262931) : const Color(0xFFE9E9E4),
         ),
       ),
+      // The expandable category list below the chart carries the detail,
+      // so the donut stays legend-free here
+      child: CategoryDonut(spending: spending, showLegend: false),
     );
   }
 
@@ -1653,4 +1733,19 @@ class _BudgetScreenState extends State<BudgetScreen>
       ),
     );
   }
+}
+
+/// Per-month data backing one page of the Overview pager.
+class _MonthOverviewData {
+  final double spent;
+  final double income;
+  final Map<String, double> categories;
+  final Map<DateTime, double> daily;
+
+  const _MonthOverviewData({
+    required this.spent,
+    required this.income,
+    required this.categories,
+    required this.daily,
+  });
 }

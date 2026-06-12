@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import '../models/transaction_model.dart';
 import '../services/database_service.dart';
+import '../widgets/category_donut.dart';
 import '../widgets/glass.dart';
 import '../widgets/motion.dart';
 import 'transaction_detail_screen.dart';
@@ -372,16 +372,15 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
     Color textColor,
     NumberFormat fmt,
   ) {
-    final total = _categoryBreakdown.values.fold(0.0, (a, b) => a + b);
-    final sorted = _categoryBreakdown.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: cardColor,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? const Color(0xFF262931) : const Color(0xFFE9E9E4),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -394,32 +393,9 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
               color: textColor,
             ),
           ),
-          const SizedBox(height: 20),
-          SizedBox(
-            height: 200,
-            child: PieChart(
-              PieChartData(
-                sectionsSpace: 3,
-                centerSpaceRadius: 45,
-                sections: sorted.map((entry) {
-                  final pct = total > 0 ? (entry.value / total * 100) : 0;
-                  final color = _getCategoryColor(entry.key);
-                  return PieChartSectionData(
-                    value: entry.value,
-                    color: color,
-                    title: '${pct.toStringAsFixed(0)}%',
-                    radius: 55,
-                    titleStyle: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                    titlePositionPercentageOffset: 0.55,
-                  );
-                }).toList(),
-              ),
-            ),
-          ),
+          const SizedBox(height: 12),
+          // The category legend card below carries the per-category detail
+          CategoryDonut(spending: _categoryBreakdown, showLegend: false),
         ],
       ),
     );

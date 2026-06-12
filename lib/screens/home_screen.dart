@@ -10,6 +10,7 @@ import '../services/sms_service.dart';
 import '../services/notification_service.dart';
 import '../services/background_service.dart';
 import '../services/widget_service.dart';
+import '../widgets/category_icon.dart';
 import '../widgets/glass.dart';
 import '../widgets/motion.dart';
 import '../widgets/permission_request_card.dart';
@@ -820,19 +821,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               return Column(
                 children: [
                   ListTile(
-                    leading: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: (isCredit ? colors.success : colors.danger)
-                            .withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(
-                        isCredit ? Icons.arrow_downward : Icons.arrow_upward,
-                        color: isCredit ? colors.success : colors.danger,
-                        size: 18,
-                      ),
+                    leading: TransactionLeadingIcon(
+                      transaction: transaction,
+                      size: 42,
                     ),
                     title: Text(
                       transaction.category ?? transaction.sender,

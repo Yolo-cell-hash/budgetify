@@ -43,16 +43,32 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   }
 
   Future<void> _saveClassification() async {
-    if (_transaction.id == null || _selectedCategory == null) return;
+    if (_transaction.id == null) return;
 
     setState(() => _isSaving = true);
 
     try {
+      final notes = _notesController.text.trim().isEmpty
+          ? null
+          : _notesController.text.trim();
+
+      if (_selectedCategory == null) {
+        // Un-tag: clear the category and put it back in the
+        // unclassified queue
+        final untagged = _transaction.untagged().copyWith(notes: notes);
+        await _dbService.updateTransaction(untagged);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Tag removed')),
+          );
+          Navigator.pop(context, true);
+        }
+        return;
+      }
+
       final updatedTransaction = _transaction.copyWith(
         category: _selectedCategory,
-        notes: _notesController.text.trim().isEmpty
-            ? null
-            : _notesController.text.trim(),
+        notes: notes,
         isClassified: true,
       );
 
@@ -315,42 +331,84 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     }
   }
 
+  static const List<String> _emojiChoices = [
+    '🏠', '🎮', '💊', '🎁', '🐾', '🍕', '🏋️', '📱', '☕', '🎵',
+    '💇', '🧹', '🚕', '🎓', '👶', '💍', '🏦', '⛽', '🅿️', '📦',
+    '🛒', '🍿', '🏥', '✂️', '🧾', '💻', '📸', '🎂', '🌐', '🔧',
+  ];
+
+  /// Long-press on a category chip: pick a custom emoji for that tag
+  /// (works for predefined categories and custom tags alike).
+  Future<void> _showEmojiPickerForTag(String category, bool isDark) async {
+    final cardColor = isDark ? const Color(0xFF16181E) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black87;
+
+    final chosen = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: cardColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Emoji for "$category"',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: textColor,
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 220,
+              child: GridView.builder(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 6,
+                  mainAxisSpacing: 8,
+                  crossAxisSpacing: 8,
+                ),
+                itemCount: _emojiChoices.length,
+                itemBuilder: (_, i) => GestureDetector(
+                  onTap: () => Navigator.pop(ctx, _emojiChoices[i]),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? const Color(0xFF262931)
+                          : const Color(0xFFF6F6F3),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Center(
+                      child: Text(
+                        _emojiChoices[i],
+                        style: const TextStyle(fontSize: 22),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(height: MediaQuery.of(ctx).padding.bottom + 8),
+          ],
+        ),
+      ),
+    );
+
+    if (chosen != null) {
+      await CustomTagService().setTagEmoji(category, chosen);
+      if (mounted) setState(() {});
+    }
+  }
+
   Future<void> _showCreateTagDialog(bool isDark) async {
     final nameController = TextEditingController();
     String selectedEmoji = '🏷️';
 
-    const emojis = [
-      '🏠',
-      '🎮',
-      '💊',
-      '🎁',
-      '🐾',
-      '🍕',
-      '🏋️',
-      '📱',
-      '☕',
-      '🎵',
-      '💇',
-      '🧹',
-      '🚕',
-      '🎓',
-      '👶',
-      '💍',
-      '🏦',
-      '⛽',
-      '🅿️',
-      '📦',
-      '🛒',
-      '🍿',
-      '🏥',
-      '✂️',
-      '🧾',
-      '💻',
-      '📸',
-      '🎂',
-      '🌐',
-      '🔧',
-    ];
+    const emojis = _emojiChoices;
 
     final cardColor = isDark ? const Color(0xFF16181E) : Colors.white;
     final textColor = isDark ? Colors.white : Colors.black87;
@@ -781,6 +839,8 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                               _selectedCategory = isSelected ? null : category;
                             });
                           },
+                          onLongPress: () =>
+                              _showEmojiPickerForTag(category, isDark),
                           child: Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 12,
@@ -920,15 +980,21 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
 
             const SizedBox(height: 24),
 
-            // Save button
+            // Save button — also handles un-tagging when the user
+            // deselects the current category
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: ElevatedButton(
-                onPressed: (_isSaving || _selectedCategory == null)
+                onPressed: (_isSaving ||
+                        (_selectedCategory == null &&
+                            _transaction.category == null))
                     ? null
                     : _saveClassification,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).primaryColor,
+                  backgroundColor:
+                      _selectedCategory == null && _transaction.category != null
+                          ? const Color(0xFFC94A50)
+                          : Theme.of(context).primaryColor,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
@@ -948,9 +1014,12 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                           valueColor: AlwaysStoppedAnimation(Colors.white),
                         ),
                       )
-                    : const Text(
-                        'Save Classification',
-                        style: TextStyle(
+                    : Text(
+                        _selectedCategory == null &&
+                                _transaction.category != null
+                            ? 'Remove Tag'
+                            : 'Save Classification',
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
                         ),
