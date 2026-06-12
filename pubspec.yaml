@@ -36,7 +36,6 @@ dependencies:
   cupertino_icons: ^1.0.8
   
   # SMS reading and telephony
-  telephony: ^0.2.0
   
   # Permission handling
   permission_handler: ^12.0.1
@@ -64,6 +63,11 @@ dependencies:
   workmanager: ^0.9.0
   path_provider: ^2.1.5
   open_filex: ^4.7.0
+  another_telephony: ^0.4.1
+  local_auth: ^3.0.1
+  cryptography: ^2.9.0
+  file_picker: ^11.0.2
+  home_widget: ^0.9.3
 
 dev_dependencies:
   flutter_test:
@@ -86,6 +90,20 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  fonts:
+    - family: Manrope
+      fonts:
+        - asset: assets/fonts/manrope-400.ttf
+          weight: 400
+        - asset: assets/fonts/manrope-500.ttf
+          weight: 500
+        - asset: assets/fonts/manrope-600.ttf
+          weight: 600
+        - asset: assets/fonts/manrope-700.ttf
+          weight: 700
+        - asset: assets/fonts/manrope-800.ttf
+          weight: 800
 
   # To add assets to your application, add an assets section, like this:
   # assets:

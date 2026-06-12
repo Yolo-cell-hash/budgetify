@@ -5,6 +5,8 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:open_filex/open_filex.dart';
 import '../providers/theme_provider.dart';
 import '../providers/app_preferences.dart';
+import '../services/app_lock_service.dart';
+import '../services/backup_service.dart';
 import '../services/background_service.dart';
 import '../services/export_service.dart';
 
@@ -18,10 +20,11 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final ExportService _exportService = ExportService();
-  bool _autoScanEnabled = false;
-  String _scanTime1 = '14:55';
-  String? _scanTime2 = '22:55';
+  final BackupService _backupService = BackupService();
+  bool _autoScanEnabled = true;
+  int _scanIntervalHours = BackgroundService.defaultIntervalHours;
   DateTime? _lastScanTime;
+  bool _appLockEnabled = false;
   bool _loading = true;
 
   @override
@@ -33,20 +36,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _loadSettings() async {
     final settings = await BackgroundService.getScanSettings();
     final lastScan = await BackgroundService.getLastScanTime();
+    final appLock = await AppLockService().isEnabled();
     setState(() {
       _autoScanEnabled = settings['enabled'] as bool;
-      _scanTime1 = settings['time1'] as String;
-      _scanTime2 = settings['time2'] as String?;
+      _scanIntervalHours = settings['intervalHours'] as int;
       _lastScanTime = lastScan;
+      _appLockEnabled = appLock;
       _loading = false;
     });
+  }
+
+  Future<void> _toggleAppLock(bool enable) async {
+    final lockService = AppLockService();
+    if (enable) {
+      if (!await lockService.isDeviceSupported()) {
+        _showStyledSnackBar(
+          icon: Icons.error_outline,
+          message: 'No screen lock or biometrics set up on this device',
+          color: const Color(0xFFD25A5F),
+        );
+        return;
+      }
+      // Prove the user can actually unlock before turning it on
+      final ok = await lockService.authenticate();
+      if (!ok) return;
+    }
+    await lockService.setEnabled(enable);
+    setState(() => _appLockEnabled = enable);
   }
 
   Future<void> _saveSettings() async {
     await BackgroundService.saveScanSettings(
       enabled: _autoScanEnabled,
-      time1: _scanTime1,
-      time2: _scanTime2,
+      intervalHours: _scanIntervalHours,
     );
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -56,42 +78,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
       );
-    }
-  }
-
-  String _formatTimeString(String time) {
-    final parts = time.split(':');
-    final hour = int.parse(parts[0]);
-    final minute = int.parse(parts[1]);
-    final period = hour >= 12 ? 'PM' : 'AM';
-    final displayHour = hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
-    return '$displayHour:${minute.toString().padLeft(2, '0')} $period';
-  }
-
-  Future<void> _pickTime(bool isFirstScan) async {
-    final currentTime = isFirstScan ? _scanTime1 : (_scanTime2 ?? '22:55');
-    final parts = currentTime.split(':');
-    final initialTime = TimeOfDay(
-      hour: int.parse(parts[0]),
-      minute: int.parse(parts[1]),
-    );
-
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: initialTime,
-    );
-
-    if (picked != null) {
-      final timeString =
-          '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
-      setState(() {
-        if (isFirstScan) {
-          _scanTime1 = timeString;
-        } else {
-          _scanTime2 = timeString;
-        }
-      });
-      await _saveSettings();
     }
   }
 
@@ -165,43 +151,49 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     height: 1,
                     color: isDark ? Color(0xFF2E313A) : Color(0xFFE9E9E4),
                   ),
-                  ListTile(
-                    leading: const Icon(Icons.access_time, color: Color(0xFF4A6489)),
-                    title: const Text('First Scan Time'),
-                    subtitle: Text(_formatTimeString(_scanTime1)),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => _pickTime(true),
-                  ),
-                  Divider(
-                    height: 1,
-                    color: isDark ? Color(0xFF2E313A) : Color(0xFFE9E9E4),
-                  ),
-                  ListTile(
-                    leading: Icon(
-                      Icons.access_time,
-                      color: _scanTime2 != null ? Color(0xFF4A6489) : Color(0xFF8A8D96),
-                    ),
-                    title: const Text('Second Scan Time (Optional)'),
-                    subtitle: Text(
-                      _scanTime2 != null
-                          ? _formatTimeString(_scanTime2!)
-                          : 'Tap to add',
-                    ),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (_scanTime2 != null)
-                          IconButton(
-                            icon: const Icon(Icons.clear, size: 20),
-                            onPressed: () async {
-                              setState(() => _scanTime2 = null);
-                              await _saveSettings();
-                            },
+                        Text(
+                          'Scan Frequency',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: isDark ? Colors.white : Color(0xFF1B1E28),
                           ),
-                        const Icon(Icons.chevron_right),
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: BackgroundService.intervalOptions.map((h) {
+                            final selected = _scanIntervalHours == h;
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: ChoiceChip(
+                                label: Text(h == 1 ? 'Hourly' : 'Every ${h}h'),
+                                selected: selected,
+                                labelStyle: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: selected
+                                      ? (isDark
+                                            ? const Color(0xFF15110A)
+                                            : Colors.white)
+                                      : (isDark
+                                            ? Color(0xFF9A9DA6)
+                                            : Color(0xFF6E727C)),
+                                ),
+                                onSelected: (_) async {
+                                  setState(() => _scanIntervalHours = h);
+                                  await _saveSettings();
+                                },
+                              ),
+                            );
+                          }).toList(),
+                        ),
                       ],
                     ),
-                    onTap: () => _pickTime(false),
                   ),
                   if (_lastScanTime != null) ...[
                     Divider(
@@ -226,6 +218,81 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ],
                 ],
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // Security Section
+          _buildSectionHeader('Security', isDark),
+          const SizedBox(height: 8),
+          _buildSettingsCard(
+            isDark: isDark,
+            child: SwitchListTile(
+              secondary: Icon(
+                Icons.fingerprint,
+                color: _appLockEnabled
+                    ? const Color(0xFFA8843C)
+                    : const Color(0xFF8A8D96),
+              ),
+              title: const Text('App Lock'),
+              subtitle: Text(
+                _appLockEnabled
+                    ? 'Unlock with fingerprint, face, or device PIN'
+                    : 'Require authentication to open the app',
+                style: TextStyle(
+                  color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
+                ),
+              ),
+              value: _appLockEnabled,
+              onChanged: _loading ? null : _toggleAppLock,
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // Backup Section
+          _buildSectionHeader('Backup', isDark),
+          const SizedBox(height: 8),
+          _buildSettingsCard(
+            isDark: isDark,
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(
+                    Icons.shield_moon_outlined,
+                    color: Color(0xFFA8843C),
+                  ),
+                  title: const Text('Create Encrypted Backup'),
+                  subtitle: Text(
+                    'All transactions, budgets, rules & tags (AES-256)',
+                    style: TextStyle(
+                      color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
+                    ),
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: _createBackup,
+                ),
+                Divider(
+                  height: 1,
+                  color: isDark ? Color(0xFF2E313A) : Color(0xFFE9E9E4),
+                ),
+                ListTile(
+                  leading: const Icon(
+                    Icons.settings_backup_restore,
+                    color: Color(0xFF178A5B),
+                  ),
+                  title: const Text('Restore from Backup'),
+                  subtitle: Text(
+                    'Merge a backup file into this device',
+                    style: TextStyle(
+                      color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
+                    ),
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: _restoreBackup,
+                ),
               ],
             ),
           ),
@@ -399,6 +466,170 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
       child: ClipRRect(borderRadius: BorderRadius.circular(12), child: child),
     );
+  }
+
+  /// Ask for a backup passphrase. When [confirm] is true, requires the
+  /// passphrase to be entered twice.
+  Future<String?> _promptPassphrase({required bool confirm}) async {
+    final controller = TextEditingController();
+    final confirmController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(confirm ? 'Set Backup Passphrase' : 'Enter Passphrase'),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                confirm
+                    ? 'Your backup is encrypted with this passphrase. '
+                          'Without it the backup cannot be restored — '
+                          'there is no recovery.'
+                    : 'Enter the passphrase this backup was created with.',
+                style: const TextStyle(fontSize: 13),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: controller,
+                obscureText: true,
+                autofocus: true,
+                decoration: const InputDecoration(labelText: 'Passphrase'),
+                validator: (v) => (v == null || v.length < 6)
+                    ? 'At least 6 characters'
+                    : null,
+              ),
+              if (confirm) ...[
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: confirmController,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Confirm passphrase',
+                  ),
+                  validator: (v) =>
+                      v != controller.text ? 'Passphrases don\'t match' : null,
+                ),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                Navigator.pop(ctx, controller.text);
+              }
+            },
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    confirmController.dispose();
+    return result;
+  }
+
+  void _showProgressDialog(String message) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => Center(
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Theme.of(context).brightness == Brightness.dark
+                ? const Color(0xFF16181E)
+                : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(message, style: const TextStyle(fontSize: 14)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _createBackup() async {
+    final passphrase = await _promptPassphrase(confirm: true);
+    if (passphrase == null || !mounted) return;
+
+    _showProgressDialog('Encrypting backup…');
+    try {
+      final path = await _backupService.createBackup(passphrase);
+      if (mounted) Navigator.pop(context);
+      if (!mounted) return;
+      if (path == null) return; // user cancelled the save dialog
+      _showStyledSnackBar(
+        icon: Icons.check_circle,
+        message: 'Encrypted backup saved',
+        color: const Color(0xFF2AA76F),
+        actionLabel: 'Open',
+        onAction: () => OpenFilex.open(path),
+      );
+    } catch (e) {
+      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        _showStyledSnackBar(
+          icon: Icons.error_outline,
+          message: 'Backup failed: $e',
+          color: const Color(0xFFD25A5F),
+        );
+      }
+    }
+  }
+
+  Future<void> _restoreBackup() async {
+    final passphrase = await _promptPassphrase(confirm: false);
+    if (passphrase == null || !mounted) return;
+
+    _showProgressDialog('Decrypting and restoring…');
+    try {
+      final result = await _backupService.restoreBackup(passphrase);
+      if (mounted) Navigator.pop(context);
+      if (!mounted) return;
+      if (result == null) return; // user cancelled the file picker
+      _showStyledSnackBar(
+        icon: Icons.check_circle,
+        message: result.total == 0
+            ? 'Backup restored — everything was already on this device'
+            : 'Restored ${result.transactions} transactions, '
+                  '${result.budgets} budgets, ${result.rules} rules',
+        color: const Color(0xFF2AA76F),
+      );
+    } on BackupException catch (e) {
+      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        _showStyledSnackBar(
+          icon: Icons.lock_outline,
+          message: e.message,
+          color: const Color(0xFFD25A5F),
+        );
+      }
+    } catch (e) {
+      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        _showStyledSnackBar(
+          icon: Icons.error_outline,
+          message: 'Restore failed: $e',
+          color: const Color(0xFFD25A5F),
+        );
+      }
+    }
   }
 
   Future<void> _exportData({required bool isExcel}) async {

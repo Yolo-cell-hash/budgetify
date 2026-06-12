@@ -81,9 +81,10 @@ class AppTheme {
         onSurface: AppColors.inkPrimary,
         error: AppColors.dangerLight,
       ),
-      fontFamily: 'Roboto',
+      fontFamily: 'Manrope',
       scaffoldBackgroundColor: c.background,
       textTheme: _textTheme(c.text, c.textSecondary),
+      pageTransitionsTheme: _pageTransitions,
       appBarTheme: AppBarTheme(
         centerTitle: true,
         elevation: 0,
@@ -209,9 +210,10 @@ class AppTheme {
         onSurface: Color(0xFFF2F2EF),
         error: AppColors.dangerDark,
       ),
-      fontFamily: 'Roboto',
+      fontFamily: 'Manrope',
       scaffoldBackgroundColor: c.background,
       textTheme: _textTheme(c.text, c.textSecondary),
+      pageTransitionsTheme: _pageTransitions,
       appBarTheme: AppBarTheme(
         centerTitle: true,
         elevation: 0,
@@ -326,6 +328,15 @@ class AppTheme {
       ),
     );
   }
+
+  /// Modern fade-through page transition (subtle horizontal fade) instead
+  /// of the default zoom.
+  static const PageTransitionsTheme _pageTransitions = PageTransitionsTheme(
+    builders: {
+      TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
+      TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+    },
+  );
 
   /// Shared type scale: tighter tracking on display sizes for a more
   /// refined, editorial feel; relaxed tracking on labels.

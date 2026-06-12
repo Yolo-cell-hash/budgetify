@@ -5,6 +5,9 @@
     
     <!-- Notification permission for Android 13+ -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+
+    <!-- Biometric app lock -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
     
     <!-- Storage permissions for data export -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
@@ -50,6 +53,17 @@
             <intent-filter>
                 <action android:name="android.provider.Telephony.SMS_RECEIVED"/>
             </intent-filter>
+        </receiver>
+
+        <!-- Home-screen budget widget -->
+        <receiver android:name=".BudgetWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/budget_widget_info"/>
         </receiver>
     </application>
     <!-- Required to query activities that can process text, see:

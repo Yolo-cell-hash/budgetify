@@ -3,6 +3,8 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import '../models/transaction_model.dart';
 import '../services/database_service.dart';
+import '../widgets/glass.dart';
+import '../widgets/motion.dart';
 import 'transaction_detail_screen.dart';
 
 /// Screen showing daily analysis with a pie chart and transaction list
@@ -91,64 +93,78 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
 
     return Scaffold(
       backgroundColor: bgColor,
-      appBar: AppBar(
-        title: const Text('Daily Analysis'),
-        backgroundColor: cardColor,
-        foregroundColor: textColor,
-        elevation: 0,
-      ),
+      appBar: AppBar(title: const Text('Daily Analysis')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _transactions.isEmpty
               ? _buildEmptyState(isDark, dateStr)
-              : RefreshIndicator(
-                  onRefresh: _loadData,
-                  child: SingleChildScrollView(
-                    controller: _scrollController,
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Date header
-                        _buildDateHeader(
-                          isDark,
-                          cardColor,
-                          textColor,
-                          subtextColor,
-                          dateStr,
-                          fmt,
-                        ),
-                        const SizedBox(height: 16),
+              : AmbientBackground(
+                  child: RefreshIndicator(
+                    onRefresh: _loadData,
+                    child: SingleChildScrollView(
+                      controller: _scrollController,
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Date header
+                          FadeSlideIn(
+                            order: 0,
+                            child: _buildDateHeader(
+                              isDark,
+                              cardColor,
+                              textColor,
+                              subtextColor,
+                              dateStr,
+                              fmt,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
 
-                        // Pie chart section
-                        if (_categoryBreakdown.isNotEmpty)
-                          _buildPieChart(isDark, cardColor, textColor, fmt),
+                          // Pie chart section
+                          if (_categoryBreakdown.isNotEmpty)
+                            FadeSlideIn(
+                              order: 1,
+                              child: _buildPieChart(
+                                isDark,
+                                cardColor,
+                                textColor,
+                                fmt,
+                              ),
+                            ),
 
-                        const SizedBox(height: 16),
+                          const SizedBox(height: 16),
 
-                        // Category legend
-                        if (_categoryBreakdown.isNotEmpty)
-                          _buildCategoryLegend(
-                            isDark,
-                            cardColor,
-                            textColor,
-                            subtextColor,
-                            fmt,
+                          // Category legend
+                          if (_categoryBreakdown.isNotEmpty)
+                            FadeSlideIn(
+                              order: 2,
+                              child: _buildCategoryLegend(
+                                isDark,
+                                cardColor,
+                                textColor,
+                                subtextColor,
+                                fmt,
+                              ),
+                            ),
+
+                          const SizedBox(height: 16),
+
+                          // Transaction list
+                          FadeSlideIn(
+                            order: 3,
+                            child: _buildTransactionList(
+                              isDark,
+                              cardColor,
+                              textColor,
+                              subtextColor,
+                              fmt,
+                            ),
                           ),
 
-                        const SizedBox(height: 16),
-
-                        // Transaction list
-                        _buildTransactionList(
-                          isDark,
-                          cardColor,
-                          textColor,
-                          subtextColor,
-                          fmt,
-                        ),
-
-                        const SizedBox(height: 32),
-                      ],
+                          const SizedBox(height: 32),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -199,14 +215,19 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
     final isPositive = netAmount >= 0;
 
     return Container(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: cardColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isDark ? const Color(0xFF262931) : const Color(0xFFE9E9E4),
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withAlpha(13),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
