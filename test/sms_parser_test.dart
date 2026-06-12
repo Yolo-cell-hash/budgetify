@@ -33,6 +33,39 @@ void main() {
       expect(SmsParserService.normalizeSender('JD-MAHABK'), 'MAHABK');
       expect(SmsParserService.normalizeSender('SBIUPI'), 'SBIUPI');
     });
+
+    test('rejects unknown DLT senders (colleges, stores, OTTs)', () {
+      expect(SmsParserService.isBankSms('VM-SRMCLG-S'), isFalse);
+      expect(SmsParserService.isBankSms('JD-DMRTST'), isFalse);
+      expect(SmsParserService.isBankSms('AX-NETFLX-T'), isFalse);
+    });
+
+    test('rejects promotional -P routes even from real bank headers', () {
+      expect(SmsParserService.isBankSms('VM-HDFCBK-P'), isFalse);
+      expect(SmsParserService.isBankSms('BV-SBIUPI-P'), isFalse);
+      expect(SmsParserService.isBankSms('VM-HDFCBK-T'), isTrue);
+      expect(SmsParserService.isBankSms('BOIIND-S'), isTrue);
+    });
+
+    test('does not log non-bank amounts as transactions', () {
+      final txn = SmsParserService.parseTransaction(
+        'VM-SRMCLG-S',
+        'Congratulations! A scholarship of Rs.30,000 has been credited to '
+        'your student ledger account for the academic year.',
+        DateTime(2026, 6, 1),
+      );
+      expect(txn, isNull);
+    });
+
+    test('drops bank promo SMS sent on the -P route', () {
+      final txn = SmsParserService.parseTransaction(
+        'VM-HDFCBK-P',
+        'Get a pre-approved personal loan of Rs.5,00,000 credited to your '
+        'account in minutes! Apply now.',
+        DateTime(2026, 6, 1),
+      );
+      expect(txn, isNull);
+    });
   });
 
   group('SBI message formats', () {

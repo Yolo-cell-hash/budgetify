@@ -28,7 +28,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 10,
+      version: 11,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -104,7 +104,24 @@ class DatabaseService {
     await db.execute(
       'CREATE INDEX idx_rules_type ON transaction_rules(transaction_type)',
     );
+
+    // Tombstones for user-deleted SMS transactions, so rescans of the
+    // inbox don't resurrect them
+    await db.execute(_createDeletedTransactionsTable);
+    await db.execute(
+      'CREATE INDEX idx_deleted_fingerprint ON deleted_transactions(fingerprint)',
+    );
   }
+
+  static const String _createDeletedTransactionsTable = '''
+      CREATE TABLE IF NOT EXISTS deleted_transactions(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        fingerprint TEXT,
+        message TEXT,
+        detected_at INTEGER,
+        deleted_at INTEGER NOT NULL
+      )
+    ''';
 
   /// Handle database upgrades
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -245,6 +262,14 @@ class DatabaseService {
         'CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_fingerprint ON transactions(fingerprint)',
       );
     }
+
+    if (oldVersion < 11) {
+      // Tombstones so deleted SMS transactions stay deleted across rescans
+      await db.execute(_createDeletedTransactionsTable);
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_deleted_fingerprint ON deleted_transactions(fingerprint)',
+      );
+    }
   }
 
   /// Internal backfill that works during migration (uses raw db handle)
@@ -350,7 +375,26 @@ class DatabaseService {
       whereArgs: [message, detectedAt.millisecondsSinceEpoch],
       limit: 1,
     );
-    return result.isNotEmpty;
+    if (result.isNotEmpty) return true;
+
+    // Tombstone check: the user explicitly deleted this transaction, so a
+    // rescan of the SMS inbox must not bring it back
+    if (fingerprint != null) {
+      final tombstone = await db.query(
+        'deleted_transactions',
+        where: 'fingerprint = ?',
+        whereArgs: [fingerprint],
+        limit: 1,
+      );
+      if (tombstone.isNotEmpty) return true;
+    }
+    final msgTombstone = await db.query(
+      'deleted_transactions',
+      where: 'message = ? AND detected_at = ?',
+      whereArgs: [message, detectedAt.millisecondsSinceEpoch],
+      limit: 1,
+    );
+    return msgTombstone.isNotEmpty;
   }
 
   /// Update a transaction
@@ -364,9 +408,30 @@ class DatabaseService {
     );
   }
 
-  /// Delete a transaction
+  /// Delete a transaction.
+  ///
+  /// SMS-derived transactions get a tombstone first so the same SMS is not
+  /// re-imported by the next inbox scan. Manual transactions don't need
+  /// one — nothing re-creates them.
   Future<int> deleteTransaction(int id) async {
     final db = await database;
+
+    final rows = await db.query(
+      'transactions',
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    if (rows.isNotEmpty && (rows.first['is_manual'] as int? ?? 0) == 0) {
+      final row = rows.first;
+      await db.insert('deleted_transactions', {
+        'fingerprint': row['fingerprint'],
+        'message': row['message'],
+        'detected_at': row['detected_at'],
+        'deleted_at': DateTime.now().millisecondsSinceEpoch,
+      });
+    }
+
     return await db.delete('transactions', where: 'id = ?', whereArgs: [id]);
   }
 

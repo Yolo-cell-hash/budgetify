@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/transaction_model.dart';
+import 'category_icon.dart';
 
 /// Card widget to display a transaction item with enhanced UI
 class TransactionCard extends StatelessWidget {
@@ -85,24 +86,7 @@ class TransactionCard extends StatelessWidget {
               child: Row(
                 children: [
                   // Type indicator with icon
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: typeColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: typeColor.withOpacity(0.18)),
-                    ),
-                    child: Center(
-                      child: Icon(
-                        isCredit
-                            ? Icons.arrow_downward_rounded
-                            : Icons.arrow_upward_rounded,
-                        color: typeColor,
-                        size: 22,
-                      ),
-                    ),
-                  ),
+                  TransactionLeadingIcon(transaction: transaction, size: 48),
                   const SizedBox(width: 14),
 
                   // Details
