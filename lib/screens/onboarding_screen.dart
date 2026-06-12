@@ -48,12 +48,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
     try {
       if (smsGranted) {
-        // Auto-enable background scanning with default times
-        await BackgroundService.saveScanSettings(
-          enabled: true,
-          time1: '14:55',
-          time2: '22:55',
-        );
+        // Auto-enable hourly background scanning
+        await BackgroundService.saveScanSettings(enabled: true);
 
         // Set flag so HomeScreen triggers an initial scan on first load
         final prefs = await SharedPreferences.getInstance();

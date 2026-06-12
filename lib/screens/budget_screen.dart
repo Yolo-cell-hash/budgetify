@@ -3,7 +3,10 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import '../models/budget_model.dart';
 import '../models/transaction_model.dart';
+import '../providers/theme_provider.dart';
 import '../services/database_service.dart';
+import '../widgets/glass.dart';
+import '../widgets/motion.dart';
 import 'transaction_detail_screen.dart';
 
 /// Chart display mode for trends
@@ -200,13 +203,15 @@ class _BudgetScreenState extends State<BudgetScreen>
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : TabBarView(
-              controller: _tabController,
-              children: [
-                _buildOverviewTab(isDark, fmt),
-                _buildCategoriesTab(isDark, fmt),
-                _buildTrendsTab(isDark, fmt),
-              ],
+          : AmbientBackground(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildOverviewTab(isDark, fmt),
+                  _buildCategoriesTab(isDark, fmt),
+                  _buildTrendsTab(isDark, fmt),
+                ],
+              ),
             ),
     );
   }
@@ -280,17 +285,20 @@ class _BudgetScreenState extends State<BudgetScreen>
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          _buildMonthSelector(
-            selected: _selectedOverviewMonth,
-            onSelect: _loadOverviewMonth,
+          FadeSlideIn(
+            order: 0,
+            child: _buildMonthSelector(
+              selected: _selectedOverviewMonth,
+              onSelect: _loadOverviewMonth,
+            ),
           ),
           const SizedBox(height: 16),
           if (isCurrentMonth && _budget != null) ...[
-            _buildProgressCard(isDark, fmt),
+            FadeSlideIn(order: 1, child: _buildProgressCard(isDark, fmt)),
             const SizedBox(height: 20),
-            _buildDailyChart(isDark),
+            FadeSlideIn(order: 2, child: _buildDailyChart(isDark)),
           ] else ...[
-            _buildMonthSummaryCard(isDark, fmt),
+            FadeSlideIn(order: 1, child: _buildMonthSummaryCard(isDark, fmt)),
           ],
           const SizedBox(height: 80),
         ],
@@ -308,7 +316,16 @@ class _BudgetScreenState extends State<BudgetScreen>
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF16181E) : Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)],
+        border: Border.all(
+          color: isDark ? const Color(0xFF262931) : const Color(0xFFE9E9E4),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -514,20 +531,30 @@ class _BudgetScreenState extends State<BudgetScreen>
   Widget _buildProgressCard(bool isDark, NumberFormat fmt) {
     final pct = _budget!.amount > 0 ? _spent / _budget!.amount : 0.0;
     final remaining = _budget!.amount - _spent;
+    // Gauge color: gold while healthy, amber near the limit, rose when over
     final color = pct >= 1
-        ? Color(0xFFD25A5F)
+        ? const Color(0xFFE8888C)
         : pct >= 0.9
-        ? Color(0xFFD79A3C)
-        : pct >= 0.5
-        ? Color(0xFFD79A3C)
-        : Color(0xFF2AA76F);
+        ? const Color(0xFFD79A3C)
+        : AppColors.gold;
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF16181E) : Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)],
+        gradient: const LinearGradient(
+          colors: AppColors.heroGradient,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.gold.withOpacity(0.35)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.25),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
       ),
       child: Column(
         children: [
@@ -535,10 +562,12 @@ class _BudgetScreenState extends State<BudgetScreen>
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                _budget!.name,
+                _budget!.name.toUpperCase(),
                 style: const TextStyle(
-                  fontSize: 18,
+                  fontSize: 12,
+                  letterSpacing: 1.4,
                   fontWeight: FontWeight.w600,
+                  color: AppColors.gold,
                 ),
               ),
               Container(
@@ -547,7 +576,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                   vertical: 4,
                 ),
                 decoration: BoxDecoration(
-                  color: color.withAlpha(50),
+                  color: color.withAlpha(36),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
@@ -557,7 +586,7 @@ class _BudgetScreenState extends State<BudgetScreen>
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 22),
           SizedBox(
             height: 160,
             width: 160,
@@ -567,23 +596,32 @@ class _BudgetScreenState extends State<BudgetScreen>
                 SizedBox(
                   height: 160,
                   width: 160,
-                  child: CircularProgressIndicator(
-                    value: pct.clamp(0, 1),
-                    strokeWidth: 14,
-                    backgroundColor: isDark
-                        ? Color(0xFF4E525C)
-                        : Color(0xFFD5D5CF),
-                    valueColor: AlwaysStoppedAnimation(color),
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0, end: pct.clamp(0, 1).toDouble()),
+                    duration: const Duration(milliseconds: 900),
+                    curve: Curves.easeOutCubic,
+                    builder: (context, animated, _) {
+                      return CircularProgressIndicator(
+                        value: animated,
+                        strokeWidth: 12,
+                        strokeCap: StrokeCap.round,
+                        backgroundColor: Colors.white.withOpacity(0.08),
+                        valueColor: AlwaysStoppedAnimation(color),
+                      );
+                    },
                   ),
                 ),
                 Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(
-                      fmt.format(_spent),
+                    CountUpAmount(
+                      value: _spent,
+                      formatter: fmt,
                       style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
+                        fontSize: 21,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.5,
+                        color: Colors.white,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -591,7 +629,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                       'of ${fmt.format(_budget!.amount)}',
                       style: TextStyle(
                         fontSize: 12,
-                        color: isDark ? Color(0xFF9A9DA6) : Color(0xFF8A8D96),
+                        color: Colors.white.withOpacity(0.55),
                       ),
                     ),
                   ],
@@ -599,21 +637,28 @@ class _BudgetScreenState extends State<BudgetScreen>
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: remaining >= 0
-                  ? Color(0xFF2AA76F).withAlpha(30)
-                  : Color(0xFFD25A5F).withAlpha(30),
+                  ? const Color(0xFF4CC795).withAlpha(28)
+                  : const Color(0xFFE8888C).withAlpha(28),
               borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: remaining >= 0
+                    ? const Color(0xFF4CC795).withAlpha(60)
+                    : const Color(0xFFE8888C).withAlpha(60),
+              ),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(
-                  remaining >= 0 ? Icons.savings : Icons.warning,
-                  color: remaining >= 0 ? Color(0xFF2AA76F) : Color(0xFFD25A5F),
+                  remaining >= 0 ? Icons.savings_outlined : Icons.warning_amber,
+                  color: remaining >= 0
+                      ? const Color(0xFF4CC795)
+                      : const Color(0xFFE8888C),
                   size: 20,
                 ),
                 const SizedBox(width: 8),
@@ -622,7 +667,9 @@ class _BudgetScreenState extends State<BudgetScreen>
                       ? '${fmt.format(remaining)} left'
                       : '${fmt.format(remaining.abs())} over!',
                   style: TextStyle(
-                    color: remaining >= 0 ? Color(0xFF2AA76F) : Color(0xFFD25A5F),
+                    color: remaining >= 0
+                        ? const Color(0xFF4CC795)
+                        : const Color(0xFFE8888C),
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -664,7 +711,16 @@ class _BudgetScreenState extends State<BudgetScreen>
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF16181E) : Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)],
+        border: Border.all(
+          color: isDark ? const Color(0xFF262931) : const Color(0xFFE9E9E4),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -754,9 +810,12 @@ class _BudgetScreenState extends State<BudgetScreen>
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          _buildMonthSelector(
-            selected: _selectedCategoryMonth,
-            onSelect: _loadCategoryMonth,
+          FadeSlideIn(
+            order: 0,
+            child: _buildMonthSelector(
+              selected: _selectedCategoryMonth,
+              onSelect: _loadCategoryMonth,
+            ),
           ),
           const SizedBox(height: 16),
           if (spendingData.isEmpty)
@@ -774,9 +833,17 @@ class _BudgetScreenState extends State<BudgetScreen>
               ),
             )
           else ...[
-            _buildCategoryPieChart(spendingData, isDark),
+            FadeSlideIn(
+              order: 1,
+              child: _buildCategoryPieChart(spendingData, isDark),
+            ),
             const SizedBox(height: 16),
-            ..._buildCategoryList(spendingData, fmt, isDark),
+            FadeSlideIn(
+              order: 2,
+              child: Column(
+                children: _buildCategoryList(spendingData, fmt, isDark),
+              ),
+            ),
           ],
           const SizedBox(height: 80),
         ],
@@ -1046,45 +1113,58 @@ class _BudgetScreenState extends State<BudgetScreen>
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF16181E) : Colors.white,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Monthly Spending Trend',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                    ),
-                    _buildTrendsChartToggle(isDark),
-                  ],
+          FadeSlideIn(
+            order: 0,
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF16181E) : Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: isDark
+                      ? const Color(0xFF262931)
+                      : const Color(0xFFE9E9E4),
                 ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  height: 200,
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 350),
-                    child: _trendsChartMode == _TrendsChartMode.bar
-                        ? _buildTrendsBarChart(maxY, monthFormat, isDark)
-                        : _buildTrendsLineChart(maxY, monthFormat, isDark),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Monthly Spending Trend',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                      ),
+                      _buildTrendsChartToggle(isDark),
+                    ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    height: 200,
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 350),
+                      child: _trendsChartMode == _TrendsChartMode.bar
+                          ? _buildTrendsBarChart(maxY, monthFormat, isDark)
+                          : _buildTrendsLineChart(maxY, monthFormat, isDark),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 16),
           // Monthly breakdown list - Expandable with category data
-          ...(_monthlySpending.reversed.toList()).map((m) {
-            final month = m['month'] as DateTime;
-            final total = m['total'] as double;
-            return _buildExpandableMonthItem(month, total, fmt, isDark);
-          }),
+          FadeSlideIn(
+            order: 1,
+            child: Column(
+              children: (_monthlySpending.reversed.toList()).map((m) {
+                final month = m['month'] as DateTime;
+                final total = m['total'] as double;
+                return _buildExpandableMonthItem(month, total, fmt, isDark);
+              }).toList(),
+            ),
+          ),
         ],
       ),
     );

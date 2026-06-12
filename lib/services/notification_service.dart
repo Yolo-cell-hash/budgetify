@@ -160,5 +160,37 @@ class NotificationService {
     );
   }
 
+  /// Summary notification for background scans that find several
+  /// transactions at once (per-transaction notifications would spam).
+  Future<void> showScanSummaryNotification({
+    required int count,
+    required double totalAmount,
+  }) async {
+    if (!_isInitialized) await initialize();
+
+    final fmt = NumberFormat.currency(
+      locale: 'en_IN',
+      symbol: '₹',
+      decimalDigits: 0,
+    );
+
+    await _notifications.show(
+      2000, // Fixed ID so repeated scans update rather than stack
+      '🧾 $count new transactions found',
+      'Totalling ${fmt.format(totalAmount)} — tap to review and categorize',
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'transaction_channel',
+          'Transaction Alerts',
+          channelDescription: 'Notifications for detected bank transactions',
+          importance: Importance.high,
+          priority: Priority.high,
+          showWhen: true,
+        ),
+      ),
+      payload: 'scan_summary',
+    );
+  }
+
   Future<void> cancelAll() async => await _notifications.cancelAll();
 }

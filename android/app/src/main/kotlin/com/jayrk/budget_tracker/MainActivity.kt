@@ -1,5 +1,6 @@
 package com.jayrk.budget_tracker
 
-import io.flutter.embedding.android.FlutterActivity
+// FlutterFragmentActivity is required by local_auth's BiometricPrompt
+import io.flutter.embedding.android.FlutterFragmentActivity
 
-class MainActivity : FlutterActivity()
+class MainActivity : FlutterFragmentActivity()

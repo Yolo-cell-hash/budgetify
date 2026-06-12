@@ -884,6 +884,81 @@ class DatabaseService {
     );
   }
 
+  /// Export every table as raw row maps, for encrypted backup.
+  Future<Map<String, dynamic>> exportAllData() async {
+    final db = await database;
+    return {
+      'transactions': await db.query('transactions'),
+      'budgets': await db.query('budgets'),
+      'transaction_rules': await db.query('transaction_rules'),
+    };
+  }
+
+  /// Import backup data, merging with existing rows.
+  ///
+  /// Transactions dedupe via the unique fingerprint index (or message +
+  /// timestamp for rows without a fingerprint); budgets and rules are only
+  /// inserted when no identical row already exists, so restoring the same
+  /// backup twice is a no-op.
+  Future<Map<String, int>> importBackupData(Map<String, dynamic> data) async {
+    final db = await database;
+    var txnCount = 0, budgetCount = 0, ruleCount = 0;
+
+    for (final raw in (data['transactions'] as List? ?? const [])) {
+      final row = Map<String, dynamic>.from(raw as Map);
+      row.remove('id');
+      if (row['fingerprint'] == null) {
+        final exists = await db.query(
+          'transactions',
+          where: 'message = ? AND detected_at = ?',
+          whereArgs: [row['message'], row['detected_at']],
+          limit: 1,
+        );
+        if (exists.isNotEmpty) continue;
+      }
+      final id = await db.insert(
+        'transactions',
+        row,
+        conflictAlgorithm: ConflictAlgorithm.ignore,
+      );
+      if (id > 0) txnCount++;
+    }
+
+    for (final raw in (data['budgets'] as List? ?? const [])) {
+      final row = Map<String, dynamic>.from(raw as Map);
+      row.remove('id');
+      final exists = await db.query(
+        'budgets',
+        where: 'name = ? AND amount = ? AND period = ? AND start_date = ?',
+        whereArgs: [row['name'], row['amount'], row['period'], row['start_date']],
+        limit: 1,
+      );
+      if (exists.isNotEmpty) continue;
+      await db.insert('budgets', row);
+      budgetCount++;
+    }
+
+    for (final raw in (data['transaction_rules'] as List? ?? const [])) {
+      final row = Map<String, dynamic>.from(raw as Map);
+      row.remove('id');
+      final exists = await db.query(
+        'transaction_rules',
+        where: 'sender_name = ? AND transaction_type = ? AND category = ?',
+        whereArgs: [row['sender_name'], row['transaction_type'], row['category']],
+        limit: 1,
+      );
+      if (exists.isNotEmpty) continue;
+      await db.insert('transaction_rules', row);
+      ruleCount++;
+    }
+
+    return {
+      'transactions': txnCount,
+      'budgets': budgetCount,
+      'rules': ruleCount,
+    };
+  }
+
   /// Close the database
   Future<void> close() async {
     final db = await database;

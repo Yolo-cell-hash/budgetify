@@ -9,6 +9,9 @@ import '../services/database_service.dart';
 import '../services/sms_service.dart';
 import '../services/notification_service.dart';
 import '../services/background_service.dart';
+import '../services/widget_service.dart';
+import '../widgets/glass.dart';
+import '../widgets/motion.dart';
 import '../widgets/permission_request_card.dart';
 import '../widgets/expense_chart.dart';
 import 'transactions_screen.dart';
@@ -153,6 +156,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         _monthlyIncome = monthlyIncome;
         _monthlyExpenses = monthlyExpenses;
       });
+
+      // Keep the home-screen widget in sync
+      WidgetService.update();
     } catch (e) {
       debugPrint('Error loading data: $e');
     }
@@ -328,34 +334,47 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       backgroundColor: AppColors.of(context).background,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : SafeArea(
-              child: RefreshIndicator(
-                onRefresh: _loadData,
-                child: SingleChildScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildHeader(),
+          : AmbientBackground(
+              child: SafeArea(
+                child: RefreshIndicator(
+                  onRefresh: _loadData,
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        FadeSlideIn(order: 0, child: _buildHeader()),
 
-                      if (!_hasPermission)
-                        PermissionRequestCard(
-                          onRequestPermission: _requestPermission,
-                          onOpenSettings: _openSettings,
-                          isPermanentlyDenied: _isPermanentlyDenied,
-                        )
-                      else ...[
-                        _buildBalanceCard(),
-                        const SizedBox(height: 16),
-                        ExpenseChartWidget(transactions: _allTransactions),
-                        _buildBudgetCard(),
-                        _buildCashSection(),
-                        _buildQuickActions(),
-                        _buildRecentTransactions(),
+                        if (!_hasPermission)
+                          FadeSlideIn(
+                            order: 1,
+                            child: PermissionRequestCard(
+                              onRequestPermission: _requestPermission,
+                              onOpenSettings: _openSettings,
+                              isPermanentlyDenied: _isPermanentlyDenied,
+                            ),
+                          )
+                        else ...[
+                          FadeSlideIn(order: 1, child: _buildBalanceCard()),
+                          const SizedBox(height: 16),
+                          FadeSlideIn(
+                            order: 2,
+                            child: ExpenseChartWidget(
+                              transactions: _allTransactions,
+                            ),
+                          ),
+                          FadeSlideIn(order: 3, child: _buildBudgetCard()),
+                          FadeSlideIn(order: 4, child: _buildCashSection()),
+                          FadeSlideIn(order: 5, child: _buildQuickActions()),
+                          FadeSlideIn(
+                            order: 6,
+                            child: _buildRecentTransactions(),
+                          ),
+                        ],
+
+                        const SizedBox(height: 32),
                       ],
-
-                      const SizedBox(height: 32),
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -519,8 +538,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ],
           ),
           const SizedBox(height: 14),
-          Text(
-            formatter.format(_monthlyExpenses),
+          CountUpAmount(
+            value: _monthlyExpenses,
+            formatter: formatter,
             style: const TextStyle(
               fontSize: 38,
               fontWeight: FontWeight.w700,
@@ -692,7 +712,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }) {
     final colors = AppColors.of(context);
 
-    return GestureDetector(
+    return PressableScale(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -866,7 +886,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       decimalDigits: 0,
     );
 
-    return GestureDetector(
+    return PressableScale(
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => const BudgetScreen()),
@@ -950,18 +970,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: (_budgetSpent / _activeBudget!.amount).clamp(0, 1),
-                      backgroundColor: Colors.white.withAlpha(30),
-                      valueColor: AlwaysStoppedAnimation(
-                        _budgetSpent >= _activeBudget!.amount
-                            ? colors.danger
-                            : AppColors.gold,
-                      ),
-                      minHeight: 6,
-                    ),
+                  AnimatedProgressBar(
+                    value: _budgetSpent / _activeBudget!.amount,
+                    backgroundColor: Colors.white.withAlpha(30),
+                    color: _budgetSpent >= _activeBudget!.amount
+                        ? colors.danger
+                        : AppColors.gold,
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -999,7 +1013,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         .where((t) => t.category == 'Cash Conversion')
         .length;
 
-    return GestureDetector(
+    return PressableScale(
       onTap: () async {
         final result = await Navigator.push<bool>(
           context,

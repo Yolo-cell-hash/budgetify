@@ -1,74 +1,90 @@
 import 'package:workmanager/workmanager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/transaction_model.dart';
+import 'notification_service.dart';
 import 'sms_service.dart';
+import 'widget_service.dart';
 
-/// Background service for scheduled SMS scanning
+/// Background service for scheduled SMS scanning.
+///
+/// Uses an interval-based WorkManager periodic task (default: hourly).
+/// The schedule is re-asserted on every app launch so it survives app
+/// updates, force-stops, and OEM battery-manager kills — the previous
+/// design only registered the task when the user touched settings, and
+/// scanned just once every 12 hours pinned to a hardcoded clock time.
 class BackgroundService {
   static const String scanTaskName = 'sms_scan_task';
   static const String scanTaskUniqueName = 'budget_tracker_sms_scan';
 
   // Preferences keys
   static const String _autoScanEnabledKey = 'auto_scan_enabled';
-  static const String _scanTime1Key = 'scan_time_1';
-  static const String _scanTime2Key = 'scan_time_2';
+  static const String _scanIntervalHoursKey = 'scan_interval_hours';
   static const String _lastScanTimeKey = 'last_scan_time';
 
-  /// Initialize the background service
+  static const int defaultIntervalHours = 1;
+
+  /// Allowed scan intervals (hours) offered in settings.
+  static const List<int> intervalOptions = [1, 3, 6, 12];
+
+  /// Initialize the background service and make sure the periodic scan is
+  /// scheduled whenever auto-scan is enabled.
   static Future<void> initialize() async {
     await Workmanager().initialize(callbackDispatcher, isInDebugMode: false);
+    await _ensureScheduled();
   }
 
-  /// Check if auto-scan is enabled
+  /// Check if auto-scan is enabled (default: on)
   static Future<bool> isAutoScanEnabled() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_autoScanEnabledKey) ?? false;
+    return prefs.getBool(_autoScanEnabledKey) ?? true;
   }
 
-  /// Get scan times (returns list of TimeOfDay-like maps)
+  /// Get scan settings for the settings screen.
   static Future<Map<String, dynamic>> getScanSettings() async {
     final prefs = await SharedPreferences.getInstance();
     return {
-      'enabled': prefs.getBool(_autoScanEnabledKey) ?? false,
-      'time1': prefs.getString(_scanTime1Key) ?? '14:55', // 5 mins before 3 PM
-      'time2': prefs.getString(_scanTime2Key), // Optional second scan
+      'enabled': prefs.getBool(_autoScanEnabledKey) ?? true,
+      'intervalHours':
+          prefs.getInt(_scanIntervalHoursKey) ?? defaultIntervalHours,
     };
   }
 
-  /// Save scan settings
+  /// Save scan settings and (re)apply the schedule.
   static Future<void> saveScanSettings({
     required bool enabled,
-    required String time1,
-    String? time2,
+    int? intervalHours,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_autoScanEnabledKey, enabled);
-    await prefs.setString(_scanTime1Key, time1);
-    if (time2 != null) {
-      await prefs.setString(_scanTime2Key, time2);
-    } else {
-      await prefs.remove(_scanTime2Key);
+    if (intervalHours != null) {
+      await prefs.setInt(_scanIntervalHoursKey, intervalHours);
     }
 
-    // Register or cancel background tasks based on settings
     if (enabled) {
-      await _registerBackgroundTask();
+      await _registerBackgroundTask(replace: true);
     } else {
       await _cancelBackgroundTask();
     }
   }
 
-  /// Register periodic background task
-  static Future<void> _registerBackgroundTask() async {
-    // Cancel existing tasks first
-    await _cancelBackgroundTask();
+  /// Re-assert the schedule on startup without resetting the period timer.
+  static Future<void> _ensureScheduled() async {
+    if (await isAutoScanEnabled()) {
+      await _registerBackgroundTask(replace: false);
+    }
+  }
 
-    // Register periodic task - runs approximately every 12 hours
-    // Workmanager will handle the exact timing based on device state
+  /// Register the periodic scan task.
+  static Future<void> _registerBackgroundTask({required bool replace}) async {
+    final prefs = await SharedPreferences.getInstance();
+    final hours = prefs.getInt(_scanIntervalHoursKey) ?? defaultIntervalHours;
+
     await Workmanager().registerPeriodicTask(
       scanTaskUniqueName,
       scanTaskName,
-      frequency: const Duration(hours: 12),
+      frequency: Duration(hours: hours),
+      // SMS scanning is local and cheap: no network, battery, or idle
+      // constraints, so the OS has no reason to defer the task.
       constraints: Constraints(
         networkType: NetworkType.notRequired,
         requiresBatteryNotLow: false,
@@ -76,23 +92,12 @@ class BackgroundService {
         requiresDeviceIdle: false,
         requiresStorageNotLow: false,
       ),
-      existingWorkPolicy: ExistingPeriodicWorkPolicy.replace,
-      initialDelay: _calculateInitialDelay(),
+      existingWorkPolicy: replace
+          ? ExistingPeriodicWorkPolicy.replace
+          : ExistingPeriodicWorkPolicy.keep,
+      backoffPolicy: BackoffPolicy.linear,
+      backoffPolicyDelay: const Duration(minutes: 15),
     );
-  }
-
-  /// Calculate initial delay to start around first scheduled time
-  static Duration _calculateInitialDelay() {
-    final now = DateTime.now();
-    // Default first scan at 2:55 PM (5 mins before 3 PM)
-    var targetTime = DateTime(now.year, now.month, now.day, 14, 55);
-
-    if (now.isAfter(targetTime)) {
-      // If past first scan time, target next day
-      targetTime = targetTime.add(const Duration(days: 1));
-    }
-
-    return targetTime.difference(now);
   }
 
   /// Cancel background tasks
@@ -116,21 +121,34 @@ class BackgroundService {
     return null;
   }
 
-  /// Perform the background SMS scan
+  /// Perform the background SMS scan.
+  /// Shows a summary notification when new transactions are found, so
+  /// background discoveries are no longer silent.
   static Future<void> performBackgroundScan() async {
     try {
       final smsService = SmsService();
 
-      // Check if we have permission
       if (!await smsService.hasPermission()) {
         return;
       }
 
-      // Scan SMS and auto-classify using rules
-      await smsService.scanExistingSms(maxCount: 50);
-
-      // Record scan time
+      final found = await smsService.scanExistingSms(maxCount: 100);
       await _recordScanTime();
+      await WidgetService.update();
+
+      if (found.isNotEmpty) {
+        final notificationService = NotificationService();
+        await notificationService.initialize();
+        if (found.length == 1) {
+          await notificationService.showTransactionNotification(found.first);
+        } else {
+          final total = found.fold(0.0, (sum, t) => sum + t.amount);
+          await notificationService.showScanSummaryNotification(
+            count: found.length,
+            totalAmount: total,
+          );
+        }
+      }
     } catch (e) {
       // Silently fail in background
     }
