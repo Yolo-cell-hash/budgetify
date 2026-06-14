@@ -96,6 +96,7 @@ mindmap
       Daily spend curve
       Swipeable monthly trends
       Home-screen widget
+      Weekly tag-your-transactions reminder
     Protect
       No internet permission
       Biometric app lock
@@ -128,6 +129,9 @@ Transactions auto-map to categories from merchant keywords (Swiggy → Food, Ube
 - **Category donut** that groups tiny slices into "Other" so it never looks cluttered.
 - **Daily spending curve** with a budget-pace line for the current month.
 - **Swipeable monthly history** — every past month gets the full picture, not just the current one.
+
+### 🔎 Find anything, fast
+Search by **payee, amount, or date**, and stack **independent filters** — type (credit/debit) and status (classified/unclassified) combine freely, so "unclassified debits" or "classified credits" are one tap each. A **weekly reminder** nudges you about the month's still-untagged transactions and opens straight to them.
 
 ### 🔐 Privacy & security you can verify
 - **No `INTERNET` permission** in the manifest — uploading is impossible by construction.

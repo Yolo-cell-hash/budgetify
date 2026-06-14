@@ -33,10 +33,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   List<String> _categories = [];
   bool _isLoading = true;
 
-  // Filters
+  // Filters — type and classification status are independent and combine
+  // (e.g. "unclassified debits", "classified credits").
   TransactionType? _typeFilter;
   String? _categoryFilter;
-  bool _unclassifiedOnly = false;
+  _ClassFilter _classFilter = _ClassFilter.all;
   DateTime? _startDate;
   DateTime? _endDate;
 
@@ -51,7 +52,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   @override
   void initState() {
     super.initState();
-    _unclassifiedOnly = widget.initialUnclassifiedOnly;
+    _classFilter = widget.initialUnclassifiedOnly
+        ? _ClassFilter.unclassified
+        : _ClassFilter.all;
     _typeFilter = widget.initialTypeFilter;
     _startDate = widget.initialStartDate;
     _endDate = widget.initialEndDate;
@@ -111,7 +114,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       var transactions = await _dbService.getFilteredTransactions(
         type: _typeFilter,
         category: _categoryFilter,
-        unclassifiedOnly: _unclassifiedOnly ? true : null,
+        classified: switch (_classFilter) {
+          _ClassFilter.all => null,
+          _ClassFilter.classified => true,
+          _ClassFilter.unclassified => false,
+        },
       );
 
       // Apply date range filter client-side if set
@@ -164,7 +171,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     setState(() {
       _typeFilter = null;
       _categoryFilter = null;
-      _unclassifiedOnly = false;
+      _classFilter = _ClassFilter.all;
       _startDate = null;
       _endDate = null;
       _searchQuery = '';
@@ -176,7 +183,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   bool get _hasActiveFilters =>
       _typeFilter != null ||
       _categoryFilter != null ||
-      _unclassifiedOnly ||
+      _classFilter != _ClassFilter.all ||
       _startDate != null ||
       _searchQuery.trim().isNotEmpty;
 
@@ -331,64 +338,68 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               ),
             ),
           ),
-          // Type filter row
+          // Type filter row (All / Credits / Debits) — independent of status
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
             child: Row(
               children: [
+                _typeRowLabel('Type', isDark),
+                const SizedBox(width: 10),
                 _buildFilterChip(
                   label: 'All',
-                  isSelected: _typeFilter == null && !_unclassifiedOnly,
-                  onSelected: () {
-                    setState(() {
-                      _typeFilter = null;
-                      _unclassifiedOnly = false;
-                    });
-                    _loadTransactions();
-                  },
+                  isSelected: _typeFilter == null,
+                  onSelected: () => _setType(null),
                   isDark: isDark,
                 ),
                 const SizedBox(width: 8),
                 _buildFilterChip(
                   label: 'Credits',
                   isSelected: _typeFilter == TransactionType.credit,
-                  onSelected: () {
-                    setState(() {
-                      _typeFilter = TransactionType.credit;
-                      _unclassifiedOnly = false;
-                    });
-                    _loadTransactions();
-                  },
-                  color: Color(0xFF2AA76F),
+                  onSelected: () => _setType(TransactionType.credit),
+                  color: const Color(0xFF2AA76F),
                   isDark: isDark,
                 ),
                 const SizedBox(width: 8),
                 _buildFilterChip(
                   label: 'Debits',
                   isSelected: _typeFilter == TransactionType.debit,
-                  onSelected: () {
-                    setState(() {
-                      _typeFilter = TransactionType.debit;
-                      _unclassifiedOnly = false;
-                    });
-                    _loadTransactions();
-                  },
-                  color: Color(0xFFD25A5F),
+                  onSelected: () => _setType(TransactionType.debit),
+                  color: const Color(0xFFD25A5F),
+                  isDark: isDark,
+                ),
+              ],
+            ),
+          ),
+          // Status filter row (All / Classified / Unclassified) — combines
+          // with the type filter above
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+            child: Row(
+              children: [
+                _typeRowLabel('Status', isDark),
+                const SizedBox(width: 10),
+                _buildFilterChip(
+                  label: 'All',
+                  isSelected: _classFilter == _ClassFilter.all,
+                  onSelected: () => _setClass(_ClassFilter.all),
+                  isDark: isDark,
+                ),
+                const SizedBox(width: 8),
+                _buildFilterChip(
+                  label: 'Classified',
+                  isSelected: _classFilter == _ClassFilter.classified,
+                  onSelected: () => _setClass(_ClassFilter.classified),
+                  color: const Color(0xFF4A6489),
                   isDark: isDark,
                 ),
                 const SizedBox(width: 8),
                 _buildFilterChip(
                   label: 'Unclassified',
-                  isSelected: _unclassifiedOnly,
-                  onSelected: () {
-                    setState(() {
-                      _typeFilter = null;
-                      _unclassifiedOnly = true;
-                    });
-                    _loadTransactions();
-                  },
-                  color: Color(0xFFD79A3C),
+                  isSelected: _classFilter == _ClassFilter.unclassified,
+                  onSelected: () => _setClass(_ClassFilter.unclassified),
+                  color: const Color(0xFFD79A3C),
                   isDark: isDark,
                 ),
               ],
@@ -416,6 +427,27 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             color: isDark ? Color(0xFF2E313A) : Color(0xFFE9E9E4),
           ),
         ],
+      ),
+    );
+  }
+
+  void _setType(TransactionType? type) {
+    setState(() => _typeFilter = type);
+    _loadTransactions();
+  }
+
+  void _setClass(_ClassFilter f) {
+    setState(() => _classFilter = f);
+    _loadTransactions();
+  }
+
+  Widget _typeRowLabel(String text, bool isDark) {
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+        color: isDark ? const Color(0xFF6E727C) : const Color(0xFF8A8D96),
       ),
     );
   }
@@ -693,3 +725,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     );
   }
 }
+
+/// Classification-status filter, independent of the credit/debit type filter.
+enum _ClassFilter { all, classified, unclassified }

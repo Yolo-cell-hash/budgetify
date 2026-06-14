@@ -167,6 +167,27 @@ class CustomTagService {
     );
   }
 
+  /// Export tag settings (emoji overrides + hidden built-in tags) for backup.
+  Map<String, dynamic> exportSettings() => {
+        'emoji_overrides': Map<String, String>.from(_emojiOverrides),
+        'hidden': _hiddenTags.toList(),
+      };
+
+  /// Restore tag settings from a backup payload (merges, doesn't clobber).
+  Future<void> importSettings(Map<String, dynamic>? settings) async {
+    if (settings == null) return;
+    final overrides = settings['emoji_overrides'];
+    if (overrides is Map) {
+      _emojiOverrides.addAll(Map<String, String>.from(overrides));
+      await _saveOverrides();
+    }
+    final hidden = settings['hidden'];
+    if (hidden is List) {
+      _hiddenTags.addAll(hidden.map((e) => e.toString()));
+      await _saveHidden();
+    }
+  }
+
   /// Generate a deterministic color from a tag name for chart/graph usage.
   static Color colorFromName(String name) {
     final hash = name.hashCode.abs();

@@ -126,10 +126,11 @@ class BackupService {
   /// Returns the saved path, or null if the user cancelled the save dialog.
   Future<String?> createBackup(String passphrase) async {
     final data = await _db.exportAllData();
-    data['custom_tags'] = CustomTagService()
-        .getCustomTags()
-        .map((t) => t.toJson())
-        .toList();
+    final tagService = CustomTagService();
+    data['custom_tags'] =
+        tagService.getCustomTags().map((t) => t.toJson()).toList();
+    // Tag settings: custom emoji overrides + hidden built-in tags
+    data['tag_settings'] = tagService.exportSettings();
 
     final payloadJson = jsonEncode({
       'magic': _magic,
@@ -181,6 +182,16 @@ class BackupService {
         tagCount++;
       }
     }
+
+    // Restore tag settings (emoji overrides + hidden built-in tags)
+    await tagService.importSettings(
+      (data['tag_settings'] as Map?)?.cast<String, dynamic>(),
+    );
+
+    // Now that classification rules are back, auto-tag any past
+    // transactions that match them (e.g. rows the post-reinstall scan
+    // re-created untagged, or transactions added after the backup).
+    await _db.applyRulesToUntagged();
 
     return RestoreResult(
       transactions: counts['transactions'] ?? 0,

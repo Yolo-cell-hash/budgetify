@@ -40,6 +40,9 @@ void main() async {
       child: const MyApp(),
     ),
   );
+
+  // If a tapped notification cold-started the app, route after first frame.
+  await NotificationService().handleLaunchPayload();
 }
 
 class MyApp extends StatelessWidget {
@@ -52,6 +55,7 @@ class MyApp extends StatelessWidget {
         return MaterialApp(
           title: 'Budget Tracker',
           debugShowCheckedModeBanner: false,
+          navigatorKey: NotificationService.navigatorKey,
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
           themeMode: themeProvider.themeMode,

@@ -1,6 +1,8 @@
 import 'package:workmanager/workmanager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:intl/intl.dart';
 import '../models/transaction_model.dart';
+import 'database_service.dart';
 import 'notification_service.dart';
 import 'sms_service.dart';
 import 'widget_service.dart';
@@ -15,6 +17,11 @@ import 'widget_service.dart';
 class BackgroundService {
   static const String scanTaskName = 'sms_scan_task';
   static const String scanTaskUniqueName = 'budget_tracker_sms_scan';
+
+  // Weekly "tag your transactions" reminder
+  static const String weeklyReminderTaskName = 'weekly_unclassified_reminder';
+  static const String weeklyReminderUniqueName =
+      'budget_tracker_weekly_reminder';
 
   // Preferences keys
   static const String _autoScanEnabledKey = 'auto_scan_enabled';
@@ -31,6 +38,20 @@ class BackgroundService {
   static Future<void> initialize() async {
     await Workmanager().initialize(callbackDispatcher, isInDebugMode: false);
     await _ensureScheduled();
+    await _ensureWeeklyReminder();
+  }
+
+  /// Register the weekly unclassified-transactions reminder. Independent of
+  /// auto-scan — it nudges the user to tag whatever has accumulated.
+  static Future<void> _ensureWeeklyReminder() async {
+    await Workmanager().registerPeriodicTask(
+      weeklyReminderUniqueName,
+      weeklyReminderTaskName,
+      frequency: const Duration(days: 7),
+      initialDelay: const Duration(days: 7),
+      constraints: Constraints(networkType: NetworkType.notRequired),
+      existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
+    );
   }
 
   /// Check if auto-scan is enabled (default: on)
@@ -154,6 +175,29 @@ class BackgroundService {
     }
   }
 
+  /// Weekly reminder: count this month's unclassified transactions and, if
+  /// any, post a notification nudging the user to tag them.
+  static Future<void> performWeeklyReminder() async {
+    try {
+      final db = DatabaseService();
+      final now = DateTime.now();
+      final monthStart = DateTime(now.year, now.month, 1);
+      final monthEnd = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+
+      final count = await db.countUnclassifiedInPeriod(monthStart, monthEnd);
+      if (count <= 0) return;
+
+      final ns = NotificationService();
+      await ns.initialize();
+      await ns.showUnclassifiedReminder(
+        count: count,
+        monthLabel: DateFormat('MMMM').format(now),
+      );
+    } catch (e) {
+      // Best-effort reminder
+    }
+  }
+
   /// Perform a foreground SMS scan (called when app opens).
   /// Returns the list of newly found transactions.
   static Future<List<TransactionModel>> performForegroundScan({
@@ -189,6 +233,8 @@ void callbackDispatcher() {
   Workmanager().executeTask((taskName, inputData) async {
     if (taskName == BackgroundService.scanTaskName) {
       await BackgroundService.performBackgroundScan();
+    } else if (taskName == BackgroundService.weeklyReminderTaskName) {
+      await BackgroundService.performWeeklyReminder();
     }
     return Future.value(true);
   });
