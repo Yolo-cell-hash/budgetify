@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:budget_tracker/screens/home_screen.dart';
 import 'package:budget_tracker/screens/lock_screen.dart';
 import 'package:budget_tracker/screens/onboarding_screen.dart';
+import 'package:budget_tracker/screens/splash_screen.dart';
 import 'package:budget_tracker/services/app_lock_service.dart';
 import 'package:budget_tracker/services/notification_service.dart';
 import 'package:budget_tracker/services/background_service.dart';
@@ -66,8 +67,9 @@ class MyApp extends StatelessWidget {
   }
 }
 
-/// Gates the app behind the biometric lock screen when app lock is enabled.
-/// Re-locks after the app has been in the background for over a minute.
+/// Orchestrates the cold-start sequence: animated splash first, then (if
+/// app lock is enabled) the biometric lock screen, then the app. Also
+/// re-locks after the app has been in the background for over a minute.
 class AppLockGate extends StatefulWidget {
   final Widget child;
 
@@ -81,8 +83,8 @@ class _AppLockGateState extends State<AppLockGate>
     with WidgetsBindingObserver {
   static const _relockAfter = Duration(seconds: 60);
 
+  bool _splashing = true;
   bool _locked = false;
-  bool _checked = false;
   DateTime? _pausedAt;
 
   @override
@@ -99,12 +101,11 @@ class _AppLockGateState extends State<AppLockGate>
   }
 
   Future<void> _checkInitialLock() async {
+    // Determined during the splash so the lock screen can take over the
+    // moment the splash animation finishes.
     final enabled = await AppLockService().isEnabled();
     if (!mounted) return;
-    setState(() {
-      _locked = enabled;
-      _checked = true;
-    });
+    setState(() => _locked = enabled);
   }
 
   @override
@@ -114,7 +115,7 @@ class _AppLockGateState extends State<AppLockGate>
     } else if (state == AppLifecycleState.resumed) {
       final pausedAt = _pausedAt;
       _pausedAt = null;
-      if (_locked || pausedAt == null) return;
+      if (_splashing || _locked || pausedAt == null) return;
       if (DateTime.now().difference(pausedAt) >= _relockAfter &&
           await AppLockService().isEnabled()) {
         if (mounted) setState(() => _locked = true);
@@ -125,18 +126,23 @@ class _AppLockGateState extends State<AppLockGate>
   @override
   Widget build(BuildContext context) {
     // Keep the app subtree mounted underneath so Navigator state survives
-    // lock/unlock; the lock screen is an opaque overlay above it.
+    // lock/unlock; splash and lock are opaque overlays above it. The splash
+    // sits on top so the lock prompt only appears once it finishes.
     return Stack(
       children: [
         widget.child,
-        if (!_checked)
-          const Positioned.fill(
-            child: ColoredBox(color: Color(0xFF131520)),
-          )
-        else if (_locked)
+        if (_locked && !_splashing)
           Positioned.fill(
             child: LockScreen(
               onUnlocked: () => setState(() => _locked = false),
+            ),
+          ),
+        if (_splashing)
+          Positioned.fill(
+            child: SplashScreen(
+              onComplete: () {
+                if (mounted) setState(() => _splashing = false);
+              },
             ),
           ),
       ],

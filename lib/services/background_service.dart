@@ -24,7 +24,7 @@ class BackgroundService {
   static const int defaultIntervalHours = 1;
 
   /// Allowed scan intervals (hours) offered in settings.
-  static const List<int> intervalOptions = [1, 3, 6, 12];
+  static const List<int> intervalOptions = [1, 3, 6, 12, 18, 24];
 
   /// Initialize the background service and make sure the periodic scan is
   /// scheduled whenever auto-scan is enabled.

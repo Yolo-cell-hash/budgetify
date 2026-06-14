@@ -4,7 +4,6 @@ import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:open_filex/open_filex.dart';
 import '../providers/theme_provider.dart';
-import '../providers/app_preferences.dart';
 import '../services/app_lock_service.dart';
 import '../services/backup_service.dart';
 import '../services/background_service.dart';
@@ -12,6 +11,7 @@ import '../services/export_service.dart';
 import '../widgets/app_dialog.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/export_options_sheet.dart';
+import 'manage_tags_screen.dart';
 
 /// Settings screen with theme toggle and auto-scan configuration
 class SettingsScreen extends StatefulWidget {
@@ -152,12 +152,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     height: 1,
                     color: isDark ? Color(0xFF2E313A) : Color(0xFFE9E9E4),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+                        child: Text(
                           'Scan Frequency',
                           style: TextStyle(
                             fontSize: 14,
@@ -165,8 +165,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             color: isDark ? Colors.white : Color(0xFF1B1E28),
                           ),
                         ),
-                        const SizedBox(height: 10),
-                        Row(
+                      ),
+                      // Horizontally scrollable so the wider options
+                      // (Every 24h) never overflow the card
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                        child: Row(
                           children: BackgroundService.intervalOptions.map((h) {
                             final selected = _scanIntervalHours == h;
                             return Padding(
@@ -174,6 +179,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               child: ChoiceChip(
                                 label: Text(h == 1 ? 'Hourly' : 'Every ${h}h'),
                                 selected: selected,
+                                showCheckmark: false,
                                 labelStyle: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
@@ -193,8 +199,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             );
                           }).toList(),
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                   if (_lastScanTime != null) ...[
                     Divider(
@@ -306,45 +312,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildSettingsCard(
             isDark: isDark,
             child: ListTile(
-              leading: Icon(Icons.refresh, color: Color(0xFFC68A2E)),
-              title: const Text('Reset Onboarding'),
+              leading: Icon(Icons.sell_outlined, color: Color(0xFFC68A2E)),
+              title: const Text('Manage Tags'),
               subtitle: Text(
-                'Show first-time setup again',
+                'Delete tags you don\'t use',
                 style: TextStyle(
                   color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
                 ),
               ),
-              onTap: () async {
-                final confirmed = await showAppDialog<bool>(
-                  context,
-                  builder: (ctx) => AppDialog(
-                    icon: Icons.refresh_rounded,
-                    title: 'Reset Onboarding?',
-                    subtitle:
-                        'This will show the setup wizard on next app launch.',
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx, false),
-                        child: const Text('Cancel'),
-                      ),
-                      ElevatedButton(
-                        onPressed: () => Navigator.pop(ctx, true),
-                        child: const Text('Reset'),
-                      ),
-                    ],
-                  ),
-                );
-                if (confirmed == true && context.mounted) {
-                  await context.read<AppPreferences>().resetOnboarding();
-                  if (context.mounted) {
-                    showAppToast(
-                      context,
-                      message: 'Onboarding reset. Restart app to see changes.',
-                      type: AppToastType.info,
-                    );
-                  }
-                }
-              },
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ManageTagsScreen()),
+              ),
             ),
           ),
 
@@ -401,7 +381,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: const ListTile(
               leading: Icon(Icons.info_outline),
               title: Text('Budget Tracker'),
-              subtitle: Text('Version 1.2.1'),
+              subtitle: Text('Version 1.2.2'),
             ),
           ),
         ],
@@ -510,29 +490,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showProgressDialog(String message) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => Center(
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: Theme.of(context).brightness == Brightness.dark
-                ? const Color(0xFF16181E)
-                : Colors.white,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const CircularProgressIndicator(),
-              const SizedBox(height: 16),
-              Text(message, style: const TextStyle(fontSize: 14)),
-            ],
-          ),
-        ),
-      ),
-    );
+    // The old inline version rendered a bare Container with no Material
+    // ancestor, so its text showed in the debug "missing font" style.
+    showAppProgressDialog(context, message);
   }
 
   Future<void> _createBackup() async {

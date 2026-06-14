@@ -245,14 +245,18 @@ class ExpenseCategories {
   /// Backward-compatible alias for predefined categories
   static List<String> get categories => allCategories;
 
-  /// All categories: predefined + user-created custom tags
+  /// All categories: predefined + user-created custom tags, minus any the
+  /// user has deleted/hidden.
   static List<String> get allCategories {
-    final custom = CustomTagService()
+    final service = CustomTagService();
+    final visiblePredefined =
+        predefined.where((c) => !service.isHidden(c)).toList();
+    final custom = service
         .getCustomTags()
         .map((t) => t.name)
         .where((name) => !predefined.contains(name))
         .toList();
-    return [...predefined, ...custom];
+    return [...visiblePredefined, ...custom];
   }
 
   /// Get icon for category (supports custom tags)
