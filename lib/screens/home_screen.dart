@@ -556,16 +556,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ],
           ),
           const SizedBox(height: 14),
-          PrivacyBlur(
-            child: CountUpAmount(
-              value: _monthlyExpenses,
-              formatter: formatter,
-              style: const TextStyle(
-                fontSize: 38,
-                fontWeight: FontWeight.w700,
-                letterSpacing: -1.2,
-                color: Colors.white,
-              ),
+          PrivacyAnimatedAmount(
+            value: _monthlyExpenses,
+            formatter: formatter,
+            style: const TextStyle(
+              fontSize: 38,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -1.2,
+              color: Colors.white,
             ),
           ),
           const SizedBox(height: 22),

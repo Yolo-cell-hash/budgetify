@@ -1,62 +1,76 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/app_preferences.dart';
+import 'motion.dart';
 
-/// Blurs [child] while Privacy Mode is on and amounts are hidden. Tapping a
-/// blurred amount toggles a session-wide reveal (one tap unblurs every
-/// amount in the app; tapping again re-hides). When privacy mode is off it
-/// renders [child] untouched.
+/// Replace the numeric portion of a formatted amount with a fixed bullet
+/// mask, keeping the currency symbol, sign, and any surrounding words —
+/// e.g. "+ ₹1,234.56" → "+ ₹••••", "₹12,345 spent" → "₹•••• spent".
 ///
-/// Real glyphs are blurred (rather than replaced with dots) so layout width
-/// and the premium feel are preserved — you can tell a figure is there, you
-/// just can't read it.
-class PrivacyBlur extends StatelessWidget {
-  final Widget child;
-  final double blurSigma;
-
-  const PrivacyBlur({super.key, required this.child, this.blurSigma = 9});
-
-  @override
-  Widget build(BuildContext context) {
-    final hidden = context.select<AppPreferences, bool>((p) => p.amountsHidden);
-    if (!hidden) return child;
-
-    return GestureDetector(
-      onTap: () => context.read<AppPreferences>().toggleReveal(),
-      behavior: HitTestBehavior.opaque,
-      child: ClipRect(
-        child: ImageFiltered(
-          imageFilter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
-          child: child,
-        ),
-      ),
-    );
-  }
+/// A fixed-width mask (rather than one bullet per digit) also hides the
+/// magnitude, not just the exact figure.
+String maskAmount(String formatted) {
+  return formatted.replaceAll(RegExp(r'[\d,]+(?:\.\d+)?'), '••••');
 }
 
-/// Convenience wrapper for a plain monetary text figure.
+/// A monetary [text] that renders as a clean bullet mask while Privacy Mode
+/// is on and amounts are hidden. Tapping toggles a session-wide reveal (one
+/// tap unmasks every amount; tapping again re-hides). When privacy mode is
+/// off it's a plain [Text].
 class PrivacyAmount extends StatelessWidget {
   final String text;
   final TextStyle? style;
   final TextAlign? textAlign;
-  final double blurSigma;
 
-  const PrivacyAmount(
-    this.text, {
+  const PrivacyAmount(this.text, {super.key, this.style, this.textAlign});
+
+  @override
+  Widget build(BuildContext context) {
+    final hidden = context.select<AppPreferences, bool>((p) => p.amountsHidden);
+    if (!hidden) return Text(text, style: style, textAlign: textAlign);
+
+    return GestureDetector(
+      onTap: () => context.read<AppPreferences>().toggleReveal(),
+      behavior: HitTestBehavior.opaque,
+      child: Text(maskAmount(text), style: style, textAlign: textAlign),
+    );
+  }
+}
+
+/// Amount that counts up when visible and shows the bullet mask when hidden.
+/// Use where an amount would otherwise animate (hero card, budget gauge).
+class PrivacyAnimatedAmount extends StatelessWidget {
+  final double value;
+  final NumberFormat formatter;
+  final TextStyle? style;
+  final String prefix;
+
+  const PrivacyAnimatedAmount({
     super.key,
+    required this.value,
+    required this.formatter,
     this.style,
-    this.textAlign,
-    this.blurSigma = 9,
+    this.prefix = '',
   });
 
   @override
   Widget build(BuildContext context) {
-    return PrivacyBlur(
-      blurSigma: blurSigma,
-      child: Text(text, style: style, textAlign: textAlign),
+    final hidden = context.select<AppPreferences, bool>((p) => p.amountsHidden);
+    if (hidden) {
+      return GestureDetector(
+        onTap: () => context.read<AppPreferences>().toggleReveal(),
+        behavior: HitTestBehavior.opaque,
+        child: Text(maskAmount('$prefix${formatter.format(value)}'),
+            style: style),
+      );
+    }
+    return CountUpAmount(
+      value: value,
+      formatter: formatter,
+      style: style,
+      prefix: prefix,
     );
   }
 }

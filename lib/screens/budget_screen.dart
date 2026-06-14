@@ -707,16 +707,14 @@ class _BudgetScreenState extends State<BudgetScreen>
                 Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    PrivacyBlur(
-                      child: CountUpAmount(
-                        value: _spent,
-                        formatter: fmt,
-                        style: const TextStyle(
-                          fontSize: 21,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: -0.5,
-                          color: Colors.white,
-                        ),
+                    PrivacyAnimatedAmount(
+                      value: _spent,
+                      formatter: fmt,
+                      style: const TextStyle(
+                        fontSize: 21,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.5,
+                        color: Colors.white,
                       ),
                     ),
                     const SizedBox(height: 4),
