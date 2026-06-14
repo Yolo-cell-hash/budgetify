@@ -140,7 +140,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             t.detectedAt.isBefore(monthEnd.add(const Duration(days: 1)))) {
           if (t.type == TransactionType.credit) {
             monthlyIncome += t.amount;
-          } else {
+          } else if (ExpenseCategories.isExpenseCategory(t.category)) {
+            // Self transfers and investments aren't spending
             monthlyExpenses += t.amount;
           }
         }

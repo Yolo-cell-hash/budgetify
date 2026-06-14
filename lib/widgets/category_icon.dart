@@ -19,6 +19,8 @@ class CategoryVisuals {
     'Education': Icons.school_rounded,
     'Salary': Icons.payments_rounded,
     'Transfer': Icons.swap_horiz_rounded,
+    'Self Transfer': Icons.sync_alt_rounded,
+    'Investments': Icons.trending_up_rounded,
     'Refund': Icons.replay_rounded,
     'Cash': Icons.account_balance_wallet_rounded,
     'Cash Conversion': Icons.currency_exchange_rounded,

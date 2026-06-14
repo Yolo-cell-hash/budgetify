@@ -5,6 +5,7 @@ import '../models/budget_model.dart';
 import '../models/transaction_model.dart';
 import '../providers/theme_provider.dart';
 import '../services/database_service.dart';
+import '../widgets/app_dialog.dart';
 import '../widgets/category_donut.dart';
 import '../widgets/glass.dart';
 import '../widgets/motion.dart';
@@ -1311,7 +1312,24 @@ class _BudgetScreenState extends State<BudgetScreen>
       BarChartData(
         alignment: BarChartAlignment.spaceAround,
         maxY: maxY,
-        barTouchData: BarTouchData(enabled: true),
+        // Match the line chart's dark tooltip with light text — the default
+        // bar tooltip is a light surface with black text, unreadable here.
+        barTouchData: BarTouchData(
+          enabled: true,
+          touchTooltipData: BarTouchTooltipData(
+            getTooltipColor: (_) => const Color(0xFF2E313A),
+            getTooltipItem: (group, groupIndex, rod, rodIndex) {
+              return BarTooltipItem(
+                '₹${rod.toY.toStringAsFixed(0)}',
+                const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                ),
+              );
+            },
+          ),
+        ),
         titlesData: _buildTrendsTitles(monthFormat),
         gridData: FlGridData(show: true, drawVerticalLine: false),
         borderData: FlBorderData(show: false),
@@ -1651,85 +1669,71 @@ class _BudgetScreenState extends State<BudgetScreen>
     final amountCtrl = TextEditingController(
       text: _budget?.amount.toStringAsFixed(0) ?? '',
     );
+    final editing = _budget != null;
 
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-          left: 24,
-          right: 24,
-          top: 24,
-          bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-        ),
-        child: Column(
+    await showAppDialog(
+      context,
+      builder: (ctx) => AppDialog(
+        icon: Icons.account_balance_wallet_rounded,
+        title: editing ? 'Edit Budget' : 'Set Budget',
+        subtitle: 'Track spending against a monthly limit. Self-transfers '
+            'and investments are excluded automatically.',
+        content: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              _budget == null ? 'Set Budget' : 'Edit Budget',
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 20),
             TextField(
               controller: nameCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Name',
-                border: OutlineInputBorder(),
-              ),
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(labelText: 'Name'),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
             TextField(
               controller: amountCtrl,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(
-                labelText: 'Amount',
+                labelText: 'Monthly amount',
                 prefixText: '₹ ',
-                border: OutlineInputBorder(),
               ),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                if (_budget != null)
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () async {
-                        await _db.deleteBudget(_budget!.id!);
-                        Navigator.pop(ctx);
-                        _loadData();
-                      },
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Color(0xFFD25A5F),
-                      ),
-                      child: const Text('Delete'),
-                    ),
-                  ),
-                if (_budget != null) const SizedBox(width: 16),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      final amt = double.tryParse(amountCtrl.text) ?? 0;
-                      if (amt <= 0) return;
-                      final b = Budget(
-                        id: _budget?.id,
-                        name: nameCtrl.text,
-                        amount: amt,
-                        startDate: DateTime.now(),
-                      );
-                      _budget == null
-                          ? await _db.insertBudget(b)
-                          : await _db.updateBudget(b);
-                      Navigator.pop(ctx);
-                      _loadData();
-                    },
-                    child: Text(_budget == null ? 'Set' : 'Save'),
-                  ),
-                ),
-              ],
             ),
           ],
         ),
+        actions: [
+          if (editing)
+            OutlinedButton(
+              onPressed: () async {
+                await _db.deleteBudget(_budget!.id!);
+                if (ctx.mounted) Navigator.pop(ctx);
+                _loadData();
+              },
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFFD25A5F),
+              ),
+              child: const Text('Delete'),
+            )
+          else
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+          ElevatedButton(
+            onPressed: () async {
+              final amt = double.tryParse(amountCtrl.text) ?? 0;
+              if (amt <= 0) return;
+              final b = Budget(
+                id: _budget?.id,
+                name: nameCtrl.text.trim().isEmpty
+                    ? 'Monthly Budget'
+                    : nameCtrl.text.trim(),
+                amount: amt,
+                startDate: DateTime.now(),
+              );
+              editing ? await _db.updateBudget(b) : await _db.insertBudget(b);
+              if (ctx.mounted) Navigator.pop(ctx);
+              _loadData();
+            },
+            child: Text(editing ? 'Save' : 'Set Budget'),
+          ),
+        ],
       ),
     );
   }

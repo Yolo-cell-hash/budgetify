@@ -63,6 +63,9 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
 
     for (final txn in transactions) {
       if (txn.type == TransactionType.debit) {
+        // Self transfers / investments aren't spending — keep them in the
+        // list but out of the spend total and category breakdown.
+        if (!ExpenseCategories.isExpenseCategory(txn.category)) continue;
         totalSpent += txn.amount;
         final cat = txn.category ?? 'Uncategorized';
         categoryBreakdown[cat] = (categoryBreakdown[cat] ?? 0) + txn.amount;

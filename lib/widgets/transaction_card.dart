@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/transaction_model.dart';
+import 'app_dialog.dart';
 import 'category_icon.dart';
 
 /// Card widget to display a transaction item with enhanced UI
@@ -37,21 +38,25 @@ class TransactionCard extends StatelessWidget {
         child: const Icon(Icons.delete_outline, color: Colors.white, size: 28),
       ),
       confirmDismiss: (direction) async {
-        return await showDialog<bool>(
-              context: context,
-              builder: (context) => AlertDialog(
-                title: const Text('Delete Transaction'),
-                content: const Text(
-                  'Are you sure you want to delete this transaction?',
-                ),
+        return await showAppDialog<bool>(
+              context,
+              builder: (context) => AppDialog(
+                icon: Icons.delete_outline_rounded,
+                accent: const Color(0xFFD25A5F),
+                title: 'Delete Transaction',
+                subtitle:
+                    "This won't return on the next scan. Are you sure?",
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(context, false),
                     child: const Text('Cancel'),
                   ),
-                  TextButton(
+                  ElevatedButton(
                     onPressed: () => Navigator.pop(context, true),
-                    style: TextButton.styleFrom(foregroundColor: Color(0xFFD25A5F)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFD25A5F),
+                      foregroundColor: Colors.white,
+                    ),
                     child: const Text('Delete'),
                   ),
                 ],
