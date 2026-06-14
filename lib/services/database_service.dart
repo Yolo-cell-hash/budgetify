@@ -481,6 +481,28 @@ class DatabaseService {
     return maps.map((map) => TransactionModel.fromMap(map)).toList();
   }
 
+  /// How many transactions currently carry [category].
+  Future<int> countTransactionsWithCategory(String category) async {
+    final db = await database;
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) AS c FROM transactions WHERE category = ?',
+      [category],
+    );
+    return (result.first['c'] as int?) ?? 0;
+  }
+
+  /// Clear [category] from every transaction that carries it (used when a
+  /// tag is deleted). Rows return to the unclassified queue.
+  Future<int> untagCategory(String category) async {
+    final db = await database;
+    return db.update(
+      'transactions',
+      {'category': null, 'is_classified': 0},
+      where: 'category = ?',
+      whereArgs: [category],
+    );
+  }
+
   /// Get transactions with combined filters
   Future<List<TransactionModel>> getFilteredTransactions({
     TransactionType? type,

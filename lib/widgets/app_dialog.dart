@@ -115,3 +115,58 @@ Future<T?> showAppDialog<T>(
     builder: builder,
   );
 }
+
+/// Show a themed, non-dismissible progress dialog with a gold spinner.
+/// Returns nothing; dismiss with `Navigator.pop(context)`.
+Future<void> showAppProgressDialog(BuildContext context, String message) {
+  return showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => _ProgressDialog(message: message),
+  );
+}
+
+class _ProgressDialog extends StatelessWidget {
+  final String message;
+  const _ProgressDialog({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
+    return Dialog(
+      backgroundColor: colors.surface,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: colors.border),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 26),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(
+              width: 26,
+              height: 26,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.6,
+                valueColor: AlwaysStoppedAnimation(AppColors.gold),
+              ),
+            ),
+            const SizedBox(width: 18),
+            Flexible(
+              child: Text(
+                message,
+                style: TextStyle(
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w500,
+                  color: colors.text,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

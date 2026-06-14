@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../models/transaction_model.dart' show ExpenseCategories;
 
 /// A custom tag created by the user, with a name and emoji.
 class CustomTag {
@@ -33,9 +34,11 @@ class CustomTag {
 class CustomTagService {
   static const String _storageKey = 'custom_tags';
   static const String _overridesKey = 'tag_emoji_overrides';
+  static const String _hiddenKey = 'hidden_tags';
   static final CustomTagService _instance = CustomTagService._internal();
   static List<CustomTag> _cachedTags = [];
   static Map<String, String> _emojiOverrides = {};
+  static Set<String> _hiddenTags = {}; // lowercased predefined names
   static bool _initialized = false;
 
   /// Fallback emojis used when a tag is created without choosing one.
@@ -106,6 +109,40 @@ class CustomTagService {
     await _saveToStorage();
   }
 
+  /// Predefined names the user has hidden ("deleted"). Predefined categories
+  /// can't be removed from the const list, so we remember them as hidden and
+  /// filter them out of the pickers.
+  bool isHidden(String name) => _hiddenTags.contains(name.toLowerCase());
+
+  /// Delete a tag, whether custom or predefined. Custom tags are removed
+  /// outright; predefined tags are hidden so they vanish from the pickers.
+  /// Any emoji override is also cleared. Callers are responsible for
+  /// untagging affected transactions first (see DatabaseService.untagCategory).
+  Future<void> deleteTag(String name) async {
+    final lower = name.toLowerCase();
+    if (isCustomTag(name)) {
+      await deleteCustomTag(name);
+    } else {
+      _hiddenTags.add(lower);
+      await _saveHidden();
+    }
+    if (_emojiOverrides.remove(lower) != null) {
+      await _saveOverrides();
+    }
+  }
+
+  /// Restore a previously hidden predefined tag.
+  Future<void> restoreTag(String name) async {
+    if (_hiddenTags.remove(name.toLowerCase())) {
+      await _saveHidden();
+    }
+  }
+
+  /// Predefined categories the user has hidden (for a "restore" affordance).
+  List<String> get hiddenPredefined => ExpenseCategories.predefined
+      .where((c) => _hiddenTags.contains(c.toLowerCase()))
+      .toList();
+
   /// Get the emoji for a tag name. Checks user overrides first (which can
   /// apply to predefined categories), then custom tags. Returns null when
   /// neither has one, letting callers fall back to the built-in icon.
@@ -165,11 +202,28 @@ class CustomTagService {
         _emojiOverrides = {};
       }
     }
+
+    final hiddenStr = prefs.getString(_hiddenKey);
+    if (hiddenStr != null) {
+      try {
+        _hiddenTags = (jsonDecode(hiddenStr) as List)
+            .map((e) => e.toString())
+            .toSet();
+      } catch (e) {
+        debugPrint('Error loading hidden tags: $e');
+        _hiddenTags = {};
+      }
+    }
   }
 
   Future<void> _saveOverrides() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_overridesKey, jsonEncode(_emojiOverrides));
+  }
+
+  Future<void> _saveHidden() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_hiddenKey, jsonEncode(_hiddenTags.toList()));
   }
 
   Future<void> _saveToStorage() async {

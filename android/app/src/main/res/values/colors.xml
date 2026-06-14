@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Ink background used by the native launch splash -->
+    <color name="launch_ink">#131520</color>
+</resources>
