@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:open_filex/open_filex.dart';
 import '../providers/theme_provider.dart';
+import '../providers/app_preferences.dart';
 import '../services/app_lock_service.dart';
 import '../services/backup_service.dart';
 import '../services/background_service.dart';
@@ -236,24 +237,52 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 8),
           _buildSettingsCard(
             isDark: isDark,
-            child: SwitchListTile(
-              secondary: Icon(
-                Icons.fingerprint,
-                color: _appLockEnabled
-                    ? const Color(0xFFA8843C)
-                    : const Color(0xFF8A8D96),
-              ),
-              title: const Text('App Lock'),
-              subtitle: Text(
-                _appLockEnabled
-                    ? 'Unlock with fingerprint, face, or device PIN'
-                    : 'Require authentication to open the app',
-                style: TextStyle(
-                  color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
+            child: Column(
+              children: [
+                SwitchListTile(
+                  secondary: Icon(
+                    Icons.fingerprint,
+                    color: _appLockEnabled
+                        ? const Color(0xFFA8843C)
+                        : const Color(0xFF8A8D96),
+                  ),
+                  title: const Text('App Lock'),
+                  subtitle: Text(
+                    _appLockEnabled
+                        ? 'Unlock with fingerprint, face, or device PIN'
+                        : 'Require authentication to open the app',
+                    style: TextStyle(
+                      color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
+                    ),
+                  ),
+                  value: _appLockEnabled,
+                  onChanged: _loading ? null : _toggleAppLock,
                 ),
-              ),
-              value: _appLockEnabled,
-              onChanged: _loading ? null : _toggleAppLock,
+                Divider(
+                  height: 1,
+                  color: isDark ? Color(0xFF2E313A) : Color(0xFFE9E9E4),
+                ),
+                SwitchListTile(
+                  secondary: Icon(
+                    context.watch<AppPreferences>().privacyMode
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                    color: context.watch<AppPreferences>().privacyMode
+                        ? const Color(0xFFA8843C)
+                        : const Color(0xFF8A8D96),
+                  ),
+                  title: const Text('Hide Amounts'),
+                  subtitle: Text(
+                    'Blur all figures until you tap to reveal',
+                    style: TextStyle(
+                      color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
+                    ),
+                  ),
+                  value: context.watch<AppPreferences>().privacyMode,
+                  onChanged: (v) =>
+                      context.read<AppPreferences>().setPrivacyMode(v),
+                ),
+              ],
             ),
           ),
 
@@ -381,7 +410,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: const ListTile(
               leading: Icon(Icons.info_outline),
               title: Text('Budget Tracker'),
-              subtitle: Text('Version 1.2.3'),
+              subtitle: Text('Version 1.2.4'),
             ),
           ),
         ],

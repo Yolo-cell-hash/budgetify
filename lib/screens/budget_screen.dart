@@ -9,6 +9,8 @@ import '../widgets/app_dialog.dart';
 import '../widgets/category_donut.dart';
 import '../widgets/glass.dart';
 import '../widgets/motion.dart';
+import '../widgets/privacy_amount.dart';
+import '../widgets/spending_calendar.dart';
 import 'transaction_detail_screen.dart';
 
 /// Chart display mode for trends
@@ -57,7 +59,7 @@ class _BudgetScreenState extends State<BudgetScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _overviewPageController = PageController();
     _generateAvailableMonths();
     _loadData();
@@ -190,6 +192,7 @@ class _BudgetScreenState extends State<BudgetScreen>
           isScrollable: true,
           tabs: const [
             Tab(text: 'Overview'),
+            Tab(text: 'Calendar'),
             Tab(text: 'Categories'),
             Tab(text: 'Trends'),
           ],
@@ -207,6 +210,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                 controller: _tabController,
                 children: [
                   _buildOverviewTab(isDark, fmt),
+                  const SpendingCalendar(),
                   _buildCategoriesTab(isDark, fmt),
                   _buildTrendsTab(isDark, fmt),
                 ],
@@ -602,7 +606,7 @@ class _BudgetScreenState extends State<BudgetScreen>
             ],
           ),
           const SizedBox(height: 8),
-          Text(
+          PrivacyAmount(
             fmt.format(amount),
             style: TextStyle(
               fontSize: 16,
@@ -703,7 +707,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                 Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    CountUpAmount(
+                    PrivacyAnimatedAmount(
                       value: _spent,
                       formatter: fmt,
                       style: const TextStyle(

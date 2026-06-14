@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../models/transaction_model.dart';
 import 'app_dialog.dart';
 import 'category_icon.dart';
+import 'privacy_amount.dart';
 
 /// Card widget to display a transaction item with enhanced UI
 class TransactionCard extends StatelessWidget {
@@ -193,7 +194,7 @@ class TransactionCard extends StatelessWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Text(
+                      PrivacyAmount(
                         '${isCredit ? '+' : '-'} ${formatter.format(transaction.amount)}',
                         style: TextStyle(
                           fontSize: 17,

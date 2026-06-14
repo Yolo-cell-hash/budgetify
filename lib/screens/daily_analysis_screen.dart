@@ -5,6 +5,7 @@ import '../services/database_service.dart';
 import '../widgets/category_donut.dart';
 import '../widgets/glass.dart';
 import '../widgets/motion.dart';
+import '../widgets/privacy_amount.dart';
 import 'transaction_detail_screen.dart';
 
 /// Screen showing daily analysis with a pie chart and transaction list
@@ -355,7 +356,7 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
           const SizedBox(height: 4),
           FittedBox(
             fit: BoxFit.scaleDown,
-            child: Text(
+            child: PrivacyAmount(
               amount,
               style: TextStyle(
                 fontSize: 14,
@@ -594,7 +595,7 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
             ],
           ],
         ),
-        trailing: Text(
+        trailing: PrivacyAmount(
           '${isCredit ? '+' : '-'} ${fmt.format(txn.amount)}',
           style: TextStyle(
             fontSize: 14,

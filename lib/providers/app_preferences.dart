@@ -1,15 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Provider for managing app preferences (onboarding, etc.)
+/// Provider for managing app preferences (onboarding, privacy, etc.)
 class AppPreferences extends ChangeNotifier {
   static const String _onboardingCompleteKey = 'onboarding_complete';
+  static const String _privacyModeKey = 'privacy_mode';
 
   bool _isOnboardingComplete = false;
   bool _isInitialized = false;
 
+  // Privacy mode hides/blurs monetary amounts. The on/off preference is
+  // persisted; whether amounts are momentarily revealed is session-only
+  // (it always resets to hidden on a fresh launch).
+  bool _privacyMode = false;
+  bool _amountsRevealed = false;
+
   bool get isOnboardingComplete => _isOnboardingComplete;
   bool get isInitialized => _isInitialized;
+  bool get privacyMode => _privacyMode;
+
+  /// Whether amounts should currently render hidden: privacy mode is on and
+  /// the user hasn't tapped to reveal this session.
+  bool get amountsHidden => _privacyMode && !_amountsRevealed;
 
   /// Initialize from shared preferences
   Future<void> initialize() async {
@@ -17,8 +29,25 @@ class AppPreferences extends ChangeNotifier {
 
     final prefs = await SharedPreferences.getInstance();
     _isOnboardingComplete = prefs.getBool(_onboardingCompleteKey) ?? false;
+    _privacyMode = prefs.getBool(_privacyModeKey) ?? false;
 
     _isInitialized = true;
+    notifyListeners();
+  }
+
+  /// Turn privacy mode on/off (persisted). Turning it on re-hides amounts.
+  Future<void> setPrivacyMode(bool enabled) async {
+    _privacyMode = enabled;
+    _amountsRevealed = false;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_privacyModeKey, enabled);
+  }
+
+  /// Momentarily reveal (or re-hide) amounts while privacy mode is on.
+  void toggleReveal() {
+    if (!_privacyMode) return;
+    _amountsRevealed = !_amountsRevealed;
     notifyListeners();
   }
 
