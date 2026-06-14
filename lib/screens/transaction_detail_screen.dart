@@ -4,6 +4,7 @@ import '../models/transaction_model.dart';
 import '../models/transaction_rule_model.dart';
 import '../services/database_service.dart';
 import '../services/custom_tag_service.dart';
+import '../widgets/app_toast.dart';
 
 /// Screen for viewing and classifying a transaction
 class TransactionDetailScreen extends StatefulWidget {
@@ -58,9 +59,8 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
         final untagged = _transaction.untagged().copyWith(notes: notes);
         await _dbService.updateTransaction(untagged);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Tag removed')),
-          );
+          showAppToast(context,
+              message: 'Tag removed', type: AppToastType.info);
           Navigator.pop(context, true);
         }
         return;
@@ -80,9 +80,8 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error saving: $e')));
+        showAppToast(context,
+            message: 'Error saving: $e', type: AppToastType.error);
       }
     } finally {
       setState(() => _isSaving = false);
@@ -316,16 +315,13 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
       // Option 3: Only this one transaction (no bulk update, no rule)
 
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(message)));
+        showAppToast(context, message: message, type: AppToastType.success);
         Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        showAppToast(context,
+            message: 'Error: $e', type: AppToastType.error);
         Navigator.pop(context, true);
       }
     }
@@ -550,11 +546,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                       onPressed: () async {
                         final name = nameController.text.trim();
                         if (name.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Please enter a tag name'),
-                            ),
-                          );
+                          showAppToast(context,
+                              message: 'Please enter a tag name',
+                              type: AppToastType.warning);
                           return;
                         }
                         final success = await CustomTagService().addCustomTag(
@@ -563,13 +557,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                         );
                         if (!success) {
                           if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'A tag with this name already exists',
-                                ),
-                              ),
-                            );
+                            showAppToast(context,
+                                message: 'A tag with this name already exists',
+                                type: AppToastType.warning);
                           }
                           return;
                         }

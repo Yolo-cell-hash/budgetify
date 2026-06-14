@@ -4,6 +4,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/app_preferences.dart';
 import '../services/background_service.dart';
+import '../widgets/app_toast.dart';
 import 'home_screen.dart';
 
 /// Onboarding screen for first-time users
@@ -67,9 +68,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        showAppToast(context, message: 'Error: $e', type: AppToastType.error);
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);

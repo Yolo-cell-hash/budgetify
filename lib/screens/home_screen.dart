@@ -10,6 +10,7 @@ import '../services/sms_service.dart';
 import '../services/notification_service.dart';
 import '../services/background_service.dart';
 import '../services/widget_service.dart';
+import '../widgets/app_toast.dart';
 import '../widgets/category_icon.dart';
 import '../widgets/glass.dart';
 import '../widgets/motion.dart';
@@ -182,16 +183,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _smsService.startListening(
       onTransactionDetected: (transaction) {
         _loadData();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '${transaction.type == TransactionType.credit ? "Credited" : "Debited"}: ₹${transaction.amount.toStringAsFixed(2)}',
-            ),
-            action: SnackBarAction(
-              label: 'View',
-              onPressed: () => _openTransactionsScreen(),
-            ),
-          ),
+        final isCredit = transaction.type == TransactionType.credit;
+        showAppToast(
+          context,
+          message:
+              '${isCredit ? "Credited" : "Debited"}: ₹${transaction.amount.toStringAsFixed(2)}',
+          type: isCredit ? AppToastType.success : AppToastType.info,
+          actionLabel: 'View',
+          onAction: _openTransactionsScreen,
         );
       },
     );
@@ -208,15 +207,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       await checkBudgetThresholds(_dbService, _notificationService);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Found ${transactions.length} transactions')),
+        showAppToast(
+          context,
+          message: transactions.isEmpty
+              ? 'No new transactions found'
+              : 'Found ${transactions.length} transaction${transactions.length == 1 ? '' : 's'}',
+          type: transactions.isEmpty
+              ? AppToastType.info
+              : AppToastType.success,
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error scanning SMS: $e')));
+        showAppToast(context,
+            message: 'Error scanning SMS: $e', type: AppToastType.error);
       }
     } finally {
       setState(() => _isScanning = false);
@@ -248,16 +252,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         await prefs.setBool('needs_initial_scan', false);
 
         if (mounted && transactions.isNotEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
+          showAppToast(
+            context,
+            message:
                 'Found ${transactions.length} transactions from your SMS',
-              ),
-              action: SnackBarAction(
-                label: 'View',
-                onPressed: () => _openTransactionsScreen(),
-              ),
-            ),
+            type: AppToastType.success,
+            actionLabel: 'View',
+            onAction: _openTransactionsScreen,
           );
         }
       } catch (e) {
@@ -279,12 +280,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           await checkBudgetThresholds(_dbService, _notificationService);
 
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
+            showAppToast(
+              context,
+              message:
                   '${transactions.length} new transaction${transactions.length > 1 ? 's' : ''} found',
-                ),
-              ),
+              type: AppToastType.success,
             );
           }
         } else {

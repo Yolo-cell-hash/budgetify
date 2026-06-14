@@ -1625,6 +1625,19 @@ class SmsParserService {
     'ZSBJBK',
     'ZSBMRT',
     'ZSBRMP',
+    // --- v1.2.0: SBI Card issuers + cooperative/Souharda credit banks
+    // (curated from DLT header registry; insurers/MF/securities/NBFCs
+    //  deliberately excluded to avoid non-transaction false positives) 
+    '100001', '120001', '131313', '141414', 'ACHRYA', 'AKPSCC',
+    'AKSHAY', 'ASCCSL', 'ASSCCL', 'BCCOSL', 'BTCCSL', 'DNRADH',
+    'FINBUS', 'GNCCSL', 'GOSBIC', 'GUCCSL', 'KSSFCL', 'MCSSMY',
+    'MTCCSM', 'MYSBIC', 'NISHNT', 'NUTCCS', 'PARIJT', 'PLMSCS',
+    'RAMCSO', 'SBCCSE', 'SBCCSL', 'SBICAE', 'SBICAI', 'SBICAU',
+    'SBICGV', 'SBICHR', 'SBICIT', 'SBICMR', 'SBICRD', 'SBICSR',
+    'SBICTR', 'SBIOLA', 'SHUBHL', 'SKABIR', 'SSCCOL', 'SSCSSL',
+    'SSNMCS', 'STRNDI', 'SVCCSB', 'SVMSCA', 'SVSCCL', 'TATACC',
+    'TATACD', 'TATAMR', 'TKCCSL', 'TMCCLT', 'TULAJA', 'UDPVSS',
+    'UJALAC', 'VCCSJ', 'VCCSJL', 'VJYSOU', 'VULCAN', 'WNSPLT',
   ];
 
   /// Merchant keywords for auto-categorization
