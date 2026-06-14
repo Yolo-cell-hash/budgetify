@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="380" viewBox="0 0 1200 380" font-family="'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#23273A"/>
+      <stop offset="1" stop-color="#0C0E16"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#E4C57E"/>
+      <stop offset="1" stop-color="#A8843C"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#C8A75E" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#C8A75E" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1200" height="380" rx="24" fill="url(#bg)"/>
+  <circle cx="980" cy="90" r="260" fill="url(#glow)"/>
+  <circle cx="180" cy="340" r="220" fill="#3A4163" opacity="0.18"/>
+
+  <!-- Badge -->
+  <g transform="translate(96,118)">
+    <circle cx="72" cy="72" r="72" fill="#14161F" stroke="#C8A75E" stroke-opacity="0.4" stroke-width="2"/>
+    <circle cx="72" cy="72" r="72" fill="none" stroke="url(#gold)" stroke-width="3" stroke-dasharray="150 300" stroke-linecap="round"/>
+    <g transform="translate(40,40)" fill="none" stroke="url(#gold)" stroke-width="5" stroke-linejoin="round" stroke-linecap="round">
+      <rect x="4" y="14" width="56" height="40" rx="9"/>
+      <path d="M4 24 H60"/>
+      <circle cx="48" cy="38" r="4.5" fill="url(#gold)" stroke="none"/>
+    </g>
+  </g>
+
+  <!-- Wordmark -->
+  <text x="280" y="170" fill="#FFFFFF" font-size="74" font-weight="700" letter-spacing="-2">Budgetify</text>
+  <text x="284" y="214" fill="#C8A75E" font-size="21" font-weight="600" letter-spacing="6">YOUR MONEY, BEAUTIFULLY TRACKED</text>
+
+  <!-- Feature pills -->
+  <g font-size="19" font-weight="600">
+    <g transform="translate(284,250)">
+      <rect width="234" height="44" rx="22" fill="#FFFFFF" fill-opacity="0.06" stroke="#C8A75E" stroke-opacity="0.30"/>
+      <text x="22" y="29" fill="#E9E9E4">100% Offline &amp; Private</text>
+    </g>
+    <g transform="translate(530,250)">
+      <rect width="216" height="44" rx="22" fill="#FFFFFF" fill-opacity="0.06" stroke="#C8A75E" stroke-opacity="0.30"/>
+      <text x="22" y="29" fill="#E9E9E4">Automatic SMS Tracking</text>
+    </g>
+    <g transform="translate(758,250)">
+      <rect width="150" height="44" rx="22" fill="#FFFFFF" fill-opacity="0.06" stroke="#C8A75E" stroke-opacity="0.30"/>
+      <text x="22" y="29" fill="#E9E9E4">No Ads, No Cloud</text>
+    </g>
+  </g>
+</svg>
