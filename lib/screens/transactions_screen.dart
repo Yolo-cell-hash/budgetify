@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/transaction_model.dart';
+import '../providers/theme_provider.dart';
 import '../services/database_service.dart';
+import '../widgets/app_toast.dart';
 import '../widgets/transaction_card.dart';
 import 'transaction_detail_screen.dart';
 import 'add_transaction_screen.dart';
@@ -38,6 +40,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   DateTime? _startDate;
   DateTime? _endDate;
 
+  // Free-text search across merchant/payee, amount, and date
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
   // Monthly totals (for summary card — always current month, unfiltered)
   double _monthlyCredits = 0;
   double _monthlyDebits = 0;
@@ -51,6 +57,40 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     _endDate = widget.initialEndDate;
     _loadFiltersData();
     _loadTransactions();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  /// Match a transaction against the free-text query. A transaction matches
+  /// if the query appears in its merchant/payee/category, in its formatted
+  /// date, or — when the query is numeric — in its amount.
+  bool _matchesSearch(TransactionModel t) {
+    final q = _searchQuery.trim().toLowerCase();
+    if (q.isEmpty) return true;
+
+    final haystack = StringBuffer()
+      ..write(t.merchantName ?? '')
+      ..write(' ')
+      ..write(t.sender)
+      ..write(' ')
+      ..write(t.category ?? '')
+      ..write(' ')
+      ..write(DateFormat('d MMM yyyy').format(t.detectedAt))
+      ..write(' ')
+      ..write(DateFormat('dd/MM/yyyy').format(t.detectedAt));
+    if (haystack.toString().toLowerCase().contains(q)) return true;
+
+    // Numeric query → match against the amount (with and without paise)
+    final digits = q.replaceAll(RegExp(r'[^0-9.]'), '');
+    if (digits.isNotEmpty) {
+      if (t.amount.toStringAsFixed(2).contains(digits)) return true;
+      if (t.amount.toStringAsFixed(0).contains(digits)) return true;
+    }
+    return false;
   }
 
   Future<void> _loadFiltersData() async {
@@ -82,6 +122,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         }).toList();
       }
 
+      // Apply free-text search
+      if (_searchQuery.trim().isNotEmpty) {
+        transactions = transactions.where(_matchesSearch).toList();
+      }
+
       // Load current-month totals (always unfiltered) for the summary card
       final now = DateTime.now();
       final monthStart = DateTime(now.year, now.month, 1);
@@ -108,9 +153,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading transactions: $e')),
-        );
+        showAppToast(context,
+            message: 'Error loading transactions: $e',
+            type: AppToastType.error);
       }
     }
   }
@@ -122,6 +167,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       _unclassifiedOnly = false;
       _startDate = null;
       _endDate = null;
+      _searchQuery = '';
+      _searchController.clear();
     });
     _loadTransactions();
   }
@@ -130,7 +177,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       _typeFilter != null ||
       _categoryFilter != null ||
       _unclassifiedOnly ||
-      _startDate != null;
+      _startDate != null ||
+      _searchQuery.trim().isNotEmpty;
 
   Future<void> _deleteTransaction(TransactionModel transaction) async {
     if (transaction.id == null) return;
@@ -139,9 +187,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     await _loadTransactions();
 
     if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Transaction deleted')));
+      showAppToast(context,
+          message: "Transaction deleted — it won't return on the next scan",
+          type: AppToastType.info);
     }
   }
 
@@ -239,10 +287,50 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   }
 
   Widget _buildFilterSection(bool isDark) {
+    final colors = AppColors.of(context);
     return Container(
       color: isDark ? const Color(0xFF121318) : Colors.white,
       child: Column(
         children: [
+          // Search bar — matches payee/merchant, amount, or date
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: TextField(
+              controller: _searchController,
+              onChanged: (v) {
+                setState(() => _searchQuery = v);
+                _loadTransactions();
+              },
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: 'Search by payee, amount, or date',
+                prefixIcon: const Icon(Icons.search, size: 20),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        onPressed: () {
+                          setState(() => _searchQuery = '');
+                          _searchController.clear();
+                          _loadTransactions();
+                        },
+                      )
+                    : null,
+                filled: true,
+                fillColor: colors.cardAlt,
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: colors.border),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: colors.border),
+                ),
+              ),
+            ),
+          ),
           // Type filter row
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,

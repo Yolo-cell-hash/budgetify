@@ -1,21 +1,80 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:excel/excel.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:flutter/material.dart' show DateTimeRange;
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/transaction_model.dart';
 import 'database_service.dart';
 import 'sms_parser_service.dart';
 
-/// Service for exporting transaction data to CSV and TXT files.
+/// Output formats for an export.
+enum ExportFormat { excel, csv, text }
+
+/// User-chosen filters applied before an export. Empty/null fields mean
+/// "no restriction on this dimension".
+class ExportFilter {
+  final DateTimeRange? dateRange;
+  final Set<TransactionType> types; // empty = both credit and debit
+  final Set<String> categories; // empty = all; 'Uncategorized' matches null
+  final String merchantQuery; // case-insensitive substring on merchant/sender
+
+  const ExportFilter({
+    this.dateRange,
+    this.types = const {},
+    this.categories = const {},
+    this.merchantQuery = '',
+  });
+
+  bool get isUnfiltered =>
+      dateRange == null &&
+      types.isEmpty &&
+      categories.isEmpty &&
+      merchantQuery.trim().isEmpty;
+
+  bool matches(TransactionModel t) {
+    if (types.isNotEmpty && !types.contains(t.type)) return false;
+
+    if (dateRange != null) {
+      final d = t.detectedAt;
+      final start = DateTime(
+        dateRange!.start.year,
+        dateRange!.start.month,
+        dateRange!.start.day,
+      );
+      final end = DateTime(
+        dateRange!.end.year,
+        dateRange!.end.month,
+        dateRange!.end.day,
+        23,
+        59,
+        59,
+      );
+      if (d.isBefore(start) || d.isAfter(end)) return false;
+    }
+
+    if (categories.isNotEmpty) {
+      final cat = t.category ?? 'Uncategorized';
+      if (!categories.contains(cat)) return false;
+    }
+
+    final q = merchantQuery.trim().toLowerCase();
+    if (q.isNotEmpty) {
+      final hay = '${t.merchantName ?? ''} ${t.sender}'.toLowerCase();
+      if (!hay.contains(q)) return false;
+    }
+    return true;
+  }
+}
+
+/// Service for exporting transaction data to Excel (.xlsx), CSV, and TXT.
 ///
-/// CSV is a single clean table (no decorative rows) with a UTF-8 BOM so
-/// Excel parses it correctly. TXT is a plain-ASCII aligned report that
-/// renders the same in every viewer — no emoji or box-drawing characters,
-/// which showed up as mojibake in non-UTF8 apps.
+/// Excel output is a genuine .xlsx workbook (not CSV-with-an-xls-name, which
+/// some Excel installs reject as corrupt) with a styled header, numeric
+/// amount/date cells, and a summary sheet.
 class ExportService {
   final DatabaseService _db = DatabaseService();
-
-  // ── Formatters ──────────────────────────────────────────────────────
 
   static final _dateFmt = DateFormat('dd MMM yyyy');
   static final _timeFmt = DateFormat('HH:mm');
@@ -25,162 +84,284 @@ class ExportService {
   static final _currencyFmt = NumberFormat('#,##0.00', 'en_IN');
 
   static const int _reportWidth = 64;
+  static const List<String> _columns = [
+    'Month', 'Date', 'Time', 'Type', 'Amount',
+    'Category', 'Merchant', 'Account', 'Bank', 'Notes',
+  ];
 
   // ── Public API ──────────────────────────────────────────────────────
 
-  /// Export all transactions to a CSV file. One clean header row and one
-  /// row per transaction — month lives in its own column so the file is
-  /// sortable/filterable in Excel and Sheets. Returns the saved file path.
-  Future<String> exportToExcel() async {
-    final transactions = await _db.getAllTransactions();
-    final buffer = StringBuffer();
+  /// Export in [format] honoring [filter]. Returns the saved file path,
+  /// or null when the filter matched no transactions.
+  Future<String?> export({
+    required ExportFormat format,
+    ExportFilter filter = const ExportFilter(),
+  }) async {
+    final all = await _db.getAllTransactions();
+    final txns = all.where(filter.matches).toList();
+    if (txns.isEmpty) return null;
 
-    buffer.writeln(
-      'Month,Date,Time,Type,Amount,Category,Merchant,Account,Bank,Notes',
+    switch (format) {
+      case ExportFormat.excel:
+        return _writeBytes('xlsx', _buildWorkbook(txns));
+      case ExportFormat.csv:
+        return _writeBytes('csv', _buildCsvBytes(txns));
+      case ExportFormat.text:
+        return _writeString('txt', _buildTxt(txns));
+    }
+  }
+
+  // ── Excel (.xlsx) ───────────────────────────────────────────────────
+
+  @visibleForTesting
+  List<int> buildWorkbookForTest(List<TransactionModel> txns) =>
+      _buildWorkbook(txns);
+
+  @visibleForTesting
+  List<int> buildCsvForTest(List<TransactionModel> txns) =>
+      _buildCsvBytes(txns);
+
+  List<int> _buildWorkbook(List<TransactionModel> txns) {
+    final excel = Excel.createExcel();
+    final defaultSheet = excel.getDefaultSheet()!;
+
+    // ── Transactions sheet ──
+    final sheet = excel['Transactions'];
+
+    final headerStyle = CellStyle(
+      bold: true,
+      fontColorHex: ExcelColor.fromHexString('#FFFFFF'),
+      backgroundColorHex: ExcelColor.fromHexString('#1B1E28'),
+      horizontalAlign: HorizontalAlign.Center,
     );
+    sheet.appendRow(_columns.map((c) => TextCellValue(c) as CellValue).toList());
+    for (var c = 0; c < _columns.length; c++) {
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: c, rowIndex: 0))
+          .cellStyle = headerStyle;
+    }
 
-    final grouped = _groupByMonth(transactions);
+    final grouped = _groupByMonth(txns);
     for (final entry in grouped.entries) {
       final month = _monthYearFmt.format(entry.key);
-      for (final txn in entry.value) {
-        buffer.writeln(_transactionToCsvRow(month, txn));
+      for (final t in entry.value) {
+        sheet.appendRow(<CellValue?>[
+          TextCellValue(month),
+          DateTimeCellValue(
+            year: t.detectedAt.year,
+            month: t.detectedAt.month,
+            day: t.detectedAt.day,
+            hour: t.detectedAt.hour,
+            minute: t.detectedAt.minute,
+          ),
+          TextCellValue(_timeFmt.format(t.detectedAt)),
+          TextCellValue(t.type == TransactionType.credit ? 'Credit' : 'Debit'),
+          // Numeric so Excel can sum/sort/filter
+          DoubleCellValue(t.amount),
+          TextCellValue(t.category ?? ''),
+          TextCellValue(t.merchantName ?? ''),
+          TextCellValue(t.accountInfo ?? ''),
+          TextCellValue(t.isManual
+              ? 'Manual'
+              : SmsParserService.normalizeSender(t.sender)),
+          TextCellValue(t.notes ?? ''),
+        ]);
       }
     }
 
-    final dir = await _getExportDirectory();
-    final fileName =
-        'budgetify_export_${_fileDateFmt.format(DateTime.now())}.csv';
-    final file = File('${dir.path}/$fileName');
-    // UTF-8 BOM so Excel on Windows decodes the file as UTF-8 instead of
-    // ANSI (which turned any non-ASCII character into gibberish)
-    await file.writeAsBytes([0xEF, 0xBB, 0xBF, ...utf8.encode(buffer.toString())]);
+    // Reasonable column widths
+    const widths = [14.0, 13.0, 7.0, 8.0, 12.0, 16.0, 22.0, 10.0, 12.0, 24.0];
+    for (var c = 0; c < widths.length; c++) {
+      sheet.setColumnWidth(c, widths[c]);
+    }
 
-    return file.path;
+    // ── Summary sheet ──
+    _buildSummarySheet(excel['Summary'], txns);
+
+    // Drop the auto-created default sheet so the file opens on Transactions
+    if (defaultSheet != 'Transactions' && defaultSheet != 'Summary') {
+      excel.delete(defaultSheet);
+    }
+    excel.setDefaultSheet('Transactions');
+
+    return excel.save()!;
   }
 
-  /// Export all transactions to a plain-text report. Fixed-width ASCII
-  /// columns, amounts right-aligned. Returns the saved file path.
-  Future<String> exportToTxt() async {
-    final transactions = await _db.getAllTransactions();
-    final buffer = StringBuffer();
+  void _buildSummarySheet(Sheet sheet, List<TransactionModel> txns) {
+    double income = 0, expenses = 0;
+    final byCategory = <String, double>{};
+    for (final t in txns) {
+      if (t.type == TransactionType.credit) {
+        income += t.amount;
+      } else {
+        expenses += t.amount;
+        final c = t.category ?? 'Uncategorized';
+        byCategory[c] = (byCategory[c] ?? 0) + t.amount;
+      }
+    }
 
-    // ── Header ────────────────────────────────────────────────────────
+    final titleStyle = CellStyle(bold: true, fontSize: 14);
+    final labelStyle = CellStyle(bold: true);
+
+    void row(int r, String label, CellValue value, {CellStyle? style}) {
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: r))
+        ..value = TextCellValue(label)
+        ..cellStyle = style ?? labelStyle;
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: r)).value =
+          value;
+    }
+
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0))
+      ..value = TextCellValue('Budgetify Summary')
+      ..cellStyle = titleStyle;
+    row(2, 'Total Transactions', IntCellValue(txns.length));
+    row(3, 'Total Income', DoubleCellValue(income));
+    row(4, 'Total Expenses', DoubleCellValue(expenses));
+    row(5, 'Net', DoubleCellValue(income - expenses));
+
+    row(7, 'Expenses by Category', TextCellValue(''), style: titleStyle);
+    final sortedCats = byCategory.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    var r = 8;
+    for (final e in sortedCats) {
+      row(r++, e.key, DoubleCellValue(e.value));
+    }
+
+    sheet.setColumnWidth(0, 24.0);
+    sheet.setColumnWidth(1, 16.0);
+  }
+
+  // ── CSV ─────────────────────────────────────────────────────────────
+
+  List<int> _buildCsvBytes(List<TransactionModel> txns) {
+    final buffer = StringBuffer()..writeln(_columns.join(','));
+    final grouped = _groupByMonth(txns);
+    for (final entry in grouped.entries) {
+      final month = _monthYearFmt.format(entry.key);
+      for (final t in entry.value) {
+        buffer.writeln(_csvRow(month, t));
+      }
+    }
+    // UTF-8 BOM so Excel decodes as UTF-8 (ANSI default mangled non-ASCII)
+    return [0xEF, 0xBB, 0xBF, ...utf8.encode(buffer.toString())];
+  }
+
+  String _csvRow(String month, TransactionModel t) {
+    final fields = [
+      month,
+      _dateFmt.format(t.detectedAt),
+      _timeFmt.format(t.detectedAt),
+      t.type == TransactionType.credit ? 'Credit' : 'Debit',
+      t.amount.toStringAsFixed(2),
+      t.category ?? '',
+      t.merchantName ?? '',
+      t.accountInfo ?? '',
+      t.isManual ? 'Manual' : SmsParserService.normalizeSender(t.sender),
+      t.notes ?? '',
+    ];
+    return fields.map(_escapeCsv).join(',');
+  }
+
+  String _escapeCsv(String value) {
+    if (value.contains(',') ||
+        value.contains('"') ||
+        value.contains('\n') ||
+        value.contains('\r')) {
+      return '"${value.replaceAll('"', '""')}"';
+    }
+    return value;
+  }
+
+  // ── Text report ─────────────────────────────────────────────────────
+
+  String _buildTxt(List<TransactionModel> txns) {
+    final buffer = StringBuffer();
     buffer.writeln('=' * _reportWidth);
     buffer.writeln('  BUDGETIFY EXPORT');
     buffer.writeln('  Generated: ${_dateFmt.format(DateTime.now())}');
     buffer.writeln('=' * _reportWidth);
     buffer.writeln();
 
-    // ── Overall summary ───────────────────────────────────────────────
-    double totalIncome = 0;
-    double totalExpenses = 0;
-    for (final txn in transactions) {
-      if (txn.type == TransactionType.credit) {
-        totalIncome += txn.amount;
+    double totalIncome = 0, totalExpenses = 0;
+    for (final t in txns) {
+      if (t.type == TransactionType.credit) {
+        totalIncome += t.amount;
       } else {
-        totalExpenses += txn.amount;
+        totalExpenses += t.amount;
       }
     }
 
     buffer.writeln('SUMMARY');
     buffer.writeln('-' * _reportWidth);
-    buffer.writeln(_summaryLine('Total Transactions', '${transactions.length}'));
+    buffer.writeln(_summaryLine('Total Transactions', '${txns.length}'));
     buffer.writeln(_summaryLine('Total Income', _rs(totalIncome)));
     buffer.writeln(_summaryLine('Total Expenses', _rs(totalExpenses)));
     buffer.writeln(_summaryLine('Net', _rs(totalIncome - totalExpenses)));
     buffer.writeln();
 
-    // ── Monthly sections ──────────────────────────────────────────────
-    final grouped = _groupByMonth(transactions);
-
+    final grouped = _groupByMonth(txns);
     for (final entry in grouped.entries) {
       buffer.writeln(_monthYearFmt.format(entry.key).toUpperCase());
       buffer.writeln('-' * _reportWidth);
 
-      final monthTxns = entry.value;
       final expenses =
-          monthTxns.where((t) => t.type == TransactionType.debit).toList();
+          entry.value.where((t) => t.type == TransactionType.debit).toList();
       final income =
-          monthTxns.where((t) => t.type == TransactionType.credit).toList();
+          entry.value.where((t) => t.type == TransactionType.credit).toList();
 
       if (expenses.isNotEmpty) {
         buffer.writeln('EXPENSES BY CATEGORY');
-
         final byCategory = <String, List<TransactionModel>>{};
-        for (final txn in expenses) {
-          byCategory
-              .putIfAbsent(txn.category ?? 'Uncategorized', () => [])
-              .add(txn);
+        for (final t in expenses) {
+          byCategory.putIfAbsent(t.category ?? 'Uncategorized', () => []).add(t);
         }
-        final sortedCategories = byCategory.entries.toList()
+        final sorted = byCategory.entries.toList()
           ..sort((a, b) {
-            final totalA = a.value.fold<double>(0, (s, t) => s + t.amount);
-            final totalB = b.value.fold<double>(0, (s, t) => s + t.amount);
-            return totalB.compareTo(totalA);
+            final ta = a.value.fold<double>(0, (s, t) => s + t.amount);
+            final tb = b.value.fold<double>(0, (s, t) => s + t.amount);
+            return tb.compareTo(ta);
           });
-
-        double totalMonthExpenses = 0;
-        for (final catEntry in sortedCategories) {
-          final catTotal =
-              catEntry.value.fold<double>(0, (s, t) => s + t.amount);
-          totalMonthExpenses += catTotal;
-
-          buffer.writeln(_row(catEntry.key, _rs(catTotal), indent: 2));
-          for (final txn in catEntry.value) {
-            buffer.writeln(
-              _row(
-                '${_dayFmt.format(txn.detectedAt)}  '
-                '${txn.merchantName ?? txn.sender}',
-                _currencyFmt.format(txn.amount),
-                indent: 4,
-              ),
-            );
+        double monthTotal = 0;
+        for (final cat in sorted) {
+          final catTotal = cat.value.fold<double>(0, (s, t) => s + t.amount);
+          monthTotal += catTotal;
+          buffer.writeln(_row(cat.key, _rs(catTotal), indent: 2));
+          for (final t in cat.value) {
+            buffer.writeln(_row(
+              '${_dayFmt.format(t.detectedAt)}  ${t.merchantName ?? t.sender}',
+              _currencyFmt.format(t.amount),
+              indent: 4,
+            ));
           }
         }
-        buffer.writeln(_row('TOTAL EXPENSES', _rs(totalMonthExpenses), indent: 2));
+        buffer.writeln(_row('TOTAL EXPENSES', _rs(monthTotal), indent: 2));
         buffer.writeln();
       }
 
       if (income.isNotEmpty) {
         buffer.writeln('INCOME');
-
-        double totalMonthIncome = 0;
-        for (final txn in income) {
-          totalMonthIncome += txn.amount;
-          buffer.writeln(
-            _row(
-              '${_dayFmt.format(txn.detectedAt)}  '
-              '${txn.merchantName ?? txn.sender}',
-              _currencyFmt.format(txn.amount),
-              indent: 2,
-            ),
-          );
+        double monthIncome = 0;
+        for (final t in income) {
+          monthIncome += t.amount;
+          buffer.writeln(_row(
+            '${_dayFmt.format(t.detectedAt)}  ${t.merchantName ?? t.sender}',
+            _currencyFmt.format(t.amount),
+            indent: 2,
+          ));
         }
-        buffer.writeln(_row('TOTAL INCOME', _rs(totalMonthIncome), indent: 2));
+        buffer.writeln(_row('TOTAL INCOME', _rs(monthIncome), indent: 2));
         buffer.writeln();
       }
     }
-
-    final dir = await _getExportDirectory();
-    final fileName =
-        'budgetify_export_${_fileDateFmt.format(DateTime.now())}.txt';
-    final file = File('${dir.path}/$fileName');
-    await file.writeAsString(buffer.toString());
-
-    return file.path;
+    return buffer.toString();
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────
 
   static String _rs(double amount) => 'Rs. ${_currencyFmt.format(amount)}';
 
-  /// "Label              : value" summary line.
-  static String _summaryLine(String label, String value) {
-    return '${label.padRight(20)}: $value';
-  }
+  static String _summaryLine(String label, String value) =>
+      '${label.padRight(20)}: $value';
 
-  /// One report row: left text (truncated with "..." if too long) and a
-  /// right-aligned amount, always exactly [_reportWidth] wide.
   static String _row(String left, String right, {int indent = 0}) {
     final leftWidth = _reportWidth - right.length - indent - 1;
     var text = left;
@@ -190,63 +371,37 @@ class ExportService {
     return '${' ' * indent}${text.padRight(leftWidth)} $right';
   }
 
-  /// Get the directory for saving exports.
-  /// Saves to the public Downloads folder so users can find files easily.
+  Future<String> _writeBytes(String ext, List<int> bytes) async {
+    final dir = await _getExportDirectory();
+    final file = File('${dir.path}/budgetify_export_'
+        '${_fileDateFmt.format(DateTime.now())}.$ext');
+    await file.writeAsBytes(bytes, flush: true);
+    return file.path;
+  }
+
+  Future<String> _writeString(String ext, String content) async {
+    final dir = await _getExportDirectory();
+    final file = File('${dir.path}/budgetify_export_'
+        '${_fileDateFmt.format(DateTime.now())}.$ext');
+    await file.writeAsString(content, flush: true);
+    return file.path;
+  }
+
   Future<Directory> _getExportDirectory() async {
-    // Use public Downloads directory on Android
     final downloadsDir = Directory('/storage/emulated/0/Download');
-    if (await downloadsDir.exists()) {
-      return downloadsDir;
-    }
-    // Fallback to app documents directory
+    if (await downloadsDir.exists()) return downloadsDir;
     return await getApplicationDocumentsDirectory();
   }
 
-  /// Group transactions by month (descending order).
-  /// Returns a [LinkedHashMap] keyed by the first day of each month.
   Map<DateTime, List<TransactionModel>> _groupByMonth(
     List<TransactionModel> transactions,
   ) {
     final Map<DateTime, List<TransactionModel>> grouped = {};
-
-    for (final txn in transactions) {
-      final key = DateTime(txn.detectedAt.year, txn.detectedAt.month);
-      grouped.putIfAbsent(key, () => []).add(txn);
+    for (final t in transactions) {
+      final key = DateTime(t.detectedAt.year, t.detectedAt.month);
+      grouped.putIfAbsent(key, () => []).add(t);
     }
-
-    // Sort keys descending (most recent month first)
-    final sortedKeys = grouped.keys.toList()
-      ..sort((a, b) => b.compareTo(a));
-
+    final sortedKeys = grouped.keys.toList()..sort((a, b) => b.compareTo(a));
     return {for (final key in sortedKeys) key: grouped[key]!};
-  }
-
-  /// Convert a single transaction to a CSV row string.
-  String _transactionToCsvRow(String month, TransactionModel txn) {
-    final fields = [
-      month,
-      _dateFmt.format(txn.detectedAt),
-      _timeFmt.format(txn.detectedAt),
-      txn.type == TransactionType.credit ? 'Credit' : 'Debit',
-      txn.amount.toStringAsFixed(2),
-      txn.category ?? '',
-      txn.merchantName ?? '',
-      txn.accountInfo ?? '',
-      txn.isManual ? 'Manual' : SmsParserService.normalizeSender(txn.sender),
-      txn.notes ?? '',
-    ];
-    return fields.map(_escapeCsv).join(',');
-  }
-
-  /// Escape a value for CSV: wrap in double quotes if it contains
-  /// commas, double-quotes, or newlines.
-  String _escapeCsv(String value) {
-    if (value.contains(',') ||
-        value.contains('"') ||
-        value.contains('\n') ||
-        value.contains('\r')) {
-      return '"${value.replaceAll('"', '""')}"';
-    }
-    return value;
   }
 }

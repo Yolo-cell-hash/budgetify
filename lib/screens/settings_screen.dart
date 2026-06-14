@@ -9,6 +9,8 @@ import '../services/app_lock_service.dart';
 import '../services/backup_service.dart';
 import '../services/background_service.dart';
 import '../services/export_service.dart';
+import '../widgets/app_toast.dart';
+import '../widgets/export_options_sheet.dart';
 
 /// Settings screen with theme toggle and auto-scan configuration
 class SettingsScreen extends StatefulWidget {
@@ -71,12 +73,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       intervalHours: _scanIntervalHours,
     );
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            _autoScanEnabled ? 'Auto-scan enabled' : 'Auto-scan disabled',
-          ),
-        ),
+      showAppToast(
+        context,
+        message: _autoScanEnabled ? 'Auto-scan enabled' : 'Auto-scan disabled',
+        type: _autoScanEnabled ? AppToastType.success : AppToastType.info,
       );
     }
   }
@@ -336,12 +336,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 if (confirmed == true && context.mounted) {
                   await context.read<AppPreferences>().resetOnboarding();
                   if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Onboarding reset. Restart app to see changes.',
-                        ),
-                      ),
+                    showAppToast(
+                      context,
+                      message: 'Onboarding reset. Restart app to see changes.',
+                      type: AppToastType.info,
                     );
                   }
                 }
@@ -356,41 +354,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 8),
           _buildSettingsCard(
             isDark: isDark,
-            child: Column(
-              children: [
-                ListTile(
-                  leading: Icon(Icons.table_chart, color: Color(0xFF4A6489)),
-                  title: const Text('Export as Excel'),
-                  subtitle: Text(
-                    'Month-wise categorized data (.csv)',
-                    style: TextStyle(
-                      color: isDark
-                          ? Color(0xFF8A8D96)
-                          : Color(0xFF6E727C),
-                    ),
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _exportData(isExcel: true),
+            child: ListTile(
+              leading: Icon(Icons.ios_share, color: Color(0xFF4A6489)),
+              title: const Text('Export Data'),
+              subtitle: Text(
+                'Excel, CSV, or text — filter by date, type, tag or payee',
+                style: TextStyle(
+                  color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
                 ),
-                Divider(
-                  height: 1,
-                  color: isDark ? Color(0xFF2E313A) : Color(0xFFE9E9E4),
-                ),
-                ListTile(
-                  leading: Icon(Icons.description, color: Color(0xFF178A5B)),
-                  title: const Text('Export as Text'),
-                  subtitle: Text(
-                    'Formatted summary report (.txt)',
-                    style: TextStyle(
-                      color: isDark
-                          ? Color(0xFF8A8D96)
-                          : Color(0xFF6E727C),
-                    ),
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _exportData(isExcel: false),
-                ),
-              ],
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: _openExportSheet,
             ),
           ),
 
@@ -426,7 +400,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: const ListTile(
               leading: Icon(Icons.info_outline),
               title: Text('Budget Tracker'),
-              subtitle: Text('Version 1.1.0'),
+              subtitle: Text('Version 1.2.0'),
             ),
           ),
         ],
@@ -632,20 +606,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<void> _exportData({required bool isExcel}) async {
+  Future<void> _openExportSheet() async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final request = await showModalBottomSheet<ExportRequest>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: isDark ? const Color(0xFF16181E) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => const ExportOptionsSheet(),
+    );
+    if (request == null || !mounted) return;
+    await _runExport(request);
+  }
+
+  Future<void> _runExport(ExportRequest request) async {
     // Request storage permission
     var status = await Permission.manageExternalStorage.status;
     if (!status.isGranted) {
       status = await Permission.manageExternalStorage.request();
       if (!status.isGranted) {
-        // Try regular storage permission as fallback
         final storageStatus = await Permission.storage.request();
         if (!storageStatus.isGranted) {
           if (mounted) {
             _showStyledSnackBar(
               icon: Icons.error_outline,
               message: 'Storage permission is required to export data',
-              color: Color(0xFFD25A5F),
+              color: const Color(0xFFD25A5F),
             );
           }
           return;
@@ -654,71 +642,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
 
     if (!mounted) return;
-
-    // Show loading dialog
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => Center(
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: Theme.of(context).brightness == Brightness.dark
-                ? const Color(0xFF16181E)
-                : Colors.white,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const CircularProgressIndicator(),
-              const SizedBox(height: 16),
-              Text(
-                'Exporting ${isExcel ? 'CSV' : 'TXT'}...',
-                style: TextStyle(
-                  color: Theme.of(context).brightness == Brightness.dark
-                      ? Colors.white
-                      : Colors.black87,
-                  fontSize: 14,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    _showProgressDialog('Exporting…');
 
     try {
-      final path = isExcel
-          ? await _exportService.exportToExcel()
-          : await _exportService.exportToTxt();
+      final path = await _exportService.export(
+        format: request.format,
+        filter: request.filter,
+      );
 
       if (mounted) Navigator.pop(context); // dismiss loading
+      if (!mounted) return;
 
-      // Extract just the filename from the path
-      final fileName = path.split('/').last;
-
-      if (mounted) {
+      if (path == null) {
         _showStyledSnackBar(
-          icon: Icons.check_circle,
-          message: 'Saved to Downloads/$fileName',
-          color: Color(0xFF2AA76F),
-          actionLabel: 'Open',
-          onAction: () => OpenFilex.open(path),
+          icon: Icons.filter_alt_off_outlined,
+          message: 'No transactions match those filters',
+          color: const Color(0xFFD79A3C),
         );
+        return;
       }
+
+      final fileName = path.split('/').last;
+      _showStyledSnackBar(
+        icon: Icons.check_circle,
+        message: 'Saved to Downloads/$fileName',
+        color: const Color(0xFF2AA76F),
+        actionLabel: 'Open',
+        onAction: () => OpenFilex.open(path),
+      );
     } catch (e) {
       if (mounted) Navigator.pop(context); // dismiss loading
       if (mounted) {
         _showStyledSnackBar(
           icon: Icons.error_outline,
           message: 'Export failed: $e',
-          color: Color(0xFFD25A5F),
+          color: const Color(0xFFD25A5F),
         );
       }
     }
   }
 
+  /// Thin wrapper kept for the backup/restore/export call sites; delegates
+  /// to the shared app-themed toast.
   void _showStyledSnackBar({
     required IconData icon,
     required String message,
@@ -726,89 +691,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
     String? actionLabel,
     VoidCallback? onAction,
   }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    ScaffoldMessenger.of(context).clearSnackBars();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(16),
-        padding: EdgeInsets.zero,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        duration: const Duration(seconds: 4),
-        content: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: isDark
-                  ? [const Color(0xFF1E293B), const Color(0xFF0F172A)]
-                  : [Color(0xFF1B1E28), Color(0xFF2E313A)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withAlpha(60),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: color.withAlpha(40),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(icon, color: color, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  message,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              if (actionLabel != null && onAction != null) ...[
-                const SizedBox(width: 8),
-                TextButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).clearSnackBars();
-                    onAction();
-                  },
-                  style: TextButton.styleFrom(
-                    backgroundColor: color.withAlpha(30),
-                    foregroundColor: color,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: Text(
-                    actionLabel,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
+    AppToastType type;
+    if (color == const Color(0xFF2AA76F)) {
+      type = AppToastType.success;
+    } else if (color == const Color(0xFFD79A3C)) {
+      type = AppToastType.warning;
+    } else {
+      type = AppToastType.error;
+    }
+    showAppToast(
+      context,
+      message: message,
+      type: type,
+      actionLabel: actionLabel,
+      onAction: onAction,
     );
   }
 }
