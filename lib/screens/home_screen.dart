@@ -10,9 +10,12 @@ import '../services/sms_service.dart';
 import '../services/notification_service.dart';
 import '../services/background_service.dart';
 import '../services/widget_service.dart';
+import 'package:provider/provider.dart';
+import '../providers/app_preferences.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/category_icon.dart';
 import '../widgets/glass.dart';
+import '../widgets/privacy_amount.dart';
 import '../widgets/motion.dart';
 import '../widgets/permission_request_card.dart';
 import '../widgets/expense_chart.dart';
@@ -453,6 +456,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     ],
                   ),
                 ),
+              // Quick reveal/hide toggle, shown only when privacy mode is on
+              if (context.watch<AppPreferences>().privacyMode)
+                IconButton(
+                  icon: Icon(
+                    context.watch<AppPreferences>().amountsHidden
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                    color: colors.textSecondary,
+                  ),
+                  tooltip: 'Show/hide amounts',
+                  onPressed: () =>
+                      context.read<AppPreferences>().toggleReveal(),
+                ),
               IconButton(
                 icon: Icon(
                   Icons.settings_outlined,
@@ -540,14 +556,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ],
           ),
           const SizedBox(height: 14),
-          CountUpAmount(
-            value: _monthlyExpenses,
-            formatter: formatter,
-            style: const TextStyle(
-              fontSize: 38,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -1.2,
-              color: Colors.white,
+          PrivacyBlur(
+            child: CountUpAmount(
+              value: _monthlyExpenses,
+              formatter: formatter,
+              style: const TextStyle(
+                fontSize: 38,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -1.2,
+                color: Colors.white,
+              ),
             ),
           ),
           const SizedBox(height: 22),
@@ -592,7 +610,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           ],
                         ),
                         const SizedBox(height: 6),
-                        Text(
+                        PrivacyAmount(
                           formatter.format(_monthlyIncome),
                           style: const TextStyle(
                             fontSize: 15,
@@ -643,7 +661,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           ],
                         ),
                         const SizedBox(height: 6),
-                        Text(
+                        PrivacyAmount(
                           formatter.format(_monthlyExpenses),
                           style: const TextStyle(
                             fontSize: 15,
@@ -844,7 +862,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         color: colors.textTertiary,
                       ),
                     ),
-                    trailing: Text(
+                    trailing: PrivacyAmount(
                       '${isCredit ? '+' : '-'} ${formatter.format(transaction.amount)}',
                       style: TextStyle(
                         fontWeight: FontWeight.w600,
@@ -973,7 +991,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
+                      PrivacyAmount(
                         '${fmt.format(_budgetSpent)} spent',
                         style: const TextStyle(
                           color: Colors.white70,
@@ -1052,7 +1070,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     ),
                   ),
                 ),
-                Text(
+                PrivacyAmount(
                   fmt.format(_totalCash),
                   style: const TextStyle(
                     color: Colors.white,
