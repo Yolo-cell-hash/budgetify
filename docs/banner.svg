@@ -33,19 +33,15 @@
   <text x="280" y="170" fill="#FFFFFF" font-size="74" font-weight="700" letter-spacing="-2">Budgetify</text>
   <text x="284" y="214" fill="#C8A75E" font-size="21" font-weight="600" letter-spacing="6">YOUR MONEY, BEAUTIFULLY TRACKED</text>
 
-  <!-- Feature pills -->
-  <g font-size="19" font-weight="600">
-    <g transform="translate(284,250)">
-      <rect width="234" height="44" rx="22" fill="#FFFFFF" fill-opacity="0.06" stroke="#C8A75E" stroke-opacity="0.30"/>
-      <text x="22" y="29" fill="#E9E9E4">100% Offline &amp; Private</text>
-    </g>
-    <g transform="translate(530,250)">
-      <rect width="216" height="44" rx="22" fill="#FFFFFF" fill-opacity="0.06" stroke="#C8A75E" stroke-opacity="0.30"/>
-      <text x="22" y="29" fill="#E9E9E4">Automatic SMS Tracking</text>
-    </g>
-    <g transform="translate(758,250)">
-      <rect width="150" height="44" rx="22" fill="#FFFFFF" fill-opacity="0.06" stroke="#C8A75E" stroke-opacity="0.30"/>
-      <text x="22" y="29" fill="#E9E9E4">No Ads, No Cloud</text>
-    </g>
+  <!-- Feature pills (text centered within each pill so it never overflows) -->
+  <g font-size="17" font-weight="600" fill="#E9E9E4" text-anchor="middle">
+    <rect x="284" y="250" width="258" height="44" rx="22" fill="#FFFFFF" fill-opacity="0.06" stroke="#C8A75E" stroke-opacity="0.30"/>
+    <text x="413" y="278">100% Offline &amp; Private</text>
+
+    <rect x="558" y="250" width="262" height="44" rx="22" fill="#FFFFFF" fill-opacity="0.06" stroke="#C8A75E" stroke-opacity="0.30"/>
+    <text x="689" y="278">Automatic SMS Tracking</text>
+
+    <rect x="836" y="250" width="196" height="44" rx="22" fill="#FFFFFF" fill-opacity="0.06" stroke="#C8A75E" stroke-opacity="0.30"/>
+    <text x="934" y="278">No Ads · No Cloud</text>
   </g>
 </svg>

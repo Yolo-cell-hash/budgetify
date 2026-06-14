@@ -1,5 +1,7 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../models/transaction_model.dart';
+import '../screens/transactions_screen.dart';
 import 'package:intl/intl.dart';
 
 /// Service for showing local notifications
@@ -8,6 +10,13 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin _notifications =
       FlutterLocalNotificationsPlugin();
   bool _isInitialized = false;
+
+  /// Root navigator key so a tapped notification can open a screen.
+  static final GlobalKey<NavigatorState> navigatorKey =
+      GlobalKey<NavigatorState>();
+
+  /// Payload that routes to the unclassified-transactions list.
+  static const String openUnclassifiedPayload = 'open_unclassified';
 
   factory NotificationService() => _instance;
 
@@ -53,7 +62,32 @@ class NotificationService {
     _isInitialized = true;
   }
 
-  void _onNotificationTapped(NotificationResponse response) {}
+  void _onNotificationTapped(NotificationResponse response) {
+    _routeForPayload(response.payload);
+  }
+
+  /// If the app was cold-started by tapping a notification, route to the
+  /// right screen once the first frame (and navigator) is ready.
+  Future<void> handleLaunchPayload() async {
+    final details = await _notifications.getNotificationAppLaunchDetails();
+    if (details?.didNotificationLaunchApp ?? false) {
+      final payload = details!.notificationResponse?.payload;
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _routeForPayload(payload),
+      );
+    }
+  }
+
+  void _routeForPayload(String? payload) {
+    if (payload == openUnclassifiedPayload) {
+      navigatorKey.currentState?.push(
+        MaterialPageRoute(
+          builder: (_) =>
+              const TransactionsScreen(initialUnclassifiedOnly: true),
+        ),
+      );
+    }
+  }
 
   Future<void> showTransactionNotification(TransactionModel transaction) async {
     if (!_isInitialized) await initialize();
@@ -189,6 +223,34 @@ class NotificationService {
         ),
       ),
       payload: 'scan_summary',
+    );
+  }
+
+  /// Weekly nudge to tag the month's unclassified transactions. Tapping it
+  /// opens the transactions list pre-filtered to Unclassified.
+  Future<void> showUnclassifiedReminder({
+    required int count,
+    required String monthLabel,
+  }) async {
+    if (!_isInitialized) await initialize();
+    if (count <= 0) return;
+
+    await _notifications.show(
+      3000, // Fixed ID so the weekly reminder updates rather than stacks
+      '🏷️ $count transaction${count == 1 ? '' : 's'} need${count == 1 ? 's' : ''} a tag',
+      'You have $count unclassified transaction${count == 1 ? '' : 's'} in '
+          '$monthLabel. Tap to organize them.',
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'transaction_channel',
+          'Transaction Alerts',
+          channelDescription: 'Notifications for detected bank transactions',
+          importance: Importance.high,
+          priority: Priority.high,
+          showWhen: true,
+        ),
+      ),
+      payload: openUnclassifiedPayload,
     );
   }
 

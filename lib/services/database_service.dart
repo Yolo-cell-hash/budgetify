@@ -481,6 +481,18 @@ class DatabaseService {
     return maps.map((map) => TransactionModel.fromMap(map)).toList();
   }
 
+  /// Count unclassified transactions detected within [start]..[end]
+  /// (used by the weekly "tag your transactions" reminder).
+  Future<int> countUnclassifiedInPeriod(DateTime start, DateTime end) async {
+    final db = await database;
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) AS c FROM transactions '
+      'WHERE is_classified = 0 AND detected_at >= ? AND detected_at <= ?',
+      [start.millisecondsSinceEpoch, end.millisecondsSinceEpoch],
+    );
+    return (result.first['c'] as int?) ?? 0;
+  }
+
   /// How many transactions currently carry [category].
   Future<int> countTransactionsWithCategory(String category) async {
     final db = await database;
@@ -503,11 +515,15 @@ class DatabaseService {
     );
   }
 
-  /// Get transactions with combined filters
+  /// Get transactions with combined, independent filters.
+  ///
+  /// [type] (debit/credit/null=all), [category], and [classified]
+  /// (true=classified only, false=unclassified only, null=all) all combine —
+  /// e.g. unclassified debits, or classified credits.
   Future<List<TransactionModel>> getFilteredTransactions({
     TransactionType? type,
     String? category,
-    bool? unclassifiedOnly,
+    bool? classified,
   }) async {
     final db = await database;
 
@@ -524,8 +540,9 @@ class DatabaseService {
       whereArgs.add(category);
     }
 
-    if (unclassifiedOnly == true) {
-      whereClauses.add('is_classified = 0');
+    if (classified != null) {
+      whereClauses.add('is_classified = ?');
+      whereArgs.add(classified ? 1 : 0);
     }
 
     final maps = await db.query(
@@ -894,6 +911,42 @@ class DatabaseService {
     );
   }
 
+  /// Apply every active rule to currently-unclassified transactions.
+  ///
+  /// This is what makes "auto tag all past transactions" work after a
+  /// restore: once the rules are back, any past (or freshly re-scanned)
+  /// transaction whose merchant matches a rule gets tagged automatically.
+  /// Returns the number of transactions newly classified.
+  Future<int> applyRulesToUntagged() async {
+    final rules = await getActiveRules();
+    if (rules.isEmpty) return 0;
+
+    final db = await database;
+    final rows = await db.query('transactions', where: 'is_classified = 0');
+    var applied = 0;
+
+    for (final row in rows) {
+      final txn = TransactionModel.fromMap(row);
+      for (final rule in rules) {
+        if (rule.matches(txn.merchantName, txn.type)) {
+          await db.update(
+            'transactions',
+            {
+              'category': rule.category,
+              'notes': rule.notes,
+              'is_classified': 1,
+            },
+            where: 'id = ?',
+            whereArgs: [txn.id],
+          );
+          applied++;
+          break;
+        }
+      }
+    }
+    return applied;
+  }
+
   /// Backfill merchant names for all existing transactions.
   /// Re-parses each SMS body to extract the merchant/payee name.
   /// Called during "Apply to All" / "Apply to Existing" to ensure
@@ -1015,15 +1068,48 @@ class DatabaseService {
     for (final raw in (data['transactions'] as List? ?? const [])) {
       final row = Map<String, dynamic>.from(raw as Map);
       row.remove('id');
-      if (row['fingerprint'] == null) {
-        final exists = await db.query(
+
+      // Find an existing row for this transaction (the initial post-reinstall
+      // SMS scan may have already re-created it, untagged).
+      List<Map<String, Object?>> existing = const [];
+      if (row['fingerprint'] != null) {
+        existing = await db.query(
+          'transactions',
+          where: 'fingerprint = ?',
+          whereArgs: [row['fingerprint']],
+          limit: 1,
+        );
+      }
+      if (existing.isEmpty) {
+        existing = await db.query(
           'transactions',
           where: 'message = ? AND detected_at = ?',
           whereArgs: [row['message'], row['detected_at']],
           limit: 1,
         );
-        if (exists.isNotEmpty) continue;
       }
+
+      if (existing.isNotEmpty) {
+        // The backup is authoritative for tags: re-apply the backed-up
+        // category/notes onto the row the rescan created untagged, so tags
+        // survive a reinstall. Only overwrite when the backup actually had
+        // a category (don't wipe a local tag with a blank one).
+        if (row['category'] != null) {
+          await db.update(
+            'transactions',
+            {
+              'category': row['category'],
+              'is_classified': row['is_classified'] ?? 1,
+              'notes': row['notes'],
+            },
+            where: 'id = ?',
+            whereArgs: [existing.first['id']],
+          );
+          txnCount++;
+        }
+        continue;
+      }
+
       final id = await db.insert(
         'transactions',
         row,
