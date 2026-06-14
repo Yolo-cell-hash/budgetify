@@ -9,6 +9,7 @@ import '../services/app_lock_service.dart';
 import '../services/backup_service.dart';
 import '../services/background_service.dart';
 import '../services/export_service.dart';
+import '../widgets/app_dialog.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/export_options_sheet.dart';
 
@@ -314,19 +315,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
               onTap: () async {
-                final confirmed = await showDialog<bool>(
-                  context: context,
-                  builder: (ctx) => AlertDialog(
-                    title: const Text('Reset Onboarding?'),
-                    content: const Text(
-                      'This will show the setup wizard on next app launch.',
-                    ),
+                final confirmed = await showAppDialog<bool>(
+                  context,
+                  builder: (ctx) => AppDialog(
+                    icon: Icons.refresh_rounded,
+                    title: 'Reset Onboarding?',
+                    subtitle:
+                        'This will show the setup wizard on next app launch.',
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(ctx, false),
                         child: const Text('Cancel'),
                       ),
-                      TextButton(
+                      ElevatedButton(
                         onPressed: () => Navigator.pop(ctx, true),
                         child: const Text('Reset'),
                       ),
@@ -400,7 +401,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: const ListTile(
               leading: Icon(Icons.info_outline),
               title: Text('Budget Tracker'),
-              subtitle: Text('Version 1.2.0'),
+              subtitle: Text('Version 1.2.1'),
             ),
           ),
         ],
@@ -449,24 +450,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final confirmController = TextEditingController();
     final formKey = GlobalKey<FormState>();
 
-    final result = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(confirm ? 'Set Backup Passphrase' : 'Enter Passphrase'),
+    final result = await showAppDialog<String>(
+      context,
+      builder: (ctx) => AppDialog(
+        icon: confirm ? Icons.lock_rounded : Icons.lock_open_rounded,
+        title: confirm ? 'Set Backup Passphrase' : 'Enter Passphrase',
+        subtitle: confirm
+            ? 'Your backup is encrypted with this passphrase. Without it the '
+                  'backup cannot be restored — there is no recovery.'
+            : 'Enter the passphrase this backup was created with.',
         content: Form(
           key: formKey,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                confirm
-                    ? 'Your backup is encrypted with this passphrase. '
-                          'Without it the backup cannot be restored — '
-                          'there is no recovery.'
-                    : 'Enter the passphrase this backup was created with.',
-                style: const TextStyle(fontSize: 13),
-              ),
-              const SizedBox(height: 16),
               TextFormField(
                 controller: controller,
                 obscureText: true,

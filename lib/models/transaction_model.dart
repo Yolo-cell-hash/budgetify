@@ -225,11 +225,22 @@ class ExpenseCategories {
     'Education',
     'Salary',
     'Transfer',
+    'Self Transfer',
+    'Investments',
     'Refund',
     'Cash',
     'Cash Conversion',
     'Other',
   ];
+
+  /// Debit categories that are NOT real spending and must be excluded from
+  /// every expense/spending total: moving money between your own accounts,
+  /// and money put into investments (it's still yours, just relocated).
+  static const Set<String> nonExpense = {'Self Transfer', 'Investments'};
+
+  /// Whether a debit in [category] should count toward expense totals.
+  static bool isExpenseCategory(String? category) =>
+      category == null || !nonExpense.contains(category);
 
   /// Backward-compatible alias for predefined categories
   static List<String> get categories => allCategories;
@@ -273,6 +284,10 @@ class ExpenseCategories {
         return '💼';
       case 'Transfer':
         return '🔄';
+      case 'Self Transfer':
+        return '🔁';
+      case 'Investments':
+        return '📈';
       case 'Refund':
         return '↩️';
       case 'Cash':
@@ -314,6 +329,10 @@ class ExpenseCategories {
         return const Color(0xFF27AE60);
       case 'Transfer':
         return const Color(0xFF7F8C8D);
+      case 'Self Transfer':
+        return const Color(0xFF5B7C99);
+      case 'Investments':
+        return const Color(0xFF2E8B7A);
       case 'Refund':
         return const Color(0xFF16A085);
       case 'Cash':

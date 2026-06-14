@@ -598,6 +598,15 @@ class DatabaseService {
     return Budget.fromMap(result.first);
   }
 
+  /// SQL fragment excluding non-expense categories (Self Transfer,
+  /// Investments) from spending aggregates. Untagged debits (NULL category)
+  /// are kept. Returns the clause and the args to append.
+  static (String, List<Object>) _nonExpenseExclusion() {
+    final cats = ExpenseCategories.nonExpense.toList();
+    final placeholders = List.filled(cats.length, '?').join(', ');
+    return ('(category IS NULL OR category NOT IN ($placeholders))', cats);
+  }
+
   Future<double> getSpendingForPeriod({
     required DateTime startDate,
     required DateTime endDate,
@@ -613,6 +622,11 @@ class DatabaseService {
     if (category != null) {
       where += ' AND category = ?';
       args.add(category);
+    } else {
+      // Whole-period spend excludes self-transfers and investments
+      final (clause, exArgs) = _nonExpenseExclusion();
+      where += ' AND $clause';
+      args.addAll(exArgs);
     }
     final result = await db.rawQuery(
       'SELECT SUM(amount) as total FROM transactions WHERE $where',
@@ -626,14 +640,16 @@ class DatabaseService {
     required DateTime endDate,
   }) async {
     final db = await database;
+    final (clause, exArgs) = _nonExpenseExclusion();
     final result = await db.query(
       'transactions',
       columns: ['detected_at', 'amount'],
-      where: 'type = ? AND detected_at >= ? AND detected_at <= ?',
+      where: 'type = ? AND detected_at >= ? AND detected_at <= ? AND $clause',
       whereArgs: [
         TransactionType.debit.index,
         startDate.millisecondsSinceEpoch,
         endDate.millisecondsSinceEpoch,
+        ...exArgs,
       ],
       orderBy: 'detected_at ASC',
     );
@@ -677,16 +693,19 @@ class DatabaseService {
     required DateTime endDate,
   }) async {
     final db = await database;
+    final (clause, exArgs) = _nonExpenseExclusion();
     final result = await db.rawQuery(
       '''
       SELECT category, SUM(amount) as total FROM transactions
-      WHERE type = ? AND detected_at >= ? AND detected_at <= ? AND category IS NOT NULL
+      WHERE type = ? AND detected_at >= ? AND detected_at <= ?
+        AND category IS NOT NULL AND $clause
       GROUP BY category ORDER BY total DESC
     ''',
       [
         TransactionType.debit.index,
         startDate.millisecondsSinceEpoch,
         endDate.millisecondsSinceEpoch,
+        ...exArgs,
       ],
     );
 
@@ -708,15 +727,17 @@ class DatabaseService {
       final monthStart = DateTime(now.year, now.month - i, 1);
       final monthEnd = DateTime(now.year, now.month - i + 1, 0, 23, 59, 59);
 
+      final (clause, exArgs) = _nonExpenseExclusion();
       final result = await db.rawQuery(
         '''
         SELECT SUM(amount) as total FROM transactions
-        WHERE type = ? AND detected_at >= ? AND detected_at <= ?
+        WHERE type = ? AND detected_at >= ? AND detected_at <= ? AND $clause
       ''',
         [
           TransactionType.debit.index,
           monthStart.millisecondsSinceEpoch,
           monthEnd.millisecondsSinceEpoch,
+          ...exArgs,
         ],
       );
 

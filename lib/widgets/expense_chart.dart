@@ -453,6 +453,7 @@ class _ExpenseChartWidgetState extends State<ExpenseChartWidget> {
       double total = 0;
       for (final t in widget.transactions) {
         if (t.type == TransactionType.debit &&
+            ExpenseCategories.isExpenseCategory(t.category) &&
             t.detectedAt.isAfter(startOfDay) &&
             t.detectedAt.isBefore(endOfDay)) {
           total += t.amount;
@@ -478,6 +479,7 @@ class _ExpenseChartWidgetState extends State<ExpenseChartWidget> {
     double total = 0;
     for (final t in widget.transactions) {
       if (t.type == TransactionType.debit &&
+          ExpenseCategories.isExpenseCategory(t.category) &&
           t.detectedAt.isAfter(sevenDaysAgo)) {
         total += t.amount;
       }
