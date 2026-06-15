@@ -3,6 +3,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../models/transaction_model.dart';
 import 'database_service.dart';
 import 'sms_parser_service.dart';
+import 'sms_diagnostics_service.dart';
 import 'notification_service.dart';
 
 /// Top-level function for handling SMS in background
@@ -10,11 +11,10 @@ import 'notification_service.dart';
 Future<void> backgroundMessageHandler(SmsMessage message) async {
   final dbService = DatabaseService();
 
-  var transaction = SmsParserService.parseTransaction(
-    message.address ?? 'Unknown',
-    message.body ?? '',
-    DateTime.now(),
-  );
+  final sender = message.address ?? 'Unknown';
+  final body = message.body ?? '';
+  final result = SmsParserService.parseDetailed(sender, body, DateTime.now());
+  var transaction = result.transaction;
 
   if (transaction != null) {
     // Compute fingerprint for deduplication
@@ -49,6 +49,14 @@ Future<void> backgroundMessageHandler(SmsMessage message) async {
         await checkBudgetThresholds(dbService, NotificationService());
       }
     }
+  } else {
+    // From a trusted bank sender but unparsable — record it for review.
+    // Passive and on-device; the user is never prompted.
+    await SmsDiagnosticsService.maybeRecord(
+      sender: sender,
+      body: body,
+      reason: result.reason,
+    );
   }
 }
 
@@ -175,11 +183,10 @@ class SmsService {
     SmsMessage message,
     Function(TransactionModel) onTransactionDetected,
   ) async {
-    var transaction = SmsParserService.parseTransaction(
-      message.address ?? 'Unknown',
-      message.body ?? '',
-      DateTime.now(),
-    );
+    final sender = message.address ?? 'Unknown';
+    final body = message.body ?? '';
+    final result = SmsParserService.parseDetailed(sender, body, DateTime.now());
+    var transaction = result.transaction;
 
     if (transaction != null) {
       // Compute fingerprint for deduplication
@@ -224,6 +231,12 @@ class SmsService {
           await checkBudgetThresholds(_dbService, NotificationService());
         }
       }
+    } else {
+      await SmsDiagnosticsService.maybeRecord(
+        sender: sender,
+        body: body,
+        reason: result.reason,
+      );
     }
   }
 
@@ -240,6 +253,8 @@ class SmsService {
     if (!hasPermissions) return [];
 
     final List<TransactionModel> transactions = [];
+    final List<({String sender, String body, SmsParseReason reason})>
+        diagnostics = [];
 
     try {
       final messages = await _telephony.getInboxSms(
@@ -251,13 +266,16 @@ class SmsService {
       for (final message in messages) {
         if (count >= maxCount) break;
 
-        var transaction = SmsParserService.parseTransaction(
-          message.address ?? 'Unknown',
-          message.body ?? '',
+        final sender = message.address ?? 'Unknown';
+        final body = message.body ?? '';
+        final result = SmsParserService.parseDetailed(
+          sender,
+          body,
           message.date != null
               ? DateTime.fromMillisecondsSinceEpoch(message.date!)
               : DateTime.now(),
         );
+        var transaction = result.transaction;
 
         if (transaction != null) {
           // Compute fingerprint for deduplication
@@ -292,8 +310,15 @@ class SmsService {
               count++;
             }
           }
+        } else {
+          diagnostics.add(
+            (sender: sender, body: body, reason: result.reason),
+          );
         }
       }
+
+      // Capture any bank messages we couldn't parse, for later review.
+      await SmsDiagnosticsService.recordAll(diagnostics);
 
       // After scanning, check budget thresholds
       if (transactions.any((t) => t.type == TransactionType.debit)) {
