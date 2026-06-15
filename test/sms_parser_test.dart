@@ -155,6 +155,36 @@ void main() {
       expect(txn!.amount, 15000.0);
       expect(txn.type, TransactionType.credit);
     });
+
+    test('all DLT header variants are recognised as bank senders', () {
+      for (final sender in const [
+        'MAHABK',
+        'AD-MAHABK-S',
+        'AX-MAHABK-S',
+        'VK-MAHABK-S',
+        'VA-MAHABK-S',
+        'VM-MAHABK-S',
+        'CP-MAHABK-T',
+        'Bank of Maharashtra',
+      ]) {
+        expect(SmsParserService.isBankSms(sender), isTrue, reason: sender);
+      }
+    });
+
+    test('"UPI payment to {NAME}" debit extracts the payee, not the a/c', () {
+      final txn = SmsParserService.parseTransaction(
+        'AD-MAHABK-S',
+        'A/c X7763 debited by Rs. 20.00 for UPI payment to SANTOSH ANANT G '
+        'on 10-Jun-26. RRN: 616189591413 if not you, call 18002334526 '
+        '-Bank of Maharashtra',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 20.0);
+      expect(txn.type, TransactionType.debit);
+      expect(txn.accountInfo, 'XX7763');
+      expect(txn.merchantName, 'Santosh Anant G');
+    });
   });
 
   group('Non-transaction rejection', () {

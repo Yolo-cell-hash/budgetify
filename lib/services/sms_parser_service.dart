@@ -2190,7 +2190,7 @@ class SmsParserService {
   /// 1. ICICI Info: field — `Info: UPI-RefNo-MerchantName`
   /// 2. BOI/generic — `credited to {NAME} via UPI`
   /// 3. HDFC — `To {NAME}` (on same or next line)
-  /// 4. Generic — `paid to / sent to / transferred to {NAME}`
+  /// 4. Generic — `paid/sent/transferred/payment/trf to {NAME}` (BOM, SBI)
   /// 5. UPI VPA — `VPA {name}@bank` or `{name}@{bank}` → extract name
   /// 6. Axis — `to VPA {name}@{bank}`
   /// 7. Fallback — account number (A/cXX1234)
@@ -2239,10 +2239,15 @@ class SmsParserService {
       }
     }
 
-    // --- Pattern 4: Generic "paid to / sent to / transferred to {NAME}" ---
-    // Avoid matching "sent to 9215676766" or "call to ..."
+    // --- Pattern 4: Generic "paid/sent/transferred/payment to {NAME}" ---
+    // Covers BOM's "for UPI payment to SANTOSH ANANT G on 10-Jun-26" and
+    // SBI's "trf to RAMESH KUMAR Refno ...". The name runs until the next
+    // structural token — a date ("on"), "via", a ref/RRN number, or
+    // punctuation — so trailing "on <date>. RRN: ..." is not captured.
+    // Avoid matching "sent to 9215676766" or "call to ..." (digits-only and
+    // BLOCK/REPORT candidates are rejected below).
     final paidTo = RegExp(
-      r'(?:paid|sent|transferred)\s+to\s+(.+?)(?:\s*\.|,|\s+on\s|\s+via\s|\s+ref\b|\s+Ref\b|\n|$)',
+      r'(?:paid|sent|transferred|transfer|trf|payment)\s+to\s+(.+?)(?:\s*\.|,|\s+on\b|\s+via\b|\s+ref\b|\s+refno\b|\s+rrn\b|\n|$)',
       caseSensitive: false,
     ).firstMatch(message);
     if (paidTo != null) {
