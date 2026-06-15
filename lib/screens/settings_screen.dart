@@ -410,7 +410,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: const ListTile(
               leading: Icon(Icons.info_outline),
               title: Text('Budget Tracker'),
-              subtitle: Text('Version 1.2.4'),
+              subtitle: Text('Version 1.2.5'),
             ),
           ),
         ],
