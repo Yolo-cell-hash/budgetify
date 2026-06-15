@@ -13,6 +13,7 @@ import '../widgets/app_dialog.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/export_options_sheet.dart';
 import 'manage_tags_screen.dart';
+import 'sms_diagnostics_screen.dart';
 
 /// Settings screen with theme toggle and auto-scan configuration
 class SettingsScreen extends StatefulWidget {
@@ -407,10 +408,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 8),
           _buildSettingsCard(
             isDark: isDark,
-            child: const ListTile(
-              leading: Icon(Icons.info_outline),
-              title: Text('Budget Tracker'),
-              subtitle: Text('Version 1.2.5'),
+            child: ListTile(
+              leading: const Icon(Icons.info_outline),
+              title: const Text('Budget Tracker'),
+              subtitle: const Text('Version 1.2.5'),
+              // Hidden tester gesture: long-press opens the on-device SMS
+              // diagnostics log (unparsed bank messages + reasons).
+              onLongPress: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const SmsDiagnosticsScreen(),
+                ),
+              ),
             ),
           ),
         ],

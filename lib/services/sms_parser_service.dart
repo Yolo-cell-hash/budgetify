@@ -1,5 +1,37 @@
 import '../models/transaction_model.dart';
 
+/// Why a given SMS did or didn't become a transaction. Surfaced by
+/// [SmsParserService.parseDetailed] so the app can keep a private, on-device
+/// log of bank messages it failed to parse — without ever asking the user
+/// about every message.
+enum SmsParseReason {
+  /// Successfully parsed into a transaction.
+  parsed,
+
+  /// Sender is not a recognised bank header.
+  notBank,
+
+  /// Sender is a bank but the message is on the promotional (-P) route.
+  promo,
+
+  /// From a bank, but not a completed transaction (OTP, statement, …).
+  nonTransaction,
+
+  /// Bank transaction-like message, but debit/credit couldn't be determined.
+  noType,
+
+  /// Bank transaction-like message, but no amount could be extracted.
+  noAmount,
+}
+
+/// Result of [SmsParserService.parseDetailed]: the parsed [transaction] (null
+/// unless [reason] is [SmsParseReason.parsed]) and the [reason] it stopped on.
+class SmsParseResult {
+  final TransactionModel? transaction;
+  final SmsParseReason reason;
+  const SmsParseResult(this.transaction, this.reason);
+}
+
 /// Service for parsing bank SMS messages to extract transaction details
 class SmsParserService {
   // Common Indian bank sender patterns
@@ -1812,7 +1844,13 @@ class SmsParserService {
     // regulation and never a real transaction — drop it outright, even from
     // a real bank header.
     if (routeSuffix(sender) == 'P') return false;
+    return _isKnownBankHeader(sender);
+  }
 
+  /// Whether [sender] matches a known bank header, independent of the route
+  /// suffix. Split out from [isBankSms] so [parseDetailed] can distinguish a
+  /// promotional (-P) reject from a genuinely unknown sender.
+  static bool _isKnownBankHeader(String sender) {
     final upperSender = sender.toUpperCase();
     final coreHeader = normalizeSender(sender);
 
@@ -1821,7 +1859,7 @@ class SmsParserService {
               coreHeader == pattern || upperSender.contains(pattern),
         ) ||
         // Full-name senders ("Bank of Maharashtra") and bank headers the
-        // list may miss — still subject to the -P rejection above.
+        // list may miss — still subject to the -P rejection in isBankSms.
         upperSender.contains('BANK');
   }
 
@@ -1832,39 +1870,64 @@ class SmsParserService {
     String message,
     DateTime receivedAt,
   ) {
-    if (!isBankSms(sender)) return null;
+    return parseDetailed(sender, message, receivedAt).transaction;
+  }
+
+  /// Like [parseTransaction], but also reports *why* parsing stopped via
+  /// [SmsParseResult.reason]. The success path is byte-for-byte identical.
+  ///
+  /// The pipeline has two gates:
+  /// - Gate 1 (sender) stays strict — a -P promo or unknown sender is never a
+  ///   transaction. Loosening it would readmit spam/scholarship false
+  ///   positives.
+  /// - Gate 2 (parsing) failures come from a *trusted* bank sender, so they
+  ///   are safe to surface in the on-device diagnostics log for review.
+  static SmsParseResult parseDetailed(
+    String sender,
+    String message,
+    DateTime receivedAt,
+  ) {
+    // Gate 1 — sender.
+    if (routeSuffix(sender) == 'P') {
+      return const SmsParseResult(null, SmsParseReason.promo);
+    }
+    if (!_isKnownBankHeader(sender)) {
+      return const SmsParseResult(null, SmsParseReason.notBank);
+    }
 
     final upperMessage = message.toUpperCase();
 
-    // Skip non-transaction messages
-    if (_isNonTransactionMessage(upperMessage)) return null;
+    // Gate 2 — parsing.
+    if (_isNonTransactionMessage(upperMessage)) {
+      return const SmsParseResult(null, SmsParseReason.nonTransaction);
+    }
 
-    // Determine transaction type
     final type = _getTransactionType(upperMessage);
-    if (type == null) return null;
+    if (type == null) {
+      return const SmsParseResult(null, SmsParseReason.noType);
+    }
 
-    // Extract amount
     final amount = _extractAmount(message);
-    if (amount == null || amount <= 0) return null;
+    if (amount == null || amount <= 0) {
+      return const SmsParseResult(null, SmsParseReason.noAmount);
+    }
 
-    // Extract account info
     final accountInfo = _extractAccountInfo(message);
-
-    // Extract merchant/payee name from SMS body
     final merchantName = _extractMerchant(message, accountInfo);
-
-    // Auto-detect category from merchant
     final category = detectCategory(message);
 
-    return TransactionModel(
-      amount: amount,
-      type: type,
-      sender: sender,
-      message: message,
-      detectedAt: receivedAt,
-      accountInfo: accountInfo,
-      merchantName: merchantName,
-      category: category,
+    return SmsParseResult(
+      TransactionModel(
+        amount: amount,
+        type: type,
+        sender: sender,
+        message: message,
+        detectedAt: receivedAt,
+        accountInfo: accountInfo,
+        merchantName: merchantName,
+        category: category,
+      ),
+      SmsParseReason.parsed,
     );
   }
 
@@ -2209,15 +2272,20 @@ class SmsParserService {
       if (merchant != null) return merchant;
     }
 
-    // --- Pattern 2: BOI "credited to {NAME} via UPI" ---
+    // --- Pattern 2: "credited to {NAME}" (BOI/transfer payee) ---
     // "debited...and credited to KIRTI PRAHALAD PANCHAL via UPI"
-    final creditedToVia = RegExp(
-      r'credited\s+to\s+(.+?)\s+via\b',
+    // Also handles the no-"via" form, but skips "credited to your A/c XX1234"
+    // (a plain credit names no payer, so it should fall back to the account).
+    final creditedTo = RegExp(
+      r'credited\s+to\s+(.+?)(?:\s+via\b|\s+on\s|\s+ref\b|\s+rrn\b|[.,]|\n|$)',
       caseSensitive: false,
     ).firstMatch(message);
-    if (creditedToVia != null) {
-      merchant = _cleanMerchant(creditedToVia.group(1));
-      if (merchant != null) return merchant;
+    if (creditedTo != null) {
+      final candidate = creditedTo.group(1)?.trim() ?? '';
+      if (candidate.length > 2 && !_looksLikeAccountRef(candidate)) {
+        merchant = _cleanMerchant(candidate);
+        if (merchant != null) return merchant;
+      }
     }
 
     // --- Pattern 3: HDFC "To {NAME}" ---
@@ -2239,10 +2307,11 @@ class SmsParserService {
       }
     }
 
-    // --- Pattern 4: Generic "paid to / sent to / transferred to {NAME}" ---
+    // --- Pattern 4: debit payee "paid/sent/transferred/payment to {NAME}" ---
+    // BOM: "...for UPI payment to SANTOSH ANANT G on 10-Jun-26. RRN: ..."
     // Avoid matching "sent to 9215676766" or "call to ..."
     final paidTo = RegExp(
-      r'(?:paid|sent|transferred)\s+to\s+(.+?)(?:\s*\.|,|\s+on\s|\s+via\s|\s+ref\b|\s+Ref\b|\n|$)',
+      r'(?:paid|sent|transferred|payment)\s+to\s+(.+?)(?:\s*\.|,|\s+on\s|\s+via\s|\s+ref\b|\s+rrn\b|\n|$)',
       caseSensitive: false,
     ).firstMatch(message);
     if (paidTo != null) {
@@ -2251,6 +2320,23 @@ class SmsParserService {
           candidate.length > 2 &&
           !RegExp(r'^\d+$').hasMatch(candidate) &&
           !candidate.toUpperCase().startsWith('BLOCK')) {
+        merchant = _cleanMerchant(candidate);
+        if (merchant != null) return merchant;
+      }
+    }
+
+    // --- Pattern 4b: credit payer "payment/received/credited from {NAME}" ---
+    // BOM credit: "...credited by Rs.X for UPI payment from RAHUL S on ..."
+    final fromName = RegExp(
+      r'(?:payment|received|credited)\s+from\s+(.+?)(?:\s*\.|,|\s+on\s|\s+via\s|\s+ref\b|\s+rrn\b|\n|$)',
+      caseSensitive: false,
+    ).firstMatch(message);
+    if (fromName != null) {
+      final candidate = fromName.group(1)?.trim();
+      if (candidate != null &&
+          candidate.length > 2 &&
+          !RegExp(r'^\d+$').hasMatch(candidate) &&
+          !_looksLikeAccountRef(candidate)) {
         merchant = _cleanMerchant(candidate);
         if (merchant != null) return merchant;
       }
@@ -2291,6 +2377,19 @@ class SmsParserService {
     }
 
     return null;
+  }
+
+  /// Whether a captured name is really an account/number reference rather than
+  /// a payee — e.g. "your A/c XX1234", "A/c 7763", "XX7763". Used to keep the
+  /// "credited to/from" patterns from labelling a plain credit with the user's
+  /// own account number.
+  static bool _looksLikeAccountRef(String candidate) {
+    final up = candidate.toUpperCase().trim();
+    return up.startsWith('YOUR') ||
+        up.startsWith('A/C') ||
+        up.startsWith('AC ') ||
+        up.startsWith('ACCOUNT') ||
+        RegExp(r'^[X*]*\d').hasMatch(up);
   }
 
   /// Clean up extracted merchant string
