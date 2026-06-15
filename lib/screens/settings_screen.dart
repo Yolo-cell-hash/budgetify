@@ -288,6 +288,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const SizedBox(height: 24),
 
+          // Intelligence Section
+          _buildSectionHeader('Intelligence', isDark),
+          const SizedBox(height: 8),
+          _buildSettingsCard(
+            isDark: isDark,
+            child: SwitchListTile(
+              secondary: Icon(
+                Icons.auto_awesome_rounded,
+                color: context.watch<AppPreferences>().aiPredictionMode
+                    ? const Color(0xFFA8843C)
+                    : const Color(0xFF8A8D96),
+              ),
+              title: const Text('AI Prediction Mode'),
+              subtitle: Text(
+                'Show a spending forecast and insights on your dashboard. '
+                'Computed entirely on your device — nothing is uploaded.',
+                style: TextStyle(
+                  color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
+                ),
+              ),
+              value: context.watch<AppPreferences>().aiPredictionMode,
+              onChanged: (v) =>
+                  context.read<AppPreferences>().setAiPredictionMode(v),
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
           // Backup Section
           _buildSectionHeader('Backup', isDark),
           const SizedBox(height: 8),
@@ -410,7 +438,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: const ListTile(
               leading: Icon(Icons.info_outline),
               title: Text('Budget Tracker'),
-              subtitle: Text('Version 1.2.5'),
+              subtitle: Text('Version 1.2.7'),
             ),
           ),
         ],

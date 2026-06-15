@@ -19,4 +19,18 @@ void main() {
       expect(maskAmount('₹9'), maskAmount('₹99,99,999'));
     });
   });
+
+  group('maskRupeeFigures (insight text)', () {
+    test('masks rupee figures but keeps percentages and other numbers', () {
+      expect(
+        maskRupeeFigures('₹530 more than last month'),
+        '₹•••• more than last month',
+      );
+      expect(maskRupeeFigures('Food ↑ 38%'), 'Food ↑ 38%'); // percent untouched
+      expect(
+        maskRupeeFigures('Day 12 of 30 · ₹4,200 spent'),
+        'Day 12 of 30 · ₹•••• spent',
+      );
+    });
+  });
 }

@@ -15,6 +15,7 @@ import '../providers/app_preferences.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/category_icon.dart';
 import '../widgets/glass.dart';
+import '../widgets/insights_card.dart';
 import '../widgets/privacy_amount.dart';
 import '../widgets/motion.dart';
 import '../widgets/permission_request_card.dart';
@@ -362,6 +363,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         else ...[
                           FadeSlideIn(order: 1, child: _buildBalanceCard()),
                           const SizedBox(height: 16),
+                          // Gated behind AI Prediction Mode — when off, nothing
+                          // here is built and the dashboard is unchanged.
+                          if (context.watch<AppPreferences>().aiPredictionMode)
+                            FadeSlideIn(
+                              order: 2,
+                              child: InsightsCard(
+                                reloadToken: _transactionCount,
+                              ),
+                            ),
                           FadeSlideIn(
                             order: 2,
                             child: ExpenseChartWidget(
