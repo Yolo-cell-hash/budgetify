@@ -15,6 +15,12 @@ String maskAmount(String formatted) {
   return formatted.replaceAll(RegExp(r'[\d,]+(?:\.\d+)?'), '••••');
 }
 
+/// Mask only ₹-prefixed figures inside a longer sentence, leaving other
+/// numbers (percentages, "Day 12 of 30") readable — for insight text.
+String maskRupeeFigures(String s) {
+  return s.replaceAll(RegExp(r'₹\s?[\d,]+(?:\.\d+)?'), '₹••••');
+}
+
 /// A monetary [text] that renders as a clean bullet mask while Privacy Mode
 /// is on and amounts are hidden. Tapping toggles a session-wide reveal (one
 /// tap unmasks every amount; tapping again re-hides). When privacy mode is
