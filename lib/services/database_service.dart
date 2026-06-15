@@ -28,7 +28,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 11,
+      version: 12,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -81,7 +81,8 @@ class DatabaseService {
         notified_50 INTEGER NOT NULL DEFAULT 0,
         notified_90 INTEGER NOT NULL DEFAULT 0,
         notified_100 INTEGER NOT NULL DEFAULT 0,
-        last_notified_threshold INTEGER NOT NULL DEFAULT 0
+        last_notified_threshold INTEGER NOT NULL DEFAULT 0,
+        notified_period TEXT
       )
     ''');
 
@@ -268,6 +269,28 @@ class DatabaseService {
       await db.execute(_createDeletedTransactionsTable);
       await db.execute(
         'CREATE INDEX IF NOT EXISTS idx_deleted_fingerprint ON deleted_transactions(fingerprint)',
+      );
+    }
+
+    if (oldVersion < 12) {
+      // Per-period alert tracking: lets per-category (and the overall) budget
+      // alerts reset cleanly each month instead of staying silenced after the
+      // first period that crossed a high threshold.
+      try {
+        await db.execute(
+          'ALTER TABLE budgets ADD COLUMN notified_period TEXT',
+        );
+      } catch (e) {
+        // Column may already exist
+      }
+      // Anchor any already-notified budgets to the current period so the
+      // upgrade itself doesn't replay an alert the user already saw.
+      final now = DateTime.now();
+      final periodKey = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+      await db.update(
+        'budgets',
+        {'notified_period': periodKey},
+        where: 'last_notified_threshold > 0',
       );
     }
   }
@@ -637,6 +660,18 @@ class DatabaseService {
     return Budget.fromMap(result.first);
   }
 
+  /// All per-category budgets (the overall budget — category IS NULL — is
+  /// excluded). Ordered by amount so the larger envelopes surface first.
+  Future<List<Budget>> getCategoryBudgets() async {
+    final db = await database;
+    final result = await db.query(
+      'budgets',
+      where: 'category IS NOT NULL',
+      orderBy: 'amount DESC',
+    );
+    return result.map((map) => Budget.fromMap(map)).toList();
+  }
+
   /// SQL fragment excluding non-expense categories (Self Transfer,
   /// Investments) from spending aggregates. Untagged debits (NULL category)
   /// are kept. Returns the clause and the args to append.
@@ -677,19 +712,30 @@ class DatabaseService {
   Future<Map<DateTime, double>> getDailySpending({
     required DateTime startDate,
     required DateTime endDate,
+    String? category,
   }) async {
     final db = await database;
-    final (clause, exArgs) = _nonExpenseExclusion();
+    // A specific category is requested verbatim (it's already a real expense
+    // tag); the whole-day view instead excludes the non-expense categories.
+    String where = 'type = ? AND detected_at >= ? AND detected_at <= ?';
+    final List<Object> args = [
+      TransactionType.debit.index,
+      startDate.millisecondsSinceEpoch,
+      endDate.millisecondsSinceEpoch,
+    ];
+    if (category != null) {
+      where += ' AND category = ?';
+      args.add(category);
+    } else {
+      final (clause, exArgs) = _nonExpenseExclusion();
+      where += ' AND $clause';
+      args.addAll(exArgs);
+    }
     final result = await db.query(
       'transactions',
       columns: ['detected_at', 'amount'],
-      where: 'type = ? AND detected_at >= ? AND detected_at <= ? AND $clause',
-      whereArgs: [
-        TransactionType.debit.index,
-        startDate.millisecondsSinceEpoch,
-        endDate.millisecondsSinceEpoch,
-        ...exArgs,
-      ],
+      where: where,
+      whereArgs: args,
       orderBy: 'detected_at ASC',
     );
     final Map<DateTime, double> daily = {};
@@ -707,13 +753,15 @@ class DatabaseService {
   /// [threshold] is the percentage value (e.g. 50, 75, 90, 100, 120, 150, 200, ...).
   Future<void> updateLastNotifiedThreshold(
     int budgetId,
-    int threshold,
-  ) async {
+    int threshold, {
+    String? period,
+  }) async {
     final db = await database;
     await db.update(
       'budgets',
       {
         'last_notified_threshold': threshold,
+        if (period != null) 'notified_period': period,
         // Keep old flags in sync for backward compat
         'notified_50': threshold >= 50 ? 1 : 0,
         'notified_90': threshold >= 90 ? 1 : 0,
@@ -752,6 +800,71 @@ class DatabaseService {
       for (var row in result)
         row['category'] as String: (row['total'] as num).toDouble(),
     };
+  }
+
+  /// Count of expense transactions per category within [startDate]..[endDate]
+  /// (debits only, classified, non-expense categories excluded). Drives the
+  /// "your most-tagged spend has no budget" suggestion. Ordered most-frequent
+  /// first.
+  Future<Map<String, int>> getCategoryTransactionCounts({
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    final db = await database;
+    final (clause, exArgs) = _nonExpenseExclusion();
+    final result = await db.rawQuery(
+      '''
+      SELECT category, COUNT(*) as cnt FROM transactions
+      WHERE type = ? AND detected_at >= ? AND detected_at <= ?
+        AND category IS NOT NULL AND $clause
+      GROUP BY category ORDER BY cnt DESC
+    ''',
+      [
+        TransactionType.debit.index,
+        startDate.millisecondsSinceEpoch,
+        endDate.millisecondsSinceEpoch,
+        ...exArgs,
+      ],
+    );
+    return {
+      for (final row in result)
+        row['category'] as String: (row['cnt'] as int),
+    };
+  }
+
+  /// Merchant-level spend within a single [category] for a period. Each entry
+  /// has `merchant` (String), `total` (double) and `count` (int), ordered by
+  /// spend descending. Powers the merchant breakdown on the category budget
+  /// insights page.
+  Future<List<Map<String, dynamic>>> getMerchantBreakdownForCategory({
+    required String category,
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    final db = await database;
+    final result = await db.rawQuery(
+      '''
+      SELECT COALESCE(NULLIF(TRIM(merchant_name), ''), 'Other') as merchant,
+             SUM(amount) as total, COUNT(*) as cnt
+      FROM transactions
+      WHERE type = ? AND category = ? AND detected_at >= ? AND detected_at <= ?
+      GROUP BY merchant ORDER BY total DESC
+    ''',
+      [
+        TransactionType.debit.index,
+        category,
+        startDate.millisecondsSinceEpoch,
+        endDate.millisecondsSinceEpoch,
+      ],
+    );
+    return [
+      for (final row in result)
+        {
+          'merchant': row['merchant'] as String,
+          'total': (row['total'] as num).toDouble(),
+          'count': row['cnt'] as int,
+        },
+    ];
   }
 
   /// Get monthly spending totals for last N months

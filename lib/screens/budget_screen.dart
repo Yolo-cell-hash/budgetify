@@ -1,16 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../models/budget_model.dart';
 import '../models/transaction_model.dart';
+import '../providers/app_preferences.dart';
 import '../providers/theme_provider.dart';
 import '../services/database_service.dart';
 import '../widgets/app_dialog.dart';
+import '../widgets/app_toast.dart';
 import '../widgets/category_donut.dart';
 import '../widgets/glass.dart';
 import '../widgets/motion.dart';
 import '../widgets/privacy_amount.dart';
 import '../widgets/spending_calendar.dart';
+import 'category_budget_insights_screen.dart';
 import 'transaction_detail_screen.dart';
 
 /// Chart display mode for trends
@@ -44,6 +48,14 @@ class _BudgetScreenState extends State<BudgetScreen>
   // Categories tab month selection
   DateTime _selectedCategoryMonth = DateTime.now();
   Map<String, double> _selectedCategorySpending = {};
+
+  // Per-category budgets (evaluated against the current month) and the
+  // "you spend here a lot but have no budget" suggestion.
+  static const int _minSuggestionCount = 5;
+  List<Budget> _categoryBudgets = [];
+  final Map<String, double> _categoryBudgetSpent = {};
+  String? _suggestedCategory;
+  int _suggestedCount = 0;
 
   // Trends tab state
   _TrendsChartMode _trendsChartMode = _TrendsChartMode.bar;
@@ -107,7 +119,63 @@ class _BudgetScreenState extends State<BudgetScreen>
     // Load data for the overview pager and the categories tab
     await _loadOverviewMonths();
     await _loadCategoryMonth(_selectedCategoryMonth);
+    await _loadCategoryBudgets();
   }
+
+  /// Load every per-category budget, its current-month spend, and compute the
+  /// single best "set a budget" suggestion (the most-tagged expense category
+  /// this month that has no budget yet).
+  Future<void> _loadCategoryBudgets() async {
+    final now = DateTime.now();
+    final monthStart = DateTime(now.year, now.month, 1);
+    final monthEnd = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+
+    final budgets = await _db.getCategoryBudgets();
+    _categoryBudgetSpent.clear();
+    for (final b in budgets) {
+      final cat = b.category;
+      if (cat == null) continue;
+      _categoryBudgetSpent[cat] = await _db.getSpendingForPeriod(
+        startDate: b.currentPeriodStart,
+        endDate: b.currentPeriodEnd,
+        category: cat,
+      );
+    }
+
+    final counts = await _db.getCategoryTransactionCounts(
+      startDate: monthStart,
+      endDate: monthEnd,
+    );
+    final budgeted = budgets.map((b) => b.category).toSet();
+    String? suggestion;
+    int suggestionCount = 0;
+    // counts are ordered most-frequent first, so the first eligible wins.
+    for (final entry in counts.entries) {
+      if (budgeted.contains(entry.key)) continue;
+      if (_suggestionExcluded.contains(entry.key)) continue;
+      if (entry.value < _minSuggestionCount) continue;
+      suggestion = entry.key;
+      suggestionCount = entry.value;
+      break;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _categoryBudgets = budgets;
+      _suggestedCategory = suggestion;
+      _suggestedCount = suggestionCount;
+    });
+  }
+
+  /// Categories that aren't really discretionary "spending" you'd cap with a
+  /// budget, so they never trigger the suggestion or appear in the picker.
+  /// (Self Transfer / Investments are already excluded at the query level.)
+  static const Set<String> _suggestionExcluded = {
+    'Transfer',
+    'Cash Conversion',
+    'Salary',
+    'Refund',
+  };
 
   /// Preload overview data for every pager month. Months fill in order
   /// (current month first) and the UI refreshes as each arrives, so the
@@ -911,6 +979,9 @@ class _BudgetScreenState extends State<BudgetScreen>
   // ==================== CATEGORIES TAB ====================
   Widget _buildCategoriesTab(bool isDark, NumberFormat fmt) {
     final spendingData = _selectedCategorySpending;
+    final now = DateTime.now();
+    final isCurrentMonth = _selectedCategoryMonth.year == now.year &&
+        _selectedCategoryMonth.month == now.month;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -923,6 +994,14 @@ class _BudgetScreenState extends State<BudgetScreen>
               onSelect: _loadCategoryMonth,
             ),
           ),
+          // Per-category budgets only make sense for the live month.
+          if (isCurrentMonth) ...[
+            const SizedBox(height: 16),
+            FadeSlideIn(
+              order: 1,
+              child: _buildCategoryBudgetsSection(isDark, fmt),
+            ),
+          ],
           const SizedBox(height: 16),
           if (spendingData.isEmpty)
             Container(
@@ -1664,6 +1743,457 @@ class _BudgetScreenState extends State<BudgetScreen>
         ],
       ),
     );
+  }
+
+  // ==================== CATEGORY BUDGETS ====================
+
+  /// The suggestion hint (when applicable) plus the list of category budgets
+  /// and an "add" affordance. Lives at the top of the Categories tab.
+  Widget _buildCategoryBudgetsSection(bool isDark, NumberFormat fmt) {
+    final colors = AppColors.of(context);
+    final prefs = context.watch<AppPreferences>();
+    final showSuggestion = _suggestedCategory != null &&
+        !prefs.isBudgetSuggestionDismissed(_suggestedCategory!);
+
+    return Column(
+      children: [
+        if (showSuggestion) ...[
+          _buildSuggestionHint(colors),
+          const SizedBox(height: 12),
+        ],
+        Container(
+          decoration: BoxDecoration(
+            color: colors.card,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: colors.border),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.flag_outlined, size: 18, color: colors.textSecondary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Category Budgets',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: colors.text,
+                      ),
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: () => _showCategoryBudgetDialog(),
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Add'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.goldDeep,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+                ],
+              ),
+              if (_categoryBudgets.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(2, 6, 8, 4),
+                  child: Text(
+                    'Set a monthly limit for individual categories like Food '
+                    'or Shopping, and track exactly where the money goes.',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      height: 1.4,
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                )
+              else
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Column(
+                    children: [
+                      for (final b in _categoryBudgets)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: _buildCategoryBudgetRow(b, fmt, colors),
+                        ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSuggestionHint(AppColors colors) {
+    final cat = _suggestedCategory!;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 8, 14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.gold.withOpacity(0.16),
+            AppColors.gold.withOpacity(0.04),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.gold.withOpacity(0.45)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppColors.gold.withAlpha(40),
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Text(
+              ExpenseCategories.getIcon(cat),
+              style: const TextStyle(fontSize: 19),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Set a budget for $cat?',
+                  style: TextStyle(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w700,
+                    color: colors.text,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  "It's your most-tagged spend this month "
+                  '($_suggestedCount transactions). A monthly limit keeps it '
+                  'in check.',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    height: 1.35,
+                    color: colors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  height: 34,
+                  child: ElevatedButton(
+                    onPressed: () =>
+                        _showCategoryBudgetDialog(presetCategory: cat),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      textStyle: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    child: const Text('Set budget'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close, size: 18),
+            color: colors.textTertiary,
+            tooltip: 'Not now',
+            onPressed: () =>
+                context.read<AppPreferences>().dismissBudgetSuggestion(cat),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCategoryBudgetRow(Budget b, NumberFormat fmt, AppColors colors) {
+    final cat = b.category!;
+    final spent = _categoryBudgetSpent[cat] ?? 0;
+    final pct = b.amount > 0 ? spent / b.amount : 0.0;
+    final over = spent > b.amount;
+    final barColor = pct >= 1
+        ? colors.danger
+        : pct >= 0.9
+            ? const Color(0xFFD79A3C)
+            : AppColors.gold;
+
+    return PressableScale(
+      onTap: () => _openCategoryInsights(b),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isDarkMode ? const Color(0xFF121318) : const Color(0xFFFAFAF8),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: colors.border),
+        ),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: ExpenseCategories.getColor(cat).withAlpha(30),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    ExpenseCategories.getIcon(cat),
+                    style: const TextStyle(fontSize: 18),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        cat,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: colors.text,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      PrivacyAmount(
+                        '${fmt.format(spent)} of ${fmt.format(b.amount)}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '${(pct * 100).clamp(0, 999).toStringAsFixed(0)}%',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: barColor,
+                      ),
+                    ),
+                    if (over)
+                      Text(
+                        'over',
+                        style: TextStyle(fontSize: 10, color: colors.danger),
+                      ),
+                  ],
+                ),
+                Icon(Icons.chevron_right, size: 18, color: colors.textTertiary),
+              ],
+            ),
+            const SizedBox(height: 10),
+            AnimatedProgressBar(
+              value: pct,
+              color: barColor,
+              backgroundColor: colors.border,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  bool get isDarkMode => Theme.of(context).brightness == Brightness.dark;
+
+  void _openCategoryInsights(Budget b) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CategoryBudgetInsightsScreen(
+          category: b.category!,
+          initialBudget: b,
+        ),
+      ),
+    ).then((_) => _loadData());
+  }
+
+  /// Add a per-category budget. [presetCategory] pre-selects a category (used
+  /// by the suggestion hint).
+  Future<void> _showCategoryBudgetDialog({String? presetCategory}) async {
+    final budgeted =
+        _categoryBudgets.map((b) => b.category).whereType<String>().toSet();
+    final available = ExpenseCategories.allCategories
+        .where((c) =>
+            !budgeted.contains(c) &&
+            !_suggestionExcluded.contains(c) &&
+            ExpenseCategories.isExpenseCategory(c))
+        .toList();
+
+    if (available.isEmpty) {
+      showAppToast(
+        context,
+        message: 'Every category already has a budget',
+        type: AppToastType.info,
+      );
+      return;
+    }
+
+    var selected = (presetCategory != null && available.contains(presetCategory))
+        ? presetCategory
+        : available.first;
+    final amountCtrl = TextEditingController();
+    var saved = false;
+
+    await showAppDialog(
+      context,
+      builder: (ctx) => AppDialog(
+        icon: Icons.flag_outlined,
+        title: 'New category budget',
+        subtitle: 'Set a monthly limit for one category. Alerts fire at '
+            '50, 75, 90 and 100%+.',
+        content: StatefulBuilder(
+          builder: (ctx, setLocal) {
+            final colors = AppColors.of(ctx);
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Amount first so it (and the confirm button) is always in
+                // view above the keyboard, regardless of the category list.
+                TextField(
+                  controller: amountCtrl,
+                  autofocus: true,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Monthly amount',
+                    prefixText: '₹ ',
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Text(
+                      'Category',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        selected,
+                        textAlign: TextAlign.right,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: colors.text,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                // Single-line, horizontally scrollable picker keeps the dialog
+                // short. The selected chip auto-stays highlighted in gold.
+                SizedBox(
+                  height: 38,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: available.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (_, i) {
+                      final c = available[i];
+                      final isSel = c == selected;
+                      return GestureDetector(
+                        onTap: () => setLocal(() => selected = c),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: isSel
+                                ? AppColors.gold
+                                : colors.cardAlt,
+                            borderRadius: BorderRadius.circular(19),
+                            border: Border.all(
+                              color: isSel ? AppColors.gold : colors.border,
+                            ),
+                          ),
+                          child: Text(
+                            '${ExpenseCategories.getIcon(c)}  $c',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: isSel
+                                  ? const Color(0xFF15110A)
+                                  : colors.textSecondary,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final amt = double.tryParse(amountCtrl.text.trim()) ?? 0;
+              if (amt <= 0) return;
+              await _db.insertBudget(
+                Budget(
+                  name: selected,
+                  amount: amt,
+                  category: selected,
+                  startDate: DateTime.now(),
+                ),
+              );
+              saved = true;
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
+            child: const Text('Set budget'),
+          ),
+        ],
+      ),
+    );
+
+    amountCtrl.dispose();
+    if (saved) {
+      await _loadData();
+      if (mounted) {
+        showAppToast(
+          context,
+          message: '$selected budget set',
+          type: AppToastType.success,
+        );
+      }
+    }
   }
 
   Future<void> _showBudgetDialog() async {

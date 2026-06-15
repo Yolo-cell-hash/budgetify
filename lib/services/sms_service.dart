@@ -1,6 +1,7 @@
 import 'package:another_telephony/telephony.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../models/transaction_model.dart';
+import '../models/budget_model.dart';
 import 'database_service.dart';
 import 'sms_parser_service.dart';
 import 'notification_service.dart';
@@ -81,32 +82,60 @@ int _computeCurrentThreshold(double percent) {
   return currentThreshold;
 }
 
-/// Check and notify budget thresholds.
-/// This is public so HomeScreen can also call it when the app is open.
+/// Check and notify budget thresholds for the overall budget *and* every
+/// per-category budget. Public so HomeScreen can also call it when the app
+/// is open.
 Future<void> checkBudgetThresholds(
   DatabaseService db,
   NotificationService ns,
 ) async {
-  final budget = await db.getActiveBudget();
-  if (budget == null) return;
+  final budgets = await db.getAllBudgets();
+  for (final budget in budgets) {
+    await _checkOneBudget(db, ns, budget);
+  }
+}
+
+/// Evaluate a single budget and fire an escalating alert when a new threshold
+/// is crossed within the current period. Alert state resets when the period
+/// rolls over, so each month starts from a clean slate.
+Future<void> _checkOneBudget(
+  DatabaseService db,
+  NotificationService ns,
+  Budget budget,
+) async {
+  if (budget.id == null || budget.amount <= 0) return;
 
   final spent = await db.getSpendingForPeriod(
     startDate: budget.currentPeriodStart,
     endDate: budget.currentPeriodEnd,
+    category: budget.category, // null → overall (non-expense excluded)
   );
 
-  final percent = budget.amount > 0 ? (spent / budget.amount) * 100 : 0.0;
+  final percent = (spent / budget.amount) * 100;
   final currentThreshold = _computeCurrentThreshold(percent);
 
-  // Only notify if a new (higher) threshold has been crossed
-  if (currentThreshold > 0 &&
-      currentThreshold > budget.lastNotifiedThreshold) {
+  // High-water mark is only valid within the period it was recorded for.
+  final periodKey = budget.currentPeriodKey;
+  final samePeriod = budget.notifiedPeriod == periodKey;
+  final effectiveLastNotified = samePeriod ? budget.lastNotifiedThreshold : 0;
+
+  if (currentThreshold > 0 && currentThreshold > effectiveLastNotified) {
     await ns.showBudgetNotification(
       threshold: currentThreshold,
       spent: spent,
       budget: budget.amount,
+      category: budget.category,
+      notificationId: budget.isCategoryBudget ? 4000 + budget.id! : null,
     );
-    await db.updateLastNotifiedThreshold(budget.id!, currentThreshold);
+    await db.updateLastNotifiedThreshold(
+      budget.id!,
+      currentThreshold,
+      period: periodKey,
+    );
+  } else if (!samePeriod && budget.lastNotifiedThreshold != 0) {
+    // New period, nothing crossed yet — clear the stale marker once so the
+    // first crossing this period still alerts.
+    await db.updateLastNotifiedThreshold(budget.id!, 0, period: periodKey);
   }
 }
 

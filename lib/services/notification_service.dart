@@ -116,10 +116,16 @@ class NotificationService {
 
   /// Show budget threshold notification for any percentage threshold.
   /// Supports 50, 75, 90, 100, 120, 150, 200, 250, 300, ...
+  ///
+  /// When [category] is set, the alert is scoped to a per-category budget:
+  /// the title names the category and [notificationId] keeps each category's
+  /// alert in its own slot (so a Food alert never overwrites a Shopping one).
   Future<void> showBudgetNotification({
     required int threshold,
     required double spent,
     required double budget,
+    String? category,
+    int? notificationId,
   }) async {
     if (!_isInitialized) await initialize();
 
@@ -176,8 +182,21 @@ class NotificationService {
           'Spending is ${(threshold / 100).toStringAsFixed(1)}× your budget. ${fmt.format(spent)} of ${fmt.format(budget)}.';
     }
 
+    // For a category budget, re-title with the category name and keep the
+    // numeric detail in the body. Overall-budget wording is unchanged.
+    if (category != null) {
+      final status = threshold < 100
+          ? '$threshold% used'
+          : threshold == 100
+              ? 'budget limit reached'
+              : '$threshold% of budget';
+      title = '$emoji $category • $status';
+    }
+
     await _notifications.show(
-      1000 + threshold, // Unique ID per threshold level
+      // Overall budget: one slot per threshold. Category budget: one slot per
+      // budget (passed in), so escalating alerts update in place.
+      notificationId ?? (1000 + threshold),
       title,
       body,
       const NotificationDetails(
@@ -190,7 +209,7 @@ class NotificationService {
           showWhen: true,
         ),
       ),
-      payload: 'budget_$threshold',
+      payload: category != null ? 'budget_cat_$category' : 'budget_$threshold',
     );
   }
 
