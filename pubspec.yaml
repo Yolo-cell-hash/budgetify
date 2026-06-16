@@ -70,6 +70,11 @@ dependencies:
   home_widget: ^0.9.3
   excel: ^4.0.6
 
+  # Share the monthly "Wrapped" card to WhatsApp / Instagram / etc. via the
+  # system share sheet. Uses Android share intents + a FileProvider — it does
+  # NOT add the INTERNET permission, so the offline guarantee is preserved.
+  share_plus: ^10.1.4
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

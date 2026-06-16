@@ -29,7 +29,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 13,
+      version: 14,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -116,6 +116,9 @@ class DatabaseService {
 
     // Manual net-worth / investment holdings
     await db.execute(_createHoldingsTable);
+
+    // Monthly net-worth snapshots (powers the Wrapped net-worth-change stat)
+    await db.execute(_createNetWorthSnapshotsTable);
   }
 
   static const String _createDeletedTransactionsTable = '''
@@ -136,6 +139,16 @@ class DatabaseService {
         category TEXT NOT NULL,
         amount REAL NOT NULL,
         note TEXT,
+        updated_at INTEGER NOT NULL
+      )
+    ''';
+
+  static const String _createNetWorthSnapshotsTable = '''
+      CREATE TABLE IF NOT EXISTS net_worth_snapshots(
+        period TEXT PRIMARY KEY,
+        net_worth REAL NOT NULL,
+        assets REAL NOT NULL,
+        liabilities REAL NOT NULL,
         updated_at INTEGER NOT NULL
       )
     ''';
@@ -313,6 +326,11 @@ class DatabaseService {
     if (oldVersion < 13) {
       // Manual net-worth / investment holdings table.
       await db.execute(_createHoldingsTable);
+    }
+
+    if (oldVersion < 14) {
+      // Monthly net-worth snapshots for the Wrapped net-worth-change stat.
+      await db.execute(_createNetWorthSnapshotsTable);
     }
   }
 
@@ -1306,6 +1324,40 @@ class DatabaseService {
     final db = await database;
     final maps = await db.query('holdings', orderBy: 'amount DESC');
     return maps.map((m) => Holding.fromMap(m)).toList();
+  }
+
+  /// Upsert the current month's net-worth snapshot from current holdings, so
+  /// the monthly Wrapped can show a net-worth change once two months exist.
+  Future<void> recordNetWorthSnapshotForCurrentMonth() async {
+    final db = await database;
+    final summary = NetWorthSummary(await getHoldings());
+    final now = DateTime.now();
+    final period = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+    await db.insert(
+      'net_worth_snapshots',
+      {
+        'period': period,
+        'net_worth': summary.netWorth,
+        'assets': summary.assets,
+        'liabilities': summary.liabilities,
+        'updated_at': now.millisecondsSinceEpoch,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  /// Net worth recorded for [period] ("YYYY-MM"), or null if none.
+  Future<double?> getNetWorthSnapshot(String period) async {
+    final db = await database;
+    final r = await db.query(
+      'net_worth_snapshots',
+      columns: ['net_worth'],
+      where: 'period = ?',
+      whereArgs: [period],
+      limit: 1,
+    );
+    if (r.isEmpty) return null;
+    return (r.first['net_worth'] as num).toDouble();
   }
 
   /// All-time total the user has tagged as 'Investments' across detected
