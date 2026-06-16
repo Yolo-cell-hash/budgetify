@@ -5,7 +5,7 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:gravity="center_vertical"
-    android:padding="18dp"
+    android:padding="16dp"
     android:background="@drawable/budget_widget_bg">
 
     <!-- Header: month label + top spending category on the right -->
@@ -41,10 +41,10 @@
         android:id="@+id/widget_spent"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="3dp"
+        android:layout_marginTop="2dp"
         android:text="₹0"
         android:textColor="#FFFFFF"
-        android:textSize="26sp"
+        android:textSize="28sp"
         android:textStyle="bold" />
 
     <ProgressBar
@@ -52,7 +52,7 @@
         style="?android:attr/progressBarStyleHorizontal"
         android:layout_width="match_parent"
         android:layout_height="6dp"
-        android:layout_marginTop="9dp"
+        android:layout_marginTop="8dp"
         android:max="100"
         android:progress="0"
         android:progressTint="#C8A75E"
@@ -62,24 +62,55 @@
         android:id="@+id/widget_subtitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="7dp"
-        android:text="Set a budget in Budgetify"
+        android:layout_marginTop="6dp"
+        android:text="Tap to set a budget"
         android:textColor="#9A9DA6"
         android:textSize="12sp" />
 
-    <!-- Hairline divider -->
-    <View
+    <!-- Hairline divider. NB: a bare <View> is NOT in the RemoteViews
+         allow-list and throws "Class not allowed to be inflated" (the widget
+         then fails to add), so we use a 1dp LinearLayout instead. -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="1dp"
         android:layout_marginTop="11dp"
         android:layout_marginBottom="10dp"
         android:background="#1FFFFFFF" />
 
-    <!-- Insight row: Income | Net -->
+    <!-- Insight row: Net Worth | Income | Saved -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal">
+        android:orientation="horizontal"
+        android:baselineAligned="false">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="NET WORTH"
+                android:textColor="#6E7178"
+                android:textSize="9sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.08" />
+
+            <TextView
+                android:id="@+id/widget_networth"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:text="₹0"
+                android:textColor="#C8A75E"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+        </LinearLayout>
 
         <LinearLayout
             android:layout_width="0dp"
@@ -94,16 +125,18 @@
                 android:textColor="#6E7178"
                 android:textSize="9sp"
                 android:textStyle="bold"
-                android:letterSpacing="0.10" />
+                android:letterSpacing="0.08" />
 
             <TextView
                 android:id="@+id/widget_income"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="1dp"
+                android:layout_marginTop="2dp"
+                android:maxLines="1"
+                android:ellipsize="end"
                 android:text="₹0"
                 android:textColor="#4CC795"
-                android:textSize="14sp"
+                android:textSize="15sp"
                 android:textStyle="bold" />
         </LinearLayout>
 
@@ -116,20 +149,21 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="NET"
+                android:text="SAVED"
                 android:textColor="#6E7178"
                 android:textSize="9sp"
                 android:textStyle="bold"
-                android:letterSpacing="0.10" />
+                android:letterSpacing="0.08" />
 
             <TextView
-                android:id="@+id/widget_net"
+                android:id="@+id/widget_savings"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="1dp"
-                android:text="₹0"
-                android:textColor="#F2F2EF"
-                android:textSize="14sp"
+                android:layout_marginTop="2dp"
+                android:maxLines="1"
+                android:text="—"
+                android:textColor="#4CC795"
+                android:textSize="15sp"
                 android:textStyle="bold" />
         </LinearLayout>
     </LinearLayout>

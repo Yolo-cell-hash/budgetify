@@ -1,4 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="widget_description">Month-to-date spending and budget progress</string>
+    <string name="widget_description">Spending, net worth, income and savings at a glance</string>
 </resources>
