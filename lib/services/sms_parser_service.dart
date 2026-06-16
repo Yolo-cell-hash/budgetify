@@ -1942,12 +1942,23 @@ class SmsParserService {
 
   /// Determine if it's a credit or debit transaction using weighted scoring
   static TransactionType? _getTransactionType(String upperMessage) {
-    // SPECIAL CASE: UPI Transfer pattern
-    // "Rs.X debited... and credited to [recipient]" = This is a DEBIT
-    // The "credited to" refers to the recipient, not to your account
-    if (upperMessage.contains('DEBITED') &&
-        (upperMessage.contains('CREDITED TO') ||
-            upperMessage.contains('AND CREDITED'))) {
+    // SPECIAL CASE: outgoing transfer / debit.
+    // An explicit "your account was debited" marker is an unambiguous
+    // outflow, so classify as DEBIT immediately — even when the same SMS
+    // also says a payee was "credited" (that "credited" refers to the
+    // recipient, not to you). This single rule covers UPI/transfer wording
+    // across banks and replaces the earlier per-bank debit boosts:
+    //   ICICI: "A/c XX debited for Rs X; PAYEE credited"
+    //   SBI:   "A/C debited by 35.0 ... trf to PAYEE"
+    //   BOM:   "a/c is debited for Rs X ..."
+    //   older: "Rs X debited ... and credited to PAYEE"
+    final accountDebited =
+        RegExp(r'\bDEBITED\s+(?:FOR|BY|WITH|FROM)\b').hasMatch(upperMessage) ||
+            upperMessage.contains('IS DEBITED');
+    if (accountDebited ||
+        (upperMessage.contains('DEBITED') &&
+            (upperMessage.contains('CREDITED TO') ||
+                upperMessage.contains('AND CREDITED')))) {
       return TransactionType.debit;
     }
 
@@ -2034,15 +2045,8 @@ class SmsParserService {
       debitScore += 15;
     }
 
-    // "IS DEBITED" pattern (BOM, ICICI)
-    if (upperMessage.contains('IS DEBITED')) {
-      debitScore += 15;
-    }
-
-    // "DEBITED BY" pattern (BOM)
-    if (upperMessage.contains('DEBITED BY')) {
-      debitScore += 15;
-    }
+    // Note: explicit "debited for/by/with/from" and "is debited" wording is
+    // already resolved to a debit by the outflow special case above.
 
     // If we have a clear winner from strong keywords, return immediately
     if (debitScore > 0 && creditScore == 0) {

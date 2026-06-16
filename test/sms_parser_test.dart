@@ -290,6 +290,36 @@ void main() {
     });
   });
 
+  group('ICICI UPI "debited for ...; PAYEE credited" (debit, not credit)', () {
+    // Regression: a real ICICI UPI outflow was being shown as a credit
+    // because "<payee> credited" + the weak "CREDIT" keyword out-scored the
+    // "debited" signal. An account-debited marker must win.
+    test('UPI payment is a debit despite the payee being "credited"', () {
+      final txn = SmsParserService.parseTransaction(
+        'AD-ICICIT-S',
+        'ICICI Bank Acct XX197 debited for Rs 73.00 on 16-Jun-26; '
+        'JAY RAJESH KEER credited. UPI:123834511400. Call 18002662 for '
+        'dispute. SMS BLOCK 197 to 9215676766.',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 73.0);
+      expect(txn.type, TransactionType.debit);
+    });
+
+    test('genuine ICICI incoming credit is still a credit', () {
+      final txn = SmsParserService.parseTransaction(
+        'AD-ICICIT-S',
+        'ICICI Bank Acct XX197 credited with Rs 73.00 on 16-Jun-26 from '
+        'JAY RAJESH KEER. UPI:123834511400. Call 18002662 for dispute.',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 73.0);
+      expect(txn.type, TransactionType.credit);
+    });
+  });
+
   group('Fingerprint dedup across sender variants', () {
     test('same alert via different DLT prefixes produces same fingerprint',
         () {
