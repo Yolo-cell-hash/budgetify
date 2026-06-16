@@ -49,6 +49,18 @@ class MonthlyRecap {
   final int transactionCount;
   final int merchantCount;
 
+  // ── Actual rupee figures (for the optional "reveal numbers" view) ──
+  // These are never shown unless the user explicitly opts in, so the
+  // default Wrapped card stays amount-free and safe to share.
+  final double totalSpent;
+  final double totalIncome;
+  final double? topCategoryAmount;
+  final double? topMerchantAmount;
+  final double? categoryMoverAmount; // signed rupee change vs last month
+  final double avgPerDay;
+  final double? biggestTxnAmount;
+  final String? biggestTxnLabel;
+
   const MonthlyRecap({
     required this.month,
     required this.availableDays,
@@ -62,6 +74,14 @@ class MonthlyRecap {
     this.investedPct,
     this.transactionCount = 0,
     this.merchantCount = 0,
+    this.totalSpent = 0,
+    this.totalIncome = 0,
+    this.topCategoryAmount,
+    this.topMerchantAmount,
+    this.categoryMoverAmount,
+    this.avgPerDay = 0,
+    this.biggestTxnAmount,
+    this.biggestTxnLabel,
   });
 
   /// Not-enough-data sentinel for a month that hasn't met [minDays].

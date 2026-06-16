@@ -41,6 +41,20 @@ class RecapService {
     }
     final savingsRatePct = MonthlyRecap.pct(income - spent, income);
 
+    // Biggest single expense of the month (for the reveal-numbers view).
+    double? biggestTxnAmount;
+    String? biggestTxnLabel;
+    for (final t in txns) {
+      if (t.type == TransactionType.debit &&
+          ExpenseCategories.isExpenseCategory(t.category)) {
+        if (biggestTxnAmount == null || t.amount > biggestTxnAmount) {
+          biggestTxnAmount = t.amount;
+          biggestTxnLabel = t.merchantName ?? t.category ?? t.sender;
+        }
+      }
+    }
+    final avgPerDay = availableDays > 0 ? spent / availableDays : 0.0;
+
     // Spend vs last month.
     final lastStart = DateTime(month.year, month.month - 1, 1);
     final lastEnd = DateTime(month.year, month.month, 0, 23, 59, 59);
@@ -56,8 +70,10 @@ class RecapService {
         await _db.getSpendingByCategory(startDate: lastStart, endDate: lastEnd);
 
     RecapHighlight? topCategory;
+    double? topCategoryAmount;
     if (byCat.isNotEmpty) {
       final top = byCat.entries.first; // query is ordered desc
+      topCategoryAmount = top.value;
       topCategory = RecapHighlight(
         label: top.key,
         icon: ExpenseCategories.getIcon(top.key),
@@ -71,7 +87,7 @@ class RecapService {
       if (prev < _minMoverBase) continue;
       final change = e.value - prev;
       if (change.abs() < _minMoverBase * 0.4) continue;
-      if (best == null || change.abs() > best!.change.abs()) {
+      if (best == null || change.abs() > best.change.abs()) {
         best = (cat: e.key, change: change, pct: change / prev * 100);
       }
     }
@@ -87,12 +103,14 @@ class RecapService {
     final merchants = await _db.getMerchantBreakdown(
         startDate: monthStart, endDate: monthEnd);
     RecapHighlight? topMerchant;
+    double? topMerchantAmount;
     if (merchants.isNotEmpty) {
       final m = merchants.first;
+      topMerchantAmount = (m['total'] as num).toDouble();
       topMerchant = RecapHighlight(
         label: m['merchant'] as String,
         icon: '🏪',
-        sharePct: MonthlyRecap.pct((m['total'] as num).toDouble(), spent) ?? 0,
+        sharePct: MonthlyRecap.pct(topMerchantAmount, spent) ?? 0,
       );
     }
 
@@ -130,6 +148,14 @@ class RecapService {
       investedPct: investedPct,
       transactionCount: txns.length,
       merchantCount: merchants.length,
+      totalSpent: spent,
+      totalIncome: income,
+      topCategoryAmount: topCategoryAmount,
+      topMerchantAmount: topMerchantAmount,
+      categoryMoverAmount: best?.change,
+      avgPerDay: avgPerDay,
+      biggestTxnAmount: biggestTxnAmount,
+      biggestTxnLabel: biggestTxnLabel,
     );
   }
 }

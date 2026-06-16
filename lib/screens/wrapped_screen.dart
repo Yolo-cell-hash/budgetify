@@ -10,6 +10,7 @@ import 'package:share_plus/share_plus.dart';
 import '../models/monthly_recap.dart';
 import '../providers/theme_provider.dart';
 import '../services/recap_service.dart';
+import '../widgets/app_dialog.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/glass.dart';
 import '../widgets/motion.dart';
@@ -38,6 +39,7 @@ class _WrappedScreenState extends State<WrappedScreen>
   MonthlyRecap? _recap;
   bool _loading = true;
   bool _sharing = false;
+  bool _showAmounts = false; // reveal actual ₹ figures on the card
 
   late AnimationController _shimmerController;
 
@@ -92,29 +94,20 @@ class _WrappedScreenState extends State<WrappedScreen>
     }
   }
 
-  /// Share to a specific app by package name, or the generic share sheet.
-  Future<void> _shareTo({String? targetPackage}) async {
+  /// Capture the card and hand it to the system share sheet (which already
+  /// lists WhatsApp, Instagram, and everything else).
+  Future<void> _share() async {
     if (_sharing) return;
     setState(() => _sharing = true);
     try {
       final file = await _captureCard();
       if (file == null) throw Exception('Capture failed');
       final monthName = DateFormat('MMMM yyyy').format(_selected);
-
-      if (targetPackage != null) {
-        // Use share_plus with suggested app package
-        await Share.shareXFiles(
-          [XFile(file.path, mimeType: 'image/png')],
-          text:
-              'My $monthName on Budgetify ✨ — private, on-device money tracking.',
-        );
-      } else {
-        await Share.shareXFiles(
-          [XFile(file.path, mimeType: 'image/png')],
-          text:
-              'My $monthName on Budgetify ✨ — private, on-device money tracking.',
-        );
-      }
+      await Share.shareXFiles(
+        [XFile(file.path, mimeType: 'image/png')],
+        text:
+            'My $monthName on Budgetify ✨ — private, on-device money tracking.',
+      );
     } catch (e) {
       if (mounted) {
         showAppToast(context,
@@ -125,6 +118,38 @@ class _WrappedScreenState extends State<WrappedScreen>
     }
   }
 
+  /// Toggle revealing actual amounts. Turning it ON first asks for
+  /// confirmation via a themed dialog, since amounts will then appear on the
+  /// card (and on anything shared).
+  Future<void> _toggleAmounts(bool reveal) async {
+    if (!reveal) {
+      setState(() => _showAmounts = false);
+      return;
+    }
+    final ok = await showAppDialog<bool>(
+      context,
+      builder: (ctx) => AppDialog(
+        icon: Icons.visibility_outlined,
+        title: 'Show actual amounts?',
+        subtitle:
+            'Your Wrapped normally shows only percentages, so it\'s safe to '
+            'share. Revealing amounts displays your real ₹ figures — and any '
+            'card you share will include them.',
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Show amounts'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) setState(() => _showAmounts = true);
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
@@ -133,7 +158,21 @@ class _WrappedScreenState extends State<WrappedScreen>
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Monthly Wrapped'),
+        title: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.auto_awesome_rounded, size: 18, color: AppColors.gold),
+            SizedBox(width: 8),
+            Text(
+              'Monthly Wrapped',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.2,
+              ),
+            ),
+          ],
+        ),
       ),
       body: AmbientBackground(
         child: Column(
@@ -213,93 +252,64 @@ class _WrappedScreenState extends State<WrappedScreen>
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
       child: Column(
         children: [
+          // Reveal-amounts toggle sitting above the card
+          FadeSlideIn(order: 0, child: _amountsToggle(colors)),
+          const SizedBox(height: 14),
+
           FadeSlideIn(
-            order: 0,
+            order: 1,
             child: FittedBox(
               child: RepaintBoundary(
                 key: _cardKey,
-                child: WrappedCard(recap: recap),
+                child: WrappedCard(recap: recap, showAmounts: _showAmounts),
               ),
             ),
           ),
           const SizedBox(height: 24),
 
-          // Share section
+          // Single share button — the system sheet already offers WhatsApp,
+          // Instagram and every other target.
           FadeSlideIn(
-            order: 1,
-            child: Column(
-              children: [
-                // Primary share button
-                SizedBox(
-                  width: double.infinity,
-                  child: _ShareButton(
-                    onPressed: _sharing ? null : () => _shareTo(),
-                    isLoading: _sharing,
-                    shimmerController: _shimmerController,
-                  ),
-                ),
-                const SizedBox(height: 14),
-
-                // WhatsApp & Instagram specific share buttons
-                Row(
-                  children: [
-                    Expanded(
-                      child: _PlatformShareButton(
-                        icon: _whatsAppIcon(),
-                        label: 'WhatsApp',
-                        gradientColors: const [
-                          Color(0xFF128C7E),
-                          Color(0xFF25D366),
-                        ],
-                        onTap: _sharing
-                            ? null
-                            : () =>
-                                _shareTo(targetPackage: 'com.whatsapp'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _PlatformShareButton(
-                        icon: _instagramIcon(),
-                        label: 'Instagram',
-                        gradientColors: const [
-                          Color(0xFFF58529),
-                          Color(0xFFDD2A7B),
-                          Color(0xFF8134AF),
-                        ],
-                        onTap: _sharing
-                            ? null
-                            : () => _shareTo(
-                                targetPackage:
-                                    'com.instagram.android'),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+            order: 2,
+            child: SizedBox(
+              width: double.infinity,
+              child: _ShareButton(
+                onPressed: _sharing ? null : _share,
+                isLoading: _sharing,
+                shimmerController: _shimmerController,
+              ),
             ),
           ),
 
           const SizedBox(height: 14),
 
           FadeSlideIn(
-            order: 2,
+            order: 3,
             child: Container(
               padding: const EdgeInsets.symmetric(
                   horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
                 color: colors.card,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: colors.border),
+                border: Border.all(
+                  color: _showAmounts
+                      ? AppColors.gold.withValues(alpha: 0.4)
+                      : colors.border,
+                ),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.lock_outline,
-                      size: 15, color: colors.textTertiary),
+                  Icon(_showAmounts ? Icons.warning_amber_rounded : Icons.lock_outline,
+                      size: 15,
+                      color: _showAmounts
+                          ? AppColors.gold
+                          : colors.textTertiary),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Only percentages & names on the card — no amounts. Your finances stay private.',
+                      _showAmounts
+                          ? 'Amounts are showing — anything you share will include your real ₹ figures.'
+                          : 'Only percentages & names on the card — no amounts. Your finances stay private.',
                       style: TextStyle(
                         fontSize: 11.5,
                         height: 1.4,
@@ -316,30 +326,39 @@ class _WrappedScreenState extends State<WrappedScreen>
     );
   }
 
-  Widget _whatsAppIcon() {
+  /// Pill toggle that switches the card between percentages and real amounts.
+  Widget _amountsToggle(AppColors colors) {
     return Container(
-      width: 22,
-      height: 22,
+      padding: const EdgeInsets.fromLTRB(14, 4, 6, 4),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(6),
+        color: colors.card,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: colors.border),
       ),
-      child: const Center(
-        child: Text('💬', style: TextStyle(fontSize: 13)),
-      ),
-    );
-  }
-
-  Widget _instagramIcon() {
-    return Container(
-      width: 22,
-      height: 22,
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: const Center(
-        child: Text('📷', style: TextStyle(fontSize: 13)),
+      child: Row(
+        children: [
+          Icon(
+            _showAmounts ? Icons.visibility : Icons.visibility_off_outlined,
+            size: 17,
+            color: _showAmounts ? AppColors.gold : colors.textSecondary,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Show actual amounts',
+              style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w600,
+                color: colors.text,
+              ),
+            ),
+          ),
+          Switch(
+            value: _showAmounts,
+            onChanged: _toggleAmounts,
+            activeTrackColor: AppColors.gold,
+          ),
+        ],
       ),
     );
   }
@@ -524,72 +543,3 @@ class _ShareButton extends StatelessWidget {
   }
 }
 
-// ─── Platform-specific share buttons (WhatsApp / Instagram) ───────────
-
-class _PlatformShareButton extends StatelessWidget {
-  final Widget icon;
-  final String label;
-  final List<Color> gradientColors;
-  final VoidCallback? onTap;
-
-  const _PlatformShareButton({
-    required this.icon,
-    required this.label,
-    required this.gradientColors,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = AppColors.of(context);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return PressableScale(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 13),
-        decoration: BoxDecoration(
-          color: isDark ? colors.card : colors.surface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: colors.border),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // Gradient icon container
-            Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: gradientColors,
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(7),
-              ),
-              child: Center(child: icon),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: TextStyle(
-                color: colors.text,
-                fontSize: 13.5,
-                fontWeight: FontWeight.w600,
-                letterSpacing: -0.1,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

@@ -350,28 +350,40 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             ),
                           )
                         else ...[
+                          // Uniform 12px rhythm between every dashboard card;
+                          // cards carry horizontal margin only so spacing is
+                          // controlled here in one place.
+                          const SizedBox(height: 4),
                           FadeSlideIn(order: 1, child: _buildBalanceCard()),
-                          const SizedBox(height: 16),
                           // Gated behind AI Prediction Mode — when off, nothing
                           // here is built and the dashboard is unchanged.
-                          if (context.watch<AppPreferences>().aiPredictionMode)
+                          if (context
+                              .watch<AppPreferences>()
+                              .aiPredictionMode) ...[
+                            const SizedBox(height: 12),
                             FadeSlideIn(
                               order: 2,
                               child: InsightsCard(
                                 reloadToken: _transactionCount,
                               ),
                             ),
+                          ],
+                          const SizedBox(height: 12),
                           FadeSlideIn(
-                            order: 2,
+                            order: 3,
                             child: ExpenseChartWidget(
                               transactions: _allTransactions,
                             ),
                           ),
-                          FadeSlideIn(order: 3, child: _buildCashSection()),
-                          FadeSlideIn(order: 4, child: _buildWrappedEntry()),
-                          FadeSlideIn(order: 5, child: _buildQuickActions()),
+                          const SizedBox(height: 12),
+                          FadeSlideIn(order: 4, child: _buildCashSection()),
+                          const SizedBox(height: 12),
+                          FadeSlideIn(order: 5, child: _buildWrappedEntry()),
+                          const SizedBox(height: 12),
+                          FadeSlideIn(order: 6, child: _buildQuickActions()),
+                          const SizedBox(height: 12),
                           FadeSlideIn(
-                            order: 6,
+                            order: 7,
                             child: _buildRecentTransactions(),
                           ),
                         ],
@@ -402,7 +414,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Budget Tracker',
+                      'Budgetify',
                       style: TextStyle(
                         fontSize: 26,
                         fontWeight: FontWeight.w700,
@@ -682,7 +694,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         MaterialPageRoute(builder: (_) => const WrappedScreen()),
       ),
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        margin: const EdgeInsets.symmetric(horizontal: 16),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(18),
           gradient: const LinearGradient(
@@ -774,7 +786,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final colors = AppColors.of(context);
 
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
           Expanded(
@@ -998,7 +1010,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         if (result == true) _loadData();
       },
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        margin: const EdgeInsets.symmetric(horizontal: 16),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           gradient: const LinearGradient(

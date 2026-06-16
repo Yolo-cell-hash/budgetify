@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../providers/app_preferences.dart';
 import '../providers/theme_provider.dart';
+import '../screens/insights_screen.dart';
 import '../services/insights_service.dart';
 import 'motion.dart';
 import 'privacy_amount.dart';
@@ -54,8 +55,12 @@ class _InsightsCardState extends State<InsightsCard> {
     final colors = AppColors.of(context);
     final r = _result;
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    return GestureDetector(
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const InsightsScreen()),
+      ),
+      child: Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: colors.card,
@@ -95,9 +100,15 @@ class _InsightsCardState extends State<InsightsCard> {
               ),
               const Spacer(),
               Text(
-                'On-device',
-                style: TextStyle(fontSize: 10.5, color: colors.textTertiary),
+                'Details',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.goldDeep,
+                ),
               ),
+              Icon(Icons.chevron_right_rounded,
+                  size: 18, color: AppColors.goldDeep),
             ],
           ),
           const SizedBox(height: 14),
@@ -119,6 +130,7 @@ class _InsightsCardState extends State<InsightsCard> {
             ],
           ],
         ],
+      ),
       ),
     );
   }
