@@ -15,10 +15,17 @@ import '../providers/theme_provider.dart';
 class WrappedCard extends StatelessWidget {
   final MonthlyRecap recap;
 
-  const WrappedCard({super.key, required this.recap});
+  /// When true, render actual ₹ amounts instead of percentages/shares. Off by
+  /// default so the shareable card stays amount-free.
+  final bool showAmounts;
+
+  const WrappedCard({super.key, required this.recap, this.showAmounts = false});
 
   static const double width = 360;
   static const double height = 640;
+
+  static final _money =
+      NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
 
   static const _gold = AppColors.gold;
   static const _green = AppColors.successDark;
@@ -303,8 +310,13 @@ class WrappedCard extends StatelessWidget {
     });
   }
 
-  /// Big hero stat: savings rate when available, otherwise the top category.
+  /// Big hero stat. In numbers mode, lead with total spent; otherwise the
+  /// privacy-safe savings rate / top-category share.
   Widget _hero() {
+    if (showAmounts) {
+      return _heroBlock(_money.format(recap.totalSpent), 'SPENT THIS MONTH',
+          _gold);
+    }
     final rate = recap.savingsRatePct;
     if (rate != null && rate >= 0) {
       return _heroBlock('$rate%', 'OF INCOME SAVED', _gold);
@@ -345,14 +357,22 @@ class WrappedCard extends StatelessWidget {
                 ),
               ),
             ),
-            Text(
-              value,
-              style: TextStyle(
-                color: color,
-                fontSize: 64,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -2,
-                height: 1.0,
+            // FittedBox so longer figures (e.g. ₹1,24,500) never overflow.
+            SizedBox(
+              width: width - 80,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  value,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 64,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -2,
+                    height: 1.0,
+                  ),
+                ),
               ),
             ),
           ],
@@ -375,12 +395,18 @@ class WrappedCard extends StatelessWidget {
     final rows = <Widget>[];
 
     if (recap.topCategory != null) {
+      final c = recap.topCategory!;
       rows.add(_statRow('🍔', 'Top category',
-          '${recap.topCategory!.label} · ${recap.topCategory!.sharePct}%'));
+          showAmounts && recap.topCategoryAmount != null
+              ? '${c.label} · ${_money.format(recap.topCategoryAmount)}'
+              : '${c.label} · ${c.sharePct}%'));
     }
     if (recap.topMerchant != null) {
+      final m = recap.topMerchant!;
       rows.add(_statRow('🏪', 'Top merchant',
-          '${recap.topMerchant!.label} · ${recap.topMerchant!.sharePct}%'));
+          showAmounts && recap.topMerchantAmount != null
+              ? '${m.label} · ${_money.format(recap.topMerchantAmount)}'
+              : '${m.label} · ${m.sharePct}%'));
     }
     if (recap.spendVsLastMonthPct != null) {
       final p = recap.spendVsLastMonthPct!;
@@ -392,28 +418,46 @@ class WrappedCard extends StatelessWidget {
         valueColor: down ? _green : _red,
       ));
     }
-    if (recap.netWorthChangePct != null) {
-      final p = recap.netWorthChangePct!;
-      rows.add(_statRow(
-          '💎', 'Net worth', '${p >= 0 ? '↑' : '↓'} ${p.abs()}%',
-          valueColor: p >= 0 ? _green : _red));
-    } else if (recap.investedPct != null) {
-      rows.add(_statRow('💎', 'Invested', '${recap.investedPct}% of assets'));
+    if (showAmounts) {
+      // Numbers-mode-only insights.
+      rows.add(_statRow('📅', 'Avg per day', _money.format(recap.avgPerDay)));
+      if (recap.biggestTxnAmount != null) {
+        rows.add(_statRow('💥', 'Biggest expense',
+            '${recap.biggestTxnLabel ?? ''} · ${_money.format(recap.biggestTxnAmount)}'));
+      }
+      if (recap.totalIncome > 0) {
+        rows.add(_statRow('💰', 'Income', _money.format(recap.totalIncome),
+            valueColor: _green));
+      }
+    } else {
+      if (recap.netWorthChangePct != null) {
+        final p = recap.netWorthChangePct!;
+        rows.add(_statRow(
+            '💎', 'Net worth', '${p >= 0 ? '↑' : '↓'} ${p.abs()}%',
+            valueColor: p >= 0 ? _green : _red));
+      } else if (recap.investedPct != null) {
+        rows.add(_statRow('💎', 'Invested', '${recap.investedPct}% of assets'));
+      }
+      if (recap.categoryMover != null) {
+        final m = recap.categoryMover!;
+        rows.add(_statRow(
+            m.icon, '${m.label} ${m.up ? 'up' : 'down'}',
+            '${m.up ? '↑' : '↓'} ${m.changePct.abs()}%',
+            valueColor: m.up ? _red : _green));
+      }
     }
-    if (recap.categoryMover != null) {
-      final m = recap.categoryMover!;
-      rows.add(_statRow(
-          m.icon, '${m.label} ${m.up ? 'up' : 'down'}',
-          '${m.up ? '↑' : '↓'} ${m.changePct.abs()}%',
-          valueColor: m.up ? _red : _green));
-    }
-    rows.add(_statRow('🧾', 'Activity',
-        '${recap.transactionCount} txns · ${recap.merchantCount} merchants'));
+
+    // The card is a fixed-height shareable image, so cap the rows: keep the
+    // top 5 highlights plus the Activity summary (6 total). Numbers mode adds
+    // extra rows and would otherwise overflow into the footer.
+    final activity = _statRow('🧾', 'Activity',
+        '${recap.transactionCount} txns · ${recap.merchantCount} merchants');
+    final shown = [...rows.take(5), activity];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: rows,
+      children: shown,
     );
   }
 
