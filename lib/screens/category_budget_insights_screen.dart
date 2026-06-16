@@ -8,6 +8,7 @@ import '../services/database_service.dart';
 import '../widgets/app_dialog.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/glass.dart';
+import '../widgets/merchant_bar.dart';
 import '../widgets/motion.dart';
 import '../widgets/privacy_amount.dart';
 
@@ -364,16 +365,16 @@ class _CategoryBudgetInsightsScreenState
 
       rows.add(Padding(
         padding: EdgeInsets.only(bottom: i == _merchants.length - 1 ? 0 : 14),
-        child: _MerchantBar(
+        child: MerchantBar(
           rank: i + 1,
           name: name,
           amountLabel: _fmt.format(total),
           count: count,
           fraction: fraction,
-          shareOfSpent: _spent > 0 ? total / _spent : 0.0,
+          shareOfTotal: _spent > 0 ? total / _spent : 0.0,
           color: accent,
           isTop: i == 0,
-          colors: colors,
+          shareSuffix: 'of category',
         ),
       ));
     }
@@ -438,133 +439,5 @@ class _CategoryBudgetInsightsScreenState
       if (mounted) Navigator.pop(context, true);
     }
     amountCtrl.dispose();
-  }
-}
-
-/// One animated merchant row: rank badge, name, amount, an animated spend bar,
-/// and a transaction-count + share caption.
-class _MerchantBar extends StatelessWidget {
-  final int rank;
-  final String name;
-  final String amountLabel;
-  final int count;
-  final double fraction; // 0..1 relative to the top merchant (bar width)
-  final double shareOfSpent; // 0..1 of category total (caption)
-  final Color color;
-  final bool isTop;
-  final AppColors colors;
-
-  const _MerchantBar({
-    required this.rank,
-    required this.name,
-    required this.amountLabel,
-    required this.count,
-    required this.fraction,
-    required this.shareOfSpent,
-    required this.color,
-    required this.isTop,
-    required this.colors,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(
-              width: 22,
-              height: 22,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: color.withAlpha(isTop ? 45 : 26),
-                borderRadius: BorderRadius.circular(7),
-              ),
-              child: Text(
-                '$rank',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: color,
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: colors.text,
-                ),
-              ),
-            ),
-            if (isTop)
-              Container(
-                margin: const EdgeInsets.only(right: 8),
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                decoration: BoxDecoration(
-                  color: color.withAlpha(28),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  'TOP',
-                  style: TextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.5,
-                    color: color,
-                  ),
-                ),
-              ),
-            PrivacyAmount(
-              amountLabel,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: colors.text,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        // Animated bar
-        ClipRRect(
-          borderRadius: BorderRadius.circular(6),
-          child: Stack(
-            children: [
-              Container(height: 8, color: color.withAlpha(20)),
-              TweenAnimationBuilder<double>(
-                tween: Tween(begin: 0, end: fraction),
-                duration: const Duration(milliseconds: 750),
-                curve: Curves.easeOutCubic,
-                builder: (context, value, _) => FractionallySizedBox(
-                  widthFactor: value,
-                  child: Container(
-                    height: 8,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [color.withAlpha(160), color],
-                      ),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          '$count transaction${count == 1 ? '' : 's'} · '
-          '${(shareOfSpent * 100).toStringAsFixed(0)}% of category',
-          style: TextStyle(fontSize: 11.5, color: colors.textSecondary),
-        ),
-      ],
-    );
   }
 }

@@ -3,18 +3,23 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../models/budget_model.dart';
+import '../models/merchant_summary.dart';
 import '../models/transaction_model.dart';
 import '../providers/app_preferences.dart';
 import '../providers/theme_provider.dart';
+import '../services/custom_tag_service.dart';
 import '../services/database_service.dart';
 import '../widgets/app_dialog.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/category_donut.dart';
 import '../widgets/glass.dart';
+import '../widgets/merchant_bar.dart';
 import '../widgets/motion.dart';
 import '../widgets/privacy_amount.dart';
 import '../widgets/spending_calendar.dart';
 import 'category_budget_insights_screen.dart';
+import 'merchant_detail_screen.dart';
+import 'merchants_screen.dart';
 import 'transaction_detail_screen.dart';
 
 /// Chart display mode for trends
@@ -206,6 +211,11 @@ class _BudgetScreenState extends State<BudgetScreen>
         startDate: start,
         endDate: end,
       );
+      final merchants = await _db.getMerchantBreakdown(
+        startDate: start,
+        endDate: end,
+        limit: 6,
+      );
 
       if (!mounted) return;
       setState(() {
@@ -214,6 +224,7 @@ class _BudgetScreenState extends State<BudgetScreen>
           income: income,
           categories: categories,
           daily: daily,
+          merchants: merchants,
         );
       });
     }
@@ -500,6 +511,13 @@ class _BudgetScreenState extends State<BudgetScreen>
             FadeSlideIn(
               order: order++,
               child: _buildMonthDailyChart(month, data, isDark),
+            ),
+          ],
+          if (data.merchants.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            FadeSlideIn(
+              order: order++,
+              child: _buildTopMerchantsCard(month, data, isDark),
             ),
           ],
           const SizedBox(height: 80),
@@ -837,6 +855,97 @@ class _BudgetScreenState extends State<BudgetScreen>
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  /// Top merchants for [month]: the 5 biggest, each tappable to drill in,
+  /// plus "See all" to the full merchant list. Reuses the shared MerchantBar.
+  Widget _buildTopMerchantsCard(
+    DateTime month,
+    _MonthOverviewData data,
+    bool isDark,
+  ) {
+    final colors = AppColors.of(context);
+    final fmt = NumberFormat.currency(
+      locale: 'en_IN',
+      symbol: '₹',
+      decimalDigits: 0,
+    );
+    final summary = MerchantSummary.fromRows(data.merchants);
+    final top = summary.merchants.take(5).toList();
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: colors.card,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: colors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.storefront_outlined,
+                  size: 18, color: colors.textSecondary),
+              const SizedBox(width: 8),
+              Text(
+                'Top merchants',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: colors.text,
+                ),
+              ),
+              const Spacer(),
+              TextButton(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => MerchantsScreen(month: month),
+                  ),
+                ).then((_) => _loadData()),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.goldDeep,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  visualDensity: VisualDensity.compact,
+                ),
+                child: const Text('See all'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          for (var i = 0; i < top.length; i++) ...[
+            if (i > 0) const SizedBox(height: 14),
+            MerchantBar(
+              rank: i + 1,
+              name: top[i].name,
+              amountLabel: fmt.format(top[i].total),
+              count: top[i].count,
+              fraction: summary.barFraction(top[i]),
+              shareOfTotal: summary.share(top[i]),
+              color: CustomTagService.colorFromName(top[i].name),
+              isTop: i == 0,
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => MerchantDetailScreen(
+                    merchant: top[i].name,
+                    month: month,
+                  ),
+                ),
+              ).then((_) => _loadData()),
+            ),
+          ],
         ],
       ),
     );
@@ -2279,11 +2388,13 @@ class _MonthOverviewData {
   final double income;
   final Map<String, double> categories;
   final Map<DateTime, double> daily;
+  final List<Map<String, dynamic>> merchants;
 
   const _MonthOverviewData({
     required this.spent,
     required this.income,
     required this.categories,
     required this.daily,
+    this.merchants = const [],
   });
 }
