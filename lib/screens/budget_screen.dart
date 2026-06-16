@@ -13,6 +13,7 @@ import '../widgets/category_donut.dart';
 import '../widgets/glass.dart';
 import '../widgets/motion.dart';
 import '../widgets/privacy_amount.dart';
+import '../widgets/savings_summary.dart';
 import '../widgets/spending_calendar.dart';
 import 'category_budget_insights_screen.dart';
 import 'transaction_detail_screen.dart';
@@ -193,7 +194,9 @@ class _BudgetScreenState extends State<BudgetScreen>
       final transactions = await _db.getTransactionsByDateRange(start, end);
       double income = 0;
       for (final t in transactions) {
-        if (t.type == TransactionType.credit) {
+        // Self-transfers and investment redemptions aren't real income.
+        if (t.type == TransactionType.credit &&
+            ExpenseCategories.isIncomeCategory(t.category)) {
           income += t.amount;
         }
       }
@@ -550,8 +553,6 @@ class _BudgetScreenState extends State<BudgetScreen>
     bool isDark,
     NumberFormat fmt,
   ) {
-    final net = data.income - data.spent;
-
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -595,42 +596,8 @@ class _BudgetScreenState extends State<BudgetScreen>
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: (net >= 0
-                      ? const Color(0xFF2AA76F)
-                      : const Color(0xFFD25A5F))
-                  .withAlpha(26),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  net >= 0 ? Icons.trending_up : Icons.trending_down,
-                  color: net >= 0
-                      ? const Color(0xFF2AA76F)
-                      : const Color(0xFFD25A5F),
-                  size: 18,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  net >= 0
-                      ? 'Net Savings: ${fmt.format(net)}'
-                      : 'Net Deficit: ${fmt.format(net.abs())}',
-                  style: TextStyle(
-                    color: net >= 0
-                        ? const Color(0xFF2AA76F)
-                        : const Color(0xFFD25A5F),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          const SizedBox(height: 14),
+          SavingsRateBar(income: data.income, expenses: data.spent),
         ],
       ),
     );
