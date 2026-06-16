@@ -67,8 +67,10 @@
         android:textColor="#9A9DA6"
         android:textSize="12sp" />
 
-    <!-- Hairline divider -->
-    <View
+    <!-- Hairline divider. NB: a bare <View> is NOT in the RemoteViews
+         allow-list and throws "Class not allowed to be inflated" (the widget
+         then fails to add), so we use a 1dp LinearLayout instead. -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="1dp"
         android:layout_marginTop="11dp"
