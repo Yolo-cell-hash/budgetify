@@ -5,7 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/app_preferences.dart';
 import '../services/background_service.dart';
 import '../widgets/app_toast.dart';
-import 'home_screen.dart';
+import 'main_shell.dart';
 
 /// Onboarding screen for first-time users
 class OnboardingScreen extends StatefulWidget {
@@ -63,7 +63,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
         // Navigate to home
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const HomeScreen()),
+          MaterialPageRoute(builder: (_) => const MainShell()),
         );
       }
     } catch (e) {
