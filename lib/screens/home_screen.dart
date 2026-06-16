@@ -3,7 +3,6 @@ import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/transaction_model.dart';
-import '../models/budget_model.dart';
 import '../providers/theme_provider.dart';
 import '../services/database_service.dart';
 import '../services/sms_service.dart';
@@ -22,8 +21,6 @@ import '../widgets/motion.dart';
 import '../widgets/permission_request_card.dart';
 import '../widgets/expense_chart.dart';
 import 'transactions_screen.dart';
-import 'settings_screen.dart';
-import 'budget_screen.dart';
 import 'add_transaction_screen.dart';
 
 /// Home screen of the Budget Tracker app
@@ -48,8 +45,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int _unclassifiedCount = 0;
   List<TransactionModel> _recentTransactions = [];
   List<TransactionModel> _allTransactions = [];
-  Budget? _activeBudget;
-  double _budgetSpent = 0;
   List<TransactionModel> _cashTransactions = [];
   double _totalCash = 0;
   double _monthlyIncome = 0;
@@ -108,15 +103,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     try {
       final transactions = await _dbService.getAllTransactions();
       final unclassified = await _dbService.getUnclassifiedTransactions();
-      // Load budget data
-      final budget = await _dbService.getActiveBudget();
-      double budgetSpent = 0;
-      if (budget != null) {
-        budgetSpent = await _dbService.getSpendingForPeriod(
-          startDate: budget.currentPeriodStart,
-          endDate: budget.currentPeriodEnd,
-        );
-      }
 
       // Calculate month boundaries (used by cash filter and monthly calculations)
       final now = DateTime.now();
@@ -160,8 +146,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         _unclassifiedCount = unclassified.length;
         _recentTransactions = transactions.take(5).toList();
         _allTransactions = transactions;
-        _activeBudget = budget;
-        _budgetSpent = budgetSpent;
         _cashTransactions = cashTxns;
         _totalCash = totalCash;
         _monthlyIncome = monthlyIncome;
@@ -382,11 +366,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                               transactions: _allTransactions,
                             ),
                           ),
-                          FadeSlideIn(order: 3, child: _buildBudgetCard()),
-                          FadeSlideIn(order: 4, child: _buildCashSection()),
-                          FadeSlideIn(order: 5, child: _buildQuickActions()),
+                          FadeSlideIn(order: 3, child: _buildCashSection()),
+                          FadeSlideIn(order: 4, child: _buildQuickActions()),
                           FadeSlideIn(
-                            order: 6,
+                            order: 5,
                             child: _buildRecentTransactions(),
                           ),
                         ],
@@ -483,18 +466,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   onPressed: () =>
                       context.read<AppPreferences>().toggleReveal(),
                 ),
-              IconButton(
-                icon: Icon(
-                  Icons.settings_outlined,
-                  color: colors.textSecondary,
-                ),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const SettingsScreen()),
-                  ).then((_) => setState(() {}));
-                },
-              ),
             ],
           ),
         ],
@@ -903,131 +874,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildBudgetCard() {
-    final colors = AppColors.of(context);
-    final fmt = NumberFormat.currency(
-      locale: 'en_IN',
-      symbol: '₹',
-      decimalDigits: 0,
-    );
-
-    return PressableScale(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const BudgetScreen()),
-      ).then((_) => _loadData()),
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF2A2E42), Color(0xFF191B28)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: Colors.white.withOpacity(0.06)),
-        ),
-        child: _activeBudget == null
-            ? Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withAlpha(50),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.account_balance_wallet,
-                      color: Colors.white,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Set Your Budget',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          'Tap to set a monthly budget',
-                          style: TextStyle(color: Colors.white70, fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Icon(
-                    Icons.arrow_forward_ios,
-                    color: Colors.white70,
-                    size: 16,
-                  ),
-                ],
-              )
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        _activeBudget!.name,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      Text(
-                        '${((_budgetSpent / _activeBudget!.amount) * 100).clamp(0, 999).toStringAsFixed(0)}%',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  AnimatedProgressBar(
-                    value: _budgetSpent / _activeBudget!.amount,
-                    backgroundColor: Colors.white.withAlpha(30),
-                    color: _budgetSpent >= _activeBudget!.amount
-                        ? colors.danger
-                        : AppColors.gold,
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      PrivacyAmount(
-                        '${fmt.format(_budgetSpent)} spent',
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 12,
-                        ),
-                      ),
-                      Text(
-                        '${fmt.format(_activeBudget!.amount)} budget',
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-      ),
     );
   }
 

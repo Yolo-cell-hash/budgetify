@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:budget_tracker/screens/home_screen.dart';
+import 'package:budget_tracker/screens/main_shell.dart';
 import 'package:budget_tracker/screens/lock_screen.dart';
 import 'package:budget_tracker/screens/onboarding_screen.dart';
 import 'package:budget_tracker/screens/splash_screen.dart';
@@ -63,7 +63,7 @@ class MyApp extends StatelessWidget {
           // covers every route, not just the home screen.
           builder: (context, child) => AppLockGate(child: child!),
           home: appPreferences.isOnboardingComplete
-              ? const HomeScreen()
+              ? const MainShell()
               : const OnboardingScreen(),
         );
       },
