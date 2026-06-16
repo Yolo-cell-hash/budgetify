@@ -191,26 +191,9 @@ class InsightsService {
       ));
     }
 
-    // ── Savings rate (income vs expense) ──────────────────────────────
-    final monthTxns =
-        await _db.getTransactionsByDateRange(monthStart, monthEnd);
-    double income = 0;
-    for (final t in monthTxns) {
-      if (t.type == TransactionType.credit) income += t.amount;
-    }
-    if (income > 0 && spentThis > 0) {
-      final rate = (income - spentThis) / income * 100;
-      insights.add(Insight(
-        icon: rate >= 0 ? '🐷' : '🔻',
-        title: rate >= 0
-            ? 'Saving ${rate.toStringAsFixed(0)}% of income'
-            : 'Spending exceeds income',
-        detail: rate >= 0
-            ? 'Income ₹${_round(income)}, spent ₹${_round(spentThis)} so far.'
-            : 'Spent ₹${_round(spentThis)} against ₹${_round(income)} income.',
-        tone: rate >= 0 ? InsightTone.positive : InsightTone.alert,
-      ));
-    }
+    // Savings rate (income vs expense) is now a core, always-on summary
+    // (see SavingsRateBar on the dashboard and Budget → Overview), so it's no
+    // longer duplicated here as an opt-in insight.
 
     return InsightsResult(
       forecast: forecast,
