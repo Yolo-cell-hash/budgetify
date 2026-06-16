@@ -446,13 +446,18 @@ class WrappedCard extends StatelessWidget {
             valueColor: m.up ? _red : _green));
       }
     }
-    rows.add(_statRow('🧾', 'Activity',
-        '${recap.transactionCount} txns · ${recap.merchantCount} merchants'));
+
+    // The card is a fixed-height shareable image, so cap the rows: keep the
+    // top 5 highlights plus the Activity summary (6 total). Numbers mode adds
+    // extra rows and would otherwise overflow into the footer.
+    final activity = _statRow('🧾', 'Activity',
+        '${recap.transactionCount} txns · ${recap.merchantCount} merchants');
+    final shown = [...rows.take(5), activity];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: rows,
+      children: shown,
     );
   }
 

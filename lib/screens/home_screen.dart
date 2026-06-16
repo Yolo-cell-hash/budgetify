@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -11,6 +12,7 @@ import '../services/background_service.dart';
 import '../services/widget_service.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_preferences.dart';
+import '../widgets/app_dialog.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/category_icon.dart';
 import '../widgets/glass.dart';
@@ -323,9 +325,38 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     ).then((_) => _loadData());
   }
 
+  /// Themed "exit app?" confirmation shown on a root back press.
+  Future<void> _confirmExit() async {
+    final ok = await showAppDialog<bool>(
+      context,
+      builder: (ctx) => AppDialog(
+        icon: Icons.logout_rounded,
+        title: 'Exit Budgetify?',
+        subtitle: 'Your data stays safely on your device. See you soon.',
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Stay'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Exit'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) SystemNavigator.pop();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      // Intercept the root back press so we can confirm before exiting.
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _confirmExit();
+      },
+      child: Scaffold(
       backgroundColor: AppColors.of(context).background,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -395,6 +426,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ),
               ),
             ),
+      ),
     );
   }
 
