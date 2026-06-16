@@ -6,6 +6,7 @@ import '../models/holding.dart';
 import '../providers/theme_provider.dart';
 import '../services/custom_tag_service.dart';
 import '../services/database_service.dart';
+import '../services/widget_service.dart';
 import '../widgets/app_dialog.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/glass.dart';
@@ -40,6 +41,8 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
   Future<void> _load() async {
     final holdings = await _db.getHoldings();
     final invested = await _db.getInvestmentsTagTotal();
+    // Keep the home-screen widget's net worth in sync with any edits here.
+    WidgetService.update();
     if (!mounted) return;
     setState(() {
       _summary = NetWorthSummary(holdings);
