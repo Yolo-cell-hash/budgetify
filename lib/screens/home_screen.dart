@@ -15,6 +15,7 @@ import '../widgets/app_toast.dart';
 import '../widgets/category_icon.dart';
 import '../widgets/glass.dart';
 import '../widgets/insights_card.dart';
+import '../widgets/savings_summary.dart';
 import '../widgets/privacy_amount.dart';
 import '../widgets/motion.dart';
 import '../widgets/permission_request_card.dart';
@@ -129,7 +130,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ) &&
             t.detectedAt.isBefore(monthEnd.add(const Duration(days: 1)))) {
           if (t.type == TransactionType.credit) {
-            monthlyIncome += t.amount;
+            // Self-transfers and investment redemptions aren't real income.
+            if (ExpenseCategories.isIncomeCategory(t.category)) {
+              monthlyIncome += t.amount;
+            }
           } else if (ExpenseCategories.isExpenseCategory(t.category)) {
             // Self transfers and investments aren't spending
             monthlyExpenses += t.amount;
@@ -655,6 +659,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ),
               ],
             ),
+          ),
+          const SizedBox(height: 18),
+          SavingsRateBar(
+            income: _monthlyIncome,
+            expenses: _monthlyExpenses,
+            onDark: true,
           ),
         ],
       ),

@@ -242,6 +242,13 @@ class ExpenseCategories {
   static bool isExpenseCategory(String? category) =>
       category == null || !nonExpense.contains(category);
 
+  /// Whether a credit in [category] counts as real income. Mirrors
+  /// [isExpenseCategory]: money moved between your own accounts (Self
+  /// Transfer) or pulled back from Investments isn't income, so it must be
+  /// excluded for a true savings rate.
+  static bool isIncomeCategory(String? category) =>
+      category == null || !nonExpense.contains(category);
+
   /// Backward-compatible alias for predefined categories
   static List<String> get categories => allCategories;
 
