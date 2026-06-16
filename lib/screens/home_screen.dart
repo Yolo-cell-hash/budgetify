@@ -4,6 +4,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/transaction_model.dart';
 import '../models/budget_model.dart';
+import '../models/holding.dart';
 import '../providers/theme_provider.dart';
 import '../services/database_service.dart';
 import '../services/sms_service.dart';
@@ -23,6 +24,7 @@ import '../widgets/expense_chart.dart';
 import 'transactions_screen.dart';
 import 'settings_screen.dart';
 import 'budget_screen.dart';
+import 'net_worth_screen.dart';
 import 'add_transaction_screen.dart';
 
 /// Home screen of the Budget Tracker app
@@ -53,6 +55,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   double _totalCash = 0;
   double _monthlyIncome = 0;
   double _monthlyExpenses = 0;
+  double _netWorth = 0;
+  bool _hasHoldings = false;
 
   @override
   void initState() {
@@ -151,6 +155,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         }
       }
 
+      // Net worth from manual holdings (assets − liabilities)
+      final holdings = await _dbService.getHoldings();
+      final netWorth = NetWorthSummary(holdings).netWorth;
+
       setState(() {
         _transactionCount = transactions.length;
         _unclassifiedCount = unclassified.length;
@@ -162,6 +170,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         _totalCash = totalCash;
         _monthlyIncome = monthlyIncome;
         _monthlyExpenses = monthlyExpenses;
+        _netWorth = netWorth;
+        _hasHoldings = holdings.isNotEmpty;
       });
 
       // Keep the home-screen widget in sync
@@ -380,9 +390,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           ),
                           FadeSlideIn(order: 3, child: _buildBudgetCard()),
                           FadeSlideIn(order: 4, child: _buildCashSection()),
-                          FadeSlideIn(order: 5, child: _buildQuickActions()),
+                          FadeSlideIn(order: 5, child: _buildNetWorthCard()),
+                          FadeSlideIn(order: 6, child: _buildQuickActions()),
                           FadeSlideIn(
-                            order: 6,
+                            order: 7,
                             child: _buildRecentTransactions(),
                           ),
                         ],
@@ -1017,6 +1028,85 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ),
                 ],
               ),
+      ),
+    );
+  }
+
+  Widget _buildNetWorthCard() {
+    final fmt = NumberFormat.currency(
+      locale: 'en_IN',
+      symbol: '₹',
+      decimalDigits: 0,
+    );
+
+    return PressableScale(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const NetWorthScreen()),
+      ).then((_) => _loadData()),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF3A2E4A), Color(0xFF201826)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.white.withOpacity(0.06)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withAlpha(50),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.account_balance_wallet_outlined,
+                color: Colors.white,
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _hasHoldings ? 'Net Worth' : 'Track Net Worth',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (!_hasHoldings) ...[
+                    const SizedBox(height: 2),
+                    const Text(
+                      'Investments, savings & loans',
+                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (_hasHoldings)
+              PrivacyAmount(
+                fmt.format(_netWorth),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              )
+            else
+              const Icon(Icons.arrow_forward_ios,
+                  color: Colors.white70, size: 16),
+          ],
+        ),
       ),
     );
   }

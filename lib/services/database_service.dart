@@ -3,6 +3,7 @@ import 'package:path/path.dart';
 import '../models/transaction_model.dart';
 import '../models/budget_model.dart';
 import '../models/transaction_rule_model.dart';
+import '../models/holding.dart';
 import 'sms_parser_service.dart';
 
 /// Database service for persisting transactions and budgets
@@ -28,7 +29,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 12,
+      version: 13,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -112,6 +113,9 @@ class DatabaseService {
     await db.execute(
       'CREATE INDEX idx_deleted_fingerprint ON deleted_transactions(fingerprint)',
     );
+
+    // Manual net-worth / investment holdings
+    await db.execute(_createHoldingsTable);
   }
 
   static const String _createDeletedTransactionsTable = '''
@@ -121,6 +125,18 @@ class DatabaseService {
         message TEXT,
         detected_at INTEGER,
         deleted_at INTEGER NOT NULL
+      )
+    ''';
+
+  static const String _createHoldingsTable = '''
+      CREATE TABLE IF NOT EXISTS holdings(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        category TEXT NOT NULL,
+        amount REAL NOT NULL,
+        note TEXT,
+        updated_at INTEGER NOT NULL
       )
     ''';
 
@@ -292,6 +308,11 @@ class DatabaseService {
         {'notified_period': periodKey},
         where: 'last_notified_threshold > 0',
       );
+    }
+
+    if (oldVersion < 13) {
+      // Manual net-worth / investment holdings table.
+      await db.execute(_createHoldingsTable);
     }
   }
 
@@ -1259,12 +1280,54 @@ class DatabaseService {
   }
 
   /// Export every table as raw row maps, for encrypted backup.
+  // ==================== HOLDINGS (NET WORTH) OPERATIONS ====================
+
+  Future<int> insertHolding(Holding holding) async {
+    final db = await database;
+    return db.insert('holdings', holding.toMap());
+  }
+
+  Future<int> updateHolding(Holding holding) async {
+    final db = await database;
+    return db.update(
+      'holdings',
+      holding.toMap(),
+      where: 'id = ?',
+      whereArgs: [holding.id],
+    );
+  }
+
+  Future<int> deleteHolding(int id) async {
+    final db = await database;
+    return db.delete('holdings', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<List<Holding>> getHoldings() async {
+    final db = await database;
+    final maps = await db.query('holdings', orderBy: 'amount DESC');
+    return maps.map((m) => Holding.fromMap(m)).toList();
+  }
+
+  /// All-time total the user has tagged as 'Investments' across detected
+  /// transactions. Surfaced in the net-worth view so SMS-detected investing
+  /// is visible alongside manual holdings.
+  Future<double> getInvestmentsTagTotal() async {
+    final db = await database;
+    final r = await db.rawQuery(
+      "SELECT SUM(amount) as total FROM transactions "
+      "WHERE type = ? AND category = 'Investments'",
+      [TransactionType.debit.index],
+    );
+    return (r.first['total'] as num?)?.toDouble() ?? 0.0;
+  }
+
   Future<Map<String, dynamic>> exportAllData() async {
     final db = await database;
     return {
       'transactions': await db.query('transactions'),
       'budgets': await db.query('budgets'),
       'transaction_rules': await db.query('transaction_rules'),
+      'holdings': await db.query('holdings'),
     };
   }
 
@@ -1276,7 +1339,7 @@ class DatabaseService {
   /// backup twice is a no-op.
   Future<Map<String, int>> importBackupData(Map<String, dynamic> data) async {
     final db = await database;
-    var txnCount = 0, budgetCount = 0, ruleCount = 0;
+    var txnCount = 0, budgetCount = 0, ruleCount = 0, holdingCount = 0;
 
     for (final raw in (data['transactions'] as List? ?? const [])) {
       final row = Map<String, dynamic>.from(raw as Map);
@@ -1359,10 +1422,25 @@ class DatabaseService {
       ruleCount++;
     }
 
+    for (final raw in (data['holdings'] as List? ?? const [])) {
+      final row = Map<String, dynamic>.from(raw as Map);
+      row.remove('id');
+      final exists = await db.query(
+        'holdings',
+        where: 'name = ? AND kind = ? AND category = ?',
+        whereArgs: [row['name'], row['kind'], row['category']],
+        limit: 1,
+      );
+      if (exists.isNotEmpty) continue;
+      await db.insert('holdings', row);
+      holdingCount++;
+    }
+
     return {
       'transactions': txnCount,
       'budgets': budgetCount,
       'rules': ruleCount,
+      'holdings': holdingCount,
     };
   }
 
