@@ -4,6 +4,7 @@ import '../models/transaction_model.dart';
 import '../models/budget_model.dart';
 import '../models/transaction_rule_model.dart';
 import '../models/holding.dart';
+import '../models/recurring_plan.dart';
 import 'sms_parser_service.dart';
 
 /// Database service for persisting transactions and budgets
@@ -29,7 +30,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 14,
+      version: 15,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -119,6 +120,13 @@ class DatabaseService {
 
     // Monthly net-worth snapshots (powers the Wrapped net-worth-change stat)
     await db.execute(_createNetWorthSnapshotsTable);
+
+    // Recurring investment plans (SIP/RD) + their contribution ledger
+    await db.execute(_createRecurringPlansTable);
+    await db.execute(_createRecurringContributionsTable);
+    for (final stmt in _recurringIndexStatements) {
+      await db.execute(stmt);
+    }
   }
 
   static const String _createDeletedTransactionsTable = '''
@@ -152,6 +160,50 @@ class DatabaseService {
         updated_at INTEGER NOT NULL
       )
     ''';
+
+  static const String _createRecurringPlansTable = '''
+      CREATE TABLE IF NOT EXISTS recurring_plans(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        holding_id INTEGER NOT NULL,
+        kind TEXT NOT NULL,
+        amount REAL NOT NULL,
+        is_fixed INTEGER NOT NULL DEFAULT 1,
+        due_day INTEGER NOT NULL,
+        start_date INTEGER,
+        end_date INTEGER,
+        payee_signature TEXT,
+        last_matched_period TEXT,
+        active INTEGER NOT NULL DEFAULT 1,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      )
+    ''';
+
+  static const String _createRecurringContributionsTable = '''
+      CREATE TABLE IF NOT EXISTS recurring_contributions(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        plan_id INTEGER NOT NULL,
+        period TEXT NOT NULL,
+        amount REAL NOT NULL,
+        contributed_at INTEGER NOT NULL,
+        transaction_id INTEGER,
+        source TEXT NOT NULL DEFAULT 'manual'
+      )
+    ''';
+
+  /// Indexes for recurring-plan lookups. The unique (plan_id, period) index
+  /// enforces one contribution per month per plan, so a re-detected debit can
+  /// be upserted idempotently rather than double-counted.
+  static const List<String> _recurringIndexStatements = [
+    'CREATE INDEX IF NOT EXISTS idx_recurring_plans_holding '
+        'ON recurring_plans(holding_id)',
+    'CREATE INDEX IF NOT EXISTS idx_recurring_plans_active '
+        'ON recurring_plans(active)',
+    'CREATE INDEX IF NOT EXISTS idx_recurring_contrib_plan '
+        'ON recurring_contributions(plan_id)',
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_recurring_contrib_plan_period '
+        'ON recurring_contributions(plan_id, period)',
+  ];
 
   /// Handle database upgrades
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -331,6 +383,15 @@ class DatabaseService {
     if (oldVersion < 14) {
       // Monthly net-worth snapshots for the Wrapped net-worth-change stat.
       await db.execute(_createNetWorthSnapshotsTable);
+    }
+
+    if (oldVersion < 15) {
+      // Recurring investment plans (SIP/RD) + their contribution ledger.
+      await db.execute(_createRecurringPlansTable);
+      await db.execute(_createRecurringContributionsTable);
+      for (final stmt in _recurringIndexStatements) {
+        await db.execute(stmt);
+      }
     }
   }
 
@@ -1317,6 +1378,19 @@ class DatabaseService {
 
   Future<int> deleteHolding(int id) async {
     final db = await database;
+    // Cascade: drop any recurring plans for this holding and their ledger rows
+    // so we don't leave orphaned SIP/RD watchers behind.
+    final plans = await db.query(
+      'recurring_plans',
+      columns: ['id'],
+      where: 'holding_id = ?',
+      whereArgs: [id],
+    );
+    for (final p in plans) {
+      await db.delete('recurring_contributions',
+          where: 'plan_id = ?', whereArgs: [p['id']]);
+    }
+    await db.delete('recurring_plans', where: 'holding_id = ?', whereArgs: [id]);
     return db.delete('holdings', where: 'id = ?', whereArgs: [id]);
   }
 
@@ -1373,6 +1447,115 @@ class DatabaseService {
     return (r.first['total'] as num?)?.toDouble() ?? 0.0;
   }
 
+  // ============ RECURRING PLANS (SIP / RD AUTOMATION) ============
+
+  Future<int> insertRecurringPlan(RecurringPlan plan) async {
+    final db = await database;
+    return db.insert('recurring_plans', plan.toMap());
+  }
+
+  Future<int> updateRecurringPlan(RecurringPlan plan) async {
+    final db = await database;
+    return db.update(
+      'recurring_plans',
+      plan.copyWith(updatedAt: DateTime.now()).toMap(),
+      where: 'id = ?',
+      whereArgs: [plan.id],
+    );
+  }
+
+  Future<void> deleteRecurringPlan(int id) async {
+    final db = await database;
+    await db.delete('recurring_contributions',
+        where: 'plan_id = ?', whereArgs: [id]);
+    await db.delete('recurring_plans', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<List<RecurringPlan>> getRecurringPlans() async {
+    final db = await database;
+    final maps = await db.query('recurring_plans', orderBy: 'due_day ASC');
+    return maps.map(RecurringPlan.fromMap).toList();
+  }
+
+  Future<List<RecurringPlan>> getRecurringPlansForHolding(int holdingId) async {
+    final db = await database;
+    final maps = await db.query(
+      'recurring_plans',
+      where: 'holding_id = ?',
+      whereArgs: [holdingId],
+      orderBy: 'due_day ASC',
+    );
+    return maps.map(RecurringPlan.fromMap).toList();
+  }
+
+  Future<List<RecurringPlan>> getActiveRecurringPlans() async {
+    final db = await database;
+    final maps = await db.query(
+      'recurring_plans',
+      where: 'active = 1',
+      orderBy: 'due_day ASC',
+    );
+    return maps.map(RecurringPlan.fromMap).toList();
+  }
+
+  /// Record (or replace) a contribution for a plan's period and advance the
+  /// plan's [RecurringPlan.lastMatchedPeriod]. The unique (plan_id, period)
+  /// index makes this idempotent, so re-detecting the same month's debit can't
+  /// double-count it.
+  Future<void> recordContribution(RecurringContribution c) async {
+    final db = await database;
+    await db.insert(
+      'recurring_contributions',
+      c.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+    await db.update(
+      'recurring_plans',
+      {
+        'last_matched_period': c.period,
+        'updated_at': DateTime.now().millisecondsSinceEpoch,
+      },
+      where: 'id = ?',
+      whereArgs: [c.planId],
+    );
+  }
+
+  Future<List<RecurringContribution>> getContributionsForPlan(
+      int planId) async {
+    final db = await database;
+    final maps = await db.query(
+      'recurring_contributions',
+      where: 'plan_id = ?',
+      whereArgs: [planId],
+      orderBy: 'contributed_at ASC',
+    );
+    return maps.map(RecurringContribution.fromMap).toList();
+  }
+
+  /// Whether a contribution has already been recorded for [planId] in [period]
+  /// ("YYYY-MM") — used to decide if a due plan still needs an evening nudge.
+  Future<bool> hasContributionForPeriod(int planId, String period) async {
+    final db = await database;
+    final r = await db.query(
+      'recurring_contributions',
+      columns: ['id'],
+      where: 'plan_id = ? AND period = ?',
+      whereArgs: [planId, period],
+      limit: 1,
+    );
+    return r.isNotEmpty;
+  }
+
+  Future<double> totalContributedForPlan(int planId) async {
+    final db = await database;
+    final r = await db.rawQuery(
+      'SELECT SUM(amount) as total FROM recurring_contributions '
+      'WHERE plan_id = ?',
+      [planId],
+    );
+    return (r.first['total'] as num?)?.toDouble() ?? 0.0;
+  }
+
   Future<Map<String, dynamic>> exportAllData() async {
     final db = await database;
     return {
@@ -1380,6 +1563,8 @@ class DatabaseService {
       'budgets': await db.query('budgets'),
       'transaction_rules': await db.query('transaction_rules'),
       'holdings': await db.query('holdings'),
+      'recurring_plans': await db.query('recurring_plans'),
+      'recurring_contributions': await db.query('recurring_contributions'),
     };
   }
 
@@ -1392,6 +1577,10 @@ class DatabaseService {
   Future<Map<String, int>> importBackupData(Map<String, dynamic> data) async {
     final db = await database;
     var txnCount = 0, budgetCount = 0, ruleCount = 0, holdingCount = 0;
+    var planCount = 0, contribCount = 0;
+    // old holding/plan id -> restored id, so recurring FKs can be remapped.
+    final holdingIdMap = <int, int>{};
+    final planIdMap = <int, int>{};
 
     for (final raw in (data['transactions'] as List? ?? const [])) {
       final row = Map<String, dynamic>.from(raw as Map);
@@ -1476,6 +1665,7 @@ class DatabaseService {
 
     for (final raw in (data['holdings'] as List? ?? const [])) {
       final row = Map<String, dynamic>.from(raw as Map);
+      final oldId = row['id'] as int?;
       row.remove('id');
       final exists = await db.query(
         'holdings',
@@ -1483,9 +1673,54 @@ class DatabaseService {
         whereArgs: [row['name'], row['kind'], row['category']],
         limit: 1,
       );
-      if (exists.isNotEmpty) continue;
-      await db.insert('holdings', row);
+      if (exists.isNotEmpty) {
+        if (oldId != null) holdingIdMap[oldId] = exists.first['id'] as int;
+        continue;
+      }
+      final newId = await db.insert('holdings', row);
+      if (oldId != null) holdingIdMap[oldId] = newId;
       holdingCount++;
+    }
+
+    // Recurring plans: remap holding_id; dedupe on (holding, kind, due day).
+    for (final raw in (data['recurring_plans'] as List? ?? const [])) {
+      final row = Map<String, dynamic>.from(raw as Map);
+      final oldId = row['id'] as int?;
+      row.remove('id');
+      final newHoldingId = holdingIdMap[row['holding_id'] as int?];
+      if (newHoldingId == null) continue; // holding didn't restore — skip orphan
+      row['holding_id'] = newHoldingId;
+      final exists = await db.query(
+        'recurring_plans',
+        where: 'holding_id = ? AND kind = ? AND due_day = ?',
+        whereArgs: [newHoldingId, row['kind'], row['due_day']],
+        limit: 1,
+      );
+      if (exists.isNotEmpty) {
+        if (oldId != null) planIdMap[oldId] = exists.first['id'] as int;
+        continue;
+      }
+      final newId = await db.insert('recurring_plans', row);
+      if (oldId != null) planIdMap[oldId] = newId;
+      planCount++;
+    }
+
+    // Contributions: remap plan_id; the transaction_id soft-link can't be
+    // remapped reliably across a reinstall, so drop it (the ledger row still
+    // carries amount/period/date, which is what progress needs).
+    for (final raw in (data['recurring_contributions'] as List? ?? const [])) {
+      final row = Map<String, dynamic>.from(raw as Map);
+      row.remove('id');
+      final newPlanId = planIdMap[row['plan_id'] as int?];
+      if (newPlanId == null) continue;
+      row['plan_id'] = newPlanId;
+      row['transaction_id'] = null;
+      final id = await db.insert(
+        'recurring_contributions',
+        row,
+        conflictAlgorithm: ConflictAlgorithm.ignore,
+      );
+      if (id > 0) contribCount++;
     }
 
     return {
@@ -1493,6 +1728,8 @@ class DatabaseService {
       'budgets': budgetCount,
       'rules': ruleCount,
       'holdings': holdingCount,
+      'recurring_plans': planCount,
+      'recurring_contributions': contribCount,
     };
   }
 

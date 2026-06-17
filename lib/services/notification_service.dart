@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../models/transaction_model.dart';
+import '../screens/net_worth_screen.dart';
 import '../screens/transactions_screen.dart';
 import 'package:intl/intl.dart';
 
@@ -17,6 +18,10 @@ class NotificationService {
 
   /// Payload that routes to the unclassified-transactions list.
   static const String openUnclassifiedPayload = 'open_unclassified';
+
+  /// Payload prefix for a SIP/RD reminder; suffixed with the plan id. Tapping
+  /// opens the net-worth screen where the plan can be confirmed/logged/stopped.
+  static const String recurringPayloadPrefix = 'recurring:';
 
   factory NotificationService() => _instance;
 
@@ -59,6 +64,16 @@ class NotificationService {
       ),
     );
 
+    await androidPlugin?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        'recurring_channel',
+        'SIP / RD Reminders',
+        description:
+            'Reminders to confirm a recurring investment when no bank SMS was seen',
+        importance: Importance.high,
+      ),
+    );
+
     _isInitialized = true;
   }
 
@@ -85,6 +100,10 @@ class NotificationService {
           builder: (_) =>
               const TransactionsScreen(initialUnclassifiedOnly: true),
         ),
+      );
+    } else if (payload != null && payload.startsWith(recurringPayloadPrefix)) {
+      navigatorKey.currentState?.push(
+        MaterialPageRoute(builder: (_) => const NetWorthScreen()),
       );
     }
   }
@@ -270,6 +289,54 @@ class NotificationService {
         ),
       ),
       payload: openUnclassifiedPayload,
+    );
+  }
+
+  /// Evening reminder for a recurring SIP/RD whose installment hasn't been
+  /// recorded yet. [sawCandidate] tailors the wording: if we spotted a likely
+  /// debit it nudges the user to confirm; otherwise it asks them to add it
+  /// manually (the bank may not have texted, or the plan may have ended).
+  Future<void> showRecurringReminder({
+    required int planId,
+    required String kindLabel,
+    required String holdingName,
+    double? amount,
+    bool sawCandidate = false,
+  }) async {
+    if (!_isInitialized) await initialize();
+
+    final fmt = NumberFormat.currency(
+      locale: 'en_IN',
+      symbol: '₹',
+      decimalDigits: 0,
+    );
+    final amountStr = amount != null ? ' of ${fmt.format(amount)}' : '';
+
+    final title = sawCandidate
+        ? '🔁 Confirm your $holdingName $kindLabel'
+        : '🔁 $holdingName $kindLabel due';
+    final body = sawCandidate
+        ? 'We spotted a likely $kindLabel debit$amountStr — tap to confirm and track it.'
+        : "No bank SMS seen for your $kindLabel$amountStr today. Tap to add it "
+            'manually, or mark it stopped.';
+
+    await _notifications.show(
+      // One stable slot per plan so a re-check updates rather than stacks.
+      5000 + planId,
+      title,
+      body,
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'recurring_channel',
+          'SIP / RD Reminders',
+          channelDescription:
+              'Reminders to confirm a recurring investment when no bank SMS was seen',
+          importance: Importance.high,
+          priority: Priority.high,
+          showWhen: true,
+        ),
+      ),
+      payload: '$recurringPayloadPrefix$planId',
     );
   }
 

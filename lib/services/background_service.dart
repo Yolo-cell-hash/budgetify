@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../models/transaction_model.dart';
 import 'database_service.dart';
 import 'notification_service.dart';
+import 'recurring_service.dart';
 import 'sms_service.dart';
 import 'widget_service.dart';
 
@@ -23,6 +24,11 @@ class BackgroundService {
   static const String weeklyReminderUniqueName =
       'budget_tracker_weekly_reminder';
 
+  // Daily ~9 PM "confirm your SIP/RD" fallback reminder
+  static const String recurringReminderTaskName = 'recurring_sip_rd_reminder';
+  static const String recurringReminderUniqueName =
+      'budget_tracker_recurring_reminder';
+
   // Preferences keys
   static const String _autoScanEnabledKey = 'auto_scan_enabled';
   static const String _scanIntervalHoursKey = 'scan_interval_hours';
@@ -39,6 +45,28 @@ class BackgroundService {
     await Workmanager().initialize(callbackDispatcher, isInDebugMode: false);
     await _ensureScheduled();
     await _ensureWeeklyReminder();
+    await _ensureRecurringReminder();
+  }
+
+  /// Register the daily ~9 PM SIP/RD fallback reminder. The first run is delayed
+  /// to the next 9 PM; `keep` then preserves that cadence across launches.
+  static Future<void> _ensureRecurringReminder() async {
+    await Workmanager().registerPeriodicTask(
+      recurringReminderUniqueName,
+      recurringReminderTaskName,
+      frequency: const Duration(days: 1),
+      initialDelay: _durationUntilNextEvening(),
+      constraints: Constraints(networkType: NetworkType.notRequired),
+      existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
+    );
+  }
+
+  /// Time from now until the next 9 PM local time.
+  static Duration _durationUntilNextEvening() {
+    final now = DateTime.now();
+    var next = DateTime(now.year, now.month, now.day, 21);
+    if (!next.isAfter(now)) next = next.add(const Duration(days: 1));
+    return next.difference(now);
   }
 
   /// Register the weekly unclassified-transactions reminder. Independent of
@@ -198,6 +226,16 @@ class BackgroundService {
     }
   }
 
+  /// Daily fallback: nudge the user to confirm any SIP/RD that came due but has
+  /// no contribution recorded yet (bank didn't text, or the plan ended).
+  static Future<void> performRecurringReminder() async {
+    try {
+      await RecurringService().runEveningFallbackCheck();
+    } catch (e) {
+      // Best-effort reminder
+    }
+  }
+
   /// Perform a foreground SMS scan (called when app opens).
   /// Returns the list of newly found transactions.
   static Future<List<TransactionModel>> performForegroundScan({
@@ -235,6 +273,8 @@ void callbackDispatcher() {
       await BackgroundService.performBackgroundScan();
     } else if (taskName == BackgroundService.weeklyReminderTaskName) {
       await BackgroundService.performWeeklyReminder();
+    } else if (taskName == BackgroundService.recurringReminderTaskName) {
+      await BackgroundService.performRecurringReminder();
     }
     return Future.value(true);
   });

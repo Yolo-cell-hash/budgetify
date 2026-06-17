@@ -5,6 +5,7 @@ import '../models/budget_model.dart';
 import 'database_service.dart';
 import 'sms_parser_service.dart';
 import 'notification_service.dart';
+import 'recurring_service.dart';
 
 /// Top-level function for handling SMS in background
 @pragma('vm:entry-point')
@@ -41,13 +42,18 @@ Future<void> backgroundMessageHandler(SmsMessage message) async {
         );
       }
 
-      await dbService.insertTransaction(transaction);
+      final id = await dbService.insertTransaction(transaction);
 
       await NotificationService().showTransactionNotification(transaction);
 
       // Check budget thresholds for debit transactions
       if (transaction.type == TransactionType.debit) {
         await checkBudgetThresholds(dbService, NotificationService());
+        // Auto-track recurring SIP/RD installments with a learned signature.
+        if (id > 0) {
+          await RecurringService()
+              .processDetectedTransactions([transaction.copyWith(id: id)]);
+        }
       }
     }
   }
@@ -251,6 +257,9 @@ class SmsService {
         // Check budget thresholds for debit transactions
         if (savedTransaction.type == TransactionType.debit) {
           await checkBudgetThresholds(_dbService, NotificationService());
+          // Auto-track recurring SIP/RD installments with a learned signature.
+          await RecurringService()
+              .processDetectedTransactions([savedTransaction]);
         }
       }
     }
@@ -328,6 +337,8 @@ class SmsService {
       if (transactions.any((t) => t.type == TransactionType.debit)) {
         await checkBudgetThresholds(_dbService, NotificationService());
       }
+      // Auto-track recurring SIP/RD installments with a learned signature.
+      await RecurringService().processDetectedTransactions(transactions);
     } catch (e) {
       // Silently handle errors - logging would be better in production
     }
