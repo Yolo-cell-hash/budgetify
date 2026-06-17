@@ -66,21 +66,36 @@ class AppDialog extends StatelessWidget {
                 ),
               ],
             ),
-            if (subtitle != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                subtitle!,
-                style: TextStyle(
-                  fontSize: 13.5,
-                  height: 1.4,
-                  color: colors.textSecondary,
+            // The subtitle + content scroll between the fixed header and the
+            // fixed action row, so a tall form — or the on-screen keyboard
+            // shrinking the dialog — never clips them and the buttons stay
+            // reachable above the keyboard. Flexible keeps short dialogs
+            // shrink-wrapped (no visible change) while bounding tall ones.
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        subtitle!,
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          height: 1.4,
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                    ],
+                    if (content != null) ...[
+                      const SizedBox(height: 18),
+                      content!,
+                    ],
+                  ],
                 ),
               ),
-            ],
-            if (content != null) ...[
-              const SizedBox(height: 18),
-              content!,
-            ],
+            ),
             if (actions.isNotEmpty) ...[
               const SizedBox(height: 22),
               Row(
