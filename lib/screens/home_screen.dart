@@ -107,20 +107,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final transactions = await _dbService.getAllTransactions();
       final unclassified = await _dbService.getUnclassifiedTransactions();
 
-      // Calculate month boundaries (used by cash filter and monthly calculations)
+      // Calculate month boundaries (used by cash filter and monthly
+      // calculations). Use the exact first/last instant of the month so these
+      // totals match the Transactions and Budget screens, which query
+      // detected_at in [monthStart, monthEnd]. Previously this widened the
+      // window by a day on each side, pulling the previous month's last-day
+      // credits/debits into "this month" and inflating the home totals.
       final now = DateTime.now();
       final monthStart = DateTime(now.year, now.month, 1);
-      final monthEnd = DateTime(
-        now.year,
-        now.month + 1,
-        1,
-      ).subtract(const Duration(days: 1));
+      final monthEnd = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
 
       // Load cash data (current month only)
       final allCashTxns = await _dbService.getCashTransactions();
       final cashTxns = allCashTxns.where((t) {
-        return !t.detectedAt.isBefore(monthStart.subtract(const Duration(days: 1))) &&
-            t.detectedAt.isBefore(monthEnd.add(const Duration(days: 1)));
+        return !t.detectedAt.isBefore(monthStart) &&
+            !t.detectedAt.isAfter(monthEnd);
       }).toList();
       final totalCash = cashTxns.fold(0.0, (sum, t) => sum + t.amount);
 
@@ -128,10 +129,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       double monthlyIncome = 0;
       double monthlyExpenses = 0;
       for (final t in transactions) {
-        if (t.detectedAt.isAfter(
-              monthStart.subtract(const Duration(days: 1)),
-            ) &&
-            t.detectedAt.isBefore(monthEnd.add(const Duration(days: 1)))) {
+        if (!t.detectedAt.isBefore(monthStart) &&
+            !t.detectedAt.isAfter(monthEnd)) {
           if (t.type == TransactionType.credit) {
             // Self-transfers and investment redemptions aren't real income.
             if (ExpenseCategories.isIncomeCategory(t.category)) {
