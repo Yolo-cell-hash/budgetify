@@ -105,6 +105,21 @@ class HoldingCategories {
 
   static bool isInvestment(String category) => investments.contains(category);
 
+  /// Investment categories that are contributed to on a recurring schedule
+  /// (SIP / RD), so the automation suite is offered for them. Lump-sum
+  /// categories (Fixed Deposit, Gold, Other Investment) are excluded.
+  static const Set<String> _recurringCapable = {
+    'Recurring Deposit',
+    'Mutual Fund',
+    'Stocks',
+    'Bonds',
+    'PPF / EPF',
+    'Crypto',
+  };
+
+  static bool supportsRecurring(String category) =>
+      _recurringCapable.contains(category);
+
   static List<String> forKind(HoldingKind kind) =>
       kind == HoldingKind.liability ? liabilities : assetCategories;
 

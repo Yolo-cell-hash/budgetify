@@ -9,6 +9,7 @@ import '../services/database_service.dart';
 import '../services/sms_service.dart';
 import '../services/notification_service.dart';
 import '../services/background_service.dart';
+import '../services/sip_service.dart';
 import '../services/widget_service.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_preferences.dart';
@@ -24,6 +25,7 @@ import '../widgets/permission_request_card.dart';
 import '../widgets/expense_chart.dart';
 import 'transactions_screen.dart';
 import 'add_transaction_screen.dart';
+import 'net_worth_screen.dart';
 import 'wrapped_screen.dart';
 
 /// Home screen of the Budget Tracker app
@@ -52,6 +54,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   double _totalCash = 0;
   double _monthlyIncome = 0;
   double _monthlyExpenses = 0;
+  // Recurring investments due today and still unanswered (drives the alert).
+  int _dueSipCount = 0;
 
   @override
   void initState() {
@@ -144,6 +148,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         }
       }
 
+      // Recurring investments due today and not yet logged.
+      final dueSips = await SipService().pendingDueSips();
+
       setState(() {
         _transactionCount = transactions.length;
         _unclassifiedCount = unclassified.length;
@@ -153,6 +160,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         _totalCash = totalCash;
         _monthlyIncome = monthlyIncome;
         _monthlyExpenses = monthlyExpenses;
+        _dueSipCount = dueSips.length;
       });
 
       // Keep the home-screen widget in sync
@@ -386,6 +394,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           // controlled here in one place.
                           const SizedBox(height: 4),
                           FadeSlideIn(order: 1, child: _buildBalanceCard()),
+                          if (_dueSipCount > 0) ...[
+                            const SizedBox(height: 12),
+                            FadeSlideIn(order: 2, child: _buildSipAlert()),
+                          ],
                           // Gated behind AI Prediction Mode — when off, nothing
                           // here is built and the dashboard is unchanged.
                           if (context
@@ -426,6 +438,82 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ),
               ),
             ),
+      ),
+    );
+  }
+
+  /// Alert shown on the dashboard when a recurring investment is due today and
+  /// hasn't been answered via the notification. Leads to the Net Worth review.
+  Widget _buildSipAlert() {
+    final n = _dueSipCount;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () async {
+            await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const NetWorthScreen(reviewSips: true),
+              ),
+            );
+            await _loadData();
+          },
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: AppColors.heroGradient,
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.gold.withValues(alpha: 0.45)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(9),
+                  decoration: BoxDecoration(
+                    color: AppColors.gold.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                  child: const Text('🔔', style: TextStyle(fontSize: 18)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Investment Alert',
+                        style: TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        n == 1
+                            ? 'You have an investment to confirm today'
+                            : '$n investments to confirm today',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          color: Colors.white.withValues(alpha: 0.75),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right,
+                    size: 18, color: AppColors.gold.withValues(alpha: 0.9)),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

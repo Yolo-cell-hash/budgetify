@@ -3,7 +3,32 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../models/transaction_model.dart';
 import '../screens/transactions_screen.dart';
 import '../screens/net_worth_screen.dart';
+import 'sip_service.dart';
 import 'package:intl/intl.dart';
+
+/// Action button ids on the "Investment Alert" SIP/RD prompt.
+const String sipYesAction = 'sip_yes';
+const String sipNoAction = 'sip_no';
+
+/// Background isolate handler for SIP prompt action buttons. Must be a
+/// top-level, vm:entry-point function. Used for the silent "No" path; "Yes"
+/// opens the app and is handled in the main isolate for reliability.
+@pragma('vm:entry-point')
+void sipNotificationBackgroundHandler(NotificationResponse response) {
+  resolveSipNotificationAction(response.actionId, response.payload);
+}
+
+/// Parse a `sip:<id>:<period>` payload and resolve the instalment. Idempotent.
+void resolveSipNotificationAction(String? actionId, String? payload) {
+  if (actionId != sipYesAction && actionId != sipNoAction) return;
+  if (payload == null || !payload.startsWith('sip:')) return;
+  final parts = payload.split(':');
+  if (parts.length < 3) return;
+  final id = int.tryParse(parts[1]);
+  if (id == null) return;
+  // Fire-and-forget; resolveFromAction is idempotent and quick.
+  SipService().resolveFromAction(id, parts[2], actionId == sipYesAction);
+}
 
 /// Service for showing local notifications
 class NotificationService {
@@ -38,6 +63,8 @@ class NotificationService {
     await _notifications.initialize(
       initSettings,
       onDidReceiveNotificationResponse: _onNotificationTapped,
+      onDidReceiveBackgroundNotificationResponse:
+          sipNotificationBackgroundHandler,
     );
 
     final androidPlugin = _notifications
@@ -76,19 +103,33 @@ class NotificationService {
   }
 
   void _onNotificationTapped(NotificationResponse response) {
+    final actionId = response.actionId;
+    if (actionId == sipYesAction || actionId == sipNoAction) {
+      resolveSipNotificationAction(actionId, response.payload);
+      // "Yes" opens the app to the Net Worth review so the user sees it land.
+      if (actionId == sipYesAction) _routeForPayload(openSipReviewPayload);
+      return;
+    }
     _routeForPayload(response.payload);
   }
 
-  /// If the app was cold-started by tapping a notification, route to the
-  /// right screen once the first frame (and navigator) is ready.
+  /// If the app was cold-started by tapping a notification (or its action),
+  /// resolve/route once the first frame (and navigator) is ready.
   Future<void> handleLaunchPayload() async {
     final details = await _notifications.getNotificationAppLaunchDetails();
-    if (details?.didNotificationLaunchApp ?? false) {
-      final payload = details!.notificationResponse?.payload;
+    if (!(details?.didNotificationLaunchApp ?? false)) return;
+    final response = details!.notificationResponse;
+    final actionId = response?.actionId;
+    if (actionId == sipYesAction || actionId == sipNoAction) {
+      resolveSipNotificationAction(actionId, response?.payload);
       WidgetsBinding.instance.addPostFrameCallback(
-        (_) => _routeForPayload(payload),
+        (_) => _routeForPayload(openSipReviewPayload),
       );
+      return;
     }
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _routeForPayload(response?.payload),
+    );
   }
 
   void _routeForPayload(String? payload) {
@@ -292,38 +333,32 @@ class NotificationService {
     );
   }
 
-  /// Evening nudge to log a recurring investment whose instalment is due but
-  /// wasn't auto-detected. Tapping opens the Net Worth tab to confirm it.
-  Future<void> showSipReminder({
-    required int count,
-    String? name,
+  /// "Investment Alert" for a recurring investment due today, with Yes / No
+  /// action buttons. Tapping **Yes** opens the app and logs the instalment
+  /// (handled in the main isolate for reliability); **No** marks it skipped
+  /// silently. The body opens the Net Worth review. A stable per-plan id keeps
+  /// the noon prompt and its 8 PM follow-up in the same slot.
+  Future<void> showSipPrompt({
+    required int sipId,
+    required String name,
     double? amount,
+    required String periodKey,
+    required bool evening,
   }) async {
     if (!_isInitialized) await initialize();
-    if (count <= 0) return;
 
     final fmt = NumberFormat.currency(
       locale: 'en_IN',
       symbol: '₹',
       decimalDigits: 0,
     );
-
-    final String title;
-    final String body;
-    if (count == 1 && name != null) {
-      title = '📈 Did you invest today?';
-      final amt = amount != null ? '${fmt.format(amount)} ' : '';
-      body = 'We couldn\'t auto-detect your ${amt}investment in "$name". '
-          'Tap to confirm and add it to your net worth.';
-    } else {
-      title = '📈 $count investments due';
-      body = 'You have $count recurring investments to confirm for today. '
-          'Tap to review and update your net worth.';
-    }
+    final amt = amount != null ? '${fmt.format(amount)} ' : '';
+    final body = 'Did you make your ${amt}investment in "$name" today? '
+        'Tap Yes to add it to your net worth.';
 
     await _notifications.show(
-      5000, // Fixed ID so the evening reminder updates rather than stacks
-      title,
+      6000 + sipId, // one slot per plan; noon prompt is replaced at 8 PM
+      '🔔 Investment Alert',
       body,
       const NotificationDetails(
         android: AndroidNotificationDetails(
@@ -333,9 +368,22 @@ class NotificationService {
           importance: Importance.high,
           priority: Priority.high,
           showWhen: true,
+          actions: <AndroidNotificationAction>[
+            AndroidNotificationAction(
+              sipYesAction,
+              'Yes, I did',
+              showsUserInterface: true,
+              cancelNotification: true,
+            ),
+            AndroidNotificationAction(
+              sipNoAction,
+              'No',
+              cancelNotification: true,
+            ),
+          ],
         ),
       ),
-      payload: openSipReviewPayload,
+      payload: 'sip:$sipId:$periodKey',
     );
   }
 

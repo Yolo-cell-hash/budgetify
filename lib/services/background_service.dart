@@ -24,13 +24,15 @@ class BackgroundService {
   static const String weeklyReminderUniqueName =
       'budget_tracker_weekly_reminder';
 
-  // Daily evening check for due SIP/RD instalments (~7:30 PM)
-  static const String sipEveningCheckTaskName = 'sip_evening_check';
-  static const String sipEveningCheckUniqueName = 'budget_tracker_sip_evening';
+  // Daily SIP/RD "Investment Alert" prompts: noon (~12 PM) and evening (~8 PM).
+  // The evening one only fires if the noon prompt went unanswered.
+  static const String sipNoonTaskName = 'sip_noon_check';
+  static const String sipNoonUniqueName = 'budget_tracker_sip_noon';
+  static const String sipEveningTaskName = 'sip_evening_check';
+  static const String sipEveningUniqueName = 'budget_tracker_sip_evening';
 
-  /// Hour/minute the evening SIP reminder aims for (local time).
-  static const int sipReminderHour = 19;
-  static const int sipReminderMinute = 30;
+  static const int sipNoonHour = 12; // 12 PM
+  static const int sipEveningHour = 20; // 8 PM
 
   // Preferences keys
   static const String _autoScanEnabledKey = 'auto_scan_enabled';
@@ -48,21 +50,30 @@ class BackgroundService {
     await Workmanager().initialize(callbackDispatcher, isInDebugMode: false);
     await _ensureScheduled();
     await _ensureWeeklyReminder();
-    await _ensureSipEveningCheck();
+    await _ensureSipPrompts();
   }
 
-  /// Register the daily evening SIP/RD reminder, anchored to ~7:30 PM local.
-  /// Kept independent of auto-scan so it fires even with scanning off.
-  static Future<void> _ensureSipEveningCheck() async {
+  /// Register the daily SIP/RD "Investment Alert" prompts at ~12 PM and ~8 PM
+  /// local. Independent of auto-scan so they fire even with scanning off.
+  static Future<void> _ensureSipPrompts() async {
+    await _registerDailyAt(sipNoonUniqueName, sipNoonTaskName, sipNoonHour);
+    await _registerDailyAt(
+        sipEveningUniqueName, sipEveningTaskName, sipEveningHour);
+  }
+
+  static Future<void> _registerDailyAt(
+    String uniqueName,
+    String taskName,
+    int hour,
+  ) async {
     final now = DateTime.now();
-    var firstRun =
-        DateTime(now.year, now.month, now.day, sipReminderHour, sipReminderMinute);
+    var firstRun = DateTime(now.year, now.month, now.day, hour);
     if (!firstRun.isAfter(now)) {
       firstRun = firstRun.add(const Duration(days: 1));
     }
     await Workmanager().registerPeriodicTask(
-      sipEveningCheckUniqueName,
-      sipEveningCheckTaskName,
+      uniqueName,
+      taskName,
       frequency: const Duration(days: 1),
       initialDelay: firstRun.difference(now),
       constraints: Constraints(networkType: NetworkType.notRequired),
@@ -184,8 +195,6 @@ class BackgroundService {
 
       final found = await smsService.scanExistingSms(maxCount: 100);
       await _recordScanTime();
-      // Credit any newly-detected SIP/RD instalments to their holdings.
-      await SipService().reconcile();
       await WidgetService.update();
 
       if (found.isNotEmpty) {
@@ -229,11 +238,11 @@ class BackgroundService {
     }
   }
 
-  /// Evening check: reconcile detected instalments, then nudge the user about
-  /// any recurring investment still due and unconfirmed for today.
-  static Future<void> performSipEveningCheck() async {
+  /// Send the noon / evening "Investment Alert" Yes/No prompt for any recurring
+  /// investment due today and still unanswered.
+  static Future<void> performSipPromptCheck({required bool evening}) async {
     try {
-      await SipService().runEveningCheck();
+      await SipService().sendDuePrompts(evening: evening);
     } catch (e) {
       // Best-effort reminder
     }
@@ -276,8 +285,10 @@ void callbackDispatcher() {
       await BackgroundService.performBackgroundScan();
     } else if (taskName == BackgroundService.weeklyReminderTaskName) {
       await BackgroundService.performWeeklyReminder();
-    } else if (taskName == BackgroundService.sipEveningCheckTaskName) {
-      await BackgroundService.performSipEveningCheck();
+    } else if (taskName == BackgroundService.sipNoonTaskName) {
+      await BackgroundService.performSipPromptCheck(evening: false);
+    } else if (taskName == BackgroundService.sipEveningTaskName) {
+      await BackgroundService.performSipPromptCheck(evening: true);
     }
     return Future.value(true);
   });

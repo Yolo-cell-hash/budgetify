@@ -1523,41 +1523,17 @@ class DatabaseService {
     );
   }
 
-  /// Find an Investments-tagged debit that plausibly *is* this month's
-  /// instalment: tagged 'Investments', within [windowStart]..[windowEnd], not
-  /// already linked to another instalment, and (when [amount] is given)
-  /// matching it within ₹1. Returns the one closest to the [due] date.
-  Future<TransactionModel?> findInvestmentTransactionForSip({
-    required DateTime windowStart,
-    required DateTime windowEnd,
-    required DateTime due,
-    double? amount,
-  }) async {
+  /// The recurring plan backing a holding, if any (1:1 link via holding_id).
+  Future<Sip?> getSipByHolding(int holdingId) async {
     final db = await database;
-    final where = StringBuffer(
-      "type = ? AND category = 'Investments' "
-      "AND detected_at >= ? AND detected_at <= ? "
-      "AND id NOT IN (SELECT transaction_id FROM sip_payments "
-      "WHERE transaction_id IS NOT NULL)",
-    );
-    final args = <Object>[
-      TransactionType.debit.index,
-      windowStart.millisecondsSinceEpoch,
-      windowEnd.millisecondsSinceEpoch,
-    ];
-    if (amount != null) {
-      where.write(' AND amount >= ? AND amount <= ?');
-      args..add(amount - 1)..add(amount + 1);
-    }
-    final maps = await db.query(
-      'transactions',
-      where: where.toString(),
-      whereArgs: args,
-      orderBy: 'ABS(detected_at - ${due.millisecondsSinceEpoch}) ASC',
+    final r = await db.query(
+      'sips',
+      where: 'holding_id = ?',
+      whereArgs: [holdingId],
       limit: 1,
     );
-    if (maps.isEmpty) return null;
-    return TransactionModel.fromMap(maps.first);
+    if (r.isEmpty) return null;
+    return Sip.fromMap(r.first);
   }
 
   Future<Map<String, dynamic>> exportAllData() async {

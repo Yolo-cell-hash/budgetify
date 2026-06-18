@@ -38,6 +38,16 @@ void main() {
       expect(HoldingCategories.isInvestment('Stocks'), isTrue);
       expect(HoldingCategories.isInvestment('Savings'), isFalse);
     });
+
+    test('supportsRecurring is true only for SIP/RD-style investments', () {
+      for (final c in ['Recurring Deposit', 'Mutual Fund', 'Stocks', 'Bonds']) {
+        expect(HoldingCategories.supportsRecurring(c), isTrue, reason: c);
+      }
+      // Lump-sum investments and non-investments don't offer automation.
+      for (final c in ['Fixed Deposit', 'Gold', 'Savings', 'Home Loan']) {
+        expect(HoldingCategories.supportsRecurring(c), isFalse, reason: c);
+      }
+    });
   });
 
   group('NetWorthSummary', () {

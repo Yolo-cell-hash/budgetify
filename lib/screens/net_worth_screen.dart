@@ -14,14 +14,16 @@ import '../widgets/app_toast.dart';
 import '../widgets/glass.dart';
 import '../widgets/motion.dart';
 import '../widgets/privacy_amount.dart';
-import '../widgets/sip_editor_sheet.dart';
+import '../widgets/holding_editor_sheet.dart';
 
 /// Net Worth + Investment tracker: manual holdings (FDs, RDs, MFs, stocks,
-/// bonds, gold, savings, loans…) plus the total auto-detected from
-/// Investments-tagged transactions. Fully offline; values are user-entered.
+/// bonds, gold, savings, loans…). Recurring investments (SIP/RD) carry an
+/// inline schedule + progress and are logged by the user — either via the
+/// "Investment Alert" prompt or here in-app. Fully offline; values are
+/// user-entered (the app never invents instalments from SMS).
 class NetWorthScreen extends StatefulWidget {
-  /// When true (deep-linked from the SIP reminder notification), the screen
-  /// opens the "confirm your due instalment" flow as soon as it loads.
+  /// When true (deep-linked from the Investment Alert), the screen opens the
+  /// "did you invest?" prompt for any due instalment as soon as it loads.
   final bool reviewSips;
 
   const NetWorthScreen({super.key, this.reviewSips = false});
@@ -38,7 +40,8 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
 
   NetWorthSummary _summary = const NetWorthSummary([]);
   double _investedViaSms = 0;
-  List<SipProgress> _sips = [];
+  // Progress for each recurring plan, keyed by its backing holding id.
+  Map<int, SipProgress> _sipByHolding = {};
   bool _loading = true;
   bool _reviewHandled = false;
 
@@ -49,36 +52,32 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
   }
 
   Future<void> _load() async {
-    // Credit any SMS-detected instalments before reading holdings, so detected
-    // SIPs show up immediately.
-    await _sipService.reconcile();
-
     final holdings = await _db.getHoldings();
     final invested = await _db.getInvestmentsTagTotal();
     final sips = await _db.getSips();
-    final progress = <SipProgress>[
-      for (final s in sips) await _sipService.progressFor(s),
-    ];
+    final byHolding = <int, SipProgress>{};
+    for (final s in sips) {
+      if (s.holdingId == null) continue;
+      byHolding[s.holdingId!] = await _sipService.progressFor(s);
+    }
     // Keep the home-screen widget's net worth in sync with any edits here.
     WidgetService.update();
     if (!mounted) return;
     setState(() {
       _summary = NetWorthSummary(holdings);
       _investedViaSms = invested;
-      _sips = progress;
+      _sipByHolding = byHolding;
       _loading = false;
     });
 
-    // Deep-linked from the evening reminder → walk the user through any due
-    // instalments once.
+    // Deep-linked from the Investment Alert → walk through any due instalments.
     if (widget.reviewSips && !_reviewHandled) {
       _reviewHandled = true;
       WidgetsBinding.instance.addPostFrameCallback((_) => _reviewDueSips());
     }
   }
 
-  bool get _hasAnything =>
-      !_summary.isEmpty || _sips.isNotEmpty || _investedViaSms > 0;
+  bool get _hasAnything => !_summary.isEmpty || _investedViaSms > 0;
 
   @override
   Widget build(BuildContext context) {
@@ -86,7 +85,7 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Net Worth')),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showHoldingDialog(),
+        onPressed: () => _openEditor(),
         icon: const Icon(Icons.add),
         label: const Text('Add'),
       ),
@@ -112,14 +111,6 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
       FadeSlideIn(order: order++, child: _buildHero(colors)),
     ];
 
-    final dueSips = _sips.where((p) => p.dueThisPeriod).toList();
-    if (dueSips.isNotEmpty) {
-      widgets
-        ..add(const SizedBox(height: 16))
-        ..add(FadeSlideIn(
-            order: order++, child: _buildDueBanner(colors, dueSips)));
-    }
-
     if (_summary.assets > 0) {
       widgets
         ..add(const SizedBox(height: 16))
@@ -130,25 +121,8 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
       widgets
         ..add(const SizedBox(height: 16))
         ..add(FadeSlideIn(
-          order: order++,
-          child: _buildSection(
-            colors,
-            title: 'Investments',
-            total: _summary.investments,
-            items: _summary.investmentHoldings,
-            footer: _investedViaSms > 0 ? _investedViaSmsNote(colors) : null,
-          ),
-        ));
+            order: order++, child: _buildInvestmentsSection(colors)));
     }
-
-    // Recurring investments (SIP/RD) — the automation surface. Shows the
-    // setup promo until the first plan exists.
-    widgets
-      ..add(const SizedBox(height: 16))
-      ..add(FadeSlideIn(
-        order: order++,
-        child: _sips.isEmpty ? _buildAutomatePromo(colors) : _buildSipSection(colors),
-      ));
 
     if (_summary.otherAssetHoldings.isNotEmpty) {
       widgets
@@ -384,13 +358,260 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
     );
   }
 
-  // ==================== SECTION ====================
+  // ==================== INVESTMENTS (with inline automation) ====================
+  Widget _buildInvestmentsSection(AppColors colors) {
+    final items = _summary.investmentHoldings;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: _cardDecoration(colors),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Investments',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: colors.text,
+                ),
+              ),
+              const Spacer(),
+              PrivacyAmount(
+                _fmt.format(_summary.investments),
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: colors.text,
+                ),
+              ),
+            ],
+          ),
+          if (items.isNotEmpty) const SizedBox(height: 6),
+          for (final h in items) _investmentRow(colors, h),
+          if (_investedViaSms > 0) ...[
+            const SizedBox(height: 10),
+            _investedViaSmsNote(colors),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _investmentRow(AppColors colors, Holding h) {
+    final progress = h.id == null ? null : _sipByHolding[h.id];
+    final sip = progress?.sip;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: () => _openEditor(existingHolding: h, existingSip: sip),
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 9),
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: CustomTagService.colorFromName(h.category)
+                        .withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                  child: Text(HoldingCategories.icon(h.category),
+                      style: const TextStyle(fontSize: 18)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        h.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: colors.text,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        sip != null ? _scheduleLine(sip) : h.category,
+                        style: TextStyle(
+                            fontSize: 11.5, color: colors.textSecondary),
+                      ),
+                    ],
+                  ),
+                ),
+                if (progress != null) _statusChip(colors, progress),
+                const SizedBox(width: 8),
+                PrivacyAmount(
+                  _fmt.format(h.amount),
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: colors.text,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (progress != null && sip != null && sip.hasSchedule) ...[
+          const SizedBox(height: 2),
+          AnimatedProgressBar(
+            value: progress.fraction ?? 0,
+            color: AppColors.gold,
+            backgroundColor: colors.cardAlt,
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Text(
+                '${progress.completed} of ${progress.total} instalments',
+                style: TextStyle(fontSize: 11, color: colors.textSecondary),
+              ),
+              const Spacer(),
+              Text(
+                '${((progress.fraction ?? 0) * 100).round()}%',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: colors.text,
+                ),
+              ),
+            ],
+          ),
+        ],
+        if (progress != null && progress.dueThisPeriod && sip != null) ...[
+          const SizedBox(height: 10),
+          _dueInlinePrompt(colors, sip),
+        ],
+      ],
+    );
+  }
+
+  /// The "same prompt" the notification sends — shown inline on a due plan.
+  Widget _dueInlinePrompt(AppColors colors, Sip sip) {
+    final amt = sip.amount != null ? '${_fmt.format(sip.amount)} ' : '';
+    return Container(
+      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 4),
+      decoration: BoxDecoration(
+        color: AppColors.gold.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.gold.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text('🔔', style: TextStyle(fontSize: 15)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Did you make your ${amt}investment this month?',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: colors.text,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => _answerDue(sip, didInvest: false),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                  child: const Text('No'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => _answerDue(sip, didInvest: true),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                  child: const Text('Yes, I did'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// "₹5,000 · 5th monthly" or "₹5,000 · 5th · Jan '26 – Dec '26".
+  String _scheduleLine(Sip sip) {
+    final amt = sip.amount != null ? _fmt.format(sip.amount) : 'Variable';
+    if (sip.hasSchedule) {
+      final s = DateFormat("MMM ''yy").format(sip.startDate!);
+      final e = DateFormat("MMM ''yy").format(sip.endDate!);
+      return '$amt · ${_ordinalDay(sip.dayOfMonth)} · $s – $e';
+    }
+    return '$amt · ${_ordinalDay(sip.dayOfMonth)} monthly';
+  }
+
+  Widget _statusChip(AppColors colors, SipProgress p) {
+    final sip = p.sip;
+    final now = DateTime.now();
+    final due = sip.dueDateInMonth(now.year, now.month);
+    final today = DateTime(now.year, now.month, now.day);
+
+    String label;
+    Color color;
+    if (p.isComplete) {
+      label = 'Completed';
+      color = colors.success;
+    } else if (p.dueThisPeriod) {
+      label = 'Due';
+      color = AppColors.gold;
+    } else if (due.isAfter(today)) {
+      final next = sip.nextDueOnOrAfter(today) ?? due;
+      label = 'Next ${DateFormat('d MMM').format(next)}';
+      color = colors.textSecondary;
+    } else {
+      label = 'Logged ✓';
+      color = colors.success;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10.5,
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
+      ),
+    );
+  }
+
+  // ==================== GENERIC SECTION (other assets / liabilities) ====
   Widget _buildSection(
     AppColors colors, {
     required String title,
     required double total,
     required List<Holding> items,
-    Widget? footer,
     bool negative = false,
   }) {
     return Container(
@@ -422,10 +643,6 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
           ),
           if (items.isNotEmpty) const SizedBox(height: 6),
           for (final h in items) _holdingRow(colors, h, negative: negative),
-          if (footer != null) ...[
-            const SizedBox(height: 10),
-            footer,
-          ],
         ],
       ),
     );
@@ -433,7 +650,7 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
 
   Widget _holdingRow(AppColors colors, Holding h, {bool negative = false}) {
     return InkWell(
-      onTap: () => _showHoldingDialog(existing: h),
+      onTap: () => _openEditor(existingHolding: h),
       borderRadius: BorderRadius.circular(12),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 9),
@@ -518,445 +735,6 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
     );
   }
 
-  // ==================== RECURRING (SIP / RD) ====================
-
-  /// Prompt card shown until the first plan is created — the "do you want to
-  /// automate?" invitation.
-  Widget _buildAutomatePromo(AppColors colors) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: colors.card,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.gold.withValues(alpha: 0.35)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(9),
-                decoration: BoxDecoration(
-                  color: AppColors.gold.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Text('🔁', style: TextStyle(fontSize: 20)),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Automate your SIPs & RDs',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: colors.text,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Stop logging every instalment by hand. Set the amount and day once — '
-            'we\'ll detect the debit from your SMS, add it to your net worth, and '
-            'remind you if it\'s ever missed.',
-            style: TextStyle(
-              fontSize: 13,
-              height: 1.45,
-              color: colors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () => _openSipEditor(),
-              icon: const Icon(Icons.add),
-              label: const Text('Set up automation'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSipSection(AppColors colors) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: _cardDecoration(colors),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                'Recurring (SIP / RD)',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: colors.text,
-                ),
-              ),
-              const Spacer(),
-              TextButton.icon(
-                onPressed: () => _openSipEditor(),
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Add'),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                ),
-              ),
-            ],
-          ),
-          for (final p in _sips) _sipRow(colors, p),
-        ],
-      ),
-    );
-  }
-
-  Widget _sipRow(AppColors colors, SipProgress p) {
-    final sip = p.sip;
-    return InkWell(
-      onTap: () => _openSipEditor(existing: sip),
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: CustomTagService.colorFromName(sip.category)
-                        .withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(11),
-                  ),
-                  child: Text(HoldingCategories.icon(sip.category),
-                      style: const TextStyle(fontSize: 18)),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        sip.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: colors.text,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        _scheduleSummary(sip),
-                        style: TextStyle(
-                            fontSize: 11.5, color: colors.textSecondary),
-                      ),
-                    ],
-                  ),
-                ),
-                _statusChip(colors, p),
-              ],
-            ),
-            if (sip.hasSchedule) ...[
-              const SizedBox(height: 10),
-              AnimatedProgressBar(
-                value: p.fraction ?? 0,
-                color: AppColors.gold,
-                backgroundColor: colors.cardAlt,
-              ),
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  Text(
-                    '${p.completed} of ${p.total} instalments',
-                    style: TextStyle(fontSize: 11, color: colors.textSecondary),
-                  ),
-                  const Spacer(),
-                  Text(
-                    '${((p.fraction ?? 0) * 100).round()}%',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: colors.text,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// "₹5,000 · 5th monthly" or "₹5,000 · 5th · Jan '26 – Dec '26".
-  String _scheduleSummary(Sip sip) {
-    final amt = sip.amount != null
-        ? _fmt.format(sip.amount)
-        : 'Variable';
-    final day = '${_ordinalDay(sip.dayOfMonth)} monthly';
-    if (sip.hasSchedule) {
-      final s = DateFormat("MMM ''yy").format(sip.startDate!);
-      final e = DateFormat("MMM ''yy").format(sip.endDate!);
-      return '$amt · ${_ordinalDay(sip.dayOfMonth)} · $s – $e';
-    }
-    return '$amt · $day';
-  }
-
-  Widget _statusChip(AppColors colors, SipProgress p) {
-    final sip = p.sip;
-    final now = DateTime.now();
-    final due = sip.dueDateInMonth(now.year, now.month);
-    final today = DateTime(now.year, now.month, now.day);
-
-    String label;
-    Color color;
-    if (p.isComplete) {
-      label = 'Completed';
-      color = colors.success;
-    } else if (p.dueThisPeriod) {
-      label = 'Action needed';
-      color = AppColors.gold;
-    } else if (due.isAfter(today)) {
-      final next = sip.nextDueOnOrAfter(today) ?? due;
-      label = 'Next ${DateFormat('d MMM').format(next)}';
-      color = colors.textSecondary;
-    } else {
-      label = 'Logged ✓';
-      color = colors.success;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          color: color,
-        ),
-      ),
-    );
-  }
-
-  /// Top-of-screen prompt deep-linked from the evening reminder.
-  Widget _buildDueBanner(AppColors colors, List<SipProgress> due) {
-    final single = due.length == 1 ? due.first.sip : null;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: AppColors.heroGradient,
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.gold.withValues(alpha: 0.45)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Text('🔔', style: TextStyle(fontSize: 16)),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  single != null
-                      ? 'Did you invest in ${single.name}?'
-                      : '${due.length} investments to confirm',
-                  style: const TextStyle(
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            single != null
-                ? 'We couldn\'t auto-detect this month\'s instalment. Confirm it to '
-                    'keep your net worth up to date.'
-                : 'Some recurring instalments couldn\'t be auto-detected this month.',
-            style: TextStyle(
-              fontSize: 12.5,
-              height: 1.35,
-              color: Colors.white.withValues(alpha: 0.75),
-            ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.gold,
-                foregroundColor: const Color(0xFF15110A),
-              ),
-              onPressed: _reviewDueSips,
-              child: Text(single != null ? 'Review' : 'Review all'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ==================== SIP ACTIONS ====================
-
-  Future<void> _openSipEditor({
-    Sip? existing,
-    String? prefillName,
-    String? prefillCategory,
-    double? prefillAmount,
-  }) async {
-    final changed = await showSipEditor(
-      context,
-      existing: existing,
-      prefillName: prefillName,
-      prefillCategory: prefillCategory,
-      prefillAmount: prefillAmount,
-    );
-    if (changed) {
-      await _load();
-      if (mounted) {
-        showAppToast(context,
-            message: existing != null ? 'Plan updated' : 'Automation set up',
-            type: AppToastType.success);
-      }
-    }
-  }
-
-  /// Walk through every due-and-unresolved plan, asking the user to confirm.
-  Future<void> _reviewDueSips() async {
-    final sips = await _db.getSips();
-    for (final sip in sips) {
-      final p = await _sipService.progressFor(sip);
-      if (!p.dueThisPeriod) continue;
-      if (!mounted) return;
-      await _confirmSip(sip);
-    }
-    await _load();
-  }
-
-  /// "Did you invest?" prompt for a single plan.
-  Future<void> _confirmSip(Sip sip) async {
-    final amountCtrl = TextEditingController(
-      text: sip.amount?.toStringAsFixed(0) ?? '',
-    );
-    var result = '';
-
-    await showAppDialog(
-      context,
-      builder: (ctx) {
-        final colors = AppColors.of(ctx);
-        return AppDialog(
-          icon: Icons.savings_outlined,
-          title: 'Did you invest in ${sip.name}?',
-          subtitle:
-              'We couldn\'t auto-detect this month\'s instalment. If you completed '
-              'it, confirm below and we\'ll add it to your net worth.',
-          content: sip.amountIsFixed
-              ? Row(
-                  children: [
-                    Text('Amount',
-                        style: TextStyle(
-                            fontSize: 13.5, color: colors.textSecondary)),
-                    const Spacer(),
-                    Text(
-                      sip.amount != null ? _fmt.format(sip.amount) : '—',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: colors.text,
-                      ),
-                    ),
-                  ],
-                )
-              : TextField(
-                  controller: amountCtrl,
-                  keyboardType: TextInputType.number,
-                  autofocus: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Amount invested',
-                    prefixText: '₹ ',
-                  ),
-                ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                result = 'skip';
-                Navigator.pop(ctx);
-              },
-              child: const Text('Skip this month'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                result = 'yes';
-                Navigator.pop(ctx);
-              },
-              child: const Text('Yes, I did'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (result == 'yes') {
-      final amount = sip.amountIsFixed
-          ? sip.amount
-          : double.tryParse(amountCtrl.text.trim());
-      if (amount == null || amount <= 0) {
-        if (mounted) {
-          showAppToast(context,
-              message: 'Enter a valid amount', type: AppToastType.warning);
-        }
-      } else {
-        await _sipService.confirmCurrentInstallment(sip, amount: amount);
-        if (mounted) {
-          showAppToast(context,
-              message: 'Added ${_fmt.format(amount)} to net worth',
-              type: AppToastType.success);
-        }
-      }
-    } else if (result == 'skip') {
-      await _sipService.skipCurrentInstallment(sip);
-      if (mounted) {
-        showAppToast(context,
-            message: 'Skipped this month', type: AppToastType.info);
-      }
-    }
-    amountCtrl.dispose();
-  }
-
-  static String _ordinalDay(int n) {
-    if (n >= 11 && n <= 13) return '${n}th';
-    switch (n % 10) {
-      case 1:
-        return '${n}st';
-      case 2:
-        return '${n}nd';
-      case 3:
-        return '${n}rd';
-      default:
-        return '${n}th';
-    }
-  }
-
   // ==================== EMPTY ====================
   Widget _buildEmpty(AppColors colors) {
     return ListView(
@@ -979,7 +757,8 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
         const SizedBox(height: 8),
         Text(
           'Add your FDs, mutual funds, stocks, gold, savings and loans to see '
-          'your complete picture — segregated and visualized, all on-device.',
+          'your complete picture. For SIPs & RDs, add a monthly schedule and '
+          'we\'ll prompt you to log each instalment.',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 13.5, height: 1.45, color: colors.textSecondary),
         ),
@@ -990,17 +769,9 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
         const SizedBox(height: 24),
         Center(
           child: ElevatedButton.icon(
-            onPressed: () => _showHoldingDialog(),
+            onPressed: () => _openEditor(),
             icon: const Icon(Icons.add),
             label: const Text('Add your first holding'),
-          ),
-        ),
-        const SizedBox(height: 12),
-        Center(
-          child: OutlinedButton.icon(
-            onPressed: () => _openSipEditor(),
-            icon: const Text('🔁', style: TextStyle(fontSize: 15)),
-            label: const Text('Automate a SIP / RD'),
           ),
         ),
       ],
@@ -1020,270 +791,153 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
         ],
       );
 
-  // ==================== ADD / EDIT ====================
-  Future<void> _showHoldingDialog({Holding? existing}) async {
-    var kind = existing?.kind ?? HoldingKind.asset;
-    var category = existing?.category ?? HoldingCategories.assetCategories.first;
-    final nameCtrl = TextEditingController(text: existing?.name ?? '');
-    final amountCtrl = TextEditingController(
-      text: existing == null ? '' : existing.amount.toStringAsFixed(0),
+  // ==================== ACTIONS ====================
+
+  Future<void> _openEditor({Holding? existingHolding, Sip? existingSip}) async {
+    final changed = await showHoldingEditor(
+      context,
+      existingHolding: existingHolding,
+      existingSip: existingSip,
     );
-    final editing = existing != null;
-    var automate = false;
+    if (changed) {
+      await _load();
+      if (mounted) {
+        showAppToast(context,
+            message: existingHolding != null ? 'Saved' : 'Added',
+            type: AppToastType.success);
+      }
+    }
+  }
+
+  /// Answer the inline due prompt for a single plan.
+  Future<void> _answerDue(Sip sip, {required bool didInvest}) async {
+    if (didInvest) {
+      await _sipService.confirmCurrentInstallment(sip, amount: sip.amount);
+    } else {
+      await _sipService.skipCurrentInstallment(sip);
+    }
+    await _load();
+    if (mounted) {
+      showAppToast(
+        context,
+        message: didInvest
+            ? 'Added ${_fmt.format(sip.amount ?? 0)} to net worth'
+            : 'Marked as not done this month',
+        type: didInvest ? AppToastType.success : AppToastType.info,
+      );
+    }
+  }
+
+  /// Walk through every due-and-unresolved plan (deep-link from the alert).
+  Future<void> _reviewDueSips() async {
+    final sips = await _db.getSips();
+    for (final sip in sips) {
+      final p = await _sipService.progressFor(sip);
+      if (!p.dueThisPeriod) continue;
+      if (!mounted) return;
+      await _confirmSip(sip);
+    }
+    await _load();
+  }
+
+  /// "Investment Alert" dialog (Yes/No) for one plan.
+  Future<void> _confirmSip(Sip sip) async {
+    final amountCtrl = TextEditingController(
+      text: sip.amount?.toStringAsFixed(0) ?? '',
+    );
     var result = '';
 
     await showAppDialog(
       context,
-      builder: (ctx) => AppDialog(
-        icon: Icons.account_balance_wallet_rounded,
-        title: editing ? 'Edit holding' : 'Add holding',
-        subtitle: 'Track an investment, savings balance, or a debt. Values are '
-            'yours to update anytime.',
-        content: StatefulBuilder(
-          builder: (ctx, setLocal) {
-            final colors = AppColors.of(ctx);
-            final cats = HoldingCategories.forKind(kind);
-            if (!cats.contains(category)) category = cats.first;
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Asset / Liability toggle
-                Row(
+      builder: (ctx) {
+        final colors = AppColors.of(ctx);
+        return AppDialog(
+          icon: Icons.notifications_active_outlined,
+          title: 'Did you invest in ${sip.name}?',
+          subtitle: 'Confirm this month\'s instalment and we\'ll add it to your '
+              'net worth.',
+          content: sip.amount != null
+              ? Row(
                   children: [
-                    _kindChip(ctx, 'Asset', kind == HoldingKind.asset, () {
-                      setLocal(() {
-                        kind = HoldingKind.asset;
-                        category = HoldingCategories.assetCategories.first;
-                      });
-                    }),
-                    const SizedBox(width: 8),
-                    _kindChip(
-                        ctx, 'Liability', kind == HoldingKind.liability, () {
-                      setLocal(() {
-                        kind = HoldingKind.liability;
-                        category = HoldingCategories.liabilities.first;
-                      });
-                    }),
+                    Text('Amount',
+                        style: TextStyle(
+                            fontSize: 13.5, color: colors.textSecondary)),
+                    const Spacer(),
+                    Text(
+                      _fmt.format(sip.amount),
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: colors.text,
+                      ),
+                    ),
                   ],
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Type',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                SizedBox(
-                  height: 38,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: cats.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 8),
-                    itemBuilder: (_, i) {
-                      final c = cats[i];
-                      final sel = c == category;
-                      return GestureDetector(
-                        onTap: () => setLocal(() => category = c),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 180),
-                          padding: const EdgeInsets.symmetric(horizontal: 14),
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: sel ? AppColors.gold : colors.cardAlt,
-                            borderRadius: BorderRadius.circular(19),
-                            border: Border.all(
-                              color: sel ? AppColors.gold : colors.border,
-                            ),
-                          ),
-                          child: Text(
-                            '${HoldingCategories.icon(c)}  $c',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: sel
-                                  ? const Color(0xFF15110A)
-                                  : colors.textSecondary,
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: nameCtrl,
-                  textCapitalization: TextCapitalization.words,
-                  decoration: const InputDecoration(
-                    labelText: 'Name',
-                    hintText: 'e.g. HDFC Tax Saver FD',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
+                )
+              : TextField(
                   controller: amountCtrl,
                   keyboardType: TextInputType.number,
+                  autofocus: true,
                   decoration: const InputDecoration(
-                    labelText: 'Current value',
+                    labelText: 'Amount invested',
                     prefixText: '₹ ',
                   ),
                 ),
-                if (!editing &&
-                    kind == HoldingKind.asset &&
-                    HoldingCategories.isInvestment(category)) ...[
-                  const SizedBox(height: 14),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppColors.gold.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(12),
-                      border:
-                          Border.all(color: AppColors.gold.withValues(alpha: 0.30)),
-                    ),
-                    child: Row(
-                      children: [
-                        const Text('🔁', style: TextStyle(fontSize: 16)),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Recurring SIP / RD?',
-                                  style: TextStyle(
-                                      fontSize: 13.5,
-                                      fontWeight: FontWeight.w700,
-                                      color: colors.text)),
-                              const SizedBox(height: 2),
-                              Text(
-                                  'Automate it instead of logging every month',
-                                  style: TextStyle(
-                                      fontSize: 11.5,
-                                      color: colors.textSecondary)),
-                            ],
-                          ),
-                        ),
-                        Switch(
-                          value: automate,
-                          onChanged: (v) => setLocal(() => automate = v),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ],
-            );
-          },
-        ),
-        actions: [
-          if (editing)
-            OutlinedButton(
+          actions: [
+            TextButton(
               onPressed: () {
-                result = 'delete';
+                result = 'no';
                 Navigator.pop(ctx);
               },
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.dangerLight,
-              ),
-              child: const Text('Delete'),
-            )
-          else
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
+              child: const Text('No'),
             ),
-          ElevatedButton(
-            onPressed: () {
-              result = 'save';
-              Navigator.pop(ctx);
-            },
-            child: Text(editing ? 'Save' : 'Add'),
-          ),
-        ],
-      ),
+            ElevatedButton(
+              onPressed: () {
+                result = 'yes';
+                Navigator.pop(ctx);
+              },
+              child: const Text('Yes, I did'),
+            ),
+          ],
+        );
+      },
     );
 
-    // Chose to automate an investment → hand off to the SIP/RD editor instead
-    // of creating a one-off holding. The editor seeds its own backing holding.
-    if (result == 'save' && automate && !editing) {
-      final name = nameCtrl.text.trim();
-      nameCtrl.dispose();
-      amountCtrl.dispose();
-      await _openSipEditor(
-        prefillName: name.isEmpty ? null : name,
-        prefillCategory: category,
-      );
-      return;
-    }
-
-    if (result == 'save') {
-      final amt = double.tryParse(amountCtrl.text.trim()) ?? 0;
-      final name = nameCtrl.text.trim();
-      if (amt > 0 && name.isNotEmpty) {
-        final holding = Holding(
-          id: existing?.id,
-          name: name,
-          kind: kind,
-          category: category,
-          amount: amt,
-          updatedAt: DateTime.now(),
-        );
-        if (editing) {
-          await _db.updateHolding(holding);
-        } else {
-          await _db.insertHolding(holding);
-        }
-        await _load();
+    if (result == 'yes') {
+      final amount = sip.amount ?? double.tryParse(amountCtrl.text.trim());
+      if (amount == null || amount <= 0) {
         if (mounted) {
           showAppToast(context,
-              message: editing ? 'Holding updated' : 'Holding added',
+              message: 'Enter a valid amount', type: AppToastType.warning);
+        }
+      } else {
+        await _sipService.confirmCurrentInstallment(sip, amount: amount);
+        if (mounted) {
+          showAppToast(context,
+              message: 'Added ${_fmt.format(amount)} to net worth',
               type: AppToastType.success);
         }
-      } else if (mounted) {
-        showAppToast(context,
-            message: 'Enter a name and a value above ₹0',
-            type: AppToastType.warning);
       }
-    } else if (result == 'delete' && existing?.id != null) {
-      await _db.deleteHolding(existing!.id!);
-      await _load();
+    } else if (result == 'no') {
+      await _sipService.skipCurrentInstallment(sip);
       if (mounted) {
         showAppToast(context,
-            message: 'Holding deleted', type: AppToastType.info);
+            message: 'Marked as not done this month', type: AppToastType.info);
       }
     }
-
-    nameCtrl.dispose();
     amountCtrl.dispose();
   }
 
-  Widget _kindChip(BuildContext ctx, String label, bool selected, VoidCallback onTap) {
-    final colors = AppColors.of(ctx);
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: selected ? AppColors.gold : colors.cardAlt,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: selected ? AppColors.gold : colors.border),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 13.5,
-              fontWeight: FontWeight.w700,
-              color: selected ? const Color(0xFF15110A) : colors.textSecondary,
-            ),
-          ),
-        ),
-      ),
-    );
+  static String _ordinalDay(int n) {
+    if (n >= 11 && n <= 13) return '${n}th';
+    switch (n % 10) {
+      case 1:
+        return '${n}st';
+      case 2:
+        return '${n}nd';
+      case 3:
+        return '${n}rd';
+      default:
+        return '${n}th';
+    }
   }
 }
