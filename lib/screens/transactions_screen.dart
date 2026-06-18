@@ -40,6 +40,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   _ClassFilter _classFilter = _ClassFilter.all;
   DateTime? _startDate;
   DateTime? _endDate;
+  _DatePreset _datePreset = _DatePreset.all;
 
   // Free-text search across merchant/payee, amount, and date
   final TextEditingController _searchController = TextEditingController();
@@ -58,6 +59,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     _typeFilter = widget.initialTypeFilter;
     _startDate = widget.initialStartDate;
     _endDate = widget.initialEndDate;
+    _datePreset =
+        widget.initialStartDate != null ? _DatePreset.custom : _DatePreset.all;
     _loadFiltersData();
     _loadTransactions();
   }
@@ -142,11 +145,18 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         monthStart,
         monthEnd,
       );
+      // Mirror the rest of the app's definition of income/spending: money
+      // moved between your own accounts (Self Transfer) or put into
+      // Investments is neither income nor an expense, so it's excluded here
+      // too. Without this, the summary's Expenses double-counts
+      // investments/self-transfers and no longer matches the Home dashboard.
       double mCredits = 0, mDebits = 0;
       for (final t in allMonthTxns) {
         if (t.type == TransactionType.credit) {
-          mCredits += t.amount;
-        } else {
+          if (ExpenseCategories.isIncomeCategory(t.category)) {
+            mCredits += t.amount;
+          }
+        } else if (ExpenseCategories.isExpenseCategory(t.category)) {
           mDebits += t.amount;
         }
       }
@@ -174,10 +184,82 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       _classFilter = _ClassFilter.all;
       _startDate = null;
       _endDate = null;
+      _datePreset = _DatePreset.all;
       _searchQuery = '';
       _searchController.clear();
     });
     _loadTransactions();
+  }
+
+  /// Apply a quick date-range preset (everything except [custom], which uses
+  /// the range picker via [_pickCustomRange]).
+  void _applyDatePreset(_DatePreset preset) {
+    if (preset == _DatePreset.custom) return; // handled by _pickCustomRange
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final (DateTime? start, DateTime? end) = switch (preset) {
+      _DatePreset.all => (null, null),
+      _DatePreset.thisMonth => (
+          DateTime(now.year, now.month, 1),
+          DateTime(now.year, now.month + 1, 0, 23, 59, 59),
+        ),
+      _DatePreset.lastMonth => (
+          DateTime(now.year, now.month - 1, 1),
+          DateTime(now.year, now.month, 0, 23, 59, 59),
+        ),
+      _DatePreset.last7 => (
+          today.subtract(const Duration(days: 6)),
+          DateTime(now.year, now.month, now.day, 23, 59, 59),
+        ),
+      _DatePreset.last30 => (
+          today.subtract(const Duration(days: 29)),
+          DateTime(now.year, now.month, now.day, 23, 59, 59),
+        ),
+      _DatePreset.custom => (null, null), // unreachable
+    };
+    setState(() {
+      _datePreset = preset;
+      _startDate = start;
+      _endDate = end;
+    });
+    _loadTransactions();
+  }
+
+  /// Pick a specific date or a date range (select the same day twice for a
+  /// single date).
+  Future<void> _pickCustomRange() async {
+    final now = DateTime.now();
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(now.year - 10),
+      lastDate: DateTime(now.year + 1, 12, 31),
+      initialDateRange: (_startDate != null && _endDate != null)
+          ? DateTimeRange(start: _startDate!, end: _endDate!)
+          : null,
+      helpText: 'Select a date or range',
+    );
+    if (picked == null) return;
+    setState(() {
+      _datePreset = _DatePreset.custom;
+      _startDate =
+          DateTime(picked.start.year, picked.start.month, picked.start.day);
+      _endDate = DateTime(
+          picked.end.year, picked.end.month, picked.end.day, 23, 59, 59);
+    });
+    _loadTransactions();
+  }
+
+  /// Label for the custom-range chip — shows the picked range when active.
+  String get _customChipLabel {
+    if (_datePreset == _DatePreset.custom &&
+        _startDate != null &&
+        _endDate != null) {
+      final f = DateFormat('d MMM');
+      final s = f.format(_startDate!);
+      final e = f.format(_endDate!);
+      return s == e ? s : '$s – $e';
+    }
+    return 'Custom';
   }
 
   bool get _hasActiveFilters =>
@@ -400,6 +482,65 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   isSelected: _classFilter == _ClassFilter.unclassified,
                   onSelected: () => _setClass(_ClassFilter.unclassified),
                   color: const Color(0xFFD79A3C),
+                  isDark: isDark,
+                ),
+              ],
+            ),
+          ),
+
+          // Date filter row (All / This month / Last month / Last 7 / Last 30
+          // / Custom range) — combines with every other filter.
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Row(
+              children: [
+                _typeRowLabel('Date', isDark),
+                const SizedBox(width: 10),
+                _buildFilterChip(
+                  label: 'All',
+                  isSelected: _datePreset == _DatePreset.all,
+                  onSelected: () => _applyDatePreset(_DatePreset.all),
+                  isDark: isDark,
+                ),
+                const SizedBox(width: 8),
+                _buildFilterChip(
+                  label: 'This month',
+                  isSelected: _datePreset == _DatePreset.thisMonth,
+                  onSelected: () => _applyDatePreset(_DatePreset.thisMonth),
+                  color: const Color(0xFF4A6489),
+                  isDark: isDark,
+                ),
+                const SizedBox(width: 8),
+                _buildFilterChip(
+                  label: 'Last month',
+                  isSelected: _datePreset == _DatePreset.lastMonth,
+                  onSelected: () => _applyDatePreset(_DatePreset.lastMonth),
+                  color: const Color(0xFF4A6489),
+                  isDark: isDark,
+                ),
+                const SizedBox(width: 8),
+                _buildFilterChip(
+                  label: 'Last 7 days',
+                  isSelected: _datePreset == _DatePreset.last7,
+                  onSelected: () => _applyDatePreset(_DatePreset.last7),
+                  color: const Color(0xFF4A6489),
+                  isDark: isDark,
+                ),
+                const SizedBox(width: 8),
+                _buildFilterChip(
+                  label: 'Last 30 days',
+                  isSelected: _datePreset == _DatePreset.last30,
+                  onSelected: () => _applyDatePreset(_DatePreset.last30),
+                  color: const Color(0xFF4A6489),
+                  isDark: isDark,
+                ),
+                const SizedBox(width: 8),
+                _buildFilterChip(
+                  label: _customChipLabel,
+                  isSelected: _datePreset == _DatePreset.custom,
+                  onSelected: _pickCustomRange,
+                  color: const Color(0xFFA8843C),
                   isDark: isDark,
                 ),
               ],
@@ -728,3 +869,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
 /// Classification-status filter, independent of the credit/debit type filter.
 enum _ClassFilter { all, classified, unclassified }
+
+/// Quick date-range presets for the transactions filter (plus a custom range).
+enum _DatePreset { all, thisMonth, lastMonth, last7, last30, custom }
