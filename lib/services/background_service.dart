@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../models/transaction_model.dart';
 import 'database_service.dart';
 import 'notification_service.dart';
+import 'sip_service.dart';
 import 'sms_service.dart';
 import 'widget_service.dart';
 
@@ -23,6 +24,16 @@ class BackgroundService {
   static const String weeklyReminderUniqueName =
       'budget_tracker_weekly_reminder';
 
+  // Daily SIP/RD "Investment Alert" prompts: noon (~12 PM) and evening (~8 PM).
+  // The evening one only fires if the noon prompt went unanswered.
+  static const String sipNoonTaskName = 'sip_noon_check';
+  static const String sipNoonUniqueName = 'budget_tracker_sip_noon';
+  static const String sipEveningTaskName = 'sip_evening_check';
+  static const String sipEveningUniqueName = 'budget_tracker_sip_evening';
+
+  static const int sipNoonHour = 12; // 12 PM
+  static const int sipEveningHour = 20; // 8 PM
+
   // Preferences keys
   static const String _autoScanEnabledKey = 'auto_scan_enabled';
   static const String _scanIntervalHoursKey = 'scan_interval_hours';
@@ -39,6 +50,35 @@ class BackgroundService {
     await Workmanager().initialize(callbackDispatcher, isInDebugMode: false);
     await _ensureScheduled();
     await _ensureWeeklyReminder();
+    await _ensureSipPrompts();
+  }
+
+  /// Register the daily SIP/RD "Investment Alert" prompts at ~12 PM and ~8 PM
+  /// local. Independent of auto-scan so they fire even with scanning off.
+  static Future<void> _ensureSipPrompts() async {
+    await _registerDailyAt(sipNoonUniqueName, sipNoonTaskName, sipNoonHour);
+    await _registerDailyAt(
+        sipEveningUniqueName, sipEveningTaskName, sipEveningHour);
+  }
+
+  static Future<void> _registerDailyAt(
+    String uniqueName,
+    String taskName,
+    int hour,
+  ) async {
+    final now = DateTime.now();
+    var firstRun = DateTime(now.year, now.month, now.day, hour);
+    if (!firstRun.isAfter(now)) {
+      firstRun = firstRun.add(const Duration(days: 1));
+    }
+    await Workmanager().registerPeriodicTask(
+      uniqueName,
+      taskName,
+      frequency: const Duration(days: 1),
+      initialDelay: firstRun.difference(now),
+      constraints: Constraints(networkType: NetworkType.notRequired),
+      existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
+    );
   }
 
   /// Register the weekly unclassified-transactions reminder. Independent of
@@ -198,6 +238,16 @@ class BackgroundService {
     }
   }
 
+  /// Send the noon / evening "Investment Alert" Yes/No prompt for any recurring
+  /// investment due today and still unanswered.
+  static Future<void> performSipPromptCheck({required bool evening}) async {
+    try {
+      await SipService().sendDuePrompts(evening: evening);
+    } catch (e) {
+      // Best-effort reminder
+    }
+  }
+
   /// Perform a foreground SMS scan (called when app opens).
   /// Returns the list of newly found transactions.
   static Future<List<TransactionModel>> performForegroundScan({
@@ -235,6 +285,10 @@ void callbackDispatcher() {
       await BackgroundService.performBackgroundScan();
     } else if (taskName == BackgroundService.weeklyReminderTaskName) {
       await BackgroundService.performWeeklyReminder();
+    } else if (taskName == BackgroundService.sipNoonTaskName) {
+      await BackgroundService.performSipPromptCheck(evening: false);
+    } else if (taskName == BackgroundService.sipEveningTaskName) {
+      await BackgroundService.performSipPromptCheck(evening: true);
     }
     return Future.value(true);
   });
