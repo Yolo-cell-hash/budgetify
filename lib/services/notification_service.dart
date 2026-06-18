@@ -10,6 +10,15 @@ import 'package:intl/intl.dart';
 const String sipYesAction = 'sip_yes';
 const String sipNoAction = 'sip_no';
 
+/// Status-bar (small) icon for every notification. Android renders the small
+/// icon as an alpha-only silhouette, so the full-colour launcher icon
+/// (`@mipmap/ic_launcher`) shows up as a solid white/black square — the bug
+/// testers saw. This points at a dedicated white-on-transparent vector
+/// (`res/drawable/ic_stat_notify.xml`); a vector is safe because the app's
+/// minSdk is 24. Bare name: the plugin resolves it via
+/// getResources().getIdentifier(name, "drawable", package).
+const String _notificationIcon = 'ic_stat_notify';
+
 /// Background isolate handler for SIP prompt action buttons. Must be a
 /// top-level, vm:entry-point function. Used for the silent "No" path; "Yes"
 /// opens the app and is handled in the main isolate for reliability.
@@ -51,55 +60,64 @@ class NotificationService {
 
   NotificationService._internal();
 
-  /// Initialize the notification service
+  /// Initialize the notification service.
+  ///
+  /// Wrapped in try/catch so a notification-subsystem failure can NEVER block
+  /// app startup. The plugin's `initialize` throws if the small icon can't be
+  /// resolved (e.g. the drawable isn't in the build yet); since this is awaited
+  /// in `main()` before `runApp`, an uncaught throw here would leave the app
+  /// stuck on the native splash. The app must still open even if notifications
+  /// can't start.
   Future<void> initialize() async {
     if (_isInitialized) return;
 
-    const androidSettings = AndroidInitializationSettings(
-      '@mipmap/ic_launcher',
-    );
-    const initSettings = InitializationSettings(android: androidSettings);
+    try {
+      const androidSettings = AndroidInitializationSettings(_notificationIcon);
+      const initSettings = InitializationSettings(android: androidSettings);
 
-    await _notifications.initialize(
-      initSettings,
-      onDidReceiveNotificationResponse: _onNotificationTapped,
-      onDidReceiveBackgroundNotificationResponse:
-          sipNotificationBackgroundHandler,
-    );
+      await _notifications.initialize(
+        initSettings,
+        onDidReceiveNotificationResponse: _onNotificationTapped,
+        onDidReceiveBackgroundNotificationResponse:
+            sipNotificationBackgroundHandler,
+      );
 
-    final androidPlugin = _notifications
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >();
+      final androidPlugin = _notifications
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
 
-    await androidPlugin?.createNotificationChannel(
-      const AndroidNotificationChannel(
-        'transaction_channel',
-        'Transaction Alerts',
-        description: 'Notifications for detected bank transactions',
-        importance: Importance.high,
-      ),
-    );
+      await androidPlugin?.createNotificationChannel(
+        const AndroidNotificationChannel(
+          'transaction_channel',
+          'Transaction Alerts',
+          description: 'Notifications for detected bank transactions',
+          importance: Importance.high,
+        ),
+      );
 
-    await androidPlugin?.createNotificationChannel(
-      const AndroidNotificationChannel(
-        'budget_channel',
-        'Budget Alerts',
-        description: 'Notifications for budget thresholds',
-        importance: Importance.max,
-      ),
-    );
+      await androidPlugin?.createNotificationChannel(
+        const AndroidNotificationChannel(
+          'budget_channel',
+          'Budget Alerts',
+          description: 'Notifications for budget thresholds',
+          importance: Importance.max,
+        ),
+      );
 
-    await androidPlugin?.createNotificationChannel(
-      const AndroidNotificationChannel(
-        'sip_channel',
-        'SIP & RD Reminders',
-        description: 'Reminders to log your recurring investments',
-        importance: Importance.high,
-      ),
-    );
+      await androidPlugin?.createNotificationChannel(
+        const AndroidNotificationChannel(
+          'sip_channel',
+          'SIP & RD Reminders',
+          description: 'Reminders to log your recurring investments',
+          importance: Importance.high,
+        ),
+      );
 
-    _isInitialized = true;
+      _isInitialized = true;
+    } catch (e, st) {
+      debugPrint('NotificationService.initialize failed (continuing): $e\n$st');
+    }
   }
 
   void _onNotificationTapped(NotificationResponse response) {
