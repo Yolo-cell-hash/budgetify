@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../models/transaction_model.dart';
 import '../screens/transactions_screen.dart';
+import '../screens/net_worth_screen.dart';
 import 'package:intl/intl.dart';
 
 /// Service for showing local notifications
@@ -17,6 +18,9 @@ class NotificationService {
 
   /// Payload that routes to the unclassified-transactions list.
   static const String openUnclassifiedPayload = 'open_unclassified';
+
+  /// Payload that routes to the Net Worth tab to confirm a due SIP/RD.
+  static const String openSipReviewPayload = 'open_sip_review';
 
   factory NotificationService() => _instance;
 
@@ -59,6 +63,15 @@ class NotificationService {
       ),
     );
 
+    await androidPlugin?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        'sip_channel',
+        'SIP & RD Reminders',
+        description: 'Reminders to log your recurring investments',
+        importance: Importance.high,
+      ),
+    );
+
     _isInitialized = true;
   }
 
@@ -84,6 +97,12 @@ class NotificationService {
         MaterialPageRoute(
           builder: (_) =>
               const TransactionsScreen(initialUnclassifiedOnly: true),
+        ),
+      );
+    } else if (payload == openSipReviewPayload) {
+      navigatorKey.currentState?.push(
+        MaterialPageRoute(
+          builder: (_) => const NetWorthScreen(reviewSips: true),
         ),
       );
     }
@@ -270,6 +289,53 @@ class NotificationService {
         ),
       ),
       payload: openUnclassifiedPayload,
+    );
+  }
+
+  /// Evening nudge to log a recurring investment whose instalment is due but
+  /// wasn't auto-detected. Tapping opens the Net Worth tab to confirm it.
+  Future<void> showSipReminder({
+    required int count,
+    String? name,
+    double? amount,
+  }) async {
+    if (!_isInitialized) await initialize();
+    if (count <= 0) return;
+
+    final fmt = NumberFormat.currency(
+      locale: 'en_IN',
+      symbol: '₹',
+      decimalDigits: 0,
+    );
+
+    final String title;
+    final String body;
+    if (count == 1 && name != null) {
+      title = '📈 Did you invest today?';
+      final amt = amount != null ? '${fmt.format(amount)} ' : '';
+      body = 'We couldn\'t auto-detect your ${amt}investment in "$name". '
+          'Tap to confirm and add it to your net worth.';
+    } else {
+      title = '📈 $count investments due';
+      body = 'You have $count recurring investments to confirm for today. '
+          'Tap to review and update your net worth.';
+    }
+
+    await _notifications.show(
+      5000, // Fixed ID so the evening reminder updates rather than stacks
+      title,
+      body,
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'sip_channel',
+          'SIP & RD Reminders',
+          channelDescription: 'Reminders to log your recurring investments',
+          importance: Importance.high,
+          priority: Priority.high,
+          showWhen: true,
+        ),
+      ),
+      payload: openSipReviewPayload,
     );
   }
 

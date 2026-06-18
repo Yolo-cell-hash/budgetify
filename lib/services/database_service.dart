@@ -4,6 +4,7 @@ import '../models/transaction_model.dart';
 import '../models/budget_model.dart';
 import '../models/transaction_rule_model.dart';
 import '../models/holding.dart';
+import '../models/sip.dart';
 import 'sms_parser_service.dart';
 
 /// Database service for persisting transactions and budgets
@@ -29,7 +30,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 14,
+      version: 15,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -119,6 +120,13 @@ class DatabaseService {
 
     // Monthly net-worth snapshots (powers the Wrapped net-worth-change stat)
     await db.execute(_createNetWorthSnapshotsTable);
+
+    // Automated recurring investments (SIPs / RDs) + their instalment ledger.
+    await db.execute(_createSipsTable);
+    await db.execute(_createSipPaymentsTable);
+    await db.execute(
+      'CREATE INDEX idx_sip_payments_sip ON sip_payments(sip_id)',
+    );
   }
 
   static const String _createDeletedTransactionsTable = '''
@@ -150,6 +158,40 @@ class DatabaseService {
         assets REAL NOT NULL,
         liabilities REAL NOT NULL,
         updated_at INTEGER NOT NULL
+      )
+    ''';
+
+  static const String _createSipsTable = '''
+      CREATE TABLE IF NOT EXISTS sips(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        category TEXT NOT NULL,
+        amount REAL,
+        amount_is_fixed INTEGER NOT NULL DEFAULT 1,
+        day_of_month INTEGER NOT NULL,
+        start_date INTEGER,
+        end_date INTEGER,
+        auto_detect INTEGER NOT NULL DEFAULT 1,
+        holding_id INTEGER,
+        prior_installments INTEGER NOT NULL DEFAULT 0,
+        last_reminder_period TEXT,
+        created_at INTEGER NOT NULL
+      )
+    ''';
+
+  // One row per resolved monthly instalment. The UNIQUE(sip_id, period_key)
+  // makes reconciliation idempotent — re-running a scan never double-records
+  // the same month.
+  static const String _createSipPaymentsTable = '''
+      CREATE TABLE IF NOT EXISTS sip_payments(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sip_id INTEGER NOT NULL,
+        period_key TEXT NOT NULL,
+        amount REAL NOT NULL,
+        status TEXT NOT NULL,
+        transaction_id INTEGER,
+        resolved_at INTEGER NOT NULL,
+        UNIQUE(sip_id, period_key)
       )
     ''';
 
@@ -331,6 +373,15 @@ class DatabaseService {
     if (oldVersion < 14) {
       // Monthly net-worth snapshots for the Wrapped net-worth-change stat.
       await db.execute(_createNetWorthSnapshotsTable);
+    }
+
+    if (oldVersion < 15) {
+      // Automated recurring investments (SIPs / RDs) + instalment ledger.
+      await db.execute(_createSipsTable);
+      await db.execute(_createSipPaymentsTable);
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_sip_payments_sip ON sip_payments(sip_id)',
+      );
     }
   }
 
@@ -1373,6 +1424,142 @@ class DatabaseService {
     return (r.first['total'] as num?)?.toDouble() ?? 0.0;
   }
 
+  /// A single holding by id, or null. Used when a SIP instalment needs to
+  /// top up its backing holding.
+  Future<Holding?> getHolding(int id) async {
+    final db = await database;
+    final r = await db.query('holdings', where: 'id = ?', whereArgs: [id], limit: 1);
+    if (r.isEmpty) return null;
+    return Holding.fromMap(r.first);
+  }
+
+  // ==================== SIP / RD OPERATIONS ====================
+
+  Future<int> insertSip(Sip sip) async {
+    final db = await database;
+    return db.insert('sips', sip.toMap());
+  }
+
+  Future<int> updateSip(Sip sip) async {
+    final db = await database;
+    return db.update('sips', sip.toMap(), where: 'id = ?', whereArgs: [sip.id]);
+  }
+
+  /// Delete a SIP and its instalment ledger. The backing holding is left in
+  /// place — the money invested so far is real and stays in net worth.
+  Future<void> deleteSip(int id) async {
+    final db = await database;
+    await db.delete('sip_payments', where: 'sip_id = ?', whereArgs: [id]);
+    await db.delete('sips', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<List<Sip>> getSips() async {
+    final db = await database;
+    final maps = await db.query('sips', orderBy: 'created_at DESC');
+    return maps.map((m) => Sip.fromMap(m)).toList();
+  }
+
+  Future<Sip?> getSip(int id) async {
+    final db = await database;
+    final r = await db.query('sips', where: 'id = ?', whereArgs: [id], limit: 1);
+    if (r.isEmpty) return null;
+    return Sip.fromMap(r.first);
+  }
+
+  /// All instalments recorded for a SIP, newest first.
+  Future<List<SipPayment>> getSipPayments(int sipId) async {
+    final db = await database;
+    final maps = await db.query(
+      'sip_payments',
+      where: 'sip_id = ?',
+      whereArgs: [sipId],
+      orderBy: 'period_key DESC',
+    );
+    return maps.map((m) => SipPayment.fromMap(m)).toList();
+  }
+
+  /// The instalment recorded for a given month, or null if none yet.
+  Future<SipPayment?> getSipPaymentForPeriod(int sipId, String periodKey) async {
+    final db = await database;
+    final r = await db.query(
+      'sip_payments',
+      where: 'sip_id = ? AND period_key = ?',
+      whereArgs: [sipId, periodKey],
+      limit: 1,
+    );
+    if (r.isEmpty) return null;
+    return SipPayment.fromMap(r.first);
+  }
+
+  /// Number of *paid* instalments (detected or confirmed; skips excluded).
+  Future<int> getPaidSipPaymentCount(int sipId) async {
+    final db = await database;
+    final r = await db.rawQuery(
+      "SELECT COUNT(*) AS c FROM sip_payments "
+      "WHERE sip_id = ? AND status != 'skipped'",
+      [sipId],
+    );
+    return (r.first['c'] as int?) ?? 0;
+  }
+
+  /// Total money credited so far via a SIP (paid instalments only).
+  Future<double> getSipInvestedTotal(int sipId) async {
+    final db = await database;
+    final r = await db.rawQuery(
+      "SELECT SUM(amount) AS t FROM sip_payments "
+      "WHERE sip_id = ? AND status != 'skipped'",
+      [sipId],
+    );
+    return (r.first['t'] as num?)?.toDouble() ?? 0.0;
+  }
+
+  /// Insert or replace the instalment for a (sip, period) — idempotent.
+  Future<void> upsertSipPayment(SipPayment payment) async {
+    final db = await database;
+    await db.insert(
+      'sip_payments',
+      payment.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  /// Find an Investments-tagged debit that plausibly *is* this month's
+  /// instalment: tagged 'Investments', within [windowStart]..[windowEnd], not
+  /// already linked to another instalment, and (when [amount] is given)
+  /// matching it within ₹1. Returns the one closest to the [due] date.
+  Future<TransactionModel?> findInvestmentTransactionForSip({
+    required DateTime windowStart,
+    required DateTime windowEnd,
+    required DateTime due,
+    double? amount,
+  }) async {
+    final db = await database;
+    final where = StringBuffer(
+      "type = ? AND category = 'Investments' "
+      "AND detected_at >= ? AND detected_at <= ? "
+      "AND id NOT IN (SELECT transaction_id FROM sip_payments "
+      "WHERE transaction_id IS NOT NULL)",
+    );
+    final args = <Object>[
+      TransactionType.debit.index,
+      windowStart.millisecondsSinceEpoch,
+      windowEnd.millisecondsSinceEpoch,
+    ];
+    if (amount != null) {
+      where.write(' AND amount >= ? AND amount <= ?');
+      args..add(amount - 1)..add(amount + 1);
+    }
+    final maps = await db.query(
+      'transactions',
+      where: where.toString(),
+      whereArgs: args,
+      orderBy: 'ABS(detected_at - ${due.millisecondsSinceEpoch}) ASC',
+      limit: 1,
+    );
+    if (maps.isEmpty) return null;
+    return TransactionModel.fromMap(maps.first);
+  }
+
   Future<Map<String, dynamic>> exportAllData() async {
     final db = await database;
     return {
@@ -1380,6 +1567,8 @@ class DatabaseService {
       'budgets': await db.query('budgets'),
       'transaction_rules': await db.query('transaction_rules'),
       'holdings': await db.query('holdings'),
+      'sips': await db.query('sips'),
+      'sip_payments': await db.query('sip_payments'),
     };
   }
 
@@ -1392,6 +1581,12 @@ class DatabaseService {
   Future<Map<String, int>> importBackupData(Map<String, dynamic> data) async {
     final db = await database;
     var txnCount = 0, budgetCount = 0, ruleCount = 0, holdingCount = 0;
+    var sipCount = 0;
+    // Maps a backed-up row id to its restored local id, so SIPs can be
+    // re-pointed at their backing holding and instalments at their SIP even
+    // though autoincrement ids differ on a fresh device.
+    final holdingIdMap = <int, int>{};
+    final sipIdMap = <int, int>{};
 
     for (final raw in (data['transactions'] as List? ?? const [])) {
       final row = Map<String, dynamic>.from(raw as Map);
@@ -1476,6 +1671,7 @@ class DatabaseService {
 
     for (final raw in (data['holdings'] as List? ?? const [])) {
       final row = Map<String, dynamic>.from(raw as Map);
+      final oldId = row['id'] as int?;
       row.remove('id');
       final exists = await db.query(
         'holdings',
@@ -1483,9 +1679,58 @@ class DatabaseService {
         whereArgs: [row['name'], row['kind'], row['category']],
         limit: 1,
       );
+      final int localId;
+      if (exists.isNotEmpty) {
+        localId = exists.first['id'] as int;
+      } else {
+        localId = await db.insert('holdings', row);
+        holdingCount++;
+      }
+      if (oldId != null) holdingIdMap[oldId] = localId;
+    }
+
+    // SIP plans: re-point the backing holding, dedupe by (name, category, day).
+    for (final raw in (data['sips'] as List? ?? const [])) {
+      final row = Map<String, dynamic>.from(raw as Map);
+      final oldId = row['id'] as int?;
+      row.remove('id');
+      final oldHoldingId = row['holding_id'] as int?;
+      row['holding_id'] =
+          oldHoldingId == null ? null : holdingIdMap[oldHoldingId];
+      final exists = await db.query(
+        'sips',
+        where: 'name = ? AND category = ? AND day_of_month = ?',
+        whereArgs: [row['name'], row['category'], row['day_of_month']],
+        limit: 1,
+      );
+      final int localId;
+      if (exists.isNotEmpty) {
+        localId = exists.first['id'] as int;
+      } else {
+        localId = await db.insert('sips', row);
+        sipCount++;
+      }
+      if (oldId != null) sipIdMap[oldId] = localId;
+    }
+
+    // SIP instalment ledger: re-point to the restored SIP. The transaction_id
+    // link is dropped (transaction ids aren't stable across restores) — the
+    // instalment's amount is what matters for progress/totals.
+    for (final raw in (data['sip_payments'] as List? ?? const [])) {
+      final row = Map<String, dynamic>.from(raw as Map);
+      row.remove('id');
+      final newSipId = sipIdMap[row['sip_id'] as int?];
+      if (newSipId == null) continue; // orphaned instalment — skip
+      row['sip_id'] = newSipId;
+      row['transaction_id'] = null;
+      final exists = await db.query(
+        'sip_payments',
+        where: 'sip_id = ? AND period_key = ?',
+        whereArgs: [newSipId, row['period_key']],
+        limit: 1,
+      );
       if (exists.isNotEmpty) continue;
-      await db.insert('holdings', row);
-      holdingCount++;
+      await db.insert('sip_payments', row);
     }
 
     return {
@@ -1493,6 +1738,7 @@ class DatabaseService {
       'budgets': budgetCount,
       'rules': ruleCount,
       'holdings': holdingCount,
+      'sips': sipCount,
     };
   }
 

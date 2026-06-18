@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../models/transaction_model.dart';
 import 'database_service.dart';
 import 'notification_service.dart';
+import 'sip_service.dart';
 import 'sms_service.dart';
 import 'widget_service.dart';
 
@@ -23,6 +24,14 @@ class BackgroundService {
   static const String weeklyReminderUniqueName =
       'budget_tracker_weekly_reminder';
 
+  // Daily evening check for due SIP/RD instalments (~7:30 PM)
+  static const String sipEveningCheckTaskName = 'sip_evening_check';
+  static const String sipEveningCheckUniqueName = 'budget_tracker_sip_evening';
+
+  /// Hour/minute the evening SIP reminder aims for (local time).
+  static const int sipReminderHour = 19;
+  static const int sipReminderMinute = 30;
+
   // Preferences keys
   static const String _autoScanEnabledKey = 'auto_scan_enabled';
   static const String _scanIntervalHoursKey = 'scan_interval_hours';
@@ -39,6 +48,26 @@ class BackgroundService {
     await Workmanager().initialize(callbackDispatcher, isInDebugMode: false);
     await _ensureScheduled();
     await _ensureWeeklyReminder();
+    await _ensureSipEveningCheck();
+  }
+
+  /// Register the daily evening SIP/RD reminder, anchored to ~7:30 PM local.
+  /// Kept independent of auto-scan so it fires even with scanning off.
+  static Future<void> _ensureSipEveningCheck() async {
+    final now = DateTime.now();
+    var firstRun =
+        DateTime(now.year, now.month, now.day, sipReminderHour, sipReminderMinute);
+    if (!firstRun.isAfter(now)) {
+      firstRun = firstRun.add(const Duration(days: 1));
+    }
+    await Workmanager().registerPeriodicTask(
+      sipEveningCheckUniqueName,
+      sipEveningCheckTaskName,
+      frequency: const Duration(days: 1),
+      initialDelay: firstRun.difference(now),
+      constraints: Constraints(networkType: NetworkType.notRequired),
+      existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
+    );
   }
 
   /// Register the weekly unclassified-transactions reminder. Independent of
@@ -155,6 +184,8 @@ class BackgroundService {
 
       final found = await smsService.scanExistingSms(maxCount: 100);
       await _recordScanTime();
+      // Credit any newly-detected SIP/RD instalments to their holdings.
+      await SipService().reconcile();
       await WidgetService.update();
 
       if (found.isNotEmpty) {
@@ -198,6 +229,16 @@ class BackgroundService {
     }
   }
 
+  /// Evening check: reconcile detected instalments, then nudge the user about
+  /// any recurring investment still due and unconfirmed for today.
+  static Future<void> performSipEveningCheck() async {
+    try {
+      await SipService().runEveningCheck();
+    } catch (e) {
+      // Best-effort reminder
+    }
+  }
+
   /// Perform a foreground SMS scan (called when app opens).
   /// Returns the list of newly found transactions.
   static Future<List<TransactionModel>> performForegroundScan({
@@ -235,6 +276,8 @@ void callbackDispatcher() {
       await BackgroundService.performBackgroundScan();
     } else if (taskName == BackgroundService.weeklyReminderTaskName) {
       await BackgroundService.performWeeklyReminder();
+    } else if (taskName == BackgroundService.sipEveningCheckTaskName) {
+      await BackgroundService.performSipEveningCheck();
     }
     return Future.value(true);
   });

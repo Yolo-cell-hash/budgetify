@@ -15,6 +15,7 @@ class RestoreResult {
   final int rules;
   final int customTags;
   final int holdings;
+  final int sips;
 
   const RestoreResult({
     required this.transactions,
@@ -22,9 +23,11 @@ class RestoreResult {
     required this.rules,
     required this.customTags,
     this.holdings = 0,
+    this.sips = 0,
   });
 
-  int get total => transactions + budgets + rules + customTags + holdings;
+  int get total =>
+      transactions + budgets + rules + customTags + holdings + sips;
 }
 
 /// Thrown when a backup file can't be decrypted (wrong passphrase) or is
@@ -201,6 +204,7 @@ class BackupService {
       rules: counts['rules'] ?? 0,
       customTags: tagCount,
       holdings: counts['holdings'] ?? 0,
+      sips: counts['sips'] ?? 0,
     );
   }
 }

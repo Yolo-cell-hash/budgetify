@@ -438,7 +438,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: const ListTile(
               leading: Icon(Icons.info_outline),
               title: Text('Budget Tracker'),
-              subtitle: Text('Version 1.3.4'),
+              subtitle: Text('Version 1.4.0'),
             ),
           ),
         ],
@@ -597,7 +597,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ? 'Backup restored — everything was already on this device'
             : 'Restored ${result.transactions} transactions, '
                   '${result.budgets} budgets, ${result.rules} rules, '
-                  '${result.holdings} holdings',
+                  '${result.holdings} holdings, ${result.sips} SIPs',
         color: const Color(0xFF2AA76F),
       );
     } on BackupException catch (e) {
