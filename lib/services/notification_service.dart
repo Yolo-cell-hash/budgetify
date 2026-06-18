@@ -10,6 +10,17 @@ import 'package:intl/intl.dart';
 const String sipYesAction = 'sip_yes';
 const String sipNoAction = 'sip_no';
 
+/// Dedicated status-bar icon: a white-on-transparent silhouette. Android 5.0+
+/// renders the small icon as an alpha mask, so a full-colour launcher icon
+/// (`@mipmap/ic_launcher`) shows up as a solid black/white square on many
+/// devices. A monochrome PNG (shipped at every density) renders correctly and
+/// stably across all versions. Bare name — the plugin resolves it via
+/// getIdentifier(name, "drawable", package).
+const String _notificationIcon = 'ic_stat_notify';
+
+/// Champagne-gold brand accent used to tint the small icon / app name.
+const Color _brandGold = Color(0xFFC8A75E);
+
 /// Background isolate handler for SIP prompt action buttons. Must be a
 /// top-level, vm:entry-point function. Used for the silent "No" path; "Yes"
 /// opens the app and is handled in the main isolate for reliability.
@@ -55,9 +66,7 @@ class NotificationService {
   Future<void> initialize() async {
     if (_isInitialized) return;
 
-    const androidSettings = AndroidInitializationSettings(
-      '@mipmap/ic_launcher',
-    );
+    const androidSettings = AndroidInitializationSettings(_notificationIcon);
     const initSettings = InitializationSettings(android: androidSettings);
 
     await _notifications.initialize(
@@ -167,6 +176,7 @@ class NotificationService {
           channelDescription: 'Notifications for detected bank transactions',
           importance: Importance.high,
           priority: Priority.high,
+          color: _brandGold,
           showWhen: true,
         ),
       ),
@@ -266,6 +276,7 @@ class NotificationService {
           channelDescription: 'Notifications for budget thresholds',
           importance: Importance.max,
           priority: Priority.max,
+          color: _brandGold,
           showWhen: true,
         ),
       ),
@@ -298,6 +309,7 @@ class NotificationService {
           channelDescription: 'Notifications for detected bank transactions',
           importance: Importance.high,
           priority: Priority.high,
+          color: _brandGold,
           showWhen: true,
         ),
       ),
@@ -326,6 +338,7 @@ class NotificationService {
           channelDescription: 'Notifications for detected bank transactions',
           importance: Importance.high,
           priority: Priority.high,
+          color: _brandGold,
           showWhen: true,
         ),
       ),
@@ -367,6 +380,7 @@ class NotificationService {
           channelDescription: 'Reminders to log your recurring investments',
           importance: Importance.high,
           priority: Priority.high,
+          color: _brandGold,
           showWhen: true,
           actions: <AndroidNotificationAction>[
             AndroidNotificationAction(
