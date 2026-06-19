@@ -342,6 +342,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
 
+          const SizedBox(height: 12),
+          _buildSettingsCard(
+            isDark: isDark,
+            child: SwitchListTile(
+              secondary: Icon(
+                Icons.emoji_events_outlined,
+                color: context.watch<AppPreferences>().gamifiedMode
+                    ? const Color(0xFFA8843C)
+                    : const Color(0xFF8A8D96),
+              ),
+              title: const Text('Gamified Budgets'),
+              subtitle: Text(
+                'Earn achievement badges, titles and a shareable profile from '
+                'your spending. Opens a separate Rewards hub from your Home '
+                'avatar — everything stays on your device.',
+                style: TextStyle(
+                  color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
+                ),
+              ),
+              value: context.watch<AppPreferences>().gamifiedMode,
+              onChanged: (v) =>
+                  context.read<AppPreferences>().setGamifiedMode(v),
+            ),
+          ),
+
           const SizedBox(height: 24),
 
           // Backup Section

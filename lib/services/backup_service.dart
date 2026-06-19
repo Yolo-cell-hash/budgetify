@@ -7,6 +7,7 @@ import 'package:file_picker/file_picker.dart';
 
 import 'custom_tag_service.dart';
 import 'database_service.dart';
+import 'gamification_service.dart';
 
 /// Result of a restore operation.
 class RestoreResult {
@@ -136,6 +137,8 @@ class BackupService {
         tagService.getCustomTags().map((t) => t.toJson()).toList();
     // Tag settings: custom emoji overrides + hidden built-in tags
     data['tag_settings'] = tagService.exportSettings();
+    // Gamified Budgets: profile, avatar, streak, unlock dates (offline).
+    data['gamification'] = await GamificationService().exportSettings();
 
     final payloadJson = jsonEncode({
       'magic': _magic,
@@ -191,6 +194,11 @@ class BackupService {
     // Restore tag settings (emoji overrides + hidden built-in tags)
     await tagService.importSettings(
       (data['tag_settings'] as Map?)?.cast<String, dynamic>(),
+    );
+
+    // Restore Gamified Budgets profile + streak + unlock state.
+    await GamificationService().importSettings(
+      (data['gamification'] as Map?)?.cast<String, dynamic>(),
     );
 
     // Now that classification rules are back, auto-tag any past

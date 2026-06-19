@@ -8,6 +8,7 @@ import '../providers/theme_provider.dart';
 import '../services/app_events.dart';
 import '../services/database_service.dart';
 import '../services/financial_health_service.dart';
+import '../services/gamification_service.dart';
 import '../services/sms_service.dart';
 import '../services/notification_service.dart';
 import '../services/background_service.dart';
@@ -29,6 +30,7 @@ import '../widgets/expense_chart.dart';
 import 'transactions_screen.dart';
 import 'add_transaction_screen.dart';
 import 'net_worth_screen.dart';
+import 'rewards_hub_screen.dart';
 import 'splits_screen.dart';
 import 'wrapped_screen.dart';
 
@@ -72,6 +74,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // since this tab stays alive in the IndexedStack and won't rebuild on its
     // own.
     appDataRevision.addListener(_onExternalDataChange);
+    // Roll the daily-usage streak forward (drives the gamified streak badges).
+    // Runs regardless of whether the mode is enabled, so it's accurate if the
+    // user turns it on later. Fire-and-forget.
+    GamificationService().recordActiveDay();
     _initialize();
   }
 
@@ -89,6 +95,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      GamificationService().recordActiveDay();
       _checkPermission();
       // Auto-scan and reload on resume
       _autoScanSms();
@@ -658,6 +665,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   onPressed: () =>
                       context.read<AppPreferences>().toggleReveal(),
                 ),
+              // Gamified Budgets entry point — opens the Rewards hub. Only
+              // shown when the mode is enabled; the dashboard is otherwise
+              // untouched.
+              if (context.watch<AppPreferences>().gamifiedMode) ...[
+                const SizedBox(width: 4),
+                const HomeRewardsAvatar(),
+              ],
             ],
           ),
         ],
