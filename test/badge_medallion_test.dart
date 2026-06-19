@@ -54,13 +54,16 @@ void main() {
       const ProfileShareCard(
         profile: GamiProfile(username: 'Riya'),
         currentStreak: 12,
-        primaryTitle: null,
-        showcased: [(rarity: BadgeRarity.gold, emblem: '💎', label: '₹8L')],
+        titles: [],
+        showcased: [
+          (rarity: BadgeRarity.gold, emblem: '💎', label: '₹8L', group: 'Money Tracked')
+        ],
+        trophyCount: 7,
         animate: false,
       ),
     );
     expect(find.text('Riya'), findsOneWidget);
-    expect(find.textContaining('12-day streak'), findsOneWidget);
+    expect(find.textContaining('day streak'), findsOneWidget);
     expect(find.text('Budgetify'), findsOneWidget);
   });
 }
