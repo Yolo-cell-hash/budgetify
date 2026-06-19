@@ -363,19 +363,19 @@ bool _share(GamiStats s, String category, double min) =>
 /// Tag-based titles. Category titles use a share of income over a trailing
 /// window (computed by the service); savings titles use the windowed rate.
 final List<GamiTitle> kTitles = [
-  GamiTitle(id: 'foodie', emoji: '🍔', name: 'Foodie', blurb: '35%+ of income on Food & Dining', earned: (s) => _share(s, 'Food & Dining', 0.35)),
-  GamiTitle(id: 'homechef', emoji: '🍳', name: 'Home Chef', blurb: '25%+ on Groceries', earned: (s) => _share(s, 'Groceries', 0.25)),
-  GamiTitle(id: 'shopaholic', emoji: '🛍️', name: 'Shopaholic', blurb: '25%+ on Shopping', earned: (s) => _share(s, 'Shopping', 0.25)),
-  GamiTitle(id: 'roadwarrior', emoji: '🚗', name: 'Road Warrior', blurb: '20%+ on Transportation', earned: (s) => _share(s, 'Transportation', 0.20)),
-  GamiTitle(id: 'billmaster', emoji: '🧾', name: 'Bill Master', blurb: '25%+ on Bills & Utilities', earned: (s) => _share(s, 'Bills & Utilities', 0.25)),
-  GamiTitle(id: 'showstopper', emoji: '🎬', name: 'Showstopper', blurb: '20%+ on Entertainment', earned: (s) => _share(s, 'Entertainment', 0.20)),
-  GamiTitle(id: 'wellness', emoji: '🩺', name: 'Wellness Warrior', blurb: '15%+ on Health & Medical', earned: (s) => _share(s, 'Health & Medical', 0.15)),
-  GamiTitle(id: 'globetrotter', emoji: '✈️', name: 'Globetrotter', blurb: '25%+ on Travel', earned: (s) => _share(s, 'Travel', 0.25)),
-  GamiTitle(id: 'scholar', emoji: '🎓', name: 'Scholar', blurb: '15%+ on Education', earned: (s) => _share(s, 'Education', 0.15)),
-  GamiTitle(id: 'investor', emoji: '📈', name: 'Investor', blurb: '20%+ of income invested', earned: (s) => _share(s, 'Investments', 0.20)),
-  GamiTitle(id: 'moneymagnet', emoji: '💰', name: 'Money Magnet', blurb: 'Savings rate 35%+', earned: (s) => s.hasIncomeForTitles && (s.savingsRate ?? 0) >= 0.35),
-  GamiTitle(id: 'frugal', emoji: '🪙', name: 'Frugal Master', blurb: 'Savings rate 60%+', earned: (s) => s.hasIncomeForTitles && (s.savingsRate ?? 0) >= 0.60),
-  GamiTitle(id: 'broke', emoji: '😅', name: 'Broke Spender', blurb: '60 no-spend days', earned: (s) => s.noSpendDays >= 60),
+  GamiTitle(id: 'foodie', emoji: '🍔', name: 'Foodie', blurb: 'Spend 35%+ of your income on Food & Dining, averaged over the last 6 months.', earned: (s) => _share(s, 'Food & Dining', 0.35)),
+  GamiTitle(id: 'homechef', emoji: '🍳', name: 'Home Chef', blurb: 'Spend 25%+ of your income on Groceries, averaged over the last 6 months.', earned: (s) => _share(s, 'Groceries', 0.25)),
+  GamiTitle(id: 'shopaholic', emoji: '🛍️', name: 'Shopaholic', blurb: 'Spend 25%+ of your income on Shopping, averaged over the last 6 months.', earned: (s) => _share(s, 'Shopping', 0.25)),
+  GamiTitle(id: 'roadwarrior', emoji: '🚗', name: 'Road Warrior', blurb: 'Spend 20%+ of your income on Transportation, averaged over the last 6 months.', earned: (s) => _share(s, 'Transportation', 0.20)),
+  GamiTitle(id: 'billmaster', emoji: '🧾', name: 'Bill Master', blurb: 'Spend 25%+ of your income on Bills & Utilities, averaged over the last 6 months.', earned: (s) => _share(s, 'Bills & Utilities', 0.25)),
+  GamiTitle(id: 'showstopper', emoji: '🎬', name: 'Showstopper', blurb: 'Spend 20%+ of your income on Entertainment, averaged over the last 6 months.', earned: (s) => _share(s, 'Entertainment', 0.20)),
+  GamiTitle(id: 'wellness', emoji: '🩺', name: 'Wellness Warrior', blurb: 'Spend 15%+ of your income on Health & Medical, averaged over the last 6 months.', earned: (s) => _share(s, 'Health & Medical', 0.15)),
+  GamiTitle(id: 'globetrotter', emoji: '✈️', name: 'Globetrotter', blurb: 'Spend 25%+ of your income on Travel, averaged over the last 3 months.', earned: (s) => _share(s, 'Travel', 0.25)),
+  GamiTitle(id: 'scholar', emoji: '🎓', name: 'Scholar', blurb: 'Spend 15%+ of your income on Education, averaged over the last 6 months.', earned: (s) => _share(s, 'Education', 0.15)),
+  GamiTitle(id: 'investor', emoji: '📈', name: 'Investor', blurb: 'Invest 20%+ of your income, averaged over the last 6 months.', earned: (s) => _share(s, 'Investments', 0.20)),
+  GamiTitle(id: 'moneymagnet', emoji: '💰', name: 'Money Magnet', blurb: 'Keep a savings rate of 35%+ over the last 6 months.', earned: (s) => s.hasIncomeForTitles && (s.savingsRate ?? 0) >= 0.35),
+  GamiTitle(id: 'frugal', emoji: '🪙', name: 'Frugal Master', blurb: 'Keep a savings rate of 60%+ over the last 6 months.', earned: (s) => s.hasIncomeForTitles && (s.savingsRate ?? 0) >= 0.60),
+  GamiTitle(id: 'broke', emoji: '😅', name: 'Broke Spender', blurb: 'Rack up 60 total no-spend days (they need not be in a row).', earned: (s) => s.noSpendDays >= 60),
 ];
 
 /// Lookup a title by id (for the persisted "primary title" choice).

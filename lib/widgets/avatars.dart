@@ -23,20 +23,36 @@ List<Color> accentOf(int index) =>
     kAvatarAccents[index % kAvatarAccents.length];
 
 // ── Pixel character avatars ────────────────────────────────────────────────
-// A single hand-authored chibi sprite (capped character) recoloured into many
-// distinct "people" via palette variants — actual pixel characters, drawn with
-// a CustomPainter (no assets, fully offline).
+// Distinct hand-authored chibi characters (different hair / headwear / gender,
+// male and female), each with its own palette — drawn with a CustomPainter, no
+// assets, fully offline. Pixel avatars carry their own colours, so the accent
+// picker doesn't apply to them.
 
-// 16×16 sprite. Each glyph maps to a palette slot:
-//   .  transparent   X outline      P cap   p cap-shadow
-//   K  skin          k skin-shadow  W eye-white   I iris
-//   J  jacket        j jacket-shadow
-const List<String> _sprite = [
-  '....XXXXXXXX....',
-  '...XPPPPPPPPX...',
-  '..XPPPPPPPPPPX..',
-  '..XPppPPPPppPX..',
-  '..XXXXXXXXXXXX..',
+const Color _outline = Color(0xFF15171E);
+const Color _eyeWhite = Color(0xFFF2F5F8);
+
+/// Glyph → palette slot:
+///   .  transparent   X outline    C headwear  c headwear-shadow
+///   H  hair          h hair-shadow  K skin     k skin-shadow
+///   W  eye-white     I iris        J top       j top-shadow
+class _Pal {
+  final Color hair, hairD, cap, capD, jacket, jacketD, skin, skinD, iris;
+  const _Pal({
+    required this.hair, required this.hairD, required this.cap, required this.capD,
+    required this.jacket, required this.jacketD, required this.skin,
+    required this.skinD, required this.iris,
+  });
+}
+
+class _Sprite {
+  final List<String> rows;
+  final _Pal pal;
+  final List<Color> halo; // coordinating gradient for the profile card
+  const _Sprite(this.rows, this.pal, this.halo);
+}
+
+// Shared face + neck + body for the head-up (no side-hair) characters.
+const List<String> _face = [
   '...XKKKKKKKKX...',
   '...XKWWKKWWKX...',
   '...XKIIKKIIKX...',
@@ -50,38 +66,109 @@ const List<String> _sprite = [
   '..XXJJJJJJJJXX..',
 ];
 
-const Color _outline = Color(0xFF15171E);
-const Color _eyeWhite = Color(0xFFF2F5F8);
-
-/// A recolouring of the sprite — one distinct character.
-class _Pal {
-  final Color cap, capD, jacket, jacketD, skin, skinD, iris;
-  const _Pal(this.cap, this.capD, this.jacket, this.jacketD, this.skin,
-      this.skinD, this.iris);
-}
-
-const List<_Pal> _variants = [
-  // Agent (dark cap + jacket, green eyes) — nods to the reference art.
-  _Pal(Color(0xFF3A3F4A), Color(0xFF2A2E37), Color(0xFF2F343E), Color(0xFF21252D), Color(0xFFF2C9A0), Color(0xFFD9A87C), Color(0xFF5BD68A)),
-  _Pal(Color(0xFFC0392B), Color(0xFF8E2B20), Color(0xFF7A2520), Color(0xFF591A16), Color(0xFFF2C9A0), Color(0xFFD9A87C), Color(0xFF2E323C)),
-  _Pal(Color(0xFF2D6CDF), Color(0xFF1E4DA8), Color(0xFF24405E), Color(0xFF182D43), Color(0xFFE8B98C), Color(0xFFCE9B6E), Color(0xFF8FD0FF)),
-  _Pal(Color(0xFF7E4FD6), Color(0xFF5A37A0), Color(0xFF3A2A5C), Color(0xFF281C42), Color(0xFFC98D5E), Color(0xFFA86E45), Color(0xFFCBA8FF)),
-  _Pal(Color(0xFF2BB985), Color(0xFF1C8A62), Color(0xFF1E4636), Color(0xFF143026), Color(0xFFF2C9A0), Color(0xFFD9A87C), Color(0xFF7CE0B6)),
-  _Pal(Color(0xFFF08A3C), Color(0xFFC76B26), Color(0xFF7A3B1E), Color(0xFF592A14), Color(0xFFC98D5E), Color(0xFFA86E45), Color(0xFFFFD27A)),
-  _Pal(Color(0xFFE85C8A), Color(0xFFB83C66), Color(0xFF5C2A3C), Color(0xFF421E2A), Color(0xFFF2C9A0), Color(0xFFD9A87C), Color(0xFFFFB0C8)),
-  _Pal(Color(0xFFE6C15A), Color(0xFFB8902F), Color(0xFF3A3220), Color(0xFF262014), Color(0xFFE8B98C), Color(0xFFCE9B6E), Color(0xFF6FD0FF)),
-  _Pal(Color(0xFF4A5563), Color(0xFF333B45), Color(0xFF2A2F38), Color(0xFF1C2026), Color(0xFF8D5A3A), Color(0xFF6F4329), Color(0xFF9BE0C0)),
-  _Pal(Color(0xFF5BC8F7), Color(0xFF2A8FC8), Color(0xFF234155), Color(0xFF172C3B), Color(0xFF8D5A3A), Color(0xFF6F4329), Color(0xFFCFF0FF)),
+const List<String> _capHead = [
+  '....XXXXXXXX....',
+  '...XCCCCCCCCX...',
+  '..XCCCCCCCCCCX..',
+  '..XCccccccccCX..',
+  '..XXXXXXXXXXXX..',
+];
+const List<String> _shortHead = [
+  '....XXXXXXXX....',
+  '...XHHHHHHHHX...',
+  '..XHHHHHHHHHHX..',
+  '..XHhhhhhhhhHX..',
+  '..XHKKKKKKKKHX..',
+];
+const List<String> _beanieHead = [
+  '....XXXXXXXX....',
+  '...XCCCCCCCCX...',
+  '..XCCCCCCCCCCX..',
+  '..XCCCCCCCCCCX..',
+  '..XCCCCCCCCCCX..',
+];
+const List<String> _bunHead = [
+  '.....XHHX.......',
+  '....XXXXXXXX....',
+  '...XHHHHHHHHX...',
+  '..XHHHHHHHHHHX..',
+  '..XHKKKKKKKKHX..',
+];
+const List<String> _afroHead = [
+  '..XHHHHHHHHHHX..',
+  '.XHHHHHHHHHHHHX.',
+  '.XHHHHHHHHHHHHX.',
+  '.XHHHHHHHHHHHHX.',
+  '..XHKKKKKKKKHX..',
+];
+// Long hair frames the face and falls past the neck.
+const List<String> _longHair = [
+  '....XXXXXXXX....',
+  '...XHHHHHHHHX...',
+  '..XHHHHHHHHHHX..',
+  '..XHHHHHHHHHHX..',
+  '..XHHHHHHHHHHX..',
+  '..HXKKKKKKKKXH..',
+  '..HXKWWKKWWKXH..',
+  '..HXKIIKKIIKXH..',
+  '..HXKKKKKKKKXH..',
+  '..HXKKKkkKKKXH..',
+  '..HXKKKKKKKKXH..',
+  '..HhXKKKKXhH....',
+  '...XXJJJJJJXX...',
+  '..XJjJJJJJJjJX..',
+  '..XJjJJJJJJjJX..',
+  '..XXJJJJJJJJXX..',
 ];
 
-/// Number of distinct procedural pixel-character avatars offered.
-final int kPixelAvatarCount = _variants.length;
+List<String> _stack(List<String> head) => [...head, ..._face];
+
+const _skinLight = Color(0xFFF2C9A0);
+const _skinLightD = Color(0xFFD9A87C);
+const _skinMed = Color(0xFFE8B98C);
+const _skinMedD = Color(0xFFCE9B6E);
+const _skinDark = Color(0xFF8D5A3A);
+const _skinDarkD = Color(0xFF6F4329);
+
+final List<_Sprite> _sprites = [
+  // Capped (masc) — the agent look.
+  _Sprite(_stack(_capHead),
+      const _Pal(hair: Color(0xFF3A3F4A), hairD: Color(0xFF2A2E37), cap: Color(0xFF3A3F4A), capD: Color(0xFF2A2E37), jacket: Color(0xFF2F343E), jacketD: Color(0xFF21252D), skin: _skinLight, skinD: _skinLightD, iris: Color(0xFF5BD68A)),
+      const [Color(0xFF4A5160), Color(0xFF2A2E37)]),
+  // Short hair (masc).
+  _Sprite(_stack(_shortHead),
+      const _Pal(hair: Color(0xFF6B4423), hairD: Color(0xFF4A2E16), cap: Color(0xFF6B4423), capD: Color(0xFF4A2E16), jacket: Color(0xFF2D6CDF), jacketD: Color(0xFF1E4DA8), skin: _skinMed, skinD: _skinMedD, iris: Color(0xFF7A4B28)),
+      const [Color(0xFF4F8DF7), Color(0xFF2456C8)]),
+  // Beanie (unisex).
+  _Sprite(_stack(_beanieHead),
+      const _Pal(hair: Color(0xFFA23B4A), hairD: Color(0xFF74222E), cap: Color(0xFFA23B4A), capD: Color(0xFF74222E), jacket: Color(0xFF4A5563), jacketD: Color(0xFF333B45), skin: _skinLight, skinD: _skinLightD, iris: Color(0xFF3A3F4A)),
+      const [Color(0xFFC0566A), Color(0xFF74222E)]),
+  // Long hair (fem).
+  _Sprite(_longHair,
+      const _Pal(hair: Color(0xFF2E2A33), hairD: Color(0xFF1C1A20), cap: Color(0xFF2E2A33), capD: Color(0xFF1C1A20), jacket: Color(0xFFE05C86), jacketD: Color(0xFFB23C64), skin: _skinMed, skinD: _skinMedD, iris: Color(0xFF6B4A2E)),
+      const [Color(0xFFF076A0), Color(0xFFB23C64)]),
+  // Top bun (fem), blonde.
+  _Sprite(_stack(_bunHead),
+      const _Pal(hair: Color(0xFFE6C15A), hairD: Color(0xFFC09A38), cap: Color(0xFFE6C15A), capD: Color(0xFFC09A38), jacket: Color(0xFF2BB9A0), jacketD: Color(0xFF1C8A78), skin: _skinLight, skinD: _skinLightD, iris: Color(0xFF5B8FE0)),
+      const [Color(0xFF3DD2B8), Color(0xFF1C8A78)]),
+  // Afro (unisex), dark skin.
+  _Sprite(_stack(_afroHead),
+      const _Pal(hair: Color(0xFF2A2530), hairD: Color(0xFF18151C), cap: Color(0xFF2A2530), capD: Color(0xFF18151C), jacket: Color(0xFFF0883C), jacketD: Color(0xFFC76B26), skin: _skinDark, skinD: _skinDarkD, iris: Color(0xFF3A2E28)),
+      const [Color(0xFFFF9E55), Color(0xFFC76B26)]),
+];
+
+/// Number of distinct pixel-character avatars offered.
+final int kPixelAvatarCount = _sprites.length;
+
+/// Coordinating halo gradient for a pixel avatar (used on the profile card).
+List<Color> pixelHaloOf(int seed) => _sprites[seed % _sprites.length].halo;
 
 /// Renders a user's avatar from its persisted `{kind, value, accent}`. Used in
 /// the Home header, profile, share card and picker so they always match.
+/// (Accent applies to emoji avatars only — pixel characters carry own colours.)
 class AvatarView extends StatelessWidget {
   final String kind; // 'emoji' | 'pixel'
-  final String value; // emoji glyph or pixel variant index
+  final String value; // emoji glyph or pixel sprite index
   final int accent;
   final double size;
   final bool ring;
@@ -103,7 +190,6 @@ class AvatarView extends StatelessWidget {
 
     final Widget inner;
     if (kind == 'pixel') {
-      // Pixel character on a soft "studio" backdrop so the sprite pops.
       inner = DecoratedBox(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -113,7 +199,7 @@ class AvatarView extends StatelessWidget {
           ),
         ),
         child: Padding(
-          padding: EdgeInsets.all(size * 0.06),
+          padding: EdgeInsets.all(size * 0.05),
           child: CustomPaint(
             size: Size.square(size),
             painter: PixelAvatarPainter(seed: int.tryParse(value) ?? 0),
@@ -143,7 +229,7 @@ class AvatarView extends StatelessWidget {
   }
 }
 
-/// Paints the chibi sprite for the chosen [seed] variant. Crisp pixel squares,
+/// Paints the chibi character for the chosen [seed] sprite. Crisp pixel squares,
 /// transparent background (the [AvatarView] supplies the backdrop).
 class PixelAvatarPainter extends CustomPainter {
   final int seed;
@@ -151,16 +237,19 @@ class PixelAvatarPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final pal = _variants[seed % _variants.length];
-    final rows = _sprite.length;
-    final cols = _sprite.first.length;
+    final sprite = _sprites[seed % _sprites.length];
+    final pal = sprite.pal;
+    final rows = sprite.rows;
+    final cols = rows.first.length;
     final cell = size.width / cols;
     final paint = Paint()..isAntiAlias = false;
 
     Color? colorFor(String ch) => switch (ch) {
           'X' => _outline,
-          'P' => pal.cap,
-          'p' => pal.capD,
+          'C' => pal.cap,
+          'c' => pal.capD,
+          'H' => pal.hair,
+          'h' => pal.hairD,
           'K' => pal.skin,
           'k' => pal.skinD,
           'W' => _eyeWhite,
@@ -170,13 +259,13 @@ class PixelAvatarPainter extends CustomPainter {
           _ => null,
         };
 
-    for (var r = 0; r < rows; r++) {
-      final line = _sprite[r];
-      for (var c = 0; c < cols; c++) {
+    for (var r = 0; r < rows.length; r++) {
+      final line = rows[r];
+      for (var c = 0; c < line.length; c++) {
         final color = colorFor(line[c]);
         if (color == null) continue;
         paint.color = color;
-        // +0.5 overscan to avoid hairline seams between cells.
+        // +0.5 overscan avoids hairline seams between cells.
         canvas.drawRect(
           Rect.fromLTWH(c * cell, r * cell, cell + 0.5, cell + 0.5),
           paint,

@@ -197,9 +197,7 @@ class _ProfileViewState extends State<ProfileView> {
     final primary = earned && t.id == widget.primaryTitle?.id;
     return InkWell(
       borderRadius: BorderRadius.circular(12),
-      onTap: earned
-          ? () => widget.onUpdatePrimaryTitle(primary ? null : t.id)
-          : null,
+      onTap: () => _showTitleSheet(t, earned),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: Row(
@@ -264,6 +262,88 @@ class _ProfileViewState extends State<ProfileView> {
             else
               Icon(Icons.radio_button_unchecked_rounded,
                   size: 18, color: AppColors.gold.withValues(alpha: 0.7)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Bottom sheet describing a title in full (with its window) + earn status.
+  /// Earned titles can be featured on the profile from here.
+  void _showTitleSheet(GamiTitle t, bool earned) {
+    final colors = AppColors.of(context);
+    final primary = earned && t.id == widget.primaryTitle?.id;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: colors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(24, 22, 24, 30),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: earned ? AppColors.gold.withValues(alpha: 0.16) : colors.cardAlt,
+                border: Border.all(
+                    color: earned ? AppColors.gold.withValues(alpha: 0.5) : colors.border,
+                    width: 2),
+              ),
+              child: Opacity(
+                opacity: earned ? 1 : 0.4,
+                child: Text(t.emoji, style: const TextStyle(fontSize: 34)),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(t.name,
+                style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700, color: colors.text)),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: (earned ? colors.success : colors.textTertiary).withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(earned ? Icons.check_circle_rounded : Icons.lock_rounded,
+                      size: 14, color: earned ? colors.success : colors.textSecondary),
+                  const SizedBox(width: 5),
+                  Text(earned ? 'Earned' : 'Locked',
+                      style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                          color: earned ? colors.success : colors.textSecondary)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              t.blurb,
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13.5, height: 1.45, color: colors.textSecondary),
+            ),
+            if (earned) ...[
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    widget.onUpdatePrimaryTitle(primary ? null : t.id);
+                    Navigator.pop(ctx);
+                  },
+                  icon: Icon(primary ? Icons.star_rounded : Icons.star_outline_rounded, size: 18),
+                  label: Text(primary ? 'Remove from profile' : 'Feature on profile'),
+                ),
+              ),
+            ],
           ],
         ),
       ),

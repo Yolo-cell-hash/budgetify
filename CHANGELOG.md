@@ -4,6 +4,19 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.6.2] — 2026-06-20
+
+### Changed
+
+- **Gamified titles are clearer.** Tapping any title — earned or locked — opens
+  a sheet with its **full requirement, including the time window** (e.g. "35%+
+  of income on Food & Dining, averaged over the last 6 months"), so locked
+  titles are no longer cryptic. Earned titles can be featured from there.
+- **Better pixel avatars.** A set of **distinct male & female characters**
+  (varied hair, headwear and skin tones) instead of recolours of one sprite.
+  The accent picker no longer applies to pixel avatars (they carry their own
+  colours).
+
 ## [1.6.1] — 2026-06-20
 
 ### Changed
@@ -131,6 +144,7 @@ safe-to-spend, and a fully offline split ledger.
 - Hardened startup so a notification-subsystem hiccup can never block the app
   from opening.
 
+[1.6.2]: https://github.com/Yolo-cell-hash/budgetify/releases/tag/v1.6.2
 [1.6.1]: https://github.com/Yolo-cell-hash/budgetify/releases/tag/v1.6.1
 [1.6.0]: https://github.com/Yolo-cell-hash/budgetify/releases/tag/v1.6.0
 [1.5.2]: https://github.com/Yolo-cell-hash/budgetify/releases/tag/v1.5.2
