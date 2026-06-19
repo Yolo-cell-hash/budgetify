@@ -8,6 +8,7 @@ class AppPreferences extends ChangeNotifier {
   static const String _aiPredictionModeKey = 'ai_prediction_mode';
   static const String _financialHealthDetailedKey =
       'financial_health_detailed';
+  static const String _gamifiedModeKey = 'gamified_mode';
   static const String _dismissedBudgetSuggestionsKey =
       'dismissed_budget_suggestions';
 
@@ -34,11 +35,17 @@ class AppPreferences extends ChangeNotifier {
   // card — keeps the dashboard uncluttered while the number stays visible.
   bool _financialHealthDetailed = false;
 
+  // Gamified Budgets (opt-in, default off). Unlocks achievements, titles and a
+  // shareable profile via a separate Rewards hub. When off, the app is
+  // unchanged — no nav or dashboard additions.
+  bool _gamifiedMode = false;
+
   bool get isOnboardingComplete => _isOnboardingComplete;
   bool get isInitialized => _isInitialized;
   bool get privacyMode => _privacyMode;
   bool get aiPredictionMode => _aiPredictionMode;
   bool get financialHealthDetailed => _financialHealthDetailed;
+  bool get gamifiedMode => _gamifiedMode;
 
   /// Whether amounts should currently render hidden: privacy mode is on and
   /// the user hasn't tapped to reveal this session.
@@ -54,6 +61,7 @@ class AppPreferences extends ChangeNotifier {
     _aiPredictionMode = prefs.getBool(_aiPredictionModeKey) ?? false;
     _financialHealthDetailed =
         prefs.getBool(_financialHealthDetailedKey) ?? false;
+    _gamifiedMode = prefs.getBool(_gamifiedModeKey) ?? false;
     _dismissedBudgetSuggestions =
         (prefs.getStringList(_dismissedBudgetSuggestionsKey) ?? const [])
             .toSet();
@@ -108,6 +116,14 @@ class AppPreferences extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_financialHealthDetailedKey, enabled);
+  }
+
+  /// Turn Gamified Budgets on/off (persisted).
+  Future<void> setGamifiedMode(bool enabled) async {
+    _gamifiedMode = enabled;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_gamifiedModeKey, enabled);
   }
 
   /// Mark onboarding as complete

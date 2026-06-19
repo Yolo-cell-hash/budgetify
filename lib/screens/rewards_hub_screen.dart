@@ -1,0 +1,231 @@
+import 'package:flutter/material.dart';
+
+import '../models/achievement.dart';
+import '../providers/theme_provider.dart';
+import '../services/app_events.dart';
+import '../services/gamification_service.dart';
+import '../widgets/avatars.dart';
+import '../widgets/avatar_picker_sheet.dart';
+import '../widgets/badge_medallion.dart';
+import '../widgets/profile_share_card.dart';
+import 'profile_screen.dart';
+import 'trophy_room_screen.dart';
+
+/// The Rewards hub (Gamified Budgets): a Profile tab (shareable card, showcase,
+/// titles) and a Trophies tab (all badge ladders + progress). Loads and
+/// persists everything via [GamificationService]; refreshes on data changes.
+class RewardsHubScreen extends StatefulWidget {
+  const RewardsHubScreen({super.key});
+
+  @override
+  State<RewardsHubScreen> createState() => _RewardsHubScreenState();
+}
+
+class _RewardsHubScreenState extends State<RewardsHubScreen> {
+  final GamificationService _svc = GamificationService();
+
+  GamiProfile _profile = const GamiProfile();
+  GamiStats? _stats;
+  Map<String, DateTime> _unlockDates = const {};
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    appDataRevision.addListener(_reload);
+    _load(celebrate: true);
+  }
+
+  @override
+  void dispose() {
+    appDataRevision.removeListener(_reload);
+    super.dispose();
+  }
+
+  void _reload() => _load(celebrate: true);
+
+  Future<void> _load({bool celebrate = false}) async {
+    final profile = await _svc.loadProfile();
+    final stats = await _svc.computeStats();
+    final dates = await _svc.unlockDates();
+    if (!mounted) return;
+    setState(() {
+      _profile = profile;
+      _stats = stats;
+      _unlockDates = dates;
+      _loading = false;
+    });
+    if (celebrate) {
+      final fresh = await _svc.popNewlyUnlocked();
+      if (fresh.isNotEmpty && mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _celebrate(fresh));
+      }
+    }
+  }
+
+  void _celebrate(List<String> ids) {
+    AchievementGroup? group;
+    int tierIndex = 0;
+    for (final id in ids) {
+      final b = badgeById(id);
+      if (b == null) continue;
+      if (group == null ||
+          b.group.tiers[b.tierIndex].rarity.index >
+              group.tiers[tierIndex].rarity.index) {
+        group = b.group;
+        tierIndex = b.tierIndex;
+      }
+    }
+    if (group != null && mounted) {
+      final tier = group.tiers[tierIndex];
+      showBadgeUnlock(
+        context,
+        rarity: tier.rarity,
+        emblem: group.emblem,
+        groupName: group.name,
+        tierLabel: tier.label,
+      );
+    }
+  }
+
+  Future<void> _save(GamiProfile p) async {
+    await _svc.saveProfile(p);
+    if (mounted) setState(() => _profile = p);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
+    final stats = _stats;
+
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        backgroundColor: colors.background,
+        appBar: AppBar(
+          title: const Text('Rewards'),
+          bottom: const TabBar(
+            tabs: [Tab(text: 'Profile'), Tab(text: 'Trophies')],
+          ),
+        ),
+        body: _loading || stats == null
+            ? const Center(child: CircularProgressIndicator())
+            : TabBarView(
+                children: [_profileTab(stats), _trophyTab(stats)],
+              ),
+      ),
+    );
+  }
+
+  Widget _profileTab(GamiStats stats) {
+    final earnedIds = earnedBadgeIds(stats);
+    final earnedTitles = evaluateTitles(stats);
+    final primary = titleById(_profile.primaryTitleId);
+    final primaryStillEarned =
+        primary != null && earnedTitles.any((t) => t.id == primary.id);
+
+    // Resolve showcased ids → badges, keeping only those still earned.
+    final showcased = <ShowcaseBadge>[];
+    for (final id in _profile.showcasedBadgeIds) {
+      if (!earnedIds.contains(id)) continue;
+      final b = badgeById(id);
+      if (b == null) continue;
+      final tier = b.group.tiers[b.tierIndex];
+      showcased.add((rarity: tier.rarity, emblem: b.group.emblem, label: tier.label));
+    }
+
+    final allEarned = <EarnedBadge>[];
+    for (final g in kAchievementGroups) {
+      final p = evaluateGroup(g, stats);
+      for (var i = 0; i < g.tiers.length; i++) {
+        if (p.earned[i]) {
+          allEarned.add((
+            id: g.badgeId(i),
+            group: g.name,
+            emblem: g.emblem,
+            rarity: g.tiers[i].rarity,
+            label: g.tiers[i].label,
+          ));
+        }
+      }
+    }
+
+    return ProfileView(
+      profile: _profile,
+      currentStreak: stats.currentStreak,
+      earnedTitles: earnedTitles,
+      primaryTitle: primaryStillEarned ? primary : null,
+      showcased: showcased,
+      allEarned: allEarned,
+      onEdit: () async {
+        final edited = await showAvatarPicker(context, _profile);
+        if (edited != null) await _save(edited);
+      },
+      onUpdateShowcase: (ids) =>
+          _save(_profile.copyWith(showcasedBadgeIds: ids)),
+      onUpdatePrimaryTitle: (id) => _save(
+        _profile.copyWith(primaryTitleId: id, clearPrimaryTitle: id == null),
+      ),
+    );
+  }
+
+  Widget _trophyTab(GamiStats stats) {
+    return TrophyRoomView(
+      groups: evaluateAchievements(stats),
+      unlockDates: _unlockDates,
+    );
+  }
+}
+
+/// Tappable avatar shown in the Home header (only when Gamified Budgets is on)
+/// that opens the Rewards hub. Self-contained: loads the profile and refreshes
+/// after edits or any data change.
+class HomeRewardsAvatar extends StatefulWidget {
+  const HomeRewardsAvatar({super.key});
+
+  @override
+  State<HomeRewardsAvatar> createState() => _HomeRewardsAvatarState();
+}
+
+class _HomeRewardsAvatarState extends State<HomeRewardsAvatar> {
+  GamiProfile? _profile;
+
+  @override
+  void initState() {
+    super.initState();
+    appDataRevision.addListener(_load);
+    _load();
+  }
+
+  @override
+  void dispose() {
+    appDataRevision.removeListener(_load);
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    final p = await GamificationService().loadProfile();
+    if (mounted) setState(() => _profile = p);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = _profile;
+    if (p == null) return const SizedBox(width: 38, height: 38);
+    return GestureDetector(
+      onTap: () async {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const RewardsHubScreen()),
+        );
+        _load();
+      },
+      child: AvatarView(
+        kind: p.avatarKind,
+        value: p.avatarValue,
+        accent: p.avatarAccent,
+        size: 38,
+      ),
+    );
+  }
+}

@@ -4,6 +4,27 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.6.0] — 2026-06-20
+
+### Added
+
+- **Gamified Budgets (opt-in).** A separate, reward-driven layer you switch on
+  from Settings → Intelligence. When off, the app is exactly as before — no nav
+  or dashboard changes.
+  - **Achievement badges** across many ladders — daily streak, money tracked,
+    transactions, time tracked, fully-tagged months, Budget Hero, Super Saver,
+    net worth, debt-free, no-spend days and category explorer — with
+    rarity-tiered medallions (copper → diamond), animated flourishes, live
+    progress to the next tier, and an "Achievement Unlocked!" moment.
+  - **Earned titles** from your spending mix (Foodie, Bill Master, Investor,
+    Money Magnet, …), earned over a sustained window — never given by default.
+  - **A premium, shareable profile** — choose an emoji or procedural pixel
+    avatar and accent, a username, a headline title, and up to five showcased
+    badges, then share it as an image. Opened from a new avatar in the Home
+    header.
+  - Everything is computed on-device and **included in encrypted backups**, so
+    your profile, streak and unlocks are never lost.
+
 ## [1.5.2] — 2026-06-19
 
 ### Added
@@ -98,6 +119,7 @@ safe-to-spend, and a fully offline split ledger.
 - Hardened startup so a notification-subsystem hiccup can never block the app
   from opening.
 
+[1.6.0]: https://github.com/Yolo-cell-hash/budgetify/releases/tag/v1.6.0
 [1.5.2]: https://github.com/Yolo-cell-hash/budgetify/releases/tag/v1.5.2
 [1.5.1]: https://github.com/Yolo-cell-hash/budgetify/releases/tag/v1.5.1
 [1.5.0]: https://github.com/Yolo-cell-hash/budgetify/releases/tag/v1.5.0

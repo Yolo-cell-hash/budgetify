@@ -1,0 +1,218 @@
+import 'package:flutter/material.dart';
+
+import '../providers/theme_provider.dart';
+import '../services/gamification_service.dart';
+import 'avatars.dart';
+
+/// Edit the profile's avatar (emoji or procedural pixel) + accent + username.
+/// Returns the edited [GamiProfile], or null if cancelled.
+Future<GamiProfile?> showAvatarPicker(
+  BuildContext context,
+  GamiProfile initial,
+) {
+  return showModalBottomSheet<GamiProfile>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => _AvatarPickerSheet(initial: initial),
+  );
+}
+
+class _AvatarPickerSheet extends StatefulWidget {
+  final GamiProfile initial;
+  const _AvatarPickerSheet({required this.initial});
+
+  @override
+  State<_AvatarPickerSheet> createState() => _AvatarPickerSheetState();
+}
+
+class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
+  late String _kind = widget.initial.avatarKind;
+  late String _value = widget.initial.avatarValue;
+  late int _accent = widget.initial.avatarAccent;
+  late final TextEditingController _name =
+      TextEditingController(text: widget.initial.username);
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    Navigator.pop(
+      context,
+      widget.initial.copyWith(
+        username: _name.text.trim(),
+        avatarKind: _kind,
+        avatarValue: _value,
+        avatarAccent: _accent,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(20, 14, 20, 20 + bottomInset),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border.all(color: colors.border),
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: colors.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            Center(
+              child: AvatarView(
+                kind: _kind, value: _value, accent: _accent, size: 88),
+            ),
+            const SizedBox(height: 18),
+            TextField(
+              controller: _name,
+              textCapitalization: TextCapitalization.words,
+              maxLength: 20,
+              decoration: const InputDecoration(
+                labelText: 'Username',
+                hintText: 'Pick a name',
+              ),
+            ),
+            const SizedBox(height: 8),
+            _sectionLabel(colors, 'STYLE'),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                _segment('Emoji', _kind == 'emoji', () {
+                  setState(() {
+                    _kind = 'emoji';
+                    _value = kEmojiAvatars.contains(_value) ? _value : kEmojiAvatars.first;
+                  });
+                }),
+                const SizedBox(width: 10),
+                _segment('Pixel', _kind == 'pixel', () {
+                  setState(() {
+                    _kind = 'pixel';
+                    _value = (int.tryParse(_value) ?? 0).toString();
+                  });
+                }),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _sectionLabel(colors, _kind == 'emoji' ? 'AVATAR' : 'PIXEL AVATAR'),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: _kind == 'emoji'
+                  ? [for (final e in kEmojiAvatars) _option(e, e == _value, kind: 'emoji', value: e)]
+                  : [
+                      for (var i = 0; i < kPixelAvatarCount; i++)
+                        _option('$i', '$i' == _value, kind: 'pixel', value: '$i')
+                    ],
+            ),
+            const SizedBox(height: 16),
+            _sectionLabel(colors, 'ACCENT'),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                for (var i = 0; i < kAvatarAccents.length; i++)
+                  GestureDetector(
+                    onTap: () => setState(() => _accent = i),
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(colors: accentOf(i)),
+                        border: Border.all(
+                          color: _accent == i ? AppColors.gold : Colors.transparent,
+                          width: 3,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 22),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(onPressed: _save, child: const Text('Save')),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _sectionLabel(AppColors colors, String text) => Text(
+        text,
+        style: TextStyle(
+          fontSize: 11,
+          letterSpacing: 1.4,
+          fontWeight: FontWeight.w700,
+          color: colors.textSecondary,
+        ),
+      );
+
+  Widget _segment(String label, bool selected, VoidCallback onTap) {
+    final colors = AppColors.of(context);
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 11),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected ? AppColors.gold.withValues(alpha: 0.16) : colors.cardAlt,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: selected ? AppColors.gold : colors.border,
+            ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: selected ? AppColors.goldDeep : colors.textSecondary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _option(String key, bool selected, {required String kind, required String value}) {
+    return GestureDetector(
+      onTap: () => setState(() => _value = value),
+      child: Container(
+        padding: const EdgeInsets.all(3),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: selected ? AppColors.gold : Colors.transparent,
+            width: 2.5,
+          ),
+        ),
+        child: AvatarView(kind: kind, value: value, accent: _accent, size: 46, ring: false),
+      ),
+    );
+  }
+}
