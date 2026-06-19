@@ -22,6 +22,7 @@ Future<bool> showSplitEditor(
   BuildContext context, {
   SplitEntry? existing,
   TransactionModel? linkTxn,
+  bool startIOwe = false,
 }) async {
   final isDark = Theme.of(context).brightness == Brightness.dark;
   final result = await showModalBottomSheet<bool>(
@@ -31,7 +32,11 @@ Future<bool> showSplitEditor(
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
-    builder: (_) => _SplitEditorSheet(existing: existing, linkTxn: linkTxn),
+    builder: (_) => _SplitEditorSheet(
+      existing: existing,
+      linkTxn: linkTxn,
+      startIOwe: startIOwe,
+    ),
   );
   return result ?? false;
 }
@@ -51,7 +56,8 @@ class _Party {
 class _SplitEditorSheet extends StatefulWidget {
   final SplitEntry? existing;
   final TransactionModel? linkTxn;
-  const _SplitEditorSheet({this.existing, this.linkTxn});
+  final bool startIOwe;
+  const _SplitEditorSheet({this.existing, this.linkTxn, this.startIOwe = false});
 
   @override
   State<_SplitEditorSheet> createState() => _SplitEditorSheetState();
@@ -111,6 +117,14 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
       }
     }
     if (mounted) setState(() => _loading = false);
+
+    // "I owe someone" mode: jump straight to choosing who paid, which sets up
+    // the IOU (only you in the split → you owe them).
+    if (widget.startIOwe && !_editing) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _promptAddPerson(asPayer: true);
+      });
+    }
   }
 
   @override
@@ -422,31 +436,41 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
         ),
       );
 
-  Widget _header(AppColors colors) => Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(9),
-            decoration: BoxDecoration(
-              color: AppColors.gold.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.call_split_rounded,
-                color: AppColors.gold, size: 22),
+  Widget _header(AppColors colors) {
+    final iOwe = widget.startIOwe && !_editing;
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(9),
+          decoration: BoxDecoration(
+            color: AppColors.gold.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(12),
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Text(
-              _editing ? 'Edit split' : 'New split',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                letterSpacing: -0.3,
-                color: colors.text,
-              ),
+          child: Icon(
+            iOwe ? Icons.north_east_rounded : Icons.call_split_rounded,
+            color: AppColors.gold,
+            size: 22,
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Text(
+            _editing
+                ? 'Edit split'
+                : iOwe
+                    ? 'Record what you owe'
+                    : 'New split',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.3,
+              color: colors.text,
             ),
           ),
-        ],
-      );
+        ),
+      ],
+    );
+  }
 
   Widget _methodToggle(AppColors colors) {
     Widget chip(String label, SplitMethod m) {
