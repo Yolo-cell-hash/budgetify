@@ -9,6 +9,7 @@ import '../widgets/category_donut.dart';
 import '../widgets/glass.dart';
 import '../widgets/motion.dart';
 import '../widgets/privacy_amount.dart';
+import '../widgets/safe_to_spend_card.dart';
 
 /// Full-screen, illustrated breakdown of on-device spending insights:
 /// month-end forecast, a 6-month trend chart, this month's category mix,
@@ -90,7 +91,14 @@ class _InsightsScreenState extends State<InsightsScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
                   children: [
                     if (r?.forecast != null) ...[
-                      FadeSlideIn(order: 0, child: _forecastCard(r!.forecast!)),
+                      if (r!.forecast!.hasTarget) ...[
+                        FadeSlideIn(
+                          order: 0,
+                          child: SafeToSpendCard(forecast: r.forecast!),
+                        ),
+                        const SizedBox(height: 14),
+                      ],
+                      FadeSlideIn(order: 0, child: _forecastCard(r.forecast!)),
                       const SizedBox(height: 14),
                     ],
                     FadeSlideIn(
@@ -225,24 +233,6 @@ class _InsightsScreenState extends State<InsightsScreen> {
                   ),
                 ],
               ),
-            ),
-          ],
-          if (f.safeToSpendPerDay != null) ...[
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Text('Safe to spend: ',
-                    style: TextStyle(
-                        fontSize: 12.5, color: Colors.white.withOpacity(0.6))),
-                PrivacyAmount(
-                  '${_fmt.format(f.safeToSpendPerDay!)}/day',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.gold,
-                  ),
-                ),
-              ],
             ),
           ],
         ],

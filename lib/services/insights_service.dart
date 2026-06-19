@@ -29,7 +29,28 @@ class SpendingForecast {
   final int daysElapsed;
   final int daysInMonth;
   final double? budget; // overall monthly budget, if one is set
-  final double? safeToSpendPerDay; // remaining budget / days left
+
+  /// The spend target the safe-to-spend pool is measured against: the budget
+  /// when one is set, otherwise the user's typical month (median of recent
+  /// completed months). Null when there's neither.
+  final double? target;
+
+  /// True when [target] is an explicit budget, false when it's the
+  /// typical-month fallback — lets the UI word things honestly.
+  final bool targetFromBudget;
+
+  /// Recurring spend already committed for the rest of this month (bills,
+  /// EMIs, subscriptions). Subtracted from the safe-to-spend pool so money
+  /// that's already spoken for never reads as "safe". 0 until recurring
+  /// detection ships; wired so the figure tightens automatically once it does.
+  final double committedRecurring;
+
+  /// Money left to spend for the rest of the month: target − spent −
+  /// committed. May be negative (already over). Null when there's no [target].
+  final double? safeToSpendTotal;
+
+  /// [safeToSpendTotal] spread over the days remaining (floored at 0).
+  final double? safeToSpendPerDay;
 
   const SpendingForecast({
     required this.spentSoFar,
@@ -37,12 +58,26 @@ class SpendingForecast {
     required this.daysElapsed,
     required this.daysInMonth,
     this.budget,
+    this.target,
+    this.targetFromBudget = false,
+    this.committedRecurring = 0,
+    this.safeToSpendTotal,
     this.safeToSpendPerDay,
   });
 
   /// Projected over/under vs budget (positive = over). Null if no budget.
   double? get projectedVsBudget =>
       budget == null ? null : projected - budget!;
+
+  /// Days left in the month (at least 1, so per-day math never divides by 0).
+  int get daysRemaining => (daysInMonth - daysElapsed).clamp(1, 31);
+
+  /// Whether a safe-to-spend figure can be shown at all.
+  bool get hasTarget => target != null && target! > 0;
+
+  /// Whether spending has already passed the target for the month.
+  bool get isOverTarget =>
+      safeToSpendTotal != null && safeToSpendTotal! < 0;
 }
 
 /// Bundle returned for the insights UI.
@@ -96,6 +131,22 @@ class InsightsService {
     // ── Forecast ──────────────────────────────────────────────────────
     final daysInMonth = monthEnd.day;
     final daysElapsed = today.day;
+
+    // The user's typical month = median of recent *completed* months. Drives
+    // both the safe-to-spend fallback (when no budget is set) and the pace
+    // nudge, so we compute it once and share it.
+    final monthly =
+        await _db.getMonthlySpending(months: CoachStats.historyMonths + 1);
+    final priorTotals = monthly
+        .take(monthly.length - 1) // drop the in-progress current month
+        .map((m) => m['total'] as double)
+        .where((t) => t > 0)
+        .toList();
+    final double? typicalMonth =
+        priorTotals.length >= CoachStats.minBaselineMonths
+            ? CoachStats.median(priorTotals)
+            : null;
+
     SpendingForecast? forecast;
     if (spentThis > 0) {
       final runRate = spentThis / daysElapsed * daysInMonth;
@@ -105,19 +156,36 @@ class InsightsService {
       final projected = hasHistory ? w * runRate + (1 - w) * spentLast : runRate;
 
       final budget = await _db.getActiveBudget();
-      double? safe;
-      if (budget != null && budget.amount > 0) {
-        final remainingDays = (daysInMonth - daysElapsed).clamp(1, 31);
-        final perDay = (budget.amount - spentThis) / remainingDays;
-        safe = perDay < 0 ? 0 : perDay; // already over budget → nothing safe
+      // Safe-to-spend works off a budget when one exists, else the user's own
+      // typical month — so the figure shows up even before they set a budget.
+      final double? target =
+          (budget != null && budget.amount > 0) ? budget.amount : typicalMonth;
+      final bool targetFromBudget = budget != null && budget.amount > 0;
+
+      // Money already spoken for this month (recurring bills/EMIs/SIPs). 0 for
+      // now — recurring detection isn't built yet — but subtracted here so the
+      // pool tightens automatically once it lands.
+      const committed = 0.0;
+      final remainingDays = (daysInMonth - daysElapsed).clamp(1, 31);
+      double? safePerDay;
+      double? safeTotal;
+      if (target != null && target > 0) {
+        final pool = target - spentThis - committed;
+        safeTotal = pool;
+        safePerDay = pool < 0 ? 0 : pool / remainingDays; // over → nothing safe
       }
+
       forecast = SpendingForecast(
         spentSoFar: spentThis,
         projected: projected,
         daysElapsed: daysElapsed,
         daysInMonth: daysInMonth,
         budget: budget?.amount,
-        safeToSpendPerDay: safe,
+        target: target,
+        targetFromBudget: targetFromBudget,
+        committedRecurring: committed,
+        safeToSpendTotal: safeTotal,
+        safeToSpendPerDay: safePerDay,
       );
 
       // Pace vs budget insight
@@ -151,6 +219,7 @@ class InsightsService {
         now: today,
         projected: projected,
         overallBudget: budget?.amount,
+        typical: typicalMonth,
       );
       if (pace != null) insights.add(pace);
     }
@@ -333,27 +402,17 @@ class InsightsService {
     );
   }
 
-  /// How the projected month total compares to the user's typical month
-  /// (median of completed prior months). Skipped early in the month and when
-  /// an overall budget already drives the pace messaging.
+  /// How the projected month total compares to the user's [typical] month.
+  /// Skipped early in the month, without a baseline, and when an overall
+  /// budget already drives the pace messaging.
   Future<Insight?> _paceInsight({
     required DateTime now,
     required double projected,
     required double? overallBudget,
+    required double? typical,
   }) async {
     if (now.day < CoachStats.paceMinDay) return null;
-
-    // getMonthlySpending returns oldest→newest with the current month last;
-    // drop it and keep completed months that actually had spend.
-    final monthly =
-        await _db.getMonthlySpending(months: CoachStats.historyMonths + 1);
-    final priorTotals = monthly
-        .take(monthly.length - 1)
-        .map((m) => m['total'] as double)
-        .where((t) => t > 0)
-        .toList();
-    if (priorTotals.length < CoachStats.minBaselineMonths) return null;
-    final typical = CoachStats.median(priorTotals);
+    if (typical == null || typical <= 0) return null;
 
     if (CoachStats.pacesOver(projected: projected, typical: typical)) {
       if (overallBudget != null) return null; // budget-pace insight owns this
