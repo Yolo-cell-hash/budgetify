@@ -64,6 +64,36 @@ class LedgerService {
 
   Future<List<String>> knownPeople() => _db.getKnownPeople();
 
+  /// Per-person context for the list subtitle: the most recent expense title
+  /// they're part of and how many splits involve them.
+  Future<Map<String, PersonContext>> peopleContext() async {
+    final splits = await _db.getSplits(); // newest first (date DESC, id DESC)
+    final parts = await _db.getAllParticipants();
+    final latest = <String, String>{};
+    final count = <String, int>{};
+    for (final s in splits) {
+      final involved = <String>{};
+      if (s.paidByMe) {
+        for (final p in parts[s.id] ?? const <SplitParticipant>[]) {
+          if (p.share > 0) involved.add(p.person);
+        }
+      } else {
+        involved.add(s.payer!);
+      }
+      for (final person in involved) {
+        latest.putIfAbsent(person, () => s.title); // first seen = newest
+        count[person] = (count[person] ?? 0) + 1;
+      }
+    }
+    return {
+      for (final person in {...latest.keys, ...count.keys})
+        person: PersonContext(
+          latestExpense: latest[person],
+          splitCount: count[person] ?? 0,
+        ),
+    };
+  }
+
   /// Create a split, applying the my-share override to its linked transaction.
   Future<int> addSplit(
     SplitEntry split,
@@ -144,6 +174,14 @@ class LedgerService {
     }
     return 'I owe $person ${_inr.format(net.abs())}.\n— tracked on Budgetify';
   }
+}
+
+/// List-subtitle context for a person: their latest shared expense and how
+/// many splits they appear in.
+class PersonContext {
+  final String? latestExpense;
+  final int splitCount;
+  const PersonContext({this.latestExpense, this.splitCount = 0});
 }
 
 /// Shared "treat sub-rupee residue as settled" threshold.
