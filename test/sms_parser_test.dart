@@ -320,6 +320,55 @@ void main() {
     });
   });
 
+  group('ICICI false-positive credits (offers & card bill payments)', () {
+    // These arrive on the transactional -S route, so the -P promo filter
+    // doesn't catch them; both were being logged as income.
+    test('rejects a credit-limit-increase offer', () {
+      final txn = SmsParserService.parseTransaction(
+        'AX-ICICIT-S',
+        'Manage spends effectively by increasing the limit on ICICI Bank '
+        'Credit Card XX8018 from Rs50000 to Rs150000. SMS CRLIM 8018 to '
+        '5676766 to raise the limit',
+        now,
+      );
+      expect(txn, isNull);
+    });
+
+    test('rejects a credit-card bill payment confirmation (not income)', () {
+      final txn = SmsParserService.parseTransaction(
+        'AX-ICICIT-S',
+        'Dear Customer, Payment of INR 11,942.20 has been received on your '
+        'ICICI Bank Credit Card Account 6xxx8018 on 08-JUN-26. Thank you.',
+        now,
+      );
+      expect(txn, isNull);
+    });
+
+    test('still keeps a genuine credit-card spend as a debit', () {
+      final txn = SmsParserService.parseTransaction(
+        'AX-ICICIT-S',
+        'INR 1,250.00 spent on ICICI Bank Credit Card XX8018 on 08-Jun-26 '
+        'at AMAZON. Avl Limit: INR 1,38,058.',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 1250.0);
+      expect(txn.type, TransactionType.debit);
+    });
+
+    test('still keeps a genuine salary credit to a bank account', () {
+      final txn = SmsParserService.parseTransaction(
+        'AX-ICICIT-S',
+        'Your ICICI Bank Account XX197 has been credited with INR 50,000.00 '
+        'on 01-Jun-26 towards SALARY. Avl Bal: INR 72,310.',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 50000.0);
+      expect(txn.type, TransactionType.credit);
+    });
+  });
+
   group('Fingerprint dedup across sender variants', () {
     test('same alert via different DLT prefixes produces same fingerprint',
         () {
