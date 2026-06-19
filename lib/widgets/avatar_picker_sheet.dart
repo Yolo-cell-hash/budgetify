@@ -126,31 +126,35 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
                         _option('$i', '$i' == _value, kind: 'pixel', value: '$i')
                     ],
             ),
-            const SizedBox(height: 16),
-            _sectionLabel(colors, 'ACCENT'),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                for (var i = 0; i < kAvatarAccents.length; i++)
-                  GestureDetector(
-                    onTap: () => setState(() => _accent = i),
-                    child: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: LinearGradient(colors: accentOf(i)),
-                        border: Border.all(
-                          color: _accent == i ? AppColors.gold : Colors.transparent,
-                          width: 3,
+            // Accent applies to emoji avatars only — pixel characters carry
+            // their own colours.
+            if (_kind == 'emoji') ...[
+              const SizedBox(height: 16),
+              _sectionLabel(colors, 'ACCENT'),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  for (var i = 0; i < kAvatarAccents.length; i++)
+                    GestureDetector(
+                      onTap: () => setState(() => _accent = i),
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(colors: accentOf(i)),
+                          border: Border.all(
+                            color: _accent == i ? AppColors.gold : Colors.transparent,
+                            width: 3,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-              ],
-            ),
+                ],
+              ),
+            ],
             const SizedBox(height: 22),
             SizedBox(
               width: double.infinity,

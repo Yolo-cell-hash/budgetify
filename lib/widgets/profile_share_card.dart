@@ -41,7 +41,9 @@ class ProfileShareCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = accentOf(profile.avatarAccent);
+    final accent = profile.avatarKind == 'pixel'
+        ? pixelHaloOf(int.tryParse(profile.avatarValue) ?? 0)
+        : accentOf(profile.avatarAccent);
     final name = profile.username.trim().isEmpty ? 'Budgeteer' : profile.username.trim();
 
     return Container(
