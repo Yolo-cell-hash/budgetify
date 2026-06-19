@@ -1,6 +1,7 @@
 import 'package:intl/intl.dart';
 
 import '../models/transaction_model.dart';
+import 'coach_service.dart';
 import 'database_service.dart';
 
 /// Visual weight / tone of an insight, used to pick its accent color.
@@ -67,9 +68,6 @@ class InsightsService {
 
   InsightsService([DatabaseService? db]) : _db = db ?? DatabaseService();
 
-  // Tuning knobs
-  static const double _minPrevForDelta = 500; // ignore tiny-base % blowups
-
   Future<InsightsResult> compute({DateTime? now}) async {
     final today = now ?? DateTime.now();
     final monthStart = DateTime(today.year, today.month, 1);
@@ -91,12 +89,8 @@ class InsightsService {
       startDate: monthStart,
       endDate: monthEnd,
     );
-    final catLast = await _db.getSpendingByCategory(
-      startDate: lastMonthStart,
-      endDate: lastMonthEnd,
-    );
 
-    final hasHistory = spentLast > 0 || catLast.isNotEmpty;
+    final hasHistory = spentLast > 0;
     final insights = <Insight>[];
 
     // ── Forecast ──────────────────────────────────────────────────────
@@ -149,32 +143,24 @@ class InsightsService {
           ));
         }
       }
+
+      // Coach: how this month's projected pace compares to the user's own
+      // typical month. Suppressed when an overall budget exists (the
+      // budget-pace insight above already speaks to that case).
+      final pace = await _paceInsight(
+        now: today,
+        projected: projected,
+        overallBudget: budget?.amount,
+      );
+      if (pace != null) insights.add(pace);
     }
 
-    // ── Month-over-month movers ───────────────────────────────────────
-    if (hasHistory) {
-      final movers = <({String cat, double change, double pct})>[];
-      for (final entry in catThis.entries) {
-        final prev = catLast[entry.key] ?? 0;
-        if (prev < _minPrevForDelta) continue; // avoid tiny-base noise
-        final change = entry.value - prev;
-        if (change.abs() < _minPrevForDelta * 0.4) continue;
-        movers.add((cat: entry.key, change: change, pct: change / prev * 100));
-      }
-      movers.sort((a, b) => b.change.abs().compareTo(a.change.abs()));
-      for (final m in movers.take(2)) {
-        final up = m.change > 0;
-        insights.add(Insight(
-          icon: ExpenseCategories.getIcon(m.cat),
-          title:
-              '${m.cat} ${up ? '↑' : '↓'} ${m.pct.abs().toStringAsFixed(0)}%',
-          detail:
-              '₹${_round(m.change.abs())} ${up ? 'more' : 'less'} than last '
-              'month so far.',
-          tone: up ? InsightTone.caution : InsightTone.positive,
-        ));
-      }
-    }
+    // ── Coach: category spikes vs your own day-aligned baseline ───────
+    insights.addAll(await _categorySpikeInsights(today, catThis));
+
+    // ── Coach: one unusually large transaction this month ─────────────
+    final outlier = await _largeOutlierInsight(today);
+    if (outlier != null) insights.add(outlier);
 
     // ── Top category this month ───────────────────────────────────────
     if (catThis.isNotEmpty) {
@@ -200,6 +186,197 @@ class InsightsService {
       insights: insights,
       hasHistory: hasHistory,
     );
+  }
+
+  // ── Coach detectors ──────────────────────────────────────────────────
+  // These build the user-facing nudge text; the maths and false-alarm guards
+  // live in [CoachStats] and are unit-tested independently.
+
+  /// Categories whose month-to-date spend is meaningfully above (or below)
+  /// the user's *own* pace for the same point in prior months.
+  ///
+  /// The comparison is **day-aligned**: this month's days 1..d are compared
+  /// against days 1..d of each prior month, never against a full prior month.
+  /// That removes the bias where, early in the month, everything looks "down",
+  /// and where a real spike can't surface until late in the month.
+  Future<List<Insight>> _categorySpikeInsights(
+    DateTime now,
+    Map<String, double> currentByCategory,
+  ) async {
+    if (currentByCategory.isEmpty) return const [];
+
+    final d = now.day;
+    final daysInMonth = DateTime(now.year, now.month + 1, 0).day;
+
+    // baselineByCat[cat] = that category's day-1..d spend in each prior month
+    // that had any spend in it.
+    final baselineByCat = <String, List<double>>{};
+    for (int i = 1; i <= CoachStats.historyMonths; i++) {
+      final mStart = DateTime(now.year, now.month - i, 1);
+      final lastDay = DateTime(now.year, now.month - i + 1, 0).day;
+      final dd = CoachStats.alignDay(d, lastDay);
+      final mEnd = DateTime(now.year, now.month - i, dd, 23, 59, 59);
+      final byCat =
+          await _db.getSpendingByCategory(startDate: mStart, endDate: mEnd);
+      byCat.forEach((cat, amt) {
+        if (amt > 0) (baselineByCat[cat] ??= []).add(amt);
+      });
+    }
+
+    final ups = <({String cat, double cur, double base})>[];
+    final downs = <({String cat, double cur, double base})>[];
+    currentByCategory.forEach((cat, cur) {
+      final samples = baselineByCat[cat];
+      if (samples == null || samples.length < CoachStats.minBaselineMonths) {
+        return; // not enough comparable history → stay silent
+      }
+      final base = CoachStats.median(samples);
+      if (CoachStats.spikeUp(current: cur, baseline: base)) {
+        ups.add((cat: cat, cur: cur, base: base));
+      } else if (CoachStats.spikeDown(current: cur, baseline: base) &&
+          d >= daysInMonth * 0.5) {
+        // Only praise a "down" category once we're at least halfway through the
+        // month — otherwise it just means the month is young.
+        downs.add((cat: cat, cur: cur, base: base));
+      }
+    });
+
+    ups.sort((a, b) => (b.cur - b.base).compareTo(a.cur - a.base));
+    downs.sort((a, b) => (a.cur - a.base).compareTo(b.cur - b.base));
+
+    final out = <Insight>[];
+    for (final m in ups.take(2)) {
+      final pct = ((m.cur - m.base) / m.base * 100).round();
+      out.add(Insight(
+        icon: ExpenseCategories.getIcon(m.cat),
+        title: '${m.cat} running hot · +$pct%',
+        detail:
+            '₹${_round(m.cur)} on ${m.cat} by day $d — about ₹${_round(m.cur - m.base)} '
+            'more than your usual ₹${_round(m.base)} by now.',
+        tone: InsightTone.caution,
+      ));
+    }
+    if (downs.isNotEmpty) {
+      final m = downs.first;
+      final pct = ((m.base - m.cur) / m.base * 100).round();
+      out.add(Insight(
+        icon: ExpenseCategories.getIcon(m.cat),
+        title: '${m.cat} down $pct%',
+        detail:
+            'Only ₹${_round(m.cur)} on ${m.cat} so far — ₹${_round(m.base - m.cur)} '
+            'under your usual pace. Nice work.',
+        tone: InsightTone.positive,
+      ));
+    }
+    return out;
+  }
+
+  /// The single most unusual large transaction this month, judged against the
+  /// user's typical transaction size *in that same category* over the prior
+  /// six months (robust median + MAD). Returns null unless something clearly
+  /// stands out — most months this is silent.
+  Future<Insight?> _largeOutlierInsight(DateTime now) async {
+    final monthStart = DateTime(now.year, now.month, 1);
+    final monthEnd = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+    final histStart = DateTime(now.year, now.month - 6, 1);
+
+    final thisMonth =
+        await _db.getTransactionsByDateRange(monthStart, monthEnd);
+    final candidates = thisMonth.where((t) =>
+        t.type == TransactionType.debit &&
+        t.category != null &&
+        ExpenseCategories.isExpenseCategory(t.category));
+    if (candidates.isEmpty) return null;
+
+    // Per-category history (excludes the current month — ends one second
+    // before it begins).
+    final hist = await _db.getTransactionsByDateRange(
+      histStart,
+      monthStart.subtract(const Duration(seconds: 1)),
+    );
+    final byCat = <String, List<double>>{};
+    for (final t in hist) {
+      if (t.type != TransactionType.debit) continue;
+      if (t.category == null ||
+          !ExpenseCategories.isExpenseCategory(t.category)) {
+        continue;
+      }
+      (byCat[t.category!] ??= []).add(t.amount);
+    }
+
+    TransactionModel? best;
+    double bestRatio = 0;
+    for (final t in candidates) {
+      final samples = byCat[t.category!];
+      if (samples == null) continue;
+      if (!CoachStats.isLargeOutlier(amount: t.amount, history: samples)) {
+        continue;
+      }
+      final ratio = t.amount / CoachStats.median(samples);
+      if (ratio > bestRatio) {
+        bestRatio = ratio;
+        best = t;
+      }
+    }
+    if (best == null) return null;
+
+    final merchant = best.merchantName?.trim();
+    final where =
+        (merchant != null && merchant.isNotEmpty) ? ' at $merchant' : '';
+    return Insight(
+      icon: ExpenseCategories.getIcon(best.category!),
+      title: 'Large ${best.category} spend',
+      detail:
+          '₹${_round(best.amount)}$where — about ${bestRatio.toStringAsFixed(1)}× '
+          'your usual ${best.category} transaction. Worth a quick check it\'s right.',
+      tone: InsightTone.caution,
+    );
+  }
+
+  /// How the projected month total compares to the user's typical month
+  /// (median of completed prior months). Skipped early in the month and when
+  /// an overall budget already drives the pace messaging.
+  Future<Insight?> _paceInsight({
+    required DateTime now,
+    required double projected,
+    required double? overallBudget,
+  }) async {
+    if (now.day < CoachStats.paceMinDay) return null;
+
+    // getMonthlySpending returns oldest→newest with the current month last;
+    // drop it and keep completed months that actually had spend.
+    final monthly =
+        await _db.getMonthlySpending(months: CoachStats.historyMonths + 1);
+    final priorTotals = monthly
+        .take(monthly.length - 1)
+        .map((m) => m['total'] as double)
+        .where((t) => t > 0)
+        .toList();
+    if (priorTotals.length < CoachStats.minBaselineMonths) return null;
+    final typical = CoachStats.median(priorTotals);
+
+    if (CoachStats.pacesOver(projected: projected, typical: typical)) {
+      if (overallBudget != null) return null; // budget-pace insight owns this
+      return Insight(
+        icon: '📈',
+        title: 'Spending faster than usual',
+        detail:
+            'On pace for about ₹${_round(projected)} this month — ₹${_round(projected - typical)} '
+            'above your typical ₹${_round(typical)}.',
+        tone: InsightTone.caution,
+      );
+    }
+    if (CoachStats.pacesUnder(projected: projected, typical: typical)) {
+      return Insight(
+        icon: '🌱',
+        title: 'Lighter month so far',
+        detail:
+            'On pace for about ₹${_round(projected)} — ₹${_round(typical - projected)} '
+            'under your typical ₹${_round(typical)}. Keep it up.',
+        tone: InsightTone.positive,
+      );
+    }
+    return null;
   }
 
   static final NumberFormat _fmt = NumberFormat.decimalPattern('en_IN');
