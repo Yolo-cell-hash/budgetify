@@ -17,6 +17,7 @@ import '../providers/app_preferences.dart';
 import '../widgets/app_dialog.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/category_icon.dart';
+import '../widgets/financial_health_card.dart';
 import '../widgets/glass.dart';
 import '../widgets/insights_card.dart';
 import '../widgets/savings_summary.dart';
@@ -418,9 +419,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           // controlled here in one place.
                           const SizedBox(height: 4),
                           FadeSlideIn(order: 1, child: _buildBalanceCard()),
+                          // Financial Health Score sits directly under the
+                          // balance card's savings-rate bar — a crucial,
+                          // always-on read on overall money health.
+                          const SizedBox(height: 12),
+                          FadeSlideIn(
+                            order: 2,
+                            child: FinancialHealthCard(
+                              income: _monthlyIncome,
+                              expenses: _monthlyExpenses,
+                              reloadToken: _transactionCount,
+                            ),
+                          ),
                           if (_dueSipCount > 0) ...[
                             const SizedBox(height: 12),
-                            FadeSlideIn(order: 2, child: _buildSipAlert()),
+                            FadeSlideIn(order: 3, child: _buildSipAlert()),
                           ],
                           // Gated behind AI Prediction Mode — when off, nothing
                           // here is built and the dashboard is unchanged.
