@@ -9,7 +9,7 @@ Budgetify reads your bank SMS on-device, turns them into a clean spending pictur
 
 <br/>
 
-![Version](https://img.shields.io/badge/version-1.6.0-C8A75E?style=for-the-badge)
+![Version](https://img.shields.io/badge/version-1.6.1-C8A75E?style=for-the-badge)
 ![Platform](https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)
 ![Flutter](https://img.shields.io/badge/Flutter-02569B?style=for-the-badge&logo=flutter&logoColor=white)
 ![Offline](https://img.shields.io/badge/100%25-Offline-1B7F5C?style=for-the-badge)

@@ -27,6 +27,7 @@ typedef EarnedBadge = ({
 class ProfileView extends StatefulWidget {
   final GamiProfile profile;
   final int currentStreak;
+  final int trophyCount;
   final List<GamiTitle> earnedTitles;
   final GamiTitle? primaryTitle;
   final List<ShowcaseBadge> showcased;
@@ -39,6 +40,7 @@ class ProfileView extends StatefulWidget {
     super.key,
     required this.profile,
     required this.currentStreak,
+    required this.trophyCount,
     required this.earnedTitles,
     required this.primaryTitle,
     required this.showcased,
@@ -47,6 +49,13 @@ class ProfileView extends StatefulWidget {
     required this.onUpdateShowcase,
     required this.onUpdatePrimaryTitle,
   });
+
+  /// Earned titles with the chosen headline first (for the card + chips).
+  List<GamiTitle> get orderedTitles {
+    final p = primaryTitle;
+    if (p == null) return earnedTitles;
+    return [p, ...earnedTitles.where((t) => t.id != p.id)];
+  }
 
   @override
   State<ProfileView> createState() => _ProfileViewState();
@@ -96,8 +105,9 @@ class _ProfileViewState extends State<ProfileView> {
             child: ProfileShareCard(
               profile: widget.profile,
               currentStreak: widget.currentStreak,
-              primaryTitle: widget.primaryTitle,
+              titles: widget.orderedTitles,
               showcased: widget.showcased,
+              trophyCount: widget.trophyCount,
             ),
           ),
         ),
@@ -122,7 +132,7 @@ class _ProfileViewState extends State<ProfileView> {
           ],
         ),
         const SizedBox(height: 24),
-        _sectionHeader(colors, 'Showcase', '${widget.showcased.length}/5'),
+        _sectionHeader(colors, 'Showcase', '${widget.showcased.length}/$kMaxShowcase'),
         const SizedBox(height: 8),
         _card(
           colors,
@@ -160,50 +170,101 @@ class _ProfileViewState extends State<ProfileView> {
     );
   }
 
+  /// A gallery of every title — earned ones are colourful and tappable to set
+  /// your headline; locked ones are muted and show how to earn them. Mirrors
+  /// the Trophies tab so titles are just as visible.
   Widget _titles(AppColors colors) {
-    if (widget.earnedTitles.isEmpty) {
-      return Text(
-        'Keep tracking to earn titles — they reflect where your money goes.',
-        style: TextStyle(fontSize: 13, color: colors.textSecondary, height: 1.4),
-      );
-    }
+    final earnedIds = widget.earnedTitles.map((t) => t.id).toSet();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Tap to set your headline title',
-          style: TextStyle(fontSize: 12, color: colors.textTertiary),
+          earnedIds.isEmpty
+              ? 'Titles reflect where your money goes — none earned yet.'
+              : 'Tap an earned title to feature it on your profile.',
+          style: TextStyle(fontSize: 12, color: colors.textTertiary, height: 1.4),
         ),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final t in widget.earnedTitles)
-              _titleChip(colors, t, t.id == widget.primaryTitle?.id),
-          ],
-        ),
+        const SizedBox(height: 6),
+        for (var i = 0; i < kTitles.length; i++) ...[
+          if (i > 0) Divider(height: 18, color: colors.border),
+          _titleRow(colors, kTitles[i], earnedIds.contains(kTitles[i].id)),
+        ],
       ],
     );
   }
 
-  Widget _titleChip(AppColors colors, GamiTitle t, bool primary) {
-    return GestureDetector(
-      onTap: () => widget.onUpdatePrimaryTitle(primary ? null : t.id),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: primary ? AppColors.gold.withValues(alpha: 0.16) : colors.cardAlt,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: primary ? AppColors.gold : colors.border),
-        ),
-        child: Text(
-          '${t.emoji}  ${t.name}',
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: primary ? AppColors.goldDeep : colors.text,
-          ),
+  Widget _titleRow(AppColors colors, GamiTitle t, bool earned) {
+    final primary = earned && t.id == widget.primaryTitle?.id;
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: earned
+          ? () => widget.onUpdatePrimaryTitle(primary ? null : t.id)
+          : null,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: earned ? AppColors.gold.withValues(alpha: 0.16) : colors.cardAlt,
+                border: Border.all(
+                    color: earned ? AppColors.gold.withValues(alpha: 0.5) : colors.border),
+              ),
+              child: Opacity(
+                opacity: earned ? 1 : 0.4,
+                child: Text(t.emoji, style: const TextStyle(fontSize: 18)),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    t.name,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: earned ? colors.text : colors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    t.blurb,
+                    style: TextStyle(fontSize: 11.5, color: colors.textTertiary),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            if (!earned)
+              Icon(Icons.lock_rounded, size: 16, color: colors.textTertiary)
+            else if (primary)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.gold.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.star_rounded, size: 13, color: AppColors.goldDeep),
+                    SizedBox(width: 3),
+                    Text('Featured',
+                        style: TextStyle(
+                            fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.goldDeep)),
+                  ],
+                ),
+              )
+            else
+              Icon(Icons.radio_button_unchecked_rounded,
+                  size: 18, color: AppColors.gold.withValues(alpha: 0.7)),
+          ],
         ),
       ),
     );
@@ -270,7 +331,7 @@ class _ShowcasePickerState extends State<_ShowcasePicker> {
     setState(() {
       if (_sel.contains(id)) {
         _sel.remove(id);
-      } else if (_sel.length < 5) {
+      } else if (_sel.length < kMaxShowcase) {
         _sel.add(id);
       }
     });
@@ -310,7 +371,7 @@ class _ShowcasePickerState extends State<_ShowcasePicker> {
                 ),
               ),
               const Spacer(),
-              Text('${_sel.length}/5',
+              Text('${_sel.length}/$kMaxShowcase',
                   style: TextStyle(fontSize: 13, color: colors.textSecondary)),
             ],
           ),

@@ -127,11 +127,17 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
     // Resolve showcased ids → badges, keeping only those still earned.
     final showcased = <ShowcaseBadge>[];
     for (final id in _profile.showcasedBadgeIds) {
+      if (showcased.length >= kMaxShowcase) break;
       if (!earnedIds.contains(id)) continue;
       final b = badgeById(id);
       if (b == null) continue;
       final tier = b.group.tiers[b.tierIndex];
-      showcased.add((rarity: tier.rarity, emblem: b.group.emblem, label: tier.label));
+      showcased.add((
+        rarity: tier.rarity,
+        emblem: b.group.emblem,
+        label: tier.label,
+        group: b.group.name,
+      ));
     }
 
     final allEarned = <EarnedBadge>[];
@@ -153,6 +159,7 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
     return ProfileView(
       profile: _profile,
       currentStreak: stats.currentStreak,
+      trophyCount: earnedIds.length,
       earnedTitles: earnedTitles,
       primaryTitle: primaryStillEarned ? primary : null,
       showcased: showcased,

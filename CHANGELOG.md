@@ -4,6 +4,18 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.6.1] — 2026-06-20
+
+### Changed
+
+- **Gamified Budgets polish.** Trophies now change **shape by rarity**
+  (circle → hexagon → octagon → star) so higher tiers feel distinctly premium.
+  Avatars are now real **pixel characters** (recoloured chibi sprites) instead
+  of abstract art. **Titles** have a dedicated gallery on the profile (earned +
+  locked, like trophies) and now appear on the shareable card. The **shareable
+  card** is richer — a stats strip (streak · trophies · titles), earned-title
+  chips, and labelled trophies. Featured badges on the card are capped at 4.
+
 ## [1.6.0] — 2026-06-20
 
 ### Added
@@ -119,6 +131,7 @@ safe-to-spend, and a fully offline split ledger.
 - Hardened startup so a notification-subsystem hiccup can never block the app
   from opening.
 
+[1.6.1]: https://github.com/Yolo-cell-hash/budgetify/releases/tag/v1.6.1
 [1.6.0]: https://github.com/Yolo-cell-hash/budgetify/releases/tag/v1.6.0
 [1.5.2]: https://github.com/Yolo-cell-hash/budgetify/releases/tag/v1.5.2
 [1.5.1]: https://github.com/Yolo-cell-hash/budgetify/releases/tag/v1.5.1
