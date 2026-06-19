@@ -6,88 +6,43 @@ import '../providers/theme_provider.dart';
 import '../services/financial_health_service.dart';
 import 'app_dialog.dart';
 
+/// Design-system colour for a health band. On a dark surface ([onDark], e.g. the
+/// balance card) the brighter dark-mode variants are used regardless of the app
+/// theme; on a normal card the theme-aware palette is used.
+Color healthBandColor(
+  HealthBand band, {
+  required bool onDark,
+  required AppColors colors,
+}) =>
+    switch (band) {
+      HealthBand.excellent => onDark ? AppColors.successDark : colors.success,
+      HealthBand.good => AppColors.gold,
+      HealthBand.fair => const Color(0xFFD79A3C),
+      HealthBand.needsWork =>
+        onDark ? const Color(0xFFE0904A) : const Color(0xFFD2772F),
+      HealthBand.atRisk => onDark ? AppColors.dangerDark : colors.danger,
+    };
+
+Color _scoreColor(double score, {required bool onDark, required AppColors colors}) =>
+    healthBandColor(FinancialHealth.bandFor(score), onDark: onDark, colors: colors);
+
 /// Dashboard card for the **Financial Health Score** — a single 0–100 number
-/// (100 healthy, 0 poor) blended from savings rate, budget adherence,
-/// recurring load and net worth. Self-contained: given this month's income and
-/// expenses (so the savings pillar matches the savings-rate bar above it), it
-/// loads the remaining pillars and renders an animated gauge, a per-pillar
-/// breakdown and a tap-through explanation of how the score is calculated.
-class FinancialHealthCard extends StatefulWidget {
-  final double income;
-  final double expenses;
+/// (100 healthy, 0 poor) blending savings rate, budget adherence, recurring
+/// load and net worth. Presentational: the score is computed once by the home
+/// screen and passed in, so this card and the compact [FinancialHealthInline]
+/// always agree and both refresh the moment the underlying data changes.
+class FinancialHealthCard extends StatelessWidget {
+  final FinancialHealth health;
 
-  /// Bumped by the parent when underlying data changes, to trigger a reload.
-  final int reloadToken;
-
-  /// Injectable for tests; defaults to a database-backed service.
-  @visibleForTesting
-  final FinancialHealthService? service;
-
-  const FinancialHealthCard({
-    super.key,
-    required this.income,
-    required this.expenses,
-    this.reloadToken = 0,
-    this.service,
-  });
-
-  @override
-  State<FinancialHealthCard> createState() => _FinancialHealthCardState();
-}
-
-class _FinancialHealthCardState extends State<FinancialHealthCard> {
-  late final FinancialHealthService _service =
-      widget.service ?? FinancialHealthService();
-  FinancialHealth? _health;
-  bool _loading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  @override
-  void didUpdateWidget(FinancialHealthCard old) {
-    super.didUpdateWidget(old);
-    if (old.reloadToken != widget.reloadToken ||
-        old.income != widget.income ||
-        old.expenses != widget.expenses) {
-      _load();
-    }
-  }
-
-  Future<void> _load() async {
-    final health = await _service.compute(
-      income: widget.income,
-      expenses: widget.expenses,
-    );
-    if (!mounted) return;
-    setState(() {
-      _health = health;
-      _loading = false;
-    });
-  }
-
-  /// Map a 0–100 value to the design-system colour for its band.
-  Color _bandColor(HealthBand band, AppColors colors) => switch (band) {
-        HealthBand.excellent => colors.success,
-        HealthBand.good => AppColors.gold,
-        HealthBand.fair => const Color(0xFFD79A3C),
-        HealthBand.needsWork => const Color(0xFFD2772F),
-        HealthBand.atRisk => colors.danger,
-      };
-
-  Color _scoreColor(double score, AppColors colors) =>
-      _bandColor(FinancialHealth.bandFor(score), colors);
+  const FinancialHealthCard({super.key, required this.health});
 
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
-    final h = _health;
-    final hasScore = h?.hasScore ?? false;
-    final scoreValue = h?.scoreValue ?? 0;
-    final accent = hasScore ? _scoreColor(scoreValue, colors) : colors.textTertiary;
+    final hasScore = health.hasScore;
+    final accent = hasScore
+        ? _scoreColor(health.scoreValue!, onDark: false, colors: colors)
+        : colors.textTertiary;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -107,23 +62,15 @@ class _FinancialHealthCardState extends State<FinancialHealthCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _header(colors, h),
+          _header(context, colors),
           const SizedBox(height: 16),
-          if (_loading)
-            const SizedBox(
-              height: 120,
-              child: Center(child: CircularProgressIndicator()),
-            )
-          else if (!hasScore)
-            _emptyState(colors)
-          else
-            _scored(colors, h!, accent),
+          if (!hasScore) _emptyState(colors) else _scored(colors, accent),
         ],
       ),
     );
   }
 
-  Widget _header(AppColors colors, FinancialHealth? h) {
+  Widget _header(BuildContext context, AppColors colors) {
     return Row(
       children: [
         Container(
@@ -155,14 +102,14 @@ class _FinancialHealthCardState extends State<FinancialHealthCard> {
           tooltip: 'How your score is calculated',
           icon: Icon(Icons.info_outline_rounded,
               size: 18, color: colors.textTertiary),
-          onPressed: h == null ? null : () => _showExplainer(h),
+          onPressed: () => showFinancialHealthExplainer(context, health),
         ),
       ],
     );
   }
 
-  Widget _scored(AppColors colors, FinancialHealth h, Color accent) {
-    final score = h.score!;
+  Widget _scored(AppColors colors, Color accent) {
+    final score = health.score!;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -180,7 +127,7 @@ class _FinancialHealthCardState extends State<FinancialHealthCard> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    h.band.label,
+                    health.band.label,
                     style: TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.w700,
@@ -190,7 +137,7 @@ class _FinancialHealthCardState extends State<FinancialHealthCard> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    h.band.caption,
+                    health.band.caption,
                     style: TextStyle(
                       fontSize: 12.5,
                       height: 1.35,
@@ -203,13 +150,13 @@ class _FinancialHealthCardState extends State<FinancialHealthCard> {
           ],
         ),
         const SizedBox(height: 18),
-        _pillar(colors, 'Savings rate', h.savingsScore),
+        _pillar(colors, 'Savings rate', health.savingsScore),
         const SizedBox(height: 12),
-        _pillar(colors, 'Budget adherence', h.budgetScore),
+        _pillar(colors, 'Budget adherence', health.budgetScore),
         const SizedBox(height: 12),
-        _pillar(colors, 'Recurring load', h.recurringScore),
+        _pillar(colors, 'Recurring load', health.recurringScore),
         const SizedBox(height: 12),
-        _pillar(colors, 'Net worth', h.netWorthScore),
+        _pillar(colors, 'Net worth', health.netWorthScore),
       ],
     );
   }
@@ -218,7 +165,8 @@ class _FinancialHealthCardState extends State<FinancialHealthCard> {
   /// thin bar coloured by its own band.
   Widget _pillar(AppColors colors, String label, double? score) {
     final available = score != null;
-    final color = available ? _scoreColor(score, colors) : colors.textTertiary;
+    final color =
+        available ? _scoreColor(score, onDark: false, colors: colors) : colors.textTertiary;
     final fraction = available ? (score / 100).clamp(0.0, 1.0) : 0.0;
 
     return Column(
@@ -290,117 +238,189 @@ class _FinancialHealthCardState extends State<FinancialHealthCard> {
       ),
     );
   }
+}
 
-  void _showExplainer(FinancialHealth h) {
+/// Compact one-line Financial Health indicator ("FINANCIAL HEALTH  72/100"),
+/// shown on the balance card under the savings-rate bar when the full card is
+/// turned off. Renders nothing when there's no score yet. Tapping the ⓘ opens
+/// the same explainer as the full card.
+class FinancialHealthInline extends StatelessWidget {
+  final FinancialHealth health;
+  final bool onDark;
+
+  const FinancialHealthInline({
+    super.key,
+    required this.health,
+    this.onDark = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     final colors = AppColors.of(context);
-    showAppDialog(
-      context,
-      builder: (_) => AppDialog(
-        icon: Icons.monitor_heart_outlined,
-        title: 'How your score works',
-        subtitle:
-            'A single 0–100 number (100 is healthy, 0 is poor) blended from up '
-            'to four pillars. Pillars without data yet are skipped and the rest '
-            'reweighted, so the score always reflects what we can see.',
-        content: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _explainRow(colors, 'Savings rate', '35%',
-                'How much of your income you keep. 20% or more earns full marks.',
-                h.savingsScore),
-            _explainRow(colors, 'Budget adherence', '25%',
-                'Staying within the budgets you set. Going over costs points.',
-                h.budgetScore),
-            _explainRow(colors, 'Recurring load', '20%',
-                'Recurring commitments (SIPs/RDs) versus income — more headroom scores higher.',
-                h.recurringScore),
-            _explainRow(colors, 'Net worth', '20%',
-                'Your equity — assets versus debts. Counts only if you track holdings.',
-                h.netWorthScore),
-            const SizedBox(height: 4),
-            Text(
-              'Everything is computed on your device.',
-              style: TextStyle(
-                fontSize: 11.5,
-                fontStyle: FontStyle.italic,
-                color: colors.textTertiary,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Got it'),
+    if (!health.hasScore) return const SizedBox.shrink();
+
+    final score = health.score!;
+    final color = _scoreColor(health.scoreValue!, onDark: onDark, colors: colors);
+    final labelColor = onDark ? AppColors.gold : colors.textSecondary;
+    final muted =
+        onDark ? Colors.white.withValues(alpha: 0.55) : colors.textTertiary;
+
+    return Row(
+      children: [
+        Text(
+          'FINANCIAL HEALTH',
+          style: TextStyle(
+            fontSize: 11,
+            letterSpacing: 1.2,
+            fontWeight: FontWeight.w600,
+            color: labelColor,
           ),
-        ],
-      ),
+        ),
+        const Spacer(),
+        Text(
+          '$score',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.4,
+            color: color,
+          ),
+        ),
+        Text(
+          '/100',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: muted,
+          ),
+        ),
+        const SizedBox(width: 4),
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => showFinancialHealthExplainer(context, health),
+          child: Padding(
+            padding: const EdgeInsets.all(3),
+            child: Icon(Icons.info_outline_rounded, size: 15, color: muted),
+          ),
+        ),
+      ],
     );
   }
+}
 
-  Widget _explainRow(
-    AppColors colors,
-    String name,
-    String weight,
-    String desc,
-    double? score,
-  ) {
-    final available = score != null;
-    final color = available ? _scoreColor(score, colors) : colors.textTertiary;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Row(
+/// Plain-language popup explaining how the score is calculated, with each
+/// pillar's weight and current sub-score. Shared by the full card and the
+/// compact indicator so the "how it works" detail is reachable from both.
+void showFinancialHealthExplainer(BuildContext context, FinancialHealth h) {
+  final colors = AppColors.of(context);
+  showAppDialog(
+    context,
+    builder: (_) => AppDialog(
+      icon: Icons.monitor_heart_outlined,
+      title: 'How your score works',
+      subtitle:
+          'A single 0–100 number (100 is healthy, 0 is poor) blended from up '
+          'to four pillars. Pillars without data yet are skipped and the rest '
+          'reweighted, so the score always reflects what we can see.',
+      content: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 8,
-            height: 8,
-            margin: const EdgeInsets.only(top: 5),
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        name,
-                        style: TextStyle(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w700,
-                          color: colors.text,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      available ? '${score.round()} · $weight' : '— · $weight',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: available ? color : colors.textTertiary,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  desc,
-                  style: TextStyle(
-                    fontSize: 12,
-                    height: 1.35,
-                    color: colors.textSecondary,
-                  ),
-                ),
-              ],
+          _explainRow(colors, 'Savings rate', '35%',
+              'How much of your income you keep. 20% or more earns full marks.',
+              h.savingsScore),
+          _explainRow(colors, 'Budget adherence', '25%',
+              'Staying within the budgets you set. Going over costs points.',
+              h.budgetScore),
+          _explainRow(colors, 'Recurring load', '20%',
+              'Recurring commitments (SIPs/RDs) versus income — more headroom scores higher.',
+              h.recurringScore),
+          _explainRow(colors, 'Net worth', '20%',
+              'Your equity — assets versus debts. Counts only if you track holdings.',
+              h.netWorthScore),
+          const SizedBox(height: 4),
+          Text(
+            'Everything is computed on your device.',
+            style: TextStyle(
+              fontSize: 11.5,
+              fontStyle: FontStyle.italic,
+              color: colors.textTertiary,
             ),
           ),
         ],
       ),
-    );
-  }
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Got it'),
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _explainRow(
+  AppColors colors,
+  String name,
+  String weight,
+  String desc,
+  double? score,
+) {
+  final available = score != null;
+  final color =
+      available ? _scoreColor(score, onDark: false, colors: colors) : colors.textTertiary;
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 14),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          margin: const EdgeInsets.only(top: 5),
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      name,
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                        color: colors.text,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    available ? '${score.round()} · $weight' : '— · $weight',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: available ? color : colors.textTertiary,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Text(
+                desc,
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.35,
+                  color: colors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 /// A 270° arc gauge with the score counting up in its centre as the arc fills.

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:open_filex/open_filex.dart';
+import '../app_info.dart';
 import '../providers/theme_provider.dart';
 import '../providers/app_preferences.dart';
 import '../services/app_events.dart';
@@ -315,6 +316,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
 
+          const SizedBox(height: 12),
+          _buildSettingsCard(
+            isDark: isDark,
+            child: SwitchListTile(
+              secondary: Icon(
+                Icons.monitor_heart_outlined,
+                color: context.watch<AppPreferences>().financialHealthDetailed
+                    ? const Color(0xFFA8843C)
+                    : const Color(0xFF8A8D96),
+              ),
+              title: const Text('Detailed Financial Health'),
+              subtitle: Text(
+                'Show the full Financial Health card with a per-pillar '
+                'breakdown. When off, just the score appears on your balance '
+                'card.',
+                style: TextStyle(
+                  color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
+                ),
+              ),
+              value: context.watch<AppPreferences>().financialHealthDetailed,
+              onChanged: (v) => context
+                  .read<AppPreferences>()
+                  .setFinancialHealthDetailed(v),
+            ),
+          ),
+
           const SizedBox(height: 24),
 
           // Backup Section
@@ -438,8 +465,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             isDark: isDark,
             child: const ListTile(
               leading: Icon(Icons.info_outline),
-              title: Text('Budget Tracker'),
-              subtitle: Text('Version 1.4.0'),
+              title: Text('Budgetify'),
+              subtitle: Text('Version $kAppVersion'),
             ),
           ),
         ],

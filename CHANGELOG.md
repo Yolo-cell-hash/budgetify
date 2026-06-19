@@ -4,6 +4,25 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.5.2] — 2026-06-19
+
+### Added
+
+- **Financial Health display toggle.** A new *Detailed Financial Health* switch
+  under Settings → Intelligence. Off by default: only a compact score (e.g.
+  `72/100`) shows on the balance card under your savings rate, keeping the
+  dashboard uncluttered. Turn it on for the full breakdown card with the gauge
+  and per-pillar detail. The ⓘ explainer is reachable from both views.
+
+### Fixed
+
+- **Financial Health refreshes live.** Editing a budget, a holding, or a
+  recurring plan now updates the score immediately, instead of only after
+  reopening the app from cold.
+- **Correct version in Settings.** Settings → About now shows the real app
+  version (it had been stuck at 1.4.0) and is driven from a single constant so
+  it can't drift again.
+
 ## [1.5.1] — 2026-06-19
 
 ### Added
@@ -79,6 +98,7 @@ safe-to-spend, and a fully offline split ledger.
 - Hardened startup so a notification-subsystem hiccup can never block the app
   from opening.
 
+[1.5.2]: https://github.com/Yolo-cell-hash/budgetify/releases/tag/v1.5.2
 [1.5.1]: https://github.com/Yolo-cell-hash/budgetify/releases/tag/v1.5.1
 [1.5.0]: https://github.com/Yolo-cell-hash/budgetify/releases/tag/v1.5.0
 [1.4.1]: https://github.com/Yolo-cell-hash/budgetify/releases/tag/v1.4.1

@@ -7,6 +7,7 @@ import '../models/holding.dart';
 import '../models/sip.dart';
 import '../models/ledger_models.dart';
 import 'sms_parser_service.dart';
+import 'app_events.dart';
 
 /// Database service for persisting transactions and budgets
 class DatabaseService {
@@ -777,22 +778,28 @@ class DatabaseService {
 
   Future<int> insertBudget(Budget budget) async {
     final db = await database;
-    return await db.insert('budgets', budget.toMap());
+    final id = await db.insert('budgets', budget.toMap());
+    notifyAppDataChanged();
+    return id;
   }
 
   Future<int> updateBudget(Budget budget) async {
     final db = await database;
-    return await db.update(
+    final n = await db.update(
       'budgets',
       budget.toMap(),
       where: 'id = ?',
       whereArgs: [budget.id],
     );
+    notifyAppDataChanged();
+    return n;
   }
 
   Future<int> deleteBudget(int id) async {
     final db = await database;
-    return await db.delete('budgets', where: 'id = ?', whereArgs: [id]);
+    final n = await db.delete('budgets', where: 'id = ?', whereArgs: [id]);
+    notifyAppDataChanged();
+    return n;
   }
 
   Future<List<Budget>> getAllBudgets() async {
@@ -1419,22 +1426,28 @@ class DatabaseService {
 
   Future<int> insertHolding(Holding holding) async {
     final db = await database;
-    return db.insert('holdings', holding.toMap());
+    final id = await db.insert('holdings', holding.toMap());
+    notifyAppDataChanged();
+    return id;
   }
 
   Future<int> updateHolding(Holding holding) async {
     final db = await database;
-    return db.update(
+    final n = await db.update(
       'holdings',
       holding.toMap(),
       where: 'id = ?',
       whereArgs: [holding.id],
     );
+    notifyAppDataChanged();
+    return n;
   }
 
   Future<int> deleteHolding(int id) async {
     final db = await database;
-    return db.delete('holdings', where: 'id = ?', whereArgs: [id]);
+    final n = await db.delete('holdings', where: 'id = ?', whereArgs: [id]);
+    notifyAppDataChanged();
+    return n;
   }
 
   Future<List<Holding>> getHoldings() async {
@@ -1503,12 +1516,17 @@ class DatabaseService {
 
   Future<int> insertSip(Sip sip) async {
     final db = await database;
-    return db.insert('sips', sip.toMap());
+    final id = await db.insert('sips', sip.toMap());
+    notifyAppDataChanged();
+    return id;
   }
 
   Future<int> updateSip(Sip sip) async {
     final db = await database;
-    return db.update('sips', sip.toMap(), where: 'id = ?', whereArgs: [sip.id]);
+    final n =
+        await db.update('sips', sip.toMap(), where: 'id = ?', whereArgs: [sip.id]);
+    notifyAppDataChanged();
+    return n;
   }
 
   /// Delete a SIP and its instalment ledger. The backing holding is left in
@@ -1517,6 +1535,7 @@ class DatabaseService {
     final db = await database;
     await db.delete('sip_payments', where: 'sip_id = ?', whereArgs: [id]);
     await db.delete('sips', where: 'id = ?', whereArgs: [id]);
+    notifyAppDataChanged();
   }
 
   Future<List<Sip>> getSips() async {
