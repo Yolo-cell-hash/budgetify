@@ -6,6 +6,8 @@ class AppPreferences extends ChangeNotifier {
   static const String _onboardingCompleteKey = 'onboarding_complete';
   static const String _privacyModeKey = 'privacy_mode';
   static const String _aiPredictionModeKey = 'ai_prediction_mode';
+  static const String _financialHealthDetailedKey =
+      'financial_health_detailed';
   static const String _dismissedBudgetSuggestionsKey =
       'dismissed_budget_suggestions';
 
@@ -27,10 +29,16 @@ class AppPreferences extends ChangeNotifier {
   // no insight numbers are computed or shown.
   bool _aiPredictionMode = false;
 
+  // When on, the home dashboard shows the full Financial Health breakdown card.
+  // When off (default), only a compact score indicator is shown on the balance
+  // card — keeps the dashboard uncluttered while the number stays visible.
+  bool _financialHealthDetailed = false;
+
   bool get isOnboardingComplete => _isOnboardingComplete;
   bool get isInitialized => _isInitialized;
   bool get privacyMode => _privacyMode;
   bool get aiPredictionMode => _aiPredictionMode;
+  bool get financialHealthDetailed => _financialHealthDetailed;
 
   /// Whether amounts should currently render hidden: privacy mode is on and
   /// the user hasn't tapped to reveal this session.
@@ -44,6 +52,8 @@ class AppPreferences extends ChangeNotifier {
     _isOnboardingComplete = prefs.getBool(_onboardingCompleteKey) ?? false;
     _privacyMode = prefs.getBool(_privacyModeKey) ?? false;
     _aiPredictionMode = prefs.getBool(_aiPredictionModeKey) ?? false;
+    _financialHealthDetailed =
+        prefs.getBool(_financialHealthDetailedKey) ?? false;
     _dismissedBudgetSuggestions =
         (prefs.getStringList(_dismissedBudgetSuggestionsKey) ?? const [])
             .toSet();
@@ -89,6 +99,15 @@ class AppPreferences extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_aiPredictionModeKey, enabled);
+  }
+
+  /// Show the full Financial Health breakdown card vs. the compact indicator
+  /// (persisted).
+  Future<void> setFinancialHealthDetailed(bool enabled) async {
+    _financialHealthDetailed = enabled;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_financialHealthDetailedKey, enabled);
   }
 
   /// Mark onboarding as complete

@@ -7,6 +7,7 @@ import '../models/transaction_model.dart';
 import '../providers/theme_provider.dart';
 import '../services/app_events.dart';
 import '../services/database_service.dart';
+import '../services/financial_health_service.dart';
 import '../services/sms_service.dart';
 import '../services/notification_service.dart';
 import '../services/background_service.dart';
@@ -59,6 +60,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   double _monthlyExpenses = 0;
   // Recurring investments due today and still unanswered (drives the alert).
   int _dueSipCount = 0;
+  // Latest Financial Health Score; recomputed on every data refresh so both
+  // the full card and the compact balance-card indicator stay current.
+  FinancialHealth? _health;
 
   @override
   void initState() {
@@ -164,6 +168,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       // Recurring investments due today and not yet logged.
       final dueSips = await SipService().pendingDueSips();
 
+      // Financial Health Score — computed here so the full card and the compact
+      // balance-card indicator share one result and refresh together whenever
+      // any underlying data (budgets, holdings, recurring plans, transactions)
+      // changes, not just on a cold start.
+      final health = await FinancialHealthService().compute(
+        income: monthlyIncome,
+        expenses: monthlyExpenses,
+      );
+
       setState(() {
         _transactionCount = transactions.length;
         _unclassifiedCount = unclassified.length;
@@ -174,6 +187,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         _monthlyIncome = monthlyIncome;
         _monthlyExpenses = monthlyExpenses;
         _dueSipCount = dueSips.length;
+        _health = health;
       });
 
       // Keep the home-screen widget in sync
@@ -383,6 +397,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    // When on, show the full Financial Health breakdown card; when off, a
+    // compact score indicator rides on the balance card instead.
+    final detailed = context.watch<AppPreferences>().financialHealthDetailed;
     return PopScope(
       // Intercept the root back press so we can confirm before exiting.
       canPop: false,
@@ -418,19 +435,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           // cards carry horizontal margin only so spacing is
                           // controlled here in one place.
                           const SizedBox(height: 4),
-                          FadeSlideIn(order: 1, child: _buildBalanceCard()),
-                          // Financial Health Score sits directly under the
-                          // balance card's savings-rate bar — a crucial,
-                          // always-on read on overall money health.
-                          const SizedBox(height: 12),
                           FadeSlideIn(
-                            order: 2,
-                            child: FinancialHealthCard(
-                              income: _monthlyIncome,
-                              expenses: _monthlyExpenses,
-                              reloadToken: _transactionCount,
-                            ),
+                            order: 1,
+                            child:
+                                _buildBalanceCard(showHealthInline: !detailed),
                           ),
+                          // Full Financial Health breakdown card — only in the
+                          // detailed view; otherwise the compact score sits on
+                          // the balance card's savings-rate area above.
+                          if (detailed && _health != null) ...[
+                            const SizedBox(height: 12),
+                            FadeSlideIn(
+                              order: 2,
+                              child: FinancialHealthCard(health: _health!),
+                            ),
+                          ],
                           if (_dueSipCount > 0) ...[
                             const SizedBox(height: 12),
                             FadeSlideIn(order: 3, child: _buildSipAlert()),
@@ -646,7 +665,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildBalanceCard() {
+  Widget _buildBalanceCard({bool showHealthInline = false}) {
     final formatter = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
     final monthName = DateFormat('MMMM').format(DateTime.now());
 
@@ -839,6 +858,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             expenses: _monthlyExpenses,
             onDark: true,
           ),
+          // Compact Financial Health indicator, shown here under the savings
+          // rate when the detailed card is turned off.
+          if (showHealthInline && (_health?.hasScore ?? false)) ...[
+            const SizedBox(height: 16),
+            Container(height: 1, color: Colors.white.withValues(alpha: 0.10)),
+            const SizedBox(height: 14),
+            FinancialHealthInline(health: _health!, onDark: true),
+          ],
         ],
       ),
     );
