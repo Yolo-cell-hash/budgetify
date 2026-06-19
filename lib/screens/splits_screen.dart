@@ -47,8 +47,8 @@ class _SplitsScreenState extends State<SplitsScreen> {
     });
   }
 
-  Future<void> _openEditor({bool iOwe = false}) async {
-    final saved = await showSplitEditor(context, startIOwe: iOwe);
+  Future<void> _openEditor({SplitIntent intent = SplitIntent.split}) async {
+    final saved = await showSplitEditor(context, intent: intent);
     if (saved) _load();
   }
 
@@ -91,10 +91,19 @@ class _SplitsScreenState extends State<SplitsScreen> {
               _addOption(
                 colors,
                 icon: Icons.call_split_rounded,
-                accent: AppColors.successDark,
+                accent: AppColors.gold,
                 title: 'Split an expense',
                 subtitle: 'You paid or split a bill — others owe you their share',
                 onTap: () => Navigator.pop(ctx, 'split'),
+              ),
+              const SizedBox(height: 10),
+              _addOption(
+                colors,
+                icon: Icons.south_west_rounded,
+                accent: AppColors.successDark,
+                title: 'Someone owes me',
+                subtitle: 'You paid for or lent them — expect the cash back',
+                onTap: () => Navigator.pop(ctx, 'owed'),
               ),
               const SizedBox(height: 10),
               _addOption(
@@ -110,10 +119,13 @@ class _SplitsScreenState extends State<SplitsScreen> {
         ),
       ),
     );
-    if (choice == 'split') {
-      await _openEditor();
-    } else if (choice == 'iowe') {
-      await _openEditor(iOwe: true);
+    switch (choice) {
+      case 'split':
+        await _openEditor(intent: SplitIntent.split);
+      case 'owed':
+        await _openEditor(intent: SplitIntent.owedToMe);
+      case 'iowe':
+        await _openEditor(intent: SplitIntent.iOwe);
     }
   }
 

@@ -5,6 +5,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/transaction_model.dart';
 import '../providers/theme_provider.dart';
+import '../services/app_events.dart';
 import '../services/database_service.dart';
 import '../services/sms_service.dart';
 import '../services/notification_service.dart';
@@ -62,13 +63,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Refresh when data changes elsewhere (e.g. a backup restore in Settings),
+    // since this tab stays alive in the IndexedStack and won't rebuild on its
+    // own.
+    appDataRevision.addListener(_onExternalDataChange);
     _initialize();
   }
 
   @override
   void dispose() {
+    appDataRevision.removeListener(_onExternalDataChange);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  void _onExternalDataChange() {
+    if (mounted) _loadData();
   }
 
   @override
@@ -205,30 +215,42 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _scanExistingSms() async {
     setState(() => _isScanning = true);
 
+    // The device's SMS provider can throw on a malformed message (some OEMs
+    // hand back a null where an int is expected). Keep the read isolated so a
+    // platform error never bubbles up as a scary "Error scanning SMS" — we
+    // still refresh from the database and tell the user plainly.
+    List<TransactionModel> transactions = const [];
+    var scanFailed = false;
     try {
-      final transactions = await _smsService.scanExistingSms(maxCount: 50);
-      await _loadData();
-
-      // Check budget thresholds after scan
-      await checkBudgetThresholds(_dbService, _notificationService);
-
-      if (mounted) {
-        showAppToast(
-          context,
-          message: transactions.isEmpty
-              ? 'No new transactions found'
-              : 'Found ${transactions.length} transaction${transactions.length == 1 ? '' : 's'}',
-          type: transactions.isEmpty
-              ? AppToastType.info
-              : AppToastType.success,
-        );
-      }
+      transactions = await _smsService.scanExistingSms(maxCount: 50);
     } catch (e) {
-      if (mounted) {
-        showAppToast(context,
-            message: 'Error scanning SMS: $e', type: AppToastType.error);
-      }
-    } finally {
+      scanFailed = true;
+      debugPrint('SMS scan failed: $e');
+    }
+
+    // Always refresh counts/totals and check thresholds, even if the read
+    // failed — this is what makes the dashboard correct after a restore.
+    try {
+      await _loadData();
+      await checkBudgetThresholds(_dbService, _notificationService);
+    } catch (e) {
+      debugPrint('Post-scan refresh failed: $e');
+    }
+
+    if (mounted) {
+      showAppToast(
+        context,
+        message: scanFailed
+            ? "Couldn't read messages on this device just now — your data is up to date"
+            : transactions.isEmpty
+                ? 'No new transactions found'
+                : 'Found ${transactions.length} transaction${transactions.length == 1 ? '' : 's'}',
+        type: scanFailed
+            ? AppToastType.warning
+            : transactions.isEmpty
+                ? AppToastType.info
+                : AppToastType.success,
+      );
       setState(() => _isScanning = false);
     }
   }

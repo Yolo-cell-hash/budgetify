@@ -1,4 +1,5 @@
 import 'package:another_telephony/telephony.dart';
+import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../models/transaction_model.dart';
 import '../models/budget_model.dart';
@@ -329,7 +330,12 @@ class SmsService {
         await checkBudgetThresholds(_dbService, NotificationService());
       }
     } catch (e) {
-      // Silently handle errors - logging would be better in production
+      // Surface to the caller so the UI can degrade gracefully (show a calm
+      // message and still refresh from the DB). Background callers
+      // (performBackgroundScan / performForegroundScan) already swallow this,
+      // so this only affects the user-initiated foreground scan.
+      debugPrint('scanExistingSms failed: $e');
+      rethrow;
     }
 
     return transactions;
