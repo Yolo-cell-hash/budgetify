@@ -47,9 +47,131 @@ class _SplitsScreenState extends State<SplitsScreen> {
     });
   }
 
-  Future<void> _addSplit() async {
-    final saved = await showSplitEditor(context);
+  Future<void> _openEditor({bool iOwe = false}) async {
+    final saved = await showSplitEditor(context, startIOwe: iOwe);
     if (saved) _load();
+  }
+
+  /// Two clearly-labelled ways to add to the ledger, so recording what you owe
+  /// is as discoverable as splitting a bill.
+  Future<void> _showAddMenu() async {
+    final colors = AppColors.of(context);
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: colors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: colors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Padding(
+                padding: const EdgeInsets.only(left: 4, bottom: 12),
+                child: Text('Add to ledger',
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: colors.text)),
+              ),
+              _addOption(
+                colors,
+                icon: Icons.call_split_rounded,
+                accent: AppColors.successDark,
+                title: 'Split an expense',
+                subtitle: 'You paid or split a bill — others owe you their share',
+                onTap: () => Navigator.pop(ctx, 'split'),
+              ),
+              const SizedBox(height: 10),
+              _addOption(
+                colors,
+                icon: Icons.north_east_rounded,
+                accent: AppColors.dangerDark,
+                title: 'I owe someone',
+                subtitle: 'Someone covered you — record what you owe them',
+                onTap: () => Navigator.pop(ctx, 'iowe'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (choice == 'split') {
+      await _openEditor();
+    } else if (choice == 'iowe') {
+      await _openEditor(iOwe: true);
+    }
+  }
+
+  Widget _addOption(
+    AppColors colors, {
+    required IconData icon,
+    required Color accent,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return PressableScale(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: colors.card,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: colors.border),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: Icon(icon, size: 22, color: accent),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.2,
+                          color: colors.text)),
+                  const SizedBox(height: 2),
+                  Text(subtitle,
+                      style: TextStyle(
+                          fontSize: 12.5,
+                          height: 1.3,
+                          color: colors.textSecondary)),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded,
+                size: 20, color: colors.textTertiary),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _openPerson(String person) async {
@@ -81,9 +203,9 @@ class _SplitsScreenState extends State<SplitsScreen> {
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: _addSplit,
+        onPressed: _showAddMenu,
         icon: const Icon(Icons.add_rounded),
-        label: const Text('New split'),
+        label: const Text('Add'),
       ),
       body: AmbientBackground(
         child: _loading
@@ -373,9 +495,9 @@ class _SplitsScreenState extends State<SplitsScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Split a bill with friends and track who owes whom — entirely on '
-            'your device. When you pay for the group, only your share counts '
-            'as your spending.',
+            'Split a bill, or record what you owe someone — all on your device. '
+            'Tap Add to get started. When you pay for a group, only your share '
+            'counts as your spending.',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 13,
