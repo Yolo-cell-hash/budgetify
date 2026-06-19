@@ -5,6 +5,7 @@ import '../models/budget_model.dart';
 import '../models/transaction_rule_model.dart';
 import '../models/holding.dart';
 import '../models/sip.dart';
+import '../models/ledger_models.dart';
 import 'sms_parser_service.dart';
 
 /// Database service for persisting transactions and budgets
@@ -30,7 +31,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 15,
+      version: 16,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -53,7 +54,8 @@ class DatabaseService {
         account_info TEXT,
         merchant_name TEXT,
         is_manual INTEGER NOT NULL DEFAULT 0,
-        fingerprint TEXT
+        fingerprint TEXT,
+        split_share REAL
       )
     ''');
 
@@ -127,6 +129,14 @@ class DatabaseService {
     await db.execute(
       'CREATE INDEX idx_sip_payments_sip ON sip_payments(sip_id)',
     );
+
+    // Offline split ledger (shared expenses, balances, settlements).
+    await db.execute(_createSplitsTable);
+    await db.execute(_createSplitParticipantsTable);
+    await db.execute(
+      'CREATE INDEX idx_split_participants_split ON split_participants(split_id)',
+    );
+    await db.execute(_createSettlementsTable);
   }
 
   static const String _createDeletedTransactionsTable = '''
@@ -192,6 +202,41 @@ class DatabaseService {
         transaction_id INTEGER,
         resolved_at INTEGER NOT NULL,
         UNIQUE(sip_id, period_key)
+      )
+    ''';
+
+  static const String _createSplitsTable = '''
+      CREATE TABLE IF NOT EXISTS splits(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        total_amount REAL NOT NULL,
+        my_share REAL NOT NULL,
+        payer TEXT,
+        date INTEGER NOT NULL,
+        note TEXT,
+        transaction_id INTEGER,
+        created_at INTEGER NOT NULL
+      )
+    ''';
+
+  static const String _createSplitParticipantsTable = '''
+      CREATE TABLE IF NOT EXISTS split_participants(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        split_id INTEGER NOT NULL,
+        person TEXT NOT NULL,
+        share REAL NOT NULL
+      )
+    ''';
+
+  static const String _createSettlementsTable = '''
+      CREATE TABLE IF NOT EXISTS settlements(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        person TEXT NOT NULL,
+        amount REAL NOT NULL,
+        paid_to_me INTEGER NOT NULL,
+        date INTEGER NOT NULL,
+        note TEXT,
+        created_at INTEGER NOT NULL
       )
     ''';
 
@@ -382,6 +427,24 @@ class DatabaseService {
       await db.execute(
         'CREATE INDEX IF NOT EXISTS idx_sip_payments_sip ON sip_payments(sip_id)',
       );
+    }
+
+    if (oldVersion < 16) {
+      // Offline split ledger + the per-transaction "my share" override that
+      // lets a split reduce a transaction's contribution to spending totals.
+      try {
+        await db.execute(
+          'ALTER TABLE transactions ADD COLUMN split_share REAL',
+        );
+      } catch (e) {
+        // Column may already exist
+      }
+      await db.execute(_createSplitsTable);
+      await db.execute(_createSplitParticipantsTable);
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_split_participants_split ON split_participants(split_id)',
+      );
+      await db.execute(_createSettlementsTable);
     }
   }
 
@@ -686,7 +749,7 @@ class DatabaseService {
   Future<double> getTotalByType(TransactionType type) async {
     final db = await database;
     final result = await db.rawQuery(
-      'SELECT SUM(amount) as total FROM transactions WHERE type = ?',
+      'SELECT SUM(COALESCE(split_share, amount)) as total FROM transactions WHERE type = ?',
       [type.index],
     );
     return (result.first['total'] as num?)?.toDouble() ?? 0.0;
@@ -793,7 +856,7 @@ class DatabaseService {
       args.addAll(exArgs);
     }
     final result = await db.rawQuery(
-      'SELECT SUM(amount) as total FROM transactions WHERE $where',
+      'SELECT SUM(COALESCE(split_share, amount)) as total FROM transactions WHERE $where',
       args,
     );
     return (result.first['total'] as num?)?.toDouble() ?? 0.0;
@@ -823,7 +886,7 @@ class DatabaseService {
     }
     final result = await db.query(
       'transactions',
-      columns: ['detected_at', 'amount'],
+      columns: ['detected_at', 'amount', 'split_share'],
       where: where,
       whereArgs: args,
       orderBy: 'detected_at ASC',
@@ -834,7 +897,10 @@ class DatabaseService {
         row['detected_at'] as int,
       );
       final dayKey = DateTime(date.year, date.month, date.day);
-      daily[dayKey] = (daily[dayKey] ?? 0) + (row['amount'] as num).toDouble();
+      // A split transaction contributes only the user's own share.
+      final effective = (row['split_share'] as num?)?.toDouble() ??
+          (row['amount'] as num).toDouble();
+      daily[dayKey] = (daily[dayKey] ?? 0) + effective;
     }
     return daily;
   }
@@ -873,7 +939,7 @@ class DatabaseService {
     final (clause, exArgs) = _nonExpenseExclusion();
     final result = await db.rawQuery(
       '''
-      SELECT category, SUM(amount) as total FROM transactions
+      SELECT category, SUM(COALESCE(split_share, amount)) as total FROM transactions
       WHERE type = ? AND detected_at >= ? AND detected_at <= ?
         AND category IS NOT NULL AND $clause
       GROUP BY category ORDER BY total DESC
@@ -935,7 +1001,7 @@ class DatabaseService {
     final result = await db.rawQuery(
       '''
       SELECT COALESCE(NULLIF(TRIM(merchant_name), ''), 'Other') as merchant,
-             SUM(amount) as total, COUNT(*) as cnt
+             SUM(COALESCE(split_share, amount)) as total, COUNT(*) as cnt
       FROM transactions
       WHERE type = ? AND category = ? AND detected_at >= ? AND detected_at <= ?
       GROUP BY merchant ORDER BY total DESC
@@ -980,7 +1046,7 @@ class DatabaseService {
     final result = await db.rawQuery(
       '''
       SELECT COALESCE(NULLIF(TRIM(merchant_name), ''), 'Other') as merchant,
-             SUM(amount) as total, COUNT(*) as cnt
+             SUM(COALESCE(split_share, amount)) as total, COUNT(*) as cnt
       FROM transactions
       WHERE type = ? AND detected_at >= ? AND detected_at <= ? AND $clause
       GROUP BY merchant ORDER BY total DESC${limit > 0 ? ' LIMIT $limit' : ''}
@@ -1017,7 +1083,7 @@ class DatabaseService {
       final mStart = DateTime(now.year, now.month - i, 1);
       final mEnd = DateTime(now.year, now.month - i + 1, 0, 23, 59, 59);
       final r = await db.rawQuery(
-        'SELECT SUM(amount) as total, COUNT(*) as cnt FROM transactions '
+        'SELECT SUM(COALESCE(split_share, amount)) as total, COUNT(*) as cnt FROM transactions '
         'WHERE type = ? AND detected_at >= ? AND detected_at <= ? AND $mClause',
         [
           TransactionType.debit.index,
@@ -1072,7 +1138,7 @@ class DatabaseService {
       final (clause, exArgs) = _nonExpenseExclusion();
       final result = await db.rawQuery(
         '''
-        SELECT SUM(amount) as total FROM transactions
+        SELECT SUM(COALESCE(split_share, amount)) as total FROM transactions
         WHERE type = ? AND detected_at >= ? AND detected_at <= ? AND $clause
       ''',
         [
@@ -1417,7 +1483,7 @@ class DatabaseService {
   Future<double> getInvestmentsTagTotal() async {
     final db = await database;
     final r = await db.rawQuery(
-      "SELECT SUM(amount) as total FROM transactions "
+      "SELECT SUM(COALESCE(split_share, amount)) as total FROM transactions "
       "WHERE type = ? AND category = 'Investments'",
       [TransactionType.debit.index],
     );
@@ -1536,6 +1602,137 @@ class DatabaseService {
     return Sip.fromMap(r.first);
   }
 
+  // ==================== SPLIT LEDGER OPERATIONS ====================
+
+  /// Set (or clear, with null) a transaction's "my share" override. When set,
+  /// every spend aggregate counts only this amount for the transaction.
+  Future<void> setTransactionSplitShare(int transactionId, double? share) async {
+    final db = await database;
+    await db.update(
+      'transactions',
+      {'split_share': share},
+      where: 'id = ?',
+      whereArgs: [transactionId],
+    );
+  }
+
+  /// Insert a split and its participants atomically; returns the new split id.
+  Future<int> insertSplit(
+    SplitEntry split,
+    List<SplitParticipant> participants,
+  ) async {
+    final db = await database;
+    return db.transaction((txn) async {
+      final id = await txn.insert('splits', split.toMap());
+      for (final p in participants) {
+        await txn.insert('split_participants', {
+          'split_id': id,
+          'person': p.person,
+          'share': p.share,
+        });
+      }
+      return id;
+    });
+  }
+
+  /// Replace a split and its participants in place.
+  Future<void> updateSplit(
+    SplitEntry split,
+    List<SplitParticipant> participants,
+  ) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.update('splits', split.toMap(),
+          where: 'id = ?', whereArgs: [split.id]);
+      await txn.delete('split_participants',
+          where: 'split_id = ?', whereArgs: [split.id]);
+      for (final p in participants) {
+        await txn.insert('split_participants', {
+          'split_id': split.id,
+          'person': p.person,
+          'share': p.share,
+        });
+      }
+    });
+  }
+
+  Future<void> deleteSplit(int id) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.delete('split_participants',
+          where: 'split_id = ?', whereArgs: [id]);
+      await txn.delete('splits', where: 'id = ?', whereArgs: [id]);
+    });
+  }
+
+  Future<SplitEntry?> getSplit(int id) async {
+    final db = await database;
+    final r =
+        await db.query('splits', where: 'id = ?', whereArgs: [id], limit: 1);
+    if (r.isEmpty) return null;
+    return SplitEntry.fromMap(r.first);
+  }
+
+  Future<List<SplitEntry>> getSplits() async {
+    final db = await database;
+    final maps = await db.query('splits', orderBy: 'date DESC, id DESC');
+    return maps.map((m) => SplitEntry.fromMap(m)).toList();
+  }
+
+  Future<List<SplitParticipant>> getParticipants(int splitId) async {
+    final db = await database;
+    final maps = await db.query('split_participants',
+        where: 'split_id = ?', whereArgs: [splitId]);
+    return maps.map((m) => SplitParticipant.fromMap(m)).toList();
+  }
+
+  /// All participants grouped by split id — used to compute balances in one
+  /// pass without an N+1 query.
+  Future<Map<int, List<SplitParticipant>>> getAllParticipants() async {
+    final db = await database;
+    final maps = await db.query('split_participants');
+    final out = <int, List<SplitParticipant>>{};
+    for (final m in maps) {
+      final p = SplitParticipant.fromMap(m);
+      (out[p.splitId!] ??= []).add(p);
+    }
+    return out;
+  }
+
+  Future<int> insertSettlement(Settlement s) async {
+    final db = await database;
+    return db.insert('settlements', s.toMap());
+  }
+
+  Future<void> deleteSettlement(int id) async {
+    final db = await database;
+    await db.delete('settlements', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<List<Settlement>> getSettlements() async {
+    final db = await database;
+    final maps = await db.query('settlements', orderBy: 'date DESC, id DESC');
+    return maps.map((m) => Settlement.fromMap(m)).toList();
+  }
+
+  /// Distinct people that already appear anywhere in the ledger, for the
+  /// editor's quick-pick suggestions.
+  Future<List<String>> getKnownPeople() async {
+    final db = await database;
+    final a = await db.rawQuery('SELECT DISTINCT person FROM split_participants');
+    final b = await db.rawQuery('SELECT DISTINCT person FROM settlements');
+    final c = await db.rawQuery(
+        'SELECT DISTINCT payer AS person FROM splits WHERE payer IS NOT NULL');
+    final set = <String>{
+      for (final r in [...a, ...b, ...c])
+        if ((r['person'] as String?)?.trim().isNotEmpty ?? false)
+          (r['person'] as String).trim(),
+    };
+    final list = set.toList()
+      ..sort((x, y) => x.toLowerCase().compareTo(y.toLowerCase()));
+    return list;
+  }
+
   Future<Map<String, dynamic>> exportAllData() async {
     final db = await database;
     return {
@@ -1545,6 +1742,9 @@ class DatabaseService {
       'holdings': await db.query('holdings'),
       'sips': await db.query('sips'),
       'sip_payments': await db.query('sip_payments'),
+      'splits': await db.query('splits'),
+      'split_participants': await db.query('split_participants'),
+      'settlements': await db.query('settlements'),
     };
   }
 
@@ -1709,12 +1909,74 @@ class DatabaseService {
       await db.insert('sip_payments', row);
     }
 
+    // Split ledger: remap split ids so participants re-point correctly. The
+    // transaction_id link is dropped (transaction ids aren't stable across a
+    // restore) — but each transaction's split_share is restored with the
+    // transaction row itself, so spend totals stay correct regardless.
+    final splitIdMap = <int, int>{};
+    var splitCount = 0;
+    for (final raw in (data['splits'] as List? ?? const [])) {
+      final row = Map<String, dynamic>.from(raw as Map);
+      final oldId = row['id'] as int?;
+      row.remove('id');
+      row['transaction_id'] = null;
+      final exists = await db.query(
+        'splits',
+        where: 'created_at = ? AND total_amount = ? AND title = ?',
+        whereArgs: [row['created_at'], row['total_amount'], row['title']],
+        limit: 1,
+      );
+      final int localId;
+      if (exists.isNotEmpty) {
+        localId = exists.first['id'] as int;
+      } else {
+        localId = await db.insert('splits', row);
+        splitCount++;
+      }
+      if (oldId != null) splitIdMap[oldId] = localId;
+    }
+
+    for (final raw in (data['split_participants'] as List? ?? const [])) {
+      final row = Map<String, dynamic>.from(raw as Map);
+      row.remove('id');
+      final newSplitId = splitIdMap[row['split_id'] as int?];
+      if (newSplitId == null) continue; // orphaned participant — skip
+      final exists = await db.query(
+        'split_participants',
+        where: 'split_id = ? AND person = ? AND share = ?',
+        whereArgs: [newSplitId, row['person'], row['share']],
+        limit: 1,
+      );
+      if (exists.isNotEmpty) continue;
+      row['split_id'] = newSplitId;
+      await db.insert('split_participants', row);
+    }
+
+    for (final raw in (data['settlements'] as List? ?? const [])) {
+      final row = Map<String, dynamic>.from(raw as Map);
+      row.remove('id');
+      final exists = await db.query(
+        'settlements',
+        where: 'person = ? AND amount = ? AND date = ? AND paid_to_me = ?',
+        whereArgs: [
+          row['person'],
+          row['amount'],
+          row['date'],
+          row['paid_to_me'],
+        ],
+        limit: 1,
+      );
+      if (exists.isNotEmpty) continue;
+      await db.insert('settlements', row);
+    }
+
     return {
       'transactions': txnCount,
       'budgets': budgetCount,
       'rules': ruleCount,
       'holdings': holdingCount,
       'sips': sipCount,
+      'splits': splitCount,
     };
   }
 
