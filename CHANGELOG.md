@@ -4,6 +4,19 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.5.1] — 2026-06-19
+
+### Added
+
+- **Financial Health Score.** A single 0–100 number on the home screen, right
+  under your savings rate, giving an at-a-glance read on your money health
+  (100 is excellent, 0 is poor). It blends up to four pillars — **savings rate**
+  (35%), **budget adherence** (25%), **recurring load** (20%) and **net worth**
+  (20%) — into an animated gauge with a per-pillar breakdown. Pillars without
+  data yet (no budget set, no holdings) are skipped and the rest reweighted, so
+  the score always reflects what's available. A tap on the ⓘ explains exactly
+  how it's calculated. Computed entirely on-device.
+
 ## [1.5.0] — 2026-06-19
 
 The biggest update yet: a private on-device money coach, a clearer
@@ -66,5 +79,6 @@ safe-to-spend, and a fully offline split ledger.
 - Hardened startup so a notification-subsystem hiccup can never block the app
   from opening.
 
+[1.5.1]: https://github.com/Yolo-cell-hash/budgetify/releases/tag/v1.5.1
 [1.5.0]: https://github.com/Yolo-cell-hash/budgetify/releases/tag/v1.5.0
 [1.4.1]: https://github.com/Yolo-cell-hash/budgetify/releases/tag/v1.4.1
