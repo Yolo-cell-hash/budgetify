@@ -26,6 +26,7 @@ import '../widgets/expense_chart.dart';
 import 'transactions_screen.dart';
 import 'add_transaction_screen.dart';
 import 'net_worth_screen.dart';
+import 'splits_screen.dart';
 import 'wrapped_screen.dart';
 
 /// Home screen of the Budget Tracker app
@@ -142,8 +143,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               monthlyIncome += t.amount;
             }
           } else if (ExpenseCategories.isExpenseCategory(t.category)) {
-            // Self transfers and investments aren't spending
-            monthlyExpenses += t.amount;
+            // Self transfers and investments aren't spending; a split
+            // transaction counts only the user's own share.
+            monthlyExpenses += t.effectiveAmount;
           }
         }
       }
@@ -423,10 +425,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           const SizedBox(height: 12),
                           FadeSlideIn(order: 5, child: _buildWrappedEntry()),
                           const SizedBox(height: 12),
-                          FadeSlideIn(order: 6, child: _buildQuickActions()),
+                          FadeSlideIn(order: 6, child: _buildSplitsEntry()),
+                          const SizedBox(height: 12),
+                          FadeSlideIn(order: 7, child: _buildQuickActions()),
                           const SizedBox(height: 12),
                           FadeSlideIn(
-                            order: 7,
+                            order: 8,
                             child: _buildRecentTransactions(),
                           ),
                         ],
@@ -901,6 +905,76 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
+
+  Widget _buildSplitsEntry() {
+    final colors = AppColors.of(context);
+
+    return PressableScale(
+      onTap: () async {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const SplitsScreen()),
+        );
+        _loadData();
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: colors.card,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: colors.border),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: AppColors.gold.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Center(
+                child: Icon(Icons.call_split_rounded,
+                    color: AppColors.goldDeep, size: 22),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Splits',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.2,
+                      color: colors.text,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Track shared bills & who owes whom',
+                    style: TextStyle(fontSize: 12, color: colors.textSecondary),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded,
+                size: 20, color: colors.textTertiary),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _buildQuickActions() {
     final colors = AppColors.of(context);

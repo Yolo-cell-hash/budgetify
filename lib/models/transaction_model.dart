@@ -18,6 +18,11 @@ class TransactionModel {
   final bool isManual;
   final String? fingerprint;
 
+  /// When this transaction is part of a split, the user's own share of it —
+  /// the figure that counts toward spending totals instead of [amount]. Null
+  /// for ordinary (unsplit) transactions.
+  final double? splitShare;
+
   TransactionModel({
     this.id,
     required this.amount,
@@ -32,7 +37,12 @@ class TransactionModel {
     this.merchantName,
     this.isManual = false,
     this.fingerprint,
+    this.splitShare,
   });
+
+  /// The amount that counts as the user's real spend: their split share when
+  /// the transaction is split, otherwise the full [amount].
+  double get effectiveAmount => splitShare ?? amount;
 
   /// Compute a deterministic fingerprint for deduplication.
   /// Two SMS messages that represent the same real-world transaction will
@@ -112,6 +122,7 @@ class TransactionModel {
       merchantName: map['merchant_name'] as String?,
       isManual: (map['is_manual'] as int?) == 1,
       fingerprint: map['fingerprint'] as String?,
+      splitShare: (map['split_share'] as num?)?.toDouble(),
     );
   }
 
@@ -131,6 +142,7 @@ class TransactionModel {
       'merchant_name': merchantName,
       'is_manual': isManual ? 1 : 0,
       'fingerprint': fingerprint,
+      'split_share': splitShare,
     };
   }
 
@@ -150,6 +162,7 @@ class TransactionModel {
       merchantName: merchantName,
       isManual: isManual,
       fingerprint: fingerprint,
+      splitShare: splitShare,
     );
   }
 
@@ -168,6 +181,7 @@ class TransactionModel {
     String? merchantName,
     bool? isManual,
     String? fingerprint,
+    double? splitShare,
   }) {
     return TransactionModel(
       id: id ?? this.id,
@@ -183,6 +197,7 @@ class TransactionModel {
       merchantName: merchantName ?? this.merchantName,
       isManual: isManual ?? this.isManual,
       fingerprint: fingerprint ?? this.fingerprint,
+      splitShare: splitShare ?? this.splitShare,
     );
   }
 }
