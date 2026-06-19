@@ -18,11 +18,13 @@ import 'person_avatar.dart';
 /// [linkTxn] pre-fills the sheet from a detected/manual transaction and links
 /// it, so the split reduces that transaction's contribution to spending totals
 /// down to the user's own share.
+///
+/// [intent] frames the editor for the three ways to add to the ledger.
 Future<bool> showSplitEditor(
   BuildContext context, {
   SplitEntry? existing,
   TransactionModel? linkTxn,
-  bool startIOwe = false,
+  SplitIntent intent = SplitIntent.split,
 }) async {
   final isDark = Theme.of(context).brightness == Brightness.dark;
   final result = await showModalBottomSheet<bool>(
@@ -35,11 +37,17 @@ Future<bool> showSplitEditor(
     builder: (_) => _SplitEditorSheet(
       existing: existing,
       linkTxn: linkTxn,
-      startIOwe: startIOwe,
+      intent: intent,
     ),
   );
   return result ?? false;
 }
+
+/// How the editor is framed when opened.
+/// - [split]: a shared bill (you paid / split).
+/// - [iOwe]: someone covered you — you owe them.
+/// - [owedToMe]: you covered/lent someone — they owe you.
+enum SplitIntent { split, iOwe, owedToMe }
 
 const String _me = '__me__';
 
@@ -56,8 +64,12 @@ class _Party {
 class _SplitEditorSheet extends StatefulWidget {
   final SplitEntry? existing;
   final TransactionModel? linkTxn;
-  final bool startIOwe;
-  const _SplitEditorSheet({this.existing, this.linkTxn, this.startIOwe = false});
+  final SplitIntent intent;
+  const _SplitEditorSheet({
+    this.existing,
+    this.linkTxn,
+    this.intent = SplitIntent.split,
+  });
 
   @override
   State<_SplitEditorSheet> createState() => _SplitEditorSheetState();
@@ -118,12 +130,20 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
     }
     if (mounted) setState(() => _loading = false);
 
-    // "I owe someone" mode: jump straight to choosing who paid, which sets up
-    // the IOU (only you in the split → you owe them).
-    if (widget.startIOwe && !_editing) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _promptAddPerson(asPayer: true);
-      });
+    // Jump straight to naming the other person for the directional modes, so
+    // each is a one-step entry:
+    //  • iOwe     → "Who paid?"  (they paid, only you share → you owe them)
+    //  • owedToMe → "Who owes you?" (you covered it, only they share)
+    if (!_editing) {
+      if (widget.intent == SplitIntent.iOwe) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _promptAddPerson(asPayer: true);
+        });
+      } else if (widget.intent == SplitIntent.owedToMe) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _promptAddPerson(asSoleOwer: true);
+        });
+      }
     }
   }
 
@@ -182,11 +202,17 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
     setState(() {});
   }
 
-  Future<void> _promptAddPerson({required bool asPayer}) async {
+  Future<void> _promptAddPerson(
+      {bool asPayer = false, bool asSoleOwer = false}) async {
     final ctrl = TextEditingController();
     final known = await _ledger.knownPeople();
     if (!mounted) return;
     final colors = AppColors.of(context);
+    final promptTitle = asPayer
+        ? 'Who paid?'
+        : asSoleOwer
+            ? 'Who owes you?'
+            : 'Add a person';
     final picked = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
@@ -205,7 +231,7 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(asPayer ? 'Who paid?' : 'Add a person',
+            Text(promptTitle,
                 style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
@@ -247,7 +273,14 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
       ),
     );
     ctrl.dispose();
-    if (picked != null) {
+    if (picked == null) return;
+    if (asSoleOwer) {
+      // "Someone owes me": you covered it, so they're the only one in the
+      // split and you step out of it → they owe you the whole amount.
+      _addPerson(picked, sharing: true, asPayer: false);
+      final me = _parties.firstWhere((p) => p.name == _me);
+      setState(() => me.sharing = false);
+    } else {
       // A person added as the payer defaults to *not* sharing, so the common
       // "they covered it for me" case becomes a one-step "You owe them" IOU.
       _addPerson(picked, sharing: !asPayer, asPayer: asPayer);
@@ -437,7 +470,18 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
       );
 
   Widget _header(AppColors colors) {
-    final iOwe = widget.startIOwe && !_editing;
+    final intent = _editing ? SplitIntent.split : widget.intent;
+    final (icon, title) = switch (intent) {
+      SplitIntent.iOwe => (Icons.north_east_rounded, 'Record what you owe'),
+      SplitIntent.owedToMe => (
+          Icons.south_west_rounded,
+          "Record what you're owed"
+        ),
+      SplitIntent.split => (
+          Icons.call_split_rounded,
+          _editing ? 'Edit split' : 'New split'
+        ),
+    };
     return Row(
       children: [
         Container(
@@ -446,20 +490,12 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
             color: AppColors.gold.withValues(alpha: 0.14),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Icon(
-            iOwe ? Icons.north_east_rounded : Icons.call_split_rounded,
-            color: AppColors.gold,
-            size: 22,
-          ),
+          child: Icon(icon, color: AppColors.gold, size: 22),
         ),
         const SizedBox(width: 14),
         Expanded(
           child: Text(
-            _editing
-                ? 'Edit split'
-                : iOwe
-                    ? 'Record what you owe'
-                    : 'New split',
+            title,
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w700,

@@ -5,6 +5,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:open_filex/open_filex.dart';
 import '../providers/theme_provider.dart';
 import '../providers/app_preferences.dart';
+import '../services/app_events.dart';
 import '../services/app_lock_service.dart';
 import '../services/backup_service.dart';
 import '../services/background_service.dart';
@@ -591,6 +592,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) Navigator.pop(context);
       if (!mounted) return;
       if (result == null) return; // user cancelled the file picker
+      // The restore rewrote the database; tell the (still-alive) Home tab and
+      // other live screens to reload so counts/totals update without a scan.
+      notifyAppDataChanged();
       _showStyledSnackBar(
         icon: Icons.check_circle,
         message: result.total == 0
