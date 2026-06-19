@@ -1906,6 +1906,17 @@ class SmsParserService {
       RegExp(r'PASSWORD CHANGED'),
       RegExp(r'\bLOGIN\b'),
       RegExp(r'LOGGED IN'),
+      // Credit-limit-increase offers. Banks (notably ICICI) send these on the
+      // transactional -S/-T route, so the -P promo filter misses them — and
+      // the "from Rs X to Rs Y" limit was being read as a ₹X income credit.
+      RegExp(r'INCREAS(?:E|ING)\s+(?:THE\s+|YOUR\s+)?(?:CREDIT\s+)?LIMIT'),
+      RegExp(r'RAISE\s+(?:THE\s+|YOUR\s+)?(?:CREDIT\s+)?LIMIT'),
+      RegExp(r'\bCRLIM\b'),
+      // Credit-card bill payment received — this is the user *repaying* their
+      // card, not income. The spends were already captured when the card was
+      // used, and the bank-side debit for the payment is the real outflow.
+      // e.g. "Payment of INR X has been received on your ... Credit Card ...".
+      RegExp(r'PAYMENT[\s\S]{0,60}RECEIVED[\s\S]{0,60}CREDIT\s*CARD'),
     ];
     if (hardRejectPatterns.any((p) => p.hasMatch(upperMessage))) {
       return true;
