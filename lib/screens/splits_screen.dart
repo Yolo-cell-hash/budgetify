@@ -6,6 +6,7 @@ import '../providers/theme_provider.dart';
 import '../services/ledger_service.dart';
 import '../widgets/glass.dart';
 import '../widgets/motion.dart';
+import '../widgets/person_avatar.dart';
 import '../widgets/privacy_amount.dart';
 import '../widgets/split_editor_sheet.dart';
 import 'person_detail_screen.dart';
@@ -23,6 +24,7 @@ class SplitsScreen extends StatefulWidget {
 class _SplitsScreenState extends State<SplitsScreen> {
   final _ledger = LedgerService();
   LedgerSummary? _summary;
+  Map<String, PersonContext> _context = const {};
   bool _loading = true;
 
   final _fmt =
@@ -36,9 +38,11 @@ class _SplitsScreenState extends State<SplitsScreen> {
 
   Future<void> _load() async {
     final s = await _ledger.summary();
+    final ctx = await _ledger.peopleContext();
     if (!mounted) return;
     setState(() {
       _summary = s;
+      _context = ctx;
       _loading = false;
     });
   }
@@ -239,6 +243,16 @@ class _SplitsScreenState extends State<SplitsScreen> {
             ? ('you owe', colors.danger)
             : ('settled up', colors.textTertiary);
 
+    final ctx = _context[p.person];
+    final String subtitle;
+    if (ctx?.latestExpense != null) {
+      subtitle = ctx!.splitCount > 1
+          ? '${ctx.latestExpense}  ·  +${ctx.splitCount - 1} more'
+          : ctx.latestExpense!;
+    } else {
+      subtitle = 'Settled from payments';
+    }
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: PressableScale(
@@ -252,23 +266,7 @@ class _SplitsScreenState extends State<SplitsScreen> {
           ),
           child: Row(
             children: [
-              Container(
-                width: 44,
-                height: 44,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(13),
-                ),
-                child: Text(
-                  p.person.characters.first.toUpperCase(),
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: color,
-                  ),
-                ),
-              ),
+              PersonAvatar(name: p.person, size: 46),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
@@ -278,32 +276,61 @@ class _SplitsScreenState extends State<SplitsScreen> {
                       p.person,
                       style: TextStyle(
                         fontSize: 15,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.2,
                         color: colors.text,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 2),
-                    Text(status,
-                        style:
-                            TextStyle(fontSize: 12.5, color: colors.textTertiary)),
+                    const SizedBox(height: 3),
+                    Row(
+                      children: [
+                        Icon(Icons.receipt_long_rounded,
+                            size: 12, color: colors.textTertiary),
+                        const SizedBox(width: 5),
+                        Expanded(
+                          child: Text(
+                            subtitle,
+                            style: TextStyle(
+                                fontSize: 12.5, color: colors.textSecondary),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
-              if (!p.isSettled)
-                PrivacyAmount(
-                  _fmt.format(p.net.abs()),
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: -0.3,
-                    color: color,
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (!p.isSettled)
+                    PrivacyAmount(
+                      _fmt.format(p.net.abs()),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.3,
+                        color: color,
+                      ),
+                    )
+                  else
+                    Icon(Icons.check_circle_rounded, size: 18, color: color),
+                  const SizedBox(height: 2),
+                  Text(
+                    status,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: color,
+                    ),
                   ),
-                )
-              else
-                Icon(Icons.check_circle_rounded, size: 18, color: color),
-              const SizedBox(width: 4),
-              Icon(Icons.chevron_right_rounded,
-                  size: 18, color: colors.textTertiary),
+                ],
+              ),
             ],
           ),
         ),
@@ -321,10 +348,19 @@ class _SplitsScreenState extends State<SplitsScreen> {
             height: 64,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: AppColors.gold.withValues(alpha: 0.12),
+              gradient: LinearGradient(
+                colors: [
+                  AppColors.gold.withValues(alpha: 0.20),
+                  AppColors.gold.withValues(alpha: 0.06),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
               borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppColors.gold.withValues(alpha: 0.25)),
             ),
-            child: const Text('🤝', style: TextStyle(fontSize: 30)),
+            child: const Icon(Icons.diversity_3_rounded,
+                size: 30, color: AppColors.goldDeep),
           ),
           const SizedBox(height: 16),
           Text(
