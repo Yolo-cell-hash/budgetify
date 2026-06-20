@@ -121,6 +121,40 @@ const List<String> _longHair = [
   '..XXJJJJJJJJXX..',
 ];
 
+const List<String> _mohawkHead = [
+  '......XHHX......',
+  '....XXKHHKXX....',
+  '...XKKKHHKKKX...',
+  '..XKKKKHHKKKKX..',
+  '..XKKKKHHKKKKX..',
+];
+const List<String> _topknotHead = [
+  '......XHX.......',
+  '....XXXXXXXX....',
+  '...XHHHHHHHHX...',
+  '..XHHHHHHHHHHX..',
+  '..XHKKKKKKKKHX..',
+];
+// Chin-length bob (hair frames the face, ends at the jaw).
+const List<String> _bob = [
+  '....XXXXXXXX....',
+  '...XHHHHHHHHX...',
+  '..XHHHHHHHHHHX..',
+  '..XHHHHHHHHHHX..',
+  '..XHHHHHHHHHHX..',
+  '..HXKKKKKKKKXH..',
+  '..HXKWWKKWWKXH..',
+  '..HXKIIKKIIKXH..',
+  '..HXKKKKKKKKXH..',
+  '..HXKKKkkKKKXH..',
+  '....XKKKKKKX....',
+  '.....XKKKKX.....',
+  '...XXJJJJJJXX...',
+  '..XJjJJJJJJjJX..',
+  '..XJjJJJJJJjJX..',
+  '..XXJJJJJJJJXX..',
+];
+
 List<String> _stack(List<String> head) => [...head, ..._face];
 
 const _skinLight = Color(0xFFF2C9A0);
@@ -155,6 +189,30 @@ final List<_Sprite> _sprites = [
   _Sprite(_stack(_afroHead),
       const _Pal(hair: Color(0xFF2A2530), hairD: Color(0xFF18151C), cap: Color(0xFF2A2530), capD: Color(0xFF18151C), jacket: Color(0xFFF0883C), jacketD: Color(0xFFC76B26), skin: _skinDark, skinD: _skinDarkD, iris: Color(0xFF3A2E28)),
       const [Color(0xFFFF9E55), Color(0xFFC76B26)]),
+  // Bob cut (fem), dark-brown hair.
+  _Sprite(_bob,
+      const _Pal(hair: Color(0xFF4A2E16), hairD: Color(0xFF2E1C0E), cap: Color(0xFF4A2E16), capD: Color(0xFF2E1C0E), jacket: Color(0xFF2BB9A0), jacketD: Color(0xFF1C8A78), skin: _skinMed, skinD: _skinMedD, iris: Color(0xFF6B4A2E)),
+      const [Color(0xFF3DD2B8), Color(0xFF1C8A78)]),
+  // Mohawk (masc), electric-blue.
+  _Sprite(_stack(_mohawkHead),
+      const _Pal(hair: Color(0xFF2D6CDF), hairD: Color(0xFF1E4DA8), cap: Color(0xFF2D6CDF), capD: Color(0xFF1E4DA8), jacket: Color(0xFF2A2E37), jacketD: Color(0xFF1C1F26), skin: _skinLight, skinD: _skinLightD, iris: Color(0xFF3A3F4A)),
+      const [Color(0xFF4F8DF7), Color(0xFF2456C8)]),
+  // Top-knot (unisex), black hair.
+  _Sprite(_stack(_topknotHead),
+      const _Pal(hair: Color(0xFF2E2A33), hairD: Color(0xFF1C1A20), cap: Color(0xFF2E2A33), capD: Color(0xFF1C1A20), jacket: Color(0xFF7E4FD6), jacketD: Color(0xFF5A37A0), skin: _skinLight, skinD: _skinLightD, iris: Color(0xFF6B4A2E)),
+      const [Color(0xFF9B5DE5), Color(0xFF5E2CA5)]),
+  // Long hair (fem), blonde.
+  _Sprite(_longHair,
+      const _Pal(hair: Color(0xFFE6C15A), hairD: Color(0xFFC09A38), cap: Color(0xFFE6C15A), capD: Color(0xFFC09A38), jacket: Color(0xFFE05C86), jacketD: Color(0xFFB23C64), skin: _skinLight, skinD: _skinLightD, iris: Color(0xFF5BD68A)),
+      const [Color(0xFFF076A0), Color(0xFFB23C64)]),
+  // Short hair (masc), dark skin.
+  _Sprite(_stack(_shortHead),
+      const _Pal(hair: Color(0xFF2A2530), hairD: Color(0xFF18151C), cap: Color(0xFF2A2530), capD: Color(0xFF18151C), jacket: Color(0xFF2BB985), jacketD: Color(0xFF1C8A62), skin: _skinDark, skinD: _skinDarkD, iris: Color(0xFF3A2E28)),
+      const [Color(0xFF3DD2A0), Color(0xFF1E8F6B)]),
+  // Afro (unisex), brown hair + light skin.
+  _Sprite(_stack(_afroHead),
+      const _Pal(hair: Color(0xFF6B4423), hairD: Color(0xFF4A2E16), cap: Color(0xFF6B4423), capD: Color(0xFF4A2E16), jacket: Color(0xFF2D6CDF), jacketD: Color(0xFF1E4DA8), skin: _skinLight, skinD: _skinLightD, iris: Color(0xFF6B4A2E)),
+      const [Color(0xFF4F8DF7), Color(0xFF2456C8)]),
 ];
 
 /// Number of distinct pixel-character avatars offered.

@@ -5,32 +5,33 @@ import 'package:flutter/material.dart';
 import '../models/achievement.dart';
 import '../providers/theme_provider.dart';
 
-/// Visual treatment for a rarity: the medallion disc gradient, ring colour, a
-/// sparkle/glow colour, and an animation tier (0 sheen, 1 glow+sparkle,
-/// 2 rotating shimmer + sparkle).
+/// Frame treatment for a rarity — Clash-Royale-mastery style: a consistent
+/// hexagonal shield whose **metal colour and ornamentation** change by tier
+/// while the icon inside stays the same. [animTier]: 0 sheen, 1 glow+sparkle,
+/// 2 rotating shimmer.
 class RarityStyle {
-  final List<Color> disc;
-  final Color ring;
-  final Color spark;
+  final List<Color> frame; // metal gradient [light, dark]
+  final Color edge; // frame outline
+  final Color spark; // glow / sparkle / gem accent
   final int animTier;
-  const RarityStyle(this.disc, this.ring, this.spark, this.animTier);
+  const RarityStyle(this.frame, this.edge, this.spark, this.animTier);
 }
 
 RarityStyle rarityStyle(BadgeRarity r) => switch (r) {
       BadgeRarity.copper =>
-        const RarityStyle([Color(0xFFD98A4E), Color(0xFF8C4A1E)], Color(0xFF6F3A18), Color(0xFFF0B080), 0),
+        const RarityStyle([Color(0xFFD98A4E), Color(0xFF8C4A1E)], Color(0xFF5E3414), Color(0xFFF0B080), 0),
       BadgeRarity.bronze =>
-        const RarityStyle([Color(0xFFE0934A), Color(0xFF935A22)], Color(0xFF6E441A), Color(0xFFF2B97E), 0),
+        const RarityStyle([Color(0xFFE3A55C), Color(0xFF965C22)], Color(0xFF5E3A16), Color(0xFFF2B97E), 0),
       BadgeRarity.silver =>
-        const RarityStyle([Color(0xFFEDF0F4), Color(0xFF98A0AC)], Color(0xFF79828F), Color(0xFFFFFFFF), 0),
+        const RarityStyle([Color(0xFFEDF0F4), Color(0xFF9AA2AE)], Color(0xFF6B7480), Color(0xFFFFFFFF), 0),
       BadgeRarity.gold =>
-        const RarityStyle([Color(0xFFF4D585), Color(0xFFC09530)], Color(0xFF8E6E22), Color(0xFFFFF1C2), 1),
+        const RarityStyle([Color(0xFFF6D77E), Color(0xFFC0922E)], Color(0xFF806017), Color(0xFFFFF1C2), 1),
       BadgeRarity.platinum =>
-        const RarityStyle([Color(0xFFF1F5FA), Color(0xFFA9B7C7)], Color(0xFF8392A3), Color(0xFFFFFFFF), 1),
+        const RarityStyle([Color(0xFFF3F7FC), Color(0xFFAAB8C8)], Color(0xFF6E7C8C), Color(0xFFE8FBFF), 1),
       BadgeRarity.ruby =>
-        const RarityStyle([Color(0xFFF26A99), Color(0xFFA11846)], Color(0xFF7C1236), Color(0xFFFFC2D8), 2),
+        const RarityStyle([Color(0xFFF472A6), Color(0xFFA11846)], Color(0xFF6E1030), Color(0xFFFFC2D8), 2),
       BadgeRarity.diamond =>
-        const RarityStyle([Color(0xFFAEF1EC), Color(0xFF4FB0C7)], Color(0xFF2E8AA2), Color(0xFFFFFFFF), 2),
+        const RarityStyle([Color(0xFFB8F3EE), Color(0xFF4FB0C7)], Color(0xFF2E7E92), Color(0xFFFFFFFF), 2),
     };
 
 String rarityName(BadgeRarity r) => switch (r) {
@@ -43,48 +44,11 @@ String rarityName(BadgeRarity r) => switch (r) {
       BadgeRarity.diamond => 'Diamond',
     };
 
-/// Medallion outline shape — escalates with rarity so higher tiers read as
-/// more elaborate / premium: circle → hexagon → octagon → star.
-enum _Shape { circle, hexagon, octagon, star }
+const Color _windowTop = Color(0xFF2C313C);
+const Color _windowBottom = Color(0xFF14161C);
 
-_Shape _shapeOf(BadgeRarity r) => switch (r) {
-      BadgeRarity.copper || BadgeRarity.bronze => _Shape.circle,
-      BadgeRarity.silver || BadgeRarity.gold => _Shape.hexagon,
-      BadgeRarity.platinum || BadgeRarity.ruby => _Shape.octagon,
-      BadgeRarity.diamond => _Shape.star,
-    };
-
-Path _polygon(Offset c, double r, int sides, double rot) {
-  final p = Path();
-  for (var i = 0; i < sides; i++) {
-    final a = rot + i * 2 * math.pi / sides;
-    final o = c + Offset(math.cos(a), math.sin(a)) * r;
-    i == 0 ? p.moveTo(o.dx, o.dy) : p.lineTo(o.dx, o.dy);
-  }
-  return p..close();
-}
-
-Path _starPath(Offset c, double rO, double rI, int points, double rot) {
-  final p = Path();
-  final n = points * 2;
-  for (var i = 0; i < n; i++) {
-    final a = rot + i * math.pi / points;
-    final rad = i.isEven ? rO : rI;
-    final o = c + Offset(math.cos(a), math.sin(a)) * rad;
-    i == 0 ? p.moveTo(o.dx, o.dy) : p.lineTo(o.dx, o.dy);
-  }
-  return p..close();
-}
-
-Path _shapePath(_Shape s, Offset c, double r) => switch (s) {
-      _Shape.circle => Path()..addOval(Rect.fromCircle(center: c, radius: r)),
-      _Shape.hexagon => _polygon(c, r, 6, -math.pi / 2),
-      _Shape.octagon => _polygon(c, r, 8, -math.pi / 2 + math.pi / 8),
-      _Shape.star => _starPath(c, r, r * 0.6, 8, -math.pi / 2),
-    };
-
-/// A premium achievement medallion. Shape and animation escalate with rarity;
-/// locked badges render desaturated (in the same shape) with a small lock.
+/// A premium achievement medallion: a tiered metal frame (with a crown, and —
+/// at higher tiers — gems, side ears and a glow) around an unchanging icon.
 class BadgeMedallion extends StatefulWidget {
   final BadgeRarity rarity;
   final String emblem;
@@ -130,11 +94,15 @@ class _BadgeMedallionState extends State<BadgeMedallion>
   Widget build(BuildContext context) {
     final style = rarityStyle(widget.rarity);
     final s = widget.size;
-    final emblem = Text(
-      widget.emblem,
-      style: TextStyle(
-        fontSize: s * 0.36,
-        shadows: const [Shadow(color: Colors.black26, blurRadius: 4)],
+    // Icon sits in the window — a touch below centre to clear the crown.
+    final emblem = Padding(
+      padding: EdgeInsets.only(top: s * 0.06),
+      child: Text(
+        widget.emblem,
+        style: TextStyle(
+          fontSize: s * 0.30,
+          shadows: const [Shadow(color: Colors.black38, blurRadius: 4)],
+        ),
       ),
     );
 
@@ -159,19 +127,19 @@ class _BadgeMedallionState extends State<BadgeMedallion>
               painter: _BadgePainter(
                   t: 0, style: style, rarity: widget.rarity, earned: widget.earned),
             ),
-          Opacity(opacity: widget.earned ? 1 : 0.30, child: emblem),
+          Opacity(opacity: widget.earned ? 1 : 0.32, child: emblem),
           if (!widget.earned)
             Positioned(
-              right: s * 0.04,
-              bottom: s * 0.04,
+              right: s * 0.02,
+              bottom: s * 0.08,
               child: Container(
-                padding: EdgeInsets.all(s * 0.05),
+                padding: EdgeInsets.all(s * 0.045),
                 decoration: const BoxDecoration(
                   color: Color(0xFF2A2D36),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(Icons.lock_rounded,
-                    size: s * 0.16, color: Colors.white70),
+                    size: s * 0.15, color: Colors.white70),
               ),
             ),
         ],
@@ -180,8 +148,18 @@ class _BadgeMedallionState extends State<BadgeMedallion>
   }
 }
 
+/// Flat-top hexagon (pointy left/right) centred at [c].
+Path _hex(Offset c, double rx, double ry) => Path()
+  ..moveTo(c.dx + rx, c.dy)
+  ..lineTo(c.dx + rx * 0.5, c.dy - ry)
+  ..lineTo(c.dx - rx * 0.5, c.dy - ry)
+  ..lineTo(c.dx - rx, c.dy)
+  ..lineTo(c.dx - rx * 0.5, c.dy + ry)
+  ..lineTo(c.dx + rx * 0.5, c.dy + ry)
+  ..close();
+
 class _BadgePainter extends CustomPainter {
-  final double t; // 0..1 animation phase
+  final double t;
   final RarityStyle style;
   final BadgeRarity rarity;
   final bool earned;
@@ -195,102 +173,204 @@ class _BadgePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final center = size.center(Offset.zero);
-    final r = size.width / 2;
-    final discR = r * 0.84;
-    final shape = _shapeOf(rarity);
-    final path = _shapePath(shape, center, discR);
+    final c = Offset(size.width / 2, size.height / 2 + size.height * 0.03);
+    final rx = size.width * 0.44;
+    final ry = size.width * 0.45;
+    final frame = _hex(c, rx, ry);
+    final rect = Rect.fromCircle(center: c, radius: rx);
+    final lvl = rarity.index; // 0..6 ornamentation level
 
     if (!earned) {
-      canvas.drawPath(
-        path,
-        Paint()
-          ..shader = const RadialGradient(colors: [Color(0xFF3A3E47), Color(0xFF24272E)])
-              .createShader(Rect.fromCircle(center: center, radius: discR)),
-      );
-      canvas.drawPath(
-        path,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = r * 0.10
-          ..strokeJoin = StrokeJoin.round
-          ..color = const Color(0xFF454953),
-      );
+      _crown(canvas, c, rx, ry, const [Color(0xFF4A4E58), Color(0xFF31343C)], const Color(0xFF26282F));
+      _fill(canvas, frame, const [Color(0xFF3C404A), Color(0xFF262931)], rect);
+      _stroke(canvas, frame, const Color(0xFF20232A), size.width * 0.035);
+      _window(canvas, c, rx, ry);
       return;
     }
 
-    // Pulsing glow halo behind (mid/high tiers).
+    // Glow halo (mid/high tiers).
     if (style.animTier >= 1) {
       final pulse = 0.5 + 0.5 * math.sin(t * 2 * math.pi);
       canvas.drawPath(
-        _shapePath(shape, center, discR * (1.05 + 0.05 * pulse)),
+        _hex(c, rx * (1.05 + 0.05 * pulse), ry * (1.05 + 0.05 * pulse)),
         Paint()
-          ..color = style.spark.withValues(alpha: 0.16 + 0.20 * pulse)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.16),
+          ..color = style.spark.withValues(alpha: 0.14 + 0.18 * pulse)
+          ..maskFilter = MaskFilter.blur(BlurStyle.normal, size.width * 0.14),
       );
     }
 
-    // Disc fill.
+    // Crown + ears behind the frame so the frame overlaps their base.
+    _crown(canvas, c, rx, ry, style.frame, style.edge, gems: lvl >= 3, spark: style.spark);
+    if (lvl >= 4) _ears(canvas, c, rx, ry, style);
+
+    // Frame.
+    _fill(canvas, frame, style.frame, rect);
+    _stroke(canvas, frame, style.edge, size.width * 0.04);
+    // Top bevel highlight.
     canvas.drawPath(
-      path,
-      Paint()
-        ..shader = RadialGradient(center: const Alignment(-0.3, -0.4), colors: style.disc)
-            .createShader(Rect.fromCircle(center: center, radius: discR)),
-    );
-    // Ring.
-    canvas.drawPath(
-      path,
+      Path()
+        ..moveTo(c.dx - rx * 0.5, c.dy - ry)
+        ..lineTo(c.dx + rx * 0.5, c.dy - ry),
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = r * 0.11
-        ..strokeJoin = StrokeJoin.round
-        ..color = style.ring,
+        ..strokeWidth = size.width * 0.018
+        ..color = Colors.white.withValues(alpha: 0.45),
     );
 
+    // Window.
+    _window(canvas, c, rx, ry);
+
+    // Frame shimmer / sheen, clipped to the metal ring (frame minus window).
     canvas.save();
-    canvas.clipPath(path);
+    canvas.clipPath(
+      Path.combine(PathOperation.difference, frame, _hex(c, rx * 0.62, ry * 0.62)),
+    );
     if (style.animTier == 2) {
-      // Rotating shimmer wedge across the gem.
       canvas.drawPath(
-        _shapePath(shape, center, discR),
+        frame,
         Paint()
           ..shader = SweepGradient(
             transform: GradientRotation(t * 2 * math.pi),
             colors: [
               Colors.white.withValues(alpha: 0),
-              Colors.white.withValues(alpha: 0.55),
+              Colors.white.withValues(alpha: 0.6),
               Colors.white.withValues(alpha: 0),
               Colors.white.withValues(alpha: 0),
             ],
             stops: const [0.0, 0.08, 0.22, 1.0],
-          ).createShader(Rect.fromCircle(center: center, radius: discR)),
+          ).createShader(rect),
       );
     } else {
-      // Diagonal sheen band sweeping across.
       final x = (t * 2 - 0.5) * size.width;
       canvas.save();
-      canvas.translate(center.dx, center.dy);
+      canvas.translate(c.dx, c.dy);
       canvas.rotate(-0.5);
-      canvas.translate(-center.dx, -center.dy);
+      canvas.translate(-c.dx, -c.dy);
       canvas.drawRect(
-        Rect.fromLTWH(x, -size.height, size.width * 0.30, size.height * 3),
-        Paint()..color = Colors.white.withValues(alpha: 0.20),
+        Rect.fromLTWH(x, -size.height, size.width * 0.26, size.height * 3),
+        Paint()..color = Colors.white.withValues(alpha: 0.18),
       );
       canvas.restore();
     }
     canvas.restore();
 
-    // Twinkling sparkles (mid/high tiers).
+    // Sparkles (mid/high tiers).
     if (style.animTier >= 1) {
-      const angles = [0.5, 2.1, 3.7, 5.2];
+      const angles = [0.6, 2.5, 3.9];
       for (var i = 0; i < angles.length; i++) {
         final phase = (t + i / angles.length) % 1.0;
         final tw = math.sin(phase * 2 * math.pi).clamp(0.0, 1.0);
         if (tw <= 0.05) continue;
         final a = angles[i];
-        final pos = center + Offset(math.cos(a), math.sin(a)) * discR * 0.62;
-        _sparkle(canvas, pos, r * 0.12 * tw, style.spark.withValues(alpha: tw));
+        final pos = c + Offset(math.cos(a) * rx, math.sin(a) * ry) * 0.82;
+        _sparkle(canvas, pos, size.width * 0.10 * tw, style.spark.withValues(alpha: tw));
       }
+    }
+  }
+
+  void _fill(Canvas canvas, Path p, List<Color> metal, Rect rect) {
+    canvas.drawPath(
+      p,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [metal[0], metal[1]],
+        ).createShader(rect),
+    );
+  }
+
+  void _stroke(Canvas canvas, Path p, Color color, double w) {
+    canvas.drawPath(
+      p,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = w
+        ..strokeJoin = StrokeJoin.round
+        ..color = color,
+    );
+  }
+
+  void _window(Canvas canvas, Offset c, double rx, double ry) {
+    final win = _hex(c, rx * 0.62, ry * 0.62);
+    canvas.drawPath(
+      win,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [_windowTop, _windowBottom],
+        ).createShader(Rect.fromCircle(center: c, radius: rx * 0.62)),
+    );
+    canvas.drawPath(
+      win,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = rx * 0.04
+        ..color = Colors.black.withValues(alpha: 0.35),
+    );
+  }
+
+  void _crown(Canvas canvas, Offset c, double rx, double ry, List<Color> metal,
+      Color edge,
+      {bool gems = false, Color? spark}) {
+    final cw = rx * 1.05;
+    final by = c.dy - ry * 0.82; // baseline overlaps frame top
+    final bh = rx * 0.16;
+    final ty = by - rx * 0.46;
+    final left = c.dx - cw / 2;
+    final bw = cw / 3;
+    final paint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [metal[0], metal[1]],
+      ).createShader(Rect.fromLTWH(left, ty, cw, by - ty));
+    // bar
+    final bar = RRect.fromRectAndRadius(
+        Rect.fromLTRB(left, by - bh, left + cw, by), Radius.circular(bh * 0.4));
+    canvas.drawRRect(bar, paint);
+    // three spikes
+    for (var i = 0; i < 3; i++) {
+      final cx = left + bw * (i + 0.5);
+      final tip = ty;
+      final path = Path()
+        ..moveTo(cx - bw * 0.5, by - bh)
+        ..lineTo(cx, tip)
+        ..lineTo(cx + bw * 0.5, by - bh)
+        ..close();
+      canvas.drawPath(path, paint);
+      // ball / gem on each tip
+      final dotColor = gems && spark != null ? spark : metal[0];
+      canvas.drawCircle(Offset(cx, tip), rx * 0.07, Paint()..color = dotColor);
+      canvas.drawCircle(Offset(cx, tip), rx * 0.07,
+          Paint()..style = PaintingStyle.stroke..strokeWidth = rx * 0.02..color = edge);
+    }
+    canvas.drawRRect(
+      bar,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = rx * 0.03
+        ..color = edge,
+    );
+  }
+
+  void _ears(Canvas canvas, Offset c, double rx, double ry, RarityStyle style) {
+    for (final sign in [-1.0, 1.0]) {
+      final cx = c.dx + sign * rx * 1.02;
+      final r = Rect.fromCenter(center: Offset(cx, c.dy), width: rx * 0.30, height: ry * 0.5);
+      final rr = RRect.fromRectAndRadius(r, Radius.circular(rx * 0.08));
+      canvas.drawRRect(
+        rr,
+        Paint()
+          ..shader = LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [style.frame[0], style.frame[1]],
+          ).createShader(r),
+      );
+      canvas.drawRRect(rr,
+          Paint()..style = PaintingStyle.stroke..strokeWidth = rx * 0.03..color = style.edge);
     }
   }
 
@@ -311,7 +391,7 @@ class _BadgePainter extends CustomPainter {
 }
 
 /// Celebratory "Achievement Unlocked!" moment — a scale-in dialog with the
-/// animated medallion. Returns when dismissed.
+/// animated medallion.
 Future<void> showBadgeUnlock(
   BuildContext context, {
   required BadgeRarity rarity,
@@ -351,7 +431,7 @@ Future<void> showBadgeUnlock(
                 ),
               ),
               const SizedBox(height: 18),
-              BadgeMedallion(rarity: rarity, emblem: emblem, earned: true, size: 132),
+              BadgeMedallion(rarity: rarity, emblem: emblem, earned: true, size: 140),
               const SizedBox(height: 18),
               Text(
                 '$groupName · $tierLabel',

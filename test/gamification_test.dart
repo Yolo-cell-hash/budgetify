@@ -48,34 +48,49 @@ void main() {
   });
 
   group('Titles', () {
-    test('category title needs the share AND enough income history', () {
-      const earned = GamiStats(
-        hasIncomeForTitles: true,
-        categoryIncomeShare: {'Food & Dining': 0.40},
-      );
-      expect(evaluateTitles(earned).any((t) => t.id == 'foodie'), isTrue);
+    MonthStat ms(Map<String, double> share, double sr) =>
+        MonthStat(categoryShare: share, savingsRate: sr);
+    TitleProgress prog(GamiStats s, String id) =>
+        evaluateTitleProgress(s).firstWhere((p) => p.title.id == id);
 
-      // Same share but no income window → not earned.
-      const noIncome = GamiStats(categoryIncomeShare: {'Food & Dining': 0.40});
-      expect(evaluateTitles(noIncome).any((t) => t.id == 'foodie'), isFalse);
+    test('category title is earned after enough qualifying months', () {
+      final six = GamiStats(
+          monthStats: List.generate(6, (_) => ms({'Food & Dining': 0.40}, 0.1)));
+      expect(prog(six, 'foodie').current, 6);
+      expect(prog(six, 'foodie').earned, isTrue);
+      expect(evaluateTitles(six).any((t) => t.id == 'foodie'), isTrue);
 
-      // Below threshold → not earned.
-      const low = GamiStats(
-        hasIncomeForTitles: true,
-        categoryIncomeShare: {'Food & Dining': 0.30},
-      );
-      expect(evaluateTitles(low).any((t) => t.id == 'foodie'), isFalse);
+      // Five qualifying months → 5/6, not earned.
+      final five = GamiStats(
+          monthStats: List.generate(5, (_) => ms({'Food & Dining': 0.40}, 0.1)));
+      expect(prog(five, 'foodie').current, 5);
+      expect(prog(five, 'foodie').target, 6);
+      expect(prog(five, 'foodie').earned, isFalse);
+
+      // Below-threshold months never count.
+      final low = GamiStats(
+          monthStats: List.generate(6, (_) => ms({'Food & Dining': 0.30}, 0.1)));
+      expect(prog(low, 'foodie').current, 0);
     });
 
-    test('savings titles use the windowed rate', () {
-      const s = GamiStats(hasIncomeForTitles: true, savingsRate: 0.62);
-      final ids = evaluateTitles(s).map((t) => t.id);
-      expect(ids, containsAll(['moneymagnet', 'frugal']));
+    test('Travel needs only 3 qualifying months', () {
+      final t = GamiStats(
+          monthStats: List.generate(3, (_) => ms({'Travel': 0.30}, 0.1)));
+      expect(prog(t, 'globetrotter').target, 3);
+      expect(prog(t, 'globetrotter').earned, isTrue);
     });
 
-    test('Broke Spender is income-independent', () {
-      expect(evaluateTitles(const GamiStats(noSpendDays: 60)).any((t) => t.id == 'broke'), isTrue);
-      expect(evaluateTitles(const GamiStats(noSpendDays: 59)).any((t) => t.id == 'broke'), isFalse);
+    test('savings titles count qualifying months', () {
+      final s = GamiStats(monthStats: List.generate(6, (_) => ms({}, 0.62)));
+      expect(evaluateTitles(s).map((t) => t.id), containsAll(['moneymagnet', 'frugal']));
+    });
+
+    test('Broke Spender needs 90 no-spend days', () {
+      expect(evaluateTitles(const GamiStats(noSpendDays: 90)).any((t) => t.id == 'broke'), isTrue);
+      expect(evaluateTitles(const GamiStats(noSpendDays: 89)).any((t) => t.id == 'broke'), isFalse);
+      final p = prog(const GamiStats(noSpendDays: 45), 'broke');
+      expect(p.current, 45);
+      expect(p.target, 90);
     });
 
     test('there is no default/fallback title', () {
