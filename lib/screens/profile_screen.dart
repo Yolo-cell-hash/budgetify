@@ -28,7 +28,7 @@ class ProfileView extends StatefulWidget {
   final GamiProfile profile;
   final int currentStreak;
   final int trophyCount;
-  final List<GamiTitle> earnedTitles;
+  final List<TitleProgress> titleProgress;
   final GamiTitle? primaryTitle;
   final List<ShowcaseBadge> showcased;
   final List<EarnedBadge> allEarned;
@@ -41,7 +41,7 @@ class ProfileView extends StatefulWidget {
     required this.profile,
     required this.currentStreak,
     required this.trophyCount,
-    required this.earnedTitles,
+    required this.titleProgress,
     required this.primaryTitle,
     required this.showcased,
     required this.allEarned,
@@ -49,6 +49,9 @@ class ProfileView extends StatefulWidget {
     required this.onUpdateShowcase,
     required this.onUpdatePrimaryTitle,
   });
+
+  List<GamiTitle> get earnedTitles =>
+      [for (final p in titleProgress) if (p.earned) p.title];
 
   /// Earned titles with the chosen headline first (for the card + chips).
   List<GamiTitle> get orderedTitles {
@@ -174,105 +177,134 @@ class _ProfileViewState extends State<ProfileView> {
   /// your headline; locked ones are muted and show how to earn them. Mirrors
   /// the Trophies tab so titles are just as visible.
   Widget _titles(AppColors colors) {
-    final earnedIds = widget.earnedTitles.map((t) => t.id).toSet();
+    final tp = widget.titleProgress;
+    final earnedCount = tp.where((p) => p.earned).length;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          earnedIds.isEmpty
-              ? 'Titles reflect where your money goes — none earned yet.'
-              : 'Tap an earned title to feature it on your profile.',
+          earnedCount == 0
+              ? 'Titles reflect where your money goes — each shows your progress. Tap one for details.'
+              : 'Tap a title for details. Earned titles can be featured on your profile.',
           style: TextStyle(fontSize: 12, color: colors.textTertiary, height: 1.4),
         ),
-        const SizedBox(height: 6),
-        for (var i = 0; i < kTitles.length; i++) ...[
+        const SizedBox(height: 8),
+        for (var i = 0; i < tp.length; i++) ...[
           if (i > 0) Divider(height: 18, color: colors.border),
-          _titleRow(colors, kTitles[i], earnedIds.contains(kTitles[i].id)),
+          _titleRow(colors, tp[i]),
         ],
       ],
     );
   }
 
-  Widget _titleRow(AppColors colors, GamiTitle t, bool earned) {
-    final primary = earned && t.id == widget.primaryTitle?.id;
-    return InkWell(
-      borderRadius: BorderRadius.circular(12),
-      onTap: () => _showTitleSheet(t, earned),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(
-          children: [
-            Container(
-              width: 38,
-              height: 38,
-              alignment: Alignment.center,
+  Widget _titleEmoji(AppColors colors, String emoji, bool earned, double size) =>
+      Container(
+        width: size,
+        height: size,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: earned ? AppColors.gold.withValues(alpha: 0.16) : colors.cardAlt,
+          border: Border.all(
+              color: earned ? AppColors.gold.withValues(alpha: 0.5) : colors.border,
+              width: size > 50 ? 2 : 1),
+        ),
+        child: Opacity(
+          opacity: earned ? 1 : 0.4,
+          child: Text(emoji, style: TextStyle(fontSize: size * 0.47)),
+        ),
+      );
+
+  Widget _progressBar(AppColors colors, double fraction, bool earned,
+      {double height = 6}) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(height / 2),
+      child: Stack(
+        children: [
+          Container(height: height, color: colors.border),
+          FractionallySizedBox(
+            widthFactor: fraction.clamp(0.0, 1.0),
+            child: Container(
+              height: height,
               decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: earned ? AppColors.gold.withValues(alpha: 0.16) : colors.cardAlt,
-                border: Border.all(
-                    color: earned ? AppColors.gold.withValues(alpha: 0.5) : colors.border),
-              ),
-              child: Opacity(
-                opacity: earned ? 1 : 0.4,
-                child: Text(t.emoji, style: const TextStyle(fontSize: 18)),
+                gradient: LinearGradient(
+                  colors: earned
+                      ? [AppColors.successLight, AppColors.successDark]
+                      : [AppColors.gold, AppColors.goldDeep],
+                ),
+                borderRadius: BorderRadius.circular(height / 2),
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _titleRow(AppColors colors, TitleProgress p) {
+    final t = p.title;
+    final earned = p.earned;
+    final primary = earned && t.id == widget.primaryTitle?.id;
+    final shown = p.current > p.target ? p.target : p.current;
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () => _showTitleSheet(p),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            _titleEmoji(colors, t.emoji, earned, 38),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    t.name,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: earned ? colors.text : colors.textSecondary,
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          t.name,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: earned ? colors.text : colors.textSecondary,
+                          ),
+                        ),
+                      ),
+                      if (primary)
+                        const Icon(Icons.star_rounded, size: 16, color: AppColors.goldDeep)
+                      else if (earned)
+                        Icon(Icons.check_circle_rounded, size: 16, color: colors.success)
+                      else
+                        Icon(Icons.lock_rounded, size: 14, color: colors.textTertiary),
+                    ],
                   ),
-                  const SizedBox(height: 1),
-                  Text(
-                    t.blurb,
-                    style: TextStyle(fontSize: 11.5, color: colors.textTertiary),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Expanded(child: _progressBar(colors, p.fraction, earned)),
+                      const SizedBox(width: 8),
+                      Text('$shown/${p.target} ${t.unit}',
+                          style: TextStyle(fontSize: 11, color: colors.textTertiary)),
+                    ],
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 8),
-            if (!earned)
-              Icon(Icons.lock_rounded, size: 16, color: colors.textTertiary)
-            else if (primary)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: AppColors.gold.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.star_rounded, size: 13, color: AppColors.goldDeep),
-                    SizedBox(width: 3),
-                    Text('Featured',
-                        style: TextStyle(
-                            fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.goldDeep)),
-                  ],
-                ),
-              )
-            else
-              Icon(Icons.radio_button_unchecked_rounded,
-                  size: 18, color: AppColors.gold.withValues(alpha: 0.7)),
           ],
         ),
       ),
     );
   }
 
-  /// Bottom sheet describing a title in full (with its window) + earn status.
-  /// Earned titles can be featured on the profile from here.
-  void _showTitleSheet(GamiTitle t, bool earned) {
+  /// Bottom sheet with the title's full requirement, live progress, and (when
+  /// earned) the option to feature it on the profile.
+  void _showTitleSheet(TitleProgress p) {
     final colors = AppColors.of(context);
+    final t = p.title;
+    final earned = p.earned;
     final primary = earned && t.id == widget.primaryTitle?.id;
+    final shown = p.current > p.target ? p.target : p.current;
     showModalBottomSheet(
       context: context,
       backgroundColor: colors.surface,
@@ -284,22 +316,7 @@ class _ProfileViewState extends State<ProfileView> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 72,
-              height: 72,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: earned ? AppColors.gold.withValues(alpha: 0.16) : colors.cardAlt,
-                border: Border.all(
-                    color: earned ? AppColors.gold.withValues(alpha: 0.5) : colors.border,
-                    width: 2),
-              ),
-              child: Opacity(
-                opacity: earned ? 1 : 0.4,
-                child: Text(t.emoji, style: const TextStyle(fontSize: 34)),
-              ),
-            ),
+            _titleEmoji(colors, t.emoji, earned, 72),
             const SizedBox(height: 14),
             Text(t.name,
                 style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700, color: colors.text)),
@@ -316,7 +333,7 @@ class _ProfileViewState extends State<ProfileView> {
                   Icon(earned ? Icons.check_circle_rounded : Icons.lock_rounded,
                       size: 14, color: earned ? colors.success : colors.textSecondary),
                   const SizedBox(width: 5),
-                  Text(earned ? 'Earned' : 'Locked',
+                  Text(earned ? 'Earned' : 'In progress',
                       style: TextStyle(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w700,
@@ -330,6 +347,20 @@ class _ProfileViewState extends State<ProfileView> {
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13.5, height: 1.45, color: colors.textSecondary),
             ),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Text('Progress',
+                    style: TextStyle(
+                        fontSize: 12.5, fontWeight: FontWeight.w600, color: colors.textSecondary)),
+                const Spacer(),
+                Text('$shown / ${p.target} ${t.unit}',
+                    style: TextStyle(
+                        fontSize: 12.5, fontWeight: FontWeight.w700, color: colors.text)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            _progressBar(colors, p.fraction, earned, height: 8),
             if (earned) ...[
               const SizedBox(height: 20),
               SizedBox(

@@ -389,11 +389,74 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
             ],
           ),
           if (items.isNotEmpty) const SizedBox(height: 6),
-          for (final h in items) _investmentRow(colors, h),
+          ..._groupedInvestments(colors, items),
           if (_investedViaSms > 0) ...[
             const SizedBox(height: 10),
             _investedViaSmsNote(colors),
           ],
+        ],
+      ),
+    );
+  }
+
+  /// Investments grouped by type (all FDs together, all RDs together, …) in the
+  /// canonical category order, each group under a small header — clearer than a
+  /// flat amount-sorted list.
+  List<Widget> _groupedInvestments(AppColors colors, List<Holding> items) {
+    final grouped = <String, List<Holding>>{};
+    for (final h in items) {
+      (grouped[h.category] ??= []).add(h);
+    }
+    final ordered = [
+      ...HoldingCategories.investments.where(grouped.containsKey),
+      ...grouped.keys.where((c) => !HoldingCategories.investments.contains(c)),
+    ];
+    final out = <Widget>[];
+    for (var i = 0; i < ordered.length; i++) {
+      final cat = ordered[i];
+      final group = grouped[cat]!;
+      out.add(_investmentGroupHeader(colors, cat, group, topGap: i > 0));
+      for (final h in group) {
+        out.add(_investmentRow(colors, h));
+      }
+    }
+    return out;
+  }
+
+  Widget _investmentGroupHeader(
+    AppColors colors,
+    String cat,
+    List<Holding> group, {
+    bool topGap = false,
+  }) {
+    final total = group.fold(0.0, (s, h) => s + h.amount);
+    return Padding(
+      padding: EdgeInsets.only(top: topGap ? 12 : 4, bottom: 2),
+      child: Row(
+        children: [
+          Text(HoldingCategories.icon(cat), style: const TextStyle(fontSize: 12)),
+          const SizedBox(width: 6),
+          Text(
+            cat.toUpperCase(),
+            style: TextStyle(
+              fontSize: 10.5,
+              letterSpacing: 0.8,
+              fontWeight: FontWeight.w700,
+              color: colors.textSecondary,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text('· ${group.length}',
+              style: TextStyle(fontSize: 10.5, color: colors.textTertiary)),
+          const Spacer(),
+          PrivacyAmount(
+            _fmt.format(total),
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w600,
+              color: colors.textSecondary,
+            ),
+          ),
         ],
       ),
     );

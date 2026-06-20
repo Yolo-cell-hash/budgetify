@@ -119,7 +119,8 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
 
   Widget _profileTab(GamiStats stats) {
     final earnedIds = earnedBadgeIds(stats);
-    final earnedTitles = evaluateTitles(stats);
+    final titleProgress = evaluateTitleProgress(stats);
+    final earnedTitles = [for (final p in titleProgress) if (p.earned) p.title];
     final primary = titleById(_profile.primaryTitleId);
     final primaryStillEarned =
         primary != null && earnedTitles.any((t) => t.id == primary.id);
@@ -160,7 +161,7 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
       profile: _profile,
       currentStreak: stats.currentStreak,
       trophyCount: earnedIds.length,
-      earnedTitles: earnedTitles,
+      titleProgress: titleProgress,
       primaryTitle: primaryStillEarned ? primary : null,
       showcased: showcased,
       allEarned: allEarned,

@@ -4,6 +4,23 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.6.3] — 2026-06-20
+
+### Changed
+
+- **Premium trophy frames.** Badges now use a consistent hexagonal shield +
+  crown (Clash-Royale-mastery style) whose **metal colour and ornamentation**
+  (crown gems, side ears, glow) escalate by tier — the icon stays the same,
+  only the frame changes. Replaces the earlier per-tier star/octagon shapes.
+- **Title progress bars.** Every title shows a live bar toward its goal (e.g.
+  2 / 6 months). The rule is now "meet the threshold in N qualifying months" —
+  not an average — and tapping a title shows its full requirement + progress.
+- **Broke Spender** now needs 90 no-spend days (up from 60).
+- **More pixel avatars** — 12 distinct male & female characters (added bob,
+  mohawk and top-knot styles, plus more skin tones).
+- **Investments grouped by type** on Net Worth — Fixed Deposits, Recurring
+  Deposits, Mutual Funds, etc. are clubbed together under headers.
+
 ## [1.6.2] — 2026-06-20
 
 ### Changed
@@ -144,6 +161,7 @@ safe-to-spend, and a fully offline split ledger.
 - Hardened startup so a notification-subsystem hiccup can never block the app
   from opening.
 
+[1.6.3]: https://github.com/Yolo-cell-hash/budgetify/releases/tag/v1.6.3
 [1.6.2]: https://github.com/Yolo-cell-hash/budgetify/releases/tag/v1.6.2
 [1.6.1]: https://github.com/Yolo-cell-hash/budgetify/releases/tag/v1.6.1
 [1.6.0]: https://github.com/Yolo-cell-hash/budgetify/releases/tag/v1.6.0

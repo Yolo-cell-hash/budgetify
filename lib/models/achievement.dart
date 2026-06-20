@@ -35,12 +35,9 @@ class GamiStats {
   final double netWorth;
   final int debtFreeDays; // consecutive days debt-free (assets>0, no debt)
 
-  // Titles — category spend as a share of income over each title's window,
-  // plus the windowed savings rate. Null/empty when there isn't enough
-  // income/history to judge.
-  final Map<String, double> categoryIncomeShare;
-  final double? savingsRate; // trailing-window savings rate (fraction)
-  final bool hasIncomeForTitles;
+  // Per-month history (one entry per completed month that had income), used to
+  // count how many months a title's rule was actually met.
+  final List<MonthStat> monthStats;
 
   const GamiStats({
     this.currentStreak = 0,
@@ -55,10 +52,16 @@ class GamiStats {
     this.distinctCategories = 0,
     this.netWorth = 0,
     this.debtFreeDays = 0,
-    this.categoryIncomeShare = const {},
-    this.savingsRate,
-    this.hasIncomeForTitles = false,
+    this.monthStats = const [],
   });
+}
+
+/// One completed month's title-relevant figures: each category's share of that
+/// month's income, and the month's savings rate.
+class MonthStat {
+  final Map<String, double> categoryShare;
+  final double savingsRate;
+  const MonthStat({required this.categoryShare, required this.savingsRate});
 }
 
 /// One rung of an [AchievementGroup].
@@ -159,27 +162,72 @@ Set<String> earnedBadgeIds(GamiStats stats) {
 
 // ─────────────────────────── Titles ───────────────────────────
 
-/// An earnable title shown on the profile. Predicate is pure over [GamiStats].
+/// What a title measures.
+enum TitleKind { category, savings, nospend }
+
+/// An earnable title. Declarative data so progress is computed purely: meet
+/// [threshold] (a share of income) in [target] qualifying months, or reach
+/// [target] no-spend days for [TitleKind.nospend].
 class GamiTitle {
   final String id;
   final String emoji;
   final String name;
   final String blurb;
-  final bool Function(GamiStats) earned;
+  final TitleKind kind;
+  final String? category; // for TitleKind.category
+  final double threshold; // income share; unused for nospend
+  final int target; // qualifying months, or no-spend days
 
   const GamiTitle({
     required this.id,
     required this.emoji,
     required this.name,
     required this.blurb,
-    required this.earned,
+    required this.kind,
+    this.category,
+    this.threshold = 0,
+    required this.target,
   });
+
+  /// 'months' for category/savings titles, 'days' for no-spend.
+  String get unit => kind == TitleKind.nospend ? 'days' : 'months';
+}
+
+/// A title with how far the user is toward earning it.
+class TitleProgress {
+  final GamiTitle title;
+  final int current;
+  final int target;
+  const TitleProgress(this.title, this.current, this.target);
+
+  bool get earned => current >= target;
+  double get fraction => target == 0 ? 0 : (current / target).clamp(0.0, 1.0);
+}
+
+/// Progress toward every title — counts the qualifying months (or no-spend
+/// days) the user actually has, so the UI can show a "N / target" bar.
+List<TitleProgress> evaluateTitleProgress(GamiStats stats) {
+  int monthsMeeting(bool Function(MonthStat) test) =>
+      stats.monthStats.where(test).length;
+  return [
+    for (final t in kTitles)
+      TitleProgress(
+        t,
+        switch (t.kind) {
+          TitleKind.category => monthsMeeting(
+              (m) => (m.categoryShare[t.category] ?? 0) >= t.threshold),
+          TitleKind.savings => monthsMeeting((m) => m.savingsRate >= t.threshold),
+          TitleKind.nospend => stats.noSpendDays,
+        },
+        t.target,
+      ),
+  ];
 }
 
 /// All titles the user currently qualifies for (may be empty — titles are
 /// earned, there is no default).
 List<GamiTitle> evaluateTitles(GamiStats stats) =>
-    [for (final t in kTitles) if (t.earned(stats)) t];
+    [for (final p in evaluateTitleProgress(stats)) if (p.earned) p.title];
 
 // ─────────────────────────── Catalog ───────────────────────────
 
@@ -357,25 +405,22 @@ final List<AchievementGroup> kAchievementGroups = [
   ),
 ];
 
-bool _share(GamiStats s, String category, double min) =>
-    s.hasIncomeForTitles && (s.categoryIncomeShare[category] ?? 0) >= min;
-
-/// Tag-based titles. Category titles use a share of income over a trailing
-/// window (computed by the service); savings titles use the windowed rate.
+/// Tag-based titles. Earned by meeting the threshold in [target] qualifying
+/// months (not an average), so the UI can show real progress toward each.
 final List<GamiTitle> kTitles = [
-  GamiTitle(id: 'foodie', emoji: '🍔', name: 'Foodie', blurb: 'Spend 35%+ of your income on Food & Dining, averaged over the last 6 months.', earned: (s) => _share(s, 'Food & Dining', 0.35)),
-  GamiTitle(id: 'homechef', emoji: '🍳', name: 'Home Chef', blurb: 'Spend 25%+ of your income on Groceries, averaged over the last 6 months.', earned: (s) => _share(s, 'Groceries', 0.25)),
-  GamiTitle(id: 'shopaholic', emoji: '🛍️', name: 'Shopaholic', blurb: 'Spend 25%+ of your income on Shopping, averaged over the last 6 months.', earned: (s) => _share(s, 'Shopping', 0.25)),
-  GamiTitle(id: 'roadwarrior', emoji: '🚗', name: 'Road Warrior', blurb: 'Spend 20%+ of your income on Transportation, averaged over the last 6 months.', earned: (s) => _share(s, 'Transportation', 0.20)),
-  GamiTitle(id: 'billmaster', emoji: '🧾', name: 'Bill Master', blurb: 'Spend 25%+ of your income on Bills & Utilities, averaged over the last 6 months.', earned: (s) => _share(s, 'Bills & Utilities', 0.25)),
-  GamiTitle(id: 'showstopper', emoji: '🎬', name: 'Showstopper', blurb: 'Spend 20%+ of your income on Entertainment, averaged over the last 6 months.', earned: (s) => _share(s, 'Entertainment', 0.20)),
-  GamiTitle(id: 'wellness', emoji: '🩺', name: 'Wellness Warrior', blurb: 'Spend 15%+ of your income on Health & Medical, averaged over the last 6 months.', earned: (s) => _share(s, 'Health & Medical', 0.15)),
-  GamiTitle(id: 'globetrotter', emoji: '✈️', name: 'Globetrotter', blurb: 'Spend 25%+ of your income on Travel, averaged over the last 3 months.', earned: (s) => _share(s, 'Travel', 0.25)),
-  GamiTitle(id: 'scholar', emoji: '🎓', name: 'Scholar', blurb: 'Spend 15%+ of your income on Education, averaged over the last 6 months.', earned: (s) => _share(s, 'Education', 0.15)),
-  GamiTitle(id: 'investor', emoji: '📈', name: 'Investor', blurb: 'Invest 20%+ of your income, averaged over the last 6 months.', earned: (s) => _share(s, 'Investments', 0.20)),
-  GamiTitle(id: 'moneymagnet', emoji: '💰', name: 'Money Magnet', blurb: 'Keep a savings rate of 35%+ over the last 6 months.', earned: (s) => s.hasIncomeForTitles && (s.savingsRate ?? 0) >= 0.35),
-  GamiTitle(id: 'frugal', emoji: '🪙', name: 'Frugal Master', blurb: 'Keep a savings rate of 60%+ over the last 6 months.', earned: (s) => s.hasIncomeForTitles && (s.savingsRate ?? 0) >= 0.60),
-  GamiTitle(id: 'broke', emoji: '😅', name: 'Broke Spender', blurb: 'Rack up 60 total no-spend days (they need not be in a row).', earned: (s) => s.noSpendDays >= 60),
+  GamiTitle(id: 'foodie', emoji: '🍔', name: 'Foodie', kind: TitleKind.category, category: 'Food & Dining', threshold: 0.35, target: 6, blurb: 'Have 6 months where Food & Dining was 35%+ of your income.'),
+  GamiTitle(id: 'homechef', emoji: '🍳', name: 'Home Chef', kind: TitleKind.category, category: 'Groceries', threshold: 0.25, target: 6, blurb: 'Have 6 months where Groceries were 25%+ of your income.'),
+  GamiTitle(id: 'shopaholic', emoji: '🛍️', name: 'Shopaholic', kind: TitleKind.category, category: 'Shopping', threshold: 0.25, target: 6, blurb: 'Have 6 months where Shopping was 25%+ of your income.'),
+  GamiTitle(id: 'roadwarrior', emoji: '🚗', name: 'Road Warrior', kind: TitleKind.category, category: 'Transportation', threshold: 0.20, target: 6, blurb: 'Have 6 months where Transportation was 20%+ of your income.'),
+  GamiTitle(id: 'billmaster', emoji: '🧾', name: 'Bill Master', kind: TitleKind.category, category: 'Bills & Utilities', threshold: 0.25, target: 6, blurb: 'Have 6 months where Bills & Utilities were 25%+ of your income.'),
+  GamiTitle(id: 'showstopper', emoji: '🎬', name: 'Showstopper', kind: TitleKind.category, category: 'Entertainment', threshold: 0.20, target: 6, blurb: 'Have 6 months where Entertainment was 20%+ of your income.'),
+  GamiTitle(id: 'wellness', emoji: '🩺', name: 'Wellness Warrior', kind: TitleKind.category, category: 'Health & Medical', threshold: 0.15, target: 6, blurb: 'Have 6 months where Health & Medical was 15%+ of your income.'),
+  GamiTitle(id: 'globetrotter', emoji: '✈️', name: 'Globetrotter', kind: TitleKind.category, category: 'Travel', threshold: 0.25, target: 3, blurb: 'Have 3 months where Travel was 25%+ of your income.'),
+  GamiTitle(id: 'scholar', emoji: '🎓', name: 'Scholar', kind: TitleKind.category, category: 'Education', threshold: 0.15, target: 6, blurb: 'Have 6 months where Education was 15%+ of your income.'),
+  GamiTitle(id: 'investor', emoji: '📈', name: 'Investor', kind: TitleKind.category, category: 'Investments', threshold: 0.20, target: 6, blurb: 'Have 6 months where you invested 20%+ of your income.'),
+  GamiTitle(id: 'moneymagnet', emoji: '💰', name: 'Money Magnet', kind: TitleKind.savings, threshold: 0.35, target: 6, blurb: 'Have 6 months with a savings rate of 35%+.'),
+  GamiTitle(id: 'frugal', emoji: '🪙', name: 'Frugal Master', kind: TitleKind.savings, threshold: 0.60, target: 6, blurb: 'Have 6 months with a savings rate of 60%+.'),
+  GamiTitle(id: 'broke', emoji: '😅', name: 'Broke Spender', kind: TitleKind.nospend, target: 90, blurb: 'Rack up 90 total no-spend days (they need not be in a row).'),
 ];
 
 /// Lookup a title by id (for the persisted "primary title" choice).

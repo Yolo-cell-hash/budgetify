@@ -178,8 +178,6 @@ class GamificationService {
     final longestStreak = (streak['longest'] as num?)?.toInt() ?? 0;
 
     final currentKey = _monthKey(today);
-    final w6 = DateTime(today.year, today.month - 6, today.day);
-    final w3 = DateTime(today.year, today.month - 3, today.day);
 
     double totalTracked = 0;
     DateTime? earliest;
@@ -187,10 +185,9 @@ class GamificationService {
     final monthUntagged = <String, int>{};
     final monthIncome = <String, double>{};
     final monthExpense = <String, double>{};
+    final monthCat = <String, Map<String, double>>{}; // month → category → spend
     final expenseDays = <String>{};
     final spendCatsUsed = <String>{};
-    double income6 = 0, expense6 = 0, income3 = 0, travel3 = 0;
-    final catSpend6 = <String, double>{};
 
     for (final t in txns) {
       totalTracked += t.amount;
@@ -213,21 +210,16 @@ class GamificationService {
       if (isExpense) {
         monthExpense[mk] = (monthExpense[mk] ?? 0) + t.effectiveAmount;
         expenseDays.add(_dayKey(d));
-      }
-
-      if (!d.isBefore(w6)) {
-        if (isIncome) income6 += t.amount;
-        if (isExpense) {
-          expense6 += t.effectiveAmount;
-          if (t.category != null) {
-            catSpend6[t.category!] =
-                (catSpend6[t.category!] ?? 0) + t.effectiveAmount;
-          }
+        if (t.category != null && _spendCategories.contains(t.category)) {
+          final m = monthCat[mk] ??= {};
+          m[t.category!] = (m[t.category!] ?? 0) + t.effectiveAmount;
         }
       }
-      if (!d.isBefore(w3)) {
-        if (isIncome) income3 += t.amount;
-        if (isExpense && t.category == 'Travel') travel3 += t.effectiveAmount;
+      // Investments are a non-expense debit, but still count toward the
+      // Investor title's share of income.
+      if (t.type == TransactionType.debit && t.category == 'Investments') {
+        final m = monthCat[mk] ??= {};
+        m['Investments'] = (m['Investments'] ?? 0) + t.effectiveAmount;
       }
     }
 
@@ -276,16 +268,20 @@ class GamificationService {
         ? 0
         : today.difference(_dateOnly(DateTime.parse(debtFreeSince))).inDays + 1;
 
-    // Titles: category share of income over the trailing window.
-    final hasIncomeForTitles = monthsOfData >= 6 && income6 > 0;
-    final shares = <String, double>{};
-    if (income6 > 0) {
-      for (final c in _spendCategories) {
-        shares[c] = (catSpend6[c] ?? 0) / income6;
-      }
+    // Titles: per-month figures for completed months that had income, so the
+    // engine can count how many months each title's rule was actually met.
+    final monthStats = <MonthStat>[];
+    for (final mk in monthIncome.keys) {
+      if (mk == currentKey) continue; // skip the in-progress month
+      final inc = monthIncome[mk] ?? 0;
+      if (inc <= 0) continue;
+      final exp = monthExpense[mk] ?? 0;
+      final cats = monthCat[mk] ?? const {};
+      monthStats.add(MonthStat(
+        categoryShare: {for (final e in cats.entries) e.key: e.value / inc},
+        savingsRate: (inc - exp) / inc,
+      ));
     }
-    if (income3 > 0) shares['Travel'] = travel3 / income3; // 3-mo window
-    final savingsRate = income6 > 0 ? (income6 - expense6) / income6 : null;
 
     final stats = GamiStats(
       currentStreak: currentStreak,
@@ -300,9 +296,7 @@ class GamificationService {
       distinctCategories: spendCatsUsed.length,
       netWorth: summary.netWorth,
       debtFreeDays: debtFreeDays,
-      categoryIncomeShare: shares,
-      savingsRate: savingsRate,
-      hasIncomeForTitles: hasIncomeForTitles,
+      monthStats: monthStats,
     );
 
     // Lazily stamp unlock dates for any newly-earned badge (today; we can't
