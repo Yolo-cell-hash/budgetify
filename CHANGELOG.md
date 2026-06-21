@@ -4,6 +4,18 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.7.0] — 2026-06-20
+
+### Added
+
+- **Savings Goals.** Set discrete targets ("Goa trip ₹40k by December"), each
+  shown as a **savings jar** that fills as you contribute. Record contributions
+  manually (amount + date); set an optional deadline and see a "₹X/month to stay
+  on track" figure; edit, complete or delete. A **Goals card on Home** surfaces
+  your top jars. When a goal is reached you get an in-app **celebration** and a
+  **notification** — and completing goals unlocks the new **Goal Getter** trophy
+  in Gamified Budgets. All on-device and **included in encrypted backups**.
+
 ## [1.6.3] — 2026-06-20
 
 ### Changed
@@ -161,6 +173,7 @@ safe-to-spend, and a fully offline split ledger.
 - Hardened startup so a notification-subsystem hiccup can never block the app
   from opening.
 
+[1.7.0]: https://github.com/Yolo-cell-hash/budgetify/releases/tag/v1.7.0
 [1.6.3]: https://github.com/Yolo-cell-hash/budgetify/releases/tag/v1.6.3
 [1.6.2]: https://github.com/Yolo-cell-hash/budgetify/releases/tag/v1.6.2
 [1.6.1]: https://github.com/Yolo-cell-hash/budgetify/releases/tag/v1.6.1

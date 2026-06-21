@@ -6,6 +6,7 @@ import '../models/transaction_rule_model.dart';
 import '../models/holding.dart';
 import '../models/sip.dart';
 import '../models/ledger_models.dart';
+import '../models/savings_goal.dart';
 import 'sms_parser_service.dart';
 import 'app_events.dart';
 
@@ -32,7 +33,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 16,
+      version: 17,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -138,6 +139,13 @@ class DatabaseService {
       'CREATE INDEX idx_split_participants_split ON split_participants(split_id)',
     );
     await db.execute(_createSettlementsTable);
+
+    // Savings goals + their manual contributions.
+    await db.execute(_createSavingsGoalsTable);
+    await db.execute(_createGoalContributionsTable);
+    await db.execute(
+      'CREATE INDEX idx_goal_contributions_goal ON goal_contributions(goal_id)',
+    );
   }
 
   static const String _createDeletedTransactionsTable = '''
@@ -238,6 +246,31 @@ class DatabaseService {
         date INTEGER NOT NULL,
         note TEXT,
         created_at INTEGER NOT NULL
+      )
+    ''';
+
+  static const String _createSavingsGoalsTable = '''
+      CREATE TABLE IF NOT EXISTS savings_goals(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        emoji TEXT,
+        target_amount REAL NOT NULL,
+        deadline INTEGER,
+        accent INTEGER DEFAULT 0,
+        note TEXT,
+        created_at INTEGER NOT NULL,
+        completed_at INTEGER,
+        archived INTEGER DEFAULT 0
+      )
+    ''';
+
+  static const String _createGoalContributionsTable = '''
+      CREATE TABLE IF NOT EXISTS goal_contributions(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        goal_id INTEGER NOT NULL,
+        amount REAL NOT NULL,
+        date INTEGER NOT NULL,
+        note TEXT
       )
     ''';
 
@@ -446,6 +479,15 @@ class DatabaseService {
         'CREATE INDEX IF NOT EXISTS idx_split_participants_split ON split_participants(split_id)',
       );
       await db.execute(_createSettlementsTable);
+    }
+
+    if (oldVersion < 17) {
+      // Savings goals + their contributions.
+      await db.execute(_createSavingsGoalsTable);
+      await db.execute(_createGoalContributionsTable);
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_goal_contributions_goal ON goal_contributions(goal_id)',
+      );
     }
   }
 
@@ -1752,6 +1794,78 @@ class DatabaseService {
     return list;
   }
 
+  // ==================== SAVINGS GOALS ====================
+  Future<int> insertGoal(SavingsGoal goal) async {
+    final db = await database;
+    final id = await db.insert('savings_goals', goal.toMap());
+    notifyAppDataChanged();
+    return id;
+  }
+
+  Future<int> updateGoal(SavingsGoal goal) async {
+    final db = await database;
+    final n = await db.update('savings_goals', goal.toMap(),
+        where: 'id = ?', whereArgs: [goal.id]);
+    notifyAppDataChanged();
+    return n;
+  }
+
+  /// Delete a goal and all of its contributions.
+  Future<void> deleteGoal(int id) async {
+    final db = await database;
+    await db.delete('goal_contributions', where: 'goal_id = ?', whereArgs: [id]);
+    await db.delete('savings_goals', where: 'id = ?', whereArgs: [id]);
+    notifyAppDataChanged();
+  }
+
+  Future<List<SavingsGoal>> getGoals({bool includeArchived = false}) async {
+    final db = await database;
+    final rows = await db.query(
+      'savings_goals',
+      where: includeArchived ? null : 'archived = 0',
+      orderBy: 'completed_at IS NOT NULL, created_at DESC',
+    );
+    return rows.map((r) => SavingsGoal.fromMap(r)).toList();
+  }
+
+  Future<SavingsGoal?> getGoal(int id) async {
+    final db = await database;
+    final rows = await db
+        .query('savings_goals', where: 'id = ?', whereArgs: [id], limit: 1);
+    return rows.isEmpty ? null : SavingsGoal.fromMap(rows.first);
+  }
+
+  Future<int> insertGoalContribution(GoalContribution c) async {
+    final db = await database;
+    final id = await db.insert('goal_contributions', c.toMap());
+    notifyAppDataChanged();
+    return id;
+  }
+
+  Future<void> deleteGoalContribution(int id) async {
+    final db = await database;
+    await db.delete('goal_contributions', where: 'id = ?', whereArgs: [id]);
+    notifyAppDataChanged();
+  }
+
+  Future<List<GoalContribution>> getGoalContributions(int goalId) async {
+    final db = await database;
+    final rows = await db.query('goal_contributions',
+        where: 'goal_id = ?', whereArgs: [goalId], orderBy: 'date DESC');
+    return rows.map((r) => GoalContribution.fromMap(r)).toList();
+  }
+
+  /// goalId → total saved (sum of its contributions).
+  Future<Map<int, double>> getGoalSavedTotals() async {
+    final db = await database;
+    final rows = await db.rawQuery(
+        'SELECT goal_id, SUM(amount) as total FROM goal_contributions GROUP BY goal_id');
+    return {
+      for (final r in rows)
+        r['goal_id'] as int: (r['total'] as num?)?.toDouble() ?? 0,
+    };
+  }
+
   Future<Map<String, dynamic>> exportAllData() async {
     final db = await database;
     return {
@@ -1764,6 +1878,8 @@ class DatabaseService {
       'splits': await db.query('splits'),
       'split_participants': await db.query('split_participants'),
       'settlements': await db.query('settlements'),
+      'savings_goals': await db.query('savings_goals'),
+      'goal_contributions': await db.query('goal_contributions'),
     };
   }
 
@@ -1989,6 +2105,45 @@ class DatabaseService {
       await db.insert('settlements', row);
     }
 
+    // Savings goals: remap goal ids so contributions re-point correctly.
+    final goalIdMap = <int, int>{};
+    var goalCount = 0;
+    for (final raw in (data['savings_goals'] as List? ?? const [])) {
+      final row = Map<String, dynamic>.from(raw as Map);
+      final oldId = row['id'] as int?;
+      row.remove('id');
+      final exists = await db.query(
+        'savings_goals',
+        where: 'name = ? AND target_amount = ? AND created_at = ?',
+        whereArgs: [row['name'], row['target_amount'], row['created_at']],
+        limit: 1,
+      );
+      final int localId;
+      if (exists.isNotEmpty) {
+        localId = exists.first['id'] as int;
+      } else {
+        localId = await db.insert('savings_goals', row);
+        goalCount++;
+      }
+      if (oldId != null) goalIdMap[oldId] = localId;
+    }
+
+    for (final raw in (data['goal_contributions'] as List? ?? const [])) {
+      final row = Map<String, dynamic>.from(raw as Map);
+      row.remove('id');
+      final newGoalId = goalIdMap[row['goal_id'] as int?];
+      if (newGoalId == null) continue; // orphaned contribution — skip
+      final exists = await db.query(
+        'goal_contributions',
+        where: 'goal_id = ? AND amount = ? AND date = ?',
+        whereArgs: [newGoalId, row['amount'], row['date']],
+        limit: 1,
+      );
+      if (exists.isNotEmpty) continue;
+      row['goal_id'] = newGoalId;
+      await db.insert('goal_contributions', row);
+    }
+
     return {
       'transactions': txnCount,
       'budgets': budgetCount,
@@ -1996,6 +2151,7 @@ class DatabaseService {
       'holdings': holdingCount,
       'sips': sipCount,
       'splits': splitCount,
+      'goals': goalCount,
     };
   }
 

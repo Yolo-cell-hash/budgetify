@@ -323,6 +323,35 @@ class NotificationService {
     );
   }
 
+  /// Celebratory notification fired when a savings goal reaches its target.
+  Future<void> showGoalAchieved({
+    required String name,
+    required double amount,
+  }) async {
+    if (!_isInitialized) await initialize();
+    final fmt = NumberFormat.currency(
+      locale: 'en_IN',
+      symbol: '₹',
+      decimalDigits: 0,
+    );
+    await _notifications.show(
+      4100 + (name.hashCode.abs() % 1000),
+      '🎉 Goal reached: $name',
+      'You saved ${fmt.format(amount)} — congratulations!',
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'transaction_channel',
+          'Transaction Alerts',
+          channelDescription: 'Notifications for detected bank transactions',
+          importance: Importance.high,
+          priority: Priority.high,
+          showWhen: true,
+        ),
+      ),
+      payload: 'goal_achieved',
+    );
+  }
+
   /// Weekly nudge to tag the month's unclassified transactions. Tapping it
   /// opens the transactions list pre-filtered to Unclassified.
   Future<void> showUnclassifiedReminder({
