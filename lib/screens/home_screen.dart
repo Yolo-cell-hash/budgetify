@@ -29,6 +29,7 @@ import '../widgets/permission_request_card.dart';
 import '../widgets/expense_chart.dart';
 import 'transactions_screen.dart';
 import 'add_transaction_screen.dart';
+import 'goals_screen.dart';
 import 'net_worth_screen.dart';
 import 'rewards_hub_screen.dart';
 import 'splits_screen.dart';
@@ -483,6 +484,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           ),
                           const SizedBox(height: 12),
                           FadeSlideIn(order: 4, child: _buildCashSection()),
+                          const SizedBox(height: 12),
+                          FadeSlideIn(order: 5, child: const HomeGoalsCard()),
                           const SizedBox(height: 12),
                           FadeSlideIn(order: 5, child: _buildWrappedEntry()),
                           const SizedBox(height: 12),

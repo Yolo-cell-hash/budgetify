@@ -6,6 +6,7 @@ import '../models/achievement.dart';
 import '../models/holding.dart';
 import '../models/transaction_model.dart';
 import 'database_service.dart';
+import 'savings_goal_service.dart';
 
 /// The user's customizable profile for Gamified Budgets. Fully offline and
 /// included in encrypted backups.
@@ -283,6 +284,8 @@ class GamificationService {
       ));
     }
 
+    final goalsCompleted = await SavingsGoalService(_db).completedGoalsCount();
+
     final stats = GamiStats(
       currentStreak: currentStreak,
       longestStreak: longestStreak,
@@ -296,6 +299,7 @@ class GamificationService {
       distinctCategories: spendCatsUsed.length,
       netWorth: summary.netWorth,
       debtFreeDays: debtFreeDays,
+      goalsCompleted: goalsCompleted,
       monthStats: monthStats,
     );
 

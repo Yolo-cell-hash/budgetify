@@ -34,6 +34,7 @@ class GamiStats {
   // Wealth
   final double netWorth;
   final int debtFreeDays; // consecutive days debt-free (assets>0, no debt)
+  final int goalsCompleted; // savings goals fully funded
 
   // Per-month history (one entry per completed month that had income), used to
   // count how many months a title's rule was actually met.
@@ -52,6 +53,7 @@ class GamiStats {
     this.distinctCategories = 0,
     this.netWorth = 0,
     this.debtFreeDays = 0,
+    this.goalsCompleted = 0,
     this.monthStats = const [],
   });
 }
@@ -388,6 +390,20 @@ final List<AchievementGroup> kAchievementGroups = [
       AchievementTier(10, BadgeRarity.copper, '10 Days'),
       AchievementTier(30, BadgeRarity.silver, '30 Days'),
       AchievementTier(60, BadgeRarity.gold, '60 Days'),
+    ],
+  ),
+  AchievementGroup(
+    id: 'goals',
+    name: 'Goal Getter',
+    emblem: '🎯',
+    blurb: 'Savings goals you have fully funded.',
+    unit: GamiUnit.count,
+    valueOf: (s) => s.goalsCompleted.toDouble(),
+    tiers: const [
+      AchievementTier(1, BadgeRarity.copper, '1 Goal'),
+      AchievementTier(3, BadgeRarity.silver, '3 Goals'),
+      AchievementTier(5, BadgeRarity.gold, '5 Goals'),
+      AchievementTier(10, BadgeRarity.diamond, '10 Goals'),
     ],
   ),
   AchievementGroup(
