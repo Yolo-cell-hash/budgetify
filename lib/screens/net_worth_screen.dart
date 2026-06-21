@@ -9,6 +9,7 @@ import '../services/custom_tag_service.dart';
 import '../services/database_service.dart';
 import '../services/sip_service.dart';
 import '../services/widget_service.dart';
+import '../widgets/app_bar_title.dart';
 import '../widgets/app_dialog.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/glass.dart';
@@ -83,7 +84,10 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Net Worth')),
+      appBar: AppBar(
+        title: const AppBarTitle('Net Worth',
+            icon: Icons.account_balance_wallet_rounded),
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openEditor(),
         icon: const Icon(Icons.add),
@@ -159,24 +163,15 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
   // ==================== HERO ====================
   Widget _buildHero(AppColors colors) {
     final net = _summary.netWorth;
+    final hero = HeroStyle.of(context);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: AppColors.heroGradient,
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        gradient: hero.gradient,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.gold.withValues(alpha: 0.35)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.25),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
-          ),
-        ],
+        border: Border.all(color: hero.border),
+        boxShadow: hero.shadow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -187,18 +182,18 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
               fontSize: 12,
               letterSpacing: 1.4,
               fontWeight: FontWeight.w600,
-              color: AppColors.gold.withValues(alpha: 0.9),
+              color: hero.accent,
             ),
           ),
           const SizedBox(height: 10),
           PrivacyAnimatedAmount(
             value: net,
             formatter: _fmt,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 36,
               fontWeight: FontWeight.w700,
               letterSpacing: -1.2,
-              color: Colors.white,
+              color: hero.foreground,
             ),
           ),
           const SizedBox(height: 18),
@@ -206,16 +201,16 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
             children: [
               Expanded(
                 child: _heroStat('Assets', _summary.assets,
-                    AppColors.successDark, Icons.arrow_upward),
+                    colors.success, Icons.arrow_upward),
               ),
               Container(
                 width: 1,
                 height: 38,
-                color: Colors.white.withValues(alpha: 0.12),
+                color: hero.divider,
               ),
               Expanded(
                 child: _heroStat('Liabilities', _summary.liabilities,
-                    AppColors.dangerDark, Icons.arrow_downward,
+                    colors.danger, Icons.arrow_downward,
                     alignEnd: true),
               ),
             ],
@@ -227,6 +222,7 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
 
   Widget _heroStat(String label, double value, Color color, IconData icon,
       {bool alignEnd = false}) {
+    final hero = HeroStyle.of(context);
     return Column(
       crossAxisAlignment:
           alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
@@ -242,7 +238,7 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
               style: TextStyle(
                 fontSize: 11,
                 letterSpacing: 0.3,
-                color: Colors.white.withValues(alpha: 0.65),
+                color: hero.mutedForeground,
               ),
             ),
           ],
@@ -250,11 +246,11 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
         const SizedBox(height: 5),
         PrivacyAmount(
           _fmt.format(value),
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w700,
             letterSpacing: -0.2,
-            color: Colors.white,
+            color: hero.foreground,
           ),
         ),
       ],

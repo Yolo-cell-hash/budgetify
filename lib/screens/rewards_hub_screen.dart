@@ -4,6 +4,7 @@ import '../models/achievement.dart';
 import '../providers/theme_provider.dart';
 import '../services/app_events.dart';
 import '../services/gamification_service.dart';
+import '../widgets/app_bar_title.dart';
 import '../widgets/avatars.dart';
 import '../widgets/avatar_picker_sheet.dart';
 import '../widgets/badge_medallion.dart';
@@ -103,7 +104,7 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
       child: Scaffold(
         backgroundColor: colors.background,
         appBar: AppBar(
-          title: const Text('Rewards'),
+          title: const AppBarTitle('Rewards', icon: Icons.emoji_events_rounded),
           bottom: const TabBar(
             tabs: [Tab(text: 'Profile'), Tab(text: 'Trophies')],
           ),

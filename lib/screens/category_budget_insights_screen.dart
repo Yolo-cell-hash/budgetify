@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
 import '../models/budget_model.dart';
 import '../models/transaction_model.dart';
+import '../providers/app_preferences.dart';
 import '../providers/theme_provider.dart';
 import '../services/database_service.dart';
 import '../widgets/app_dialog.dart';
@@ -220,7 +222,7 @@ class _CategoryBudgetInsightsScreenState
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Text(
+                    PrivacyAmount(
                       'of ${_fmt.format(amount)}',
                       style: TextStyle(
                         fontSize: 12,
@@ -258,7 +260,7 @@ class _CategoryBudgetInsightsScreenState
           Icon(ok ? Icons.savings_outlined : Icons.warning_amber_rounded,
               color: color, size: 20),
           const SizedBox(width: 8),
-          Text(
+          PrivacyAmount(
             ok
                 ? '${_fmt.format(remaining)} left this month'
                 : '${_fmt.format(remaining.abs())} over budget',
@@ -284,10 +286,12 @@ class _CategoryBudgetInsightsScreenState
     final daysLeft = end.difference(DateTime(now.year, now.month, now.day)).inDays + 1;
     if (daysLeft <= 0) return const SizedBox.shrink();
     final perDay = remaining / daysLeft;
+    final hidden = context.select<AppPreferences, bool>((p) => p.amountsHidden);
+    final text = '$daysLeft day${daysLeft == 1 ? '' : 's'} left · '
+        '${_fmt.format(perDay)}/day to stay under';
 
     return Text(
-      '$daysLeft day${daysLeft == 1 ? '' : 's'} left · '
-      '${_fmt.format(perDay)}/day to stay under',
+      hidden ? maskRupeeFigures(text) : text,
       style: TextStyle(
         fontSize: 12.5,
         color: Colors.white.withOpacity(0.6),

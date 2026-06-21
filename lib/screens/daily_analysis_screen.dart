@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/transaction_model.dart';
 import '../services/database_service.dart';
+import '../widgets/app_bar_title.dart';
 import '../widgets/category_donut.dart';
 import '../widgets/glass.dart';
 import '../widgets/motion.dart';
@@ -97,7 +98,9 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
 
     return Scaffold(
       backgroundColor: bgColor,
-      appBar: AppBar(title: const Text('Daily Analysis')),
+      appBar: AppBar(
+        title: const AppBarTitle('Daily Analysis', icon: Icons.today_rounded),
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _transactions.isEmpty
@@ -478,7 +481,7 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text(
+                    PrivacyAmount(
                       fmt.format(entry.value),
                       style: TextStyle(
                         fontSize: 14,
@@ -643,7 +646,7 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
               ),
             ),
             const Spacer(),
-            Text(
+            PrivacyAmount(
               amount,
               style: TextStyle(
                 fontSize: 14,

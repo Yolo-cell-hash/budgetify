@@ -10,6 +10,7 @@ import 'package:share_plus/share_plus.dart';
 import '../models/monthly_recap.dart';
 import '../providers/theme_provider.dart';
 import '../services/recap_service.dart';
+import '../widgets/app_bar_title.dart';
 import '../widgets/app_dialog.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/glass.dart';
@@ -158,21 +159,8 @@ class _WrappedScreenState extends State<WrappedScreen>
 
     return Scaffold(
       appBar: AppBar(
-        title: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.auto_awesome_rounded, size: 18, color: AppColors.gold),
-            SizedBox(width: 8),
-            Text(
-              'Monthly Wrapped',
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w700,
-                letterSpacing: -0.2,
-              ),
-            ),
-          ],
-        ),
+        title: const AppBarTitle('Monthly Wrapped',
+            icon: Icons.auto_awesome_rounded),
       ),
       body: AmbientBackground(
         child: Column(

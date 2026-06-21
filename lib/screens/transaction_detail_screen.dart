@@ -4,6 +4,7 @@ import '../models/transaction_model.dart';
 import '../models/transaction_rule_model.dart';
 import '../services/database_service.dart';
 import '../services/custom_tag_service.dart';
+import '../widgets/app_bar_title.dart';
 import '../widgets/app_toast.dart';
 
 /// Screen for viewing and classifying a transaction
@@ -620,7 +621,8 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     return Scaffold(
       backgroundColor: bgColor,
       appBar: AppBar(
-        title: const Text('Transaction Details'),
+        title: const AppBarTitle('Transaction Details',
+            icon: Icons.receipt_long_rounded),
         backgroundColor: cardColor,
         foregroundColor: textColor,
         elevation: 0,

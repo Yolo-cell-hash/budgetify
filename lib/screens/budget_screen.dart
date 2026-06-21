@@ -9,6 +9,7 @@ import '../providers/app_preferences.dart';
 import '../providers/theme_provider.dart';
 import '../services/custom_tag_service.dart';
 import '../services/database_service.dart';
+import '../widgets/app_bar_title.dart';
 import '../widgets/app_dialog.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/category_donut.dart';
@@ -62,6 +63,10 @@ class _BudgetScreenState extends State<BudgetScreen>
   final Map<String, double> _categoryBudgetSpent = {};
   String? _suggestedCategory;
   int _suggestedCount = 0;
+
+  // Whether monetary figures should render masked (privacy mode on, not
+  // revealed). Refreshed every build so charts & axis labels track the toggle.
+  bool _hideAmounts = false;
 
   // Trends tab state
   _TrendsChartMode _trendsChartMode = _TrendsChartMode.bar;
@@ -257,6 +262,7 @@ class _BudgetScreenState extends State<BudgetScreen>
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    _hideAmounts = context.watch<AppPreferences>().amountsHidden;
     final fmt = NumberFormat.currency(
       locale: 'en_IN',
       symbol: '₹',
@@ -265,7 +271,8 @@ class _BudgetScreenState extends State<BudgetScreen>
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Budget & Analytics'),
+        title: const AppBarTitle('Budget & Analytics',
+            icon: Icons.donut_small_rounded),
         actions: [
           IconButton(icon: const Icon(Icons.refresh), onPressed: _loadData),
         ],
@@ -677,30 +684,23 @@ class _BudgetScreenState extends State<BudgetScreen>
   Widget _buildProgressCard(bool isDark, NumberFormat fmt) {
     final pct = _budget!.amount > 0 ? _spent / _budget!.amount : 0.0;
     final remaining = _budget!.amount - _spent;
+    final colors = AppColors.of(context);
+    final hero = HeroStyle.of(context);
     // Gauge color: gold while healthy, amber near the limit, rose when over
     final color = pct >= 1
-        ? const Color(0xFFE8888C)
+        ? colors.danger
         : pct >= 0.9
         ? const Color(0xFFD79A3C)
         : AppColors.gold;
+    final pillColor = remaining >= 0 ? colors.success : colors.danger;
 
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: AppColors.heroGradient,
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        gradient: hero.gradient,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.gold.withOpacity(0.35)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.25),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
-          ),
-        ],
+        border: Border.all(color: hero.border),
+        boxShadow: hero.shadow,
       ),
       child: Column(
         children: [
@@ -709,11 +709,11 @@ class _BudgetScreenState extends State<BudgetScreen>
             children: [
               Text(
                 _budget!.name.toUpperCase(),
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12,
                   letterSpacing: 1.4,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.gold,
+                  color: hero.accent,
                 ),
               ),
               Container(
@@ -751,7 +751,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                         value: animated,
                         strokeWidth: 12,
                         strokeCap: StrokeCap.round,
-                        backgroundColor: Colors.white.withOpacity(0.08),
+                        backgroundColor: hero.foregroundAlpha(0.10),
                         valueColor: AlwaysStoppedAnimation(color),
                       );
                     },
@@ -763,19 +763,19 @@ class _BudgetScreenState extends State<BudgetScreen>
                     PrivacyAnimatedAmount(
                       value: _spent,
                       formatter: fmt,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 21,
                         fontWeight: FontWeight.w700,
                         letterSpacing: -0.5,
-                        color: Colors.white,
+                        color: hero.foreground,
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Text(
+                    PrivacyAmount(
                       'of ${fmt.format(_budget!.amount)}',
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.white.withOpacity(0.55),
+                        color: hero.mutedForeground,
                       ),
                     ),
                   ],
@@ -787,35 +787,25 @@ class _BudgetScreenState extends State<BudgetScreen>
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: remaining >= 0
-                  ? const Color(0xFF4CC795).withAlpha(28)
-                  : const Color(0xFFE8888C).withAlpha(28),
+              color: pillColor.withAlpha(28),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: remaining >= 0
-                    ? const Color(0xFF4CC795).withAlpha(60)
-                    : const Color(0xFFE8888C).withAlpha(60),
-              ),
+              border: Border.all(color: pillColor.withAlpha(60)),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(
                   remaining >= 0 ? Icons.savings_outlined : Icons.warning_amber,
-                  color: remaining >= 0
-                      ? const Color(0xFF4CC795)
-                      : const Color(0xFFE8888C),
+                  color: pillColor,
                   size: 20,
                 ),
                 const SizedBox(width: 8),
-                Text(
+                PrivacyAmount(
                   remaining >= 0
                       ? '${fmt.format(remaining)} left'
                       : '${fmt.format(remaining.abs())} over!',
                   style: TextStyle(
-                    color: remaining >= 0
-                        ? const Color(0xFF4CC795)
-                        : const Color(0xFFE8888C),
+                    color: pillColor,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -995,7 +985,9 @@ class _BudgetScreenState extends State<BudgetScreen>
                             showTitles: true,
                             reservedSize: 50,
                             getTitlesWidget: (v, _) => Text(
-                              '₹${(v / 1000).toStringAsFixed(0)}k',
+                              _hideAmounts
+                                  ? '₹•••'
+                                  : '₹${(v / 1000).toStringAsFixed(0)}k',
                               style: const TextStyle(fontSize: 10),
                             ),
                           ),
@@ -1244,7 +1236,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                     ],
                   ),
                 ),
-                Text(
+                PrivacyAmount(
                   fmt.format(amount),
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
@@ -1311,7 +1303,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                             ],
                           ),
                         ),
-                        Text(
+                        PrivacyAmount(
                           fmt.format(txn.amount),
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
@@ -1479,7 +1471,7 @@ class _BudgetScreenState extends State<BudgetScreen>
             getTooltipColor: (_) => const Color(0xFF2E313A),
             getTooltipItem: (group, groupIndex, rod, rodIndex) {
               return BarTooltipItem(
-                '₹${rod.toY.toStringAsFixed(0)}',
+                _hideAmounts ? '₹••••' : '₹${rod.toY.toStringAsFixed(0)}',
                 const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.w600,
@@ -1529,7 +1521,7 @@ class _BudgetScreenState extends State<BudgetScreen>
             getTooltipColor: (_) => Color(0xFF2E313A),
             getTooltipItems: (spots) => spots.map((spot) {
               return LineTooltipItem(
-                '₹${spot.y.toStringAsFixed(0)}',
+                _hideAmounts ? '₹••••' : '₹${spot.y.toStringAsFixed(0)}',
                 const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.w500,
@@ -1586,7 +1578,7 @@ class _BudgetScreenState extends State<BudgetScreen>
           showTitles: true,
           reservedSize: 50,
           getTitlesWidget: (v, _) => Text(
-            '₹${(v / 1000).toStringAsFixed(0)}k',
+            _hideAmounts ? '₹•••' : '₹${(v / 1000).toStringAsFixed(0)}k',
             style: const TextStyle(fontSize: 10),
           ),
         ),
@@ -1696,7 +1688,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                     ),
                   ),
                 ),
-                Text(
+                PrivacyAmount(
                   fmt.format(total),
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
@@ -1804,7 +1796,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Text(
+                  PrivacyAmount(
                     fmt.format(e.value),
                     style: TextStyle(
                       fontSize: 13,

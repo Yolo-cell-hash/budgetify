@@ -4,6 +4,7 @@ import '../models/transaction_model.dart';
 import '../providers/theme_provider.dart';
 import '../services/custom_tag_service.dart';
 import '../services/database_service.dart';
+import '../widgets/app_bar_title.dart';
 import '../widgets/app_dialog.dart';
 import '../widgets/app_toast.dart';
 
@@ -114,7 +115,9 @@ class _ManageTagsScreenState extends State<ManageTagsScreen> {
     final hidden = _tags.hiddenPredefined;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Manage Tags')),
+      appBar: AppBar(
+        title: const AppBarTitle('Manage Tags', icon: Icons.sell_rounded),
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : ListView(

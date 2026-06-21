@@ -514,6 +514,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   /// hasn't been answered via the notification. Leads to the Net Worth review.
   Widget _buildSipAlert() {
     final n = _dueSipCount;
+    final hero = HeroStyle.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Material(
@@ -532,13 +533,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           child: Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: AppColors.heroGradient,
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+              gradient: hero.gradient,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.gold.withValues(alpha: 0.45)),
+              border: Border.all(color: hero.border),
+              boxShadow: hero.shadow,
             ),
             child: Row(
               children: [
@@ -555,12 +553,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Investment Alert',
                         style: TextStyle(
                           fontSize: 14.5,
                           fontWeight: FontWeight.w700,
-                          color: Colors.white,
+                          color: hero.foreground,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -570,14 +568,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             : '$n investments to confirm today',
                         style: TextStyle(
                           fontSize: 12.5,
-                          color: Colors.white.withValues(alpha: 0.75),
+                          color: hero.mutedForeground,
                         ),
                       ),
                     ],
                   ),
                 ),
-                Icon(Icons.chevron_right,
-                    size: 18, color: AppColors.gold.withValues(alpha: 0.9)),
+                Icon(Icons.chevron_right, size: 18, color: hero.accent),
               ],
             ),
           ),
@@ -685,25 +682,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget _buildBalanceCard({bool showHealthInline = false}) {
     final formatter = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
     final monthName = DateFormat('MMMM').format(DateTime.now());
+    final colors = AppColors.of(context);
+    final hero = HeroStyle.of(context);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: AppColors.heroGradient,
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        gradient: hero.gradient,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.gold.withOpacity(0.35)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.25),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
-          ),
-        ],
+        border: Border.all(color: hero.border),
+        boxShadow: hero.shadow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -713,19 +702,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             children: [
               Text(
                 '$monthName Expenses'.toUpperCase(),
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12,
                   letterSpacing: 1.4,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.gold,
+                  color: hero.accent,
                 ),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.08),
+                  color: hero.innerFill,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.white.withOpacity(0.12)),
+                  border: Border.all(color: hero.innerBorder),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -733,14 +722,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     Icon(
                       Icons.arrow_upward,
                       size: 13,
-                      color: Colors.white.withOpacity(0.85),
+                      color: hero.mutedForeground,
                     ),
                     const SizedBox(width: 4),
                     Text(
                       'Spent',
                       style: TextStyle(
                         fontSize: 11,
-                        color: Colors.white.withOpacity(0.85),
+                        color: hero.mutedForeground,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -753,20 +742,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           PrivacyAnimatedAmount(
             value: _monthlyExpenses,
             formatter: formatter,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 38,
               fontWeight: FontWeight.w700,
               letterSpacing: -1.2,
-              color: Colors.white,
+              color: hero.foreground,
             ),
           ),
           const SizedBox(height: 22),
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.06),
+              color: hero.innerFill,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.white.withOpacity(0.08)),
+              border: Border.all(color: hero.innerBorder),
             ),
             child: Row(
               children: [
@@ -781,13 +770,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             Container(
                               padding: const EdgeInsets.all(4),
                               decoration: BoxDecoration(
-                                color: AppColors.successDark.withOpacity(0.18),
+                                color: colors.success.withOpacity(0.18),
                                 borderRadius: BorderRadius.circular(5),
                               ),
-                              child: const Icon(
+                              child: Icon(
                                 Icons.arrow_downward,
                                 size: 12,
-                                color: AppColors.successDark,
+                                color: colors.success,
                               ),
                             ),
                             const SizedBox(width: 6),
@@ -796,7 +785,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                               style: TextStyle(
                                 fontSize: 11,
                                 letterSpacing: 0.3,
-                                color: Colors.white.withOpacity(0.65),
+                                color: hero.mutedForeground,
                               ),
                             ),
                           ],
@@ -804,11 +793,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         const SizedBox(height: 6),
                         PrivacyAmount(
                           formatter.format(_monthlyIncome),
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
                             letterSpacing: -0.2,
-                            color: Colors.white,
+                            color: hero.foreground,
                           ),
                         ),
                       ],
@@ -818,7 +807,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 Container(
                   width: 1,
                   height: 40,
-                  color: Colors.white.withOpacity(0.12),
+                  color: hero.divider,
                 ),
                 Expanded(
                   child: GestureDetector(
@@ -834,20 +823,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                               style: TextStyle(
                                 fontSize: 11,
                                 letterSpacing: 0.3,
-                                color: Colors.white.withOpacity(0.65),
+                                color: hero.mutedForeground,
                               ),
                             ),
                             const SizedBox(width: 6),
                             Container(
                               padding: const EdgeInsets.all(4),
                               decoration: BoxDecoration(
-                                color: AppColors.dangerDark.withOpacity(0.18),
+                                color: colors.danger.withOpacity(0.18),
                                 borderRadius: BorderRadius.circular(5),
                               ),
-                              child: const Icon(
+                              child: Icon(
                                 Icons.arrow_upward,
                                 size: 12,
-                                color: AppColors.dangerDark,
+                                color: colors.danger,
                               ),
                             ),
                           ],
@@ -855,11 +844,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         const SizedBox(height: 6),
                         PrivacyAmount(
                           formatter.format(_monthlyExpenses),
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
                             letterSpacing: -0.2,
-                            color: Colors.white,
+                            color: hero.foreground,
                           ),
                         ),
                       ],
@@ -873,15 +862,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           SavingsRateBar(
             income: _monthlyIncome,
             expenses: _monthlyExpenses,
-            onDark: true,
+            onDark: hero.onDark,
           ),
           // Compact Financial Health indicator, shown here under the savings
           // rate when the detailed card is turned off.
           if (showHealthInline && (_health?.hasScore ?? false)) ...[
             const SizedBox(height: 16),
-            Container(height: 1, color: Colors.white.withValues(alpha: 0.10)),
+            Container(height: 1, color: hero.divider),
             const SizedBox(height: 14),
-            FinancialHealthInline(health: _health!, onDark: true),
+            FinancialHealthInline(health: _health!, onDark: hero.onDark),
           ],
         ],
       ),
@@ -890,6 +879,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Widget _buildWrappedEntry() {
     final monthName = DateFormat('MMMM').format(DateTime.now());
+    final hero = HeroStyle.of(context);
 
     return PressableScale(
       onTap: () => Navigator.push(
@@ -901,20 +891,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(18),
           gradient: const LinearGradient(
-            colors: [Color(0xFF2A2414), AppColors.gold, Color(0xFF2A2414)],
+            colors: [AppColors.goldDeep, AppColors.gold, AppColors.goldDeep],
             begin: Alignment.centerLeft,
             end: Alignment.centerRight,
           ),
+          boxShadow: hero.shadow,
         ),
-        padding: const EdgeInsets.all(1.2),
+        padding: const EdgeInsets.all(1.4),
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: AppColors.heroGradient,
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
+            gradient: hero.gradient,
             borderRadius: BorderRadius.circular(17),
           ),
           child: Row(
@@ -925,15 +912,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      AppColors.gold.withValues(alpha: 0.20),
-                      AppColors.gold.withValues(alpha: 0.06),
+                      AppColors.gold.withValues(alpha: 0.22),
+                      AppColors.gold.withValues(alpha: 0.08),
                     ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: AppColors.gold.withValues(alpha: 0.15),
+                    color: AppColors.gold.withValues(alpha: 0.30),
                   ),
                 ),
                 child: const Center(
@@ -947,8 +934,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   children: [
                     Text(
                       '$monthName Wrapped',
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: hero.foreground,
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
                         letterSpacing: -0.2,
@@ -958,7 +945,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     Text(
                       'Your shareable month in review',
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.50),
+                        color: hero.mutedForeground,
                         fontSize: 12,
                       ),
                     ),
@@ -968,13 +955,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.06),
+                  color: hero.innerFill,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
                   Icons.arrow_forward_ios_rounded,
                   size: 14,
-                  color: AppColors.gold.withValues(alpha: 0.80),
+                  color: hero.accent,
                 ),
               ),
             ],
@@ -1271,6 +1258,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         .where((t) => t.category == 'Cash Conversion')
         .length;
 
+    // Cash keeps its own "money green" identity, but adapts: a deep forest
+    // gradient on dark, a fresh light-mint card on light — so it feels native
+    // to each theme rather than a dark block on a porcelain dashboard.
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cashGradient = isDark
+        ? const [Color(0xFF1E4636), Color(0xFF12291F)]
+        : const [Color(0xFFEAF7EF), Color(0xFFD3EBDD)];
+    final cashFg = isDark ? Colors.white : const Color(0xFF134E33);
+    final cashMuted =
+        isDark ? Colors.white : const Color(0xFF2E6B4D);
+    final cashBorder = isDark
+        ? Colors.white.withValues(alpha: 0.06)
+        : const Color(0xFF1E8A5A).withValues(alpha: 0.22);
+    final cashIconBg = isDark
+        ? Colors.white.withAlpha(50)
+        : Colors.white.withValues(alpha: 0.7);
+    final convChipBg = isDark
+        ? AppColors.gold.withOpacity(0.22)
+        : AppColors.goldDeep.withValues(alpha: 0.14);
+
     return PressableScale(
       onTap: () async {
         final result = await Navigator.push<bool>(
@@ -1286,13 +1293,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         margin: const EdgeInsets.symmetric(horizontal: 16),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF1E4636), Color(0xFF12291F)],
+          gradient: LinearGradient(
+            colors: cashGradient,
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: Colors.white.withOpacity(0.06)),
+          border: Border.all(color: cashBorder),
+          boxShadow: isDark
+              ? null
+              : [
+                  BoxShadow(
+                    color: const Color(0xFF1E8A5A).withValues(alpha: 0.12),
+                    blurRadius: 16,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1302,17 +1318,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.white.withAlpha(50),
+                    color: cashIconBg,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Text('💵', style: TextStyle(fontSize: 20)),
                 ),
                 const SizedBox(width: 12),
-                const Expanded(
+                Expanded(
                   child: Text(
                     'Cash Transactions',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: cashFg,
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                     ),
@@ -1320,8 +1336,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ),
                 PrivacyAmount(
                   fmt.format(_totalCash),
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: cashFg,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
@@ -1336,7 +1352,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: AppColors.gold.withOpacity(0.22),
+                  color: convChipBg,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
@@ -1346,7 +1362,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     const SizedBox(width: 6),
                     Text(
                       '$conversions Cash Conversion${conversions > 1 ? 's' : ''}',
-                      style: const TextStyle(color: Colors.white, fontSize: 12),
+                      style: TextStyle(color: cashMuted, fontSize: 12),
                     ),
                   ],
                 ),

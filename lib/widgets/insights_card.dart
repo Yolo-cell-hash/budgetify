@@ -85,7 +85,7 @@ class _InsightsCardState extends State<InsightsCard> {
                   color: AppColors.gold.withOpacity(0.14),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.auto_awesome_rounded,
+                child: const Icon(Icons.insights_rounded,
                     size: 18, color: AppColors.goldDeep),
               ),
               const SizedBox(width: 10),
@@ -151,18 +151,20 @@ class _InsightsCardState extends State<InsightsCard> {
   Widget _forecast(AppColors colors, SpendingForecast f) {
     final fmt = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
     final overUnder = f.projectedVsBudget;
+    final hidden = context.select<AppPreferences, bool>((p) => p.amountsHidden);
+    final hero = HeroStyle.of(context);
+    final spentLine = 'Day ${f.daysElapsed} of ${f.daysInMonth} · '
+        '${fmt.format(f.spentSoFar)} spent so far';
+    final tone = overUnder != null && overUnder > 0 ? colors.danger : colors.success;
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: AppColors.heroGradient,
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        gradient: hero.gradient,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.gold.withOpacity(0.30)),
+        border: Border.all(color: hero.border),
+        boxShadow: hero.shadow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -173,27 +175,26 @@ class _InsightsCardState extends State<InsightsCard> {
               fontSize: 10.5,
               letterSpacing: 1.3,
               fontWeight: FontWeight.w600,
-              color: AppColors.gold.withOpacity(0.9),
+              color: hero.accent,
             ),
           ),
           const SizedBox(height: 6),
           PrivacyAnimatedAmount(
             value: f.projected,
             formatter: fmt,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 30,
               fontWeight: FontWeight.w700,
               letterSpacing: -0.8,
-              color: Colors.white,
+              color: hero.foreground,
             ),
           ),
           const SizedBox(height: 4),
           Text(
-            'Day ${f.daysElapsed} of ${f.daysInMonth} · '
-            '${fmt.format(f.spentSoFar)} spent so far',
+            hidden ? maskRupeeFigures(spentLine) : spentLine,
             style: TextStyle(
               fontSize: 11.5,
-              color: Colors.white.withOpacity(0.6),
+              color: hero.mutedForeground,
             ),
           ),
           if (overUnder != null) ...[
@@ -201,10 +202,7 @@ class _InsightsCardState extends State<InsightsCard> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
               decoration: BoxDecoration(
-                color: (overUnder > 0
-                        ? AppColors.dangerDark
-                        : AppColors.successDark)
-                    .withOpacity(0.18),
+                color: tone.withValues(alpha: 0.18),
                 borderRadius: BorderRadius.circular(9),
               ),
               child: Row(
@@ -215,21 +213,17 @@ class _InsightsCardState extends State<InsightsCard> {
                         ? Icons.trending_up_rounded
                         : Icons.trending_down_rounded,
                     size: 15,
-                    color: overUnder > 0
-                        ? AppColors.dangerDark
-                        : AppColors.successDark,
+                    color: tone,
                   ),
                   const SizedBox(width: 6),
-                  Text(
+                  PrivacyAmount(
                     overUnder > 0
                         ? '${fmt.format(overUnder)} over budget'
                         : '${fmt.format(-overUnder)} under budget',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: overUnder > 0
-                          ? AppColors.dangerDark
-                          : AppColors.successDark,
+                      color: tone,
                     ),
                   ),
                 ],
@@ -244,15 +238,15 @@ class _InsightsCardState extends State<InsightsCard> {
                   'Safe to spend: ',
                   style: TextStyle(
                     fontSize: 12,
-                    color: Colors.white.withOpacity(0.6),
+                    color: hero.mutedForeground,
                   ),
                 ),
                 PrivacyAmount(
                   '${fmt.format(f.safeToSpendPerDay!)}/day',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.gold,
+                    color: hero.accent,
                   ),
                 ),
               ],

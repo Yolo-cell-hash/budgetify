@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/transaction_model.dart';
 import '../services/database_service.dart';
+import '../widgets/app_bar_title.dart';
 
 class AddTransactionScreen extends StatefulWidget {
   final String? initialCategory;
@@ -68,7 +69,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Add Transaction')),
+      appBar: AppBar(
+        title: const AppBarTitle('Add Transaction',
+            icon: Icons.add_card_rounded),
+      ),
       body: Form(
         key: _formKey,
         child: ListView(
