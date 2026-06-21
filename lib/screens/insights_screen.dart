@@ -1,10 +1,13 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
+import '../providers/app_preferences.dart';
 import '../providers/theme_provider.dart';
 import '../services/database_service.dart';
 import '../services/insights_service.dart';
+import '../widgets/app_bar_title.dart';
 import '../widgets/category_donut.dart';
 import '../widgets/glass.dart';
 import '../widgets/motion.dart';
@@ -62,25 +65,12 @@ class _InsightsScreenState extends State<InsightsScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
+    final hidden = context.watch<AppPreferences>().amountsHidden;
     final r = _result;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.auto_awesome_rounded, size: 18, color: AppColors.gold),
-            SizedBox(width: 8),
-            Text(
-              'Insights',
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w700,
-                letterSpacing: -0.2,
-              ),
-            ),
-          ],
-        ),
+        title: const AppBarTitle('Insights', icon: Icons.insights_rounded),
       ),
       body: AmbientBackground(
         child: _loading
@@ -98,7 +88,8 @@ class _InsightsScreenState extends State<InsightsScreen> {
                         ),
                         const SizedBox(height: 14),
                       ],
-                      FadeSlideIn(order: 0, child: _forecastCard(r.forecast!)),
+                      FadeSlideIn(
+                          order: 0, child: _forecastCard(r.forecast!, hidden)),
                       const SizedBox(height: 14),
                     ],
                     FadeSlideIn(
@@ -107,7 +98,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
                         colors,
                         title: 'Spending trend',
                         subtitle: 'Last 6 months',
-                        child: _trendChart(colors),
+                        child: _trendChart(colors, hidden),
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -149,50 +140,51 @@ class _InsightsScreenState extends State<InsightsScreen> {
   }
 
   // ── Forecast hero ───────────────────────────────────────────────────
-  Widget _forecastCard(SpendingForecast f) {
+  Widget _forecastCard(SpendingForecast f, bool hidden) {
     final overUnder = f.projectedVsBudget;
+    final colors = AppColors.of(context);
+    final hero = HeroStyle.of(context);
+    final spentLine = 'Day ${f.daysElapsed} of ${f.daysInMonth} · '
+        '${_fmt.format(f.spentSoFar)} spent so far';
+    final tone = overUnder != null && overUnder > 0 ? colors.danger : colors.success;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: AppColors.heroGradient,
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        gradient: hero.gradient,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.gold.withOpacity(0.30)),
+        border: Border.all(color: hero.border),
+        boxShadow: hero.shadow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'PROJECTED THIS MONTH',
             style: TextStyle(
               fontSize: 11,
               letterSpacing: 1.4,
               fontWeight: FontWeight.w600,
-              color: AppColors.gold,
+              color: hero.accent,
             ),
           ),
           const SizedBox(height: 8),
           PrivacyAnimatedAmount(
             value: f.projected,
             formatter: _fmt,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 38,
               fontWeight: FontWeight.w700,
               letterSpacing: -1.2,
-              color: Colors.white,
+              color: hero.foreground,
             ),
           ),
           const SizedBox(height: 6),
           Text(
-            'Day ${f.daysElapsed} of ${f.daysInMonth} · '
-            '${_fmt.format(f.spentSoFar)} spent so far',
+            hidden ? maskRupeeFigures(spentLine) : spentLine,
             style: TextStyle(
               fontSize: 12.5,
-              color: Colors.white.withOpacity(0.6),
+              color: hero.mutedForeground,
             ),
           ),
           if (overUnder != null) ...[
@@ -200,10 +192,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: (overUnder > 0
-                        ? AppColors.dangerDark
-                        : AppColors.successDark)
-                    .withOpacity(0.18),
+                color: tone.withValues(alpha: 0.18),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Row(
@@ -214,21 +203,17 @@ class _InsightsScreenState extends State<InsightsScreen> {
                         ? Icons.trending_up_rounded
                         : Icons.trending_down_rounded,
                     size: 16,
-                    color: overUnder > 0
-                        ? AppColors.dangerDark
-                        : AppColors.successDark,
+                    color: tone,
                   ),
                   const SizedBox(width: 6),
-                  Text(
+                  PrivacyAmount(
                     overUnder > 0
                         ? '${_fmt.format(overUnder)} over budget'
                         : '${_fmt.format(-overUnder)} under budget',
                     style: TextStyle(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w600,
-                      color: overUnder > 0
-                          ? AppColors.dangerDark
-                          : AppColors.successDark,
+                      color: tone,
                     ),
                   ),
                 ],
@@ -241,7 +226,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
   }
 
   // ── 6-month trend bar chart ─────────────────────────────────────────
-  Widget _trendChart(AppColors colors) {
+  Widget _trendChart(AppColors colors, bool hidden) {
     if (_monthly.isEmpty) {
       return SizedBox(
         height: 120,
@@ -268,7 +253,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
             touchTooltipData: BarTouchTooltipData(
               getTooltipColor: (_) => const Color(0xFF2E313A),
               getTooltipItem: (group, gi, rod, ri) => BarTooltipItem(
-                '₹${rod.toY.round()}',
+                hidden ? '₹••••' : '₹${rod.toY.round()}',
                 const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.w600,

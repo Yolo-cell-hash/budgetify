@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../models/transaction_model.dart';
 import '../providers/theme_provider.dart';
+import 'privacy_amount.dart';
 
 /// A slim, decongested donut for category spending.
 ///
@@ -103,7 +104,7 @@ class CategoryDonut extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Text(
+                  PrivacyAmount(
                     fmt.format(total),
                     style: TextStyle(
                       fontSize: 22,
@@ -155,7 +156,7 @@ class CategoryDonut extends StatelessWidget {
                   const SizedBox(width: 12),
                   SizedBox(
                     width: 86,
-                    child: Text(
+                    child: PrivacyAmount(
                       fmt.format(s.value),
                       textAlign: TextAlign.end,
                       style: TextStyle(

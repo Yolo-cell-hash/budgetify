@@ -448,6 +448,111 @@ class AppColors {
   }
 }
 
+/// Premium "hero card" treatment that adapts to the active theme.
+///
+/// Dark mode keeps the signature midnight-ink gradient with champagne gold.
+/// Light mode gets its own warm porcelain-and-champagne treatment with deep
+/// ink text — so the marquee cards (month expenses, net worth, budget gauge,
+/// Wrapped, the forecast) feel intentional and premium in *both* modes,
+/// instead of looking like a stray dark element dropped on a light canvas.
+///
+/// Use [HeroStyle.of] in any card that was previously a hardcoded dark
+/// gradient so it tracks the theme from one place.
+class HeroStyle {
+  final List<Color> gradientColors;
+  final Color border;
+  final List<BoxShadow> shadow;
+
+  /// Primary text/icon colour on the card.
+  final Color foreground;
+
+  /// Secondary (de-emphasised) text colour.
+  final Color mutedForeground;
+
+  /// Gold accent for eyebrow labels, chevrons, sparkles.
+  final Color accent;
+
+  /// Fill + hairline for inset tiles laid on the hero surface.
+  final Color innerFill;
+  final Color innerBorder;
+
+  /// Hairline divider colour.
+  final Color divider;
+
+  /// Whether the surface itself is dark (drives child widgets like the
+  /// savings-rate bar that have their own on-dark styling).
+  final bool onDark;
+
+  const HeroStyle({
+    required this.gradientColors,
+    required this.border,
+    required this.shadow,
+    required this.foreground,
+    required this.mutedForeground,
+    required this.accent,
+    required this.innerFill,
+    required this.innerBorder,
+    required this.divider,
+    required this.onDark,
+  });
+
+  LinearGradient get gradient => LinearGradient(
+        colors: gradientColors,
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      );
+
+  /// A muted foreground at an arbitrary [alpha] (0..1) — for the faintest
+  /// captions and rule lines.
+  Color foregroundAlpha(double alpha) =>
+      foreground.withValues(alpha: alpha);
+
+  static HeroStyle of(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return dark ? _dark : _light;
+  }
+
+  static final HeroStyle _dark = HeroStyle(
+    gradientColors: AppColors.heroGradient,
+    border: AppColors.gold.withValues(alpha: 0.35),
+    shadow: [
+      BoxShadow(
+        color: Colors.black.withValues(alpha: 0.25),
+        blurRadius: 24,
+        offset: const Offset(0, 12),
+      ),
+    ],
+    foreground: Colors.white,
+    mutedForeground: Colors.white.withValues(alpha: 0.62),
+    accent: AppColors.gold,
+    innerFill: Colors.white.withValues(alpha: 0.06),
+    innerBorder: Colors.white.withValues(alpha: 0.08),
+    divider: Colors.white.withValues(alpha: 0.12),
+    onDark: true,
+  );
+
+  static final HeroStyle _light = HeroStyle(
+    // Ivory → warm champagne: clearly richer than the plain white cards
+    // around it, so the hero reads as the premium centrepiece.
+    gradientColors: const [Color(0xFFFFFBF2), Color(0xFFEFDFBE)],
+    border: AppColors.gold.withValues(alpha: 0.55),
+    shadow: [
+      BoxShadow(
+        color: const Color(0xFF9A7B33).withValues(alpha: 0.16),
+        blurRadius: 22,
+        offset: const Offset(0, 12),
+      ),
+    ],
+    foreground: AppColors.inkPrimary,
+    mutedForeground: AppColors.inkPrimary.withValues(alpha: 0.62),
+    accent: AppColors.goldDeep,
+    innerFill: Colors.white.withValues(alpha: 0.55),
+    innerBorder: AppColors.inkPrimary.withValues(alpha: 0.07),
+    divider: AppColors.inkPrimary.withValues(alpha: 0.10),
+    onDark: false,
+  );
+}
+
 /// Dark mode color constants for easy access throughout the app
 class DarkModeColors {
   static const background = Color(0xFF0A0B0E);

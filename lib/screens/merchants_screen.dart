@@ -5,6 +5,7 @@ import '../models/merchant_summary.dart';
 import '../providers/theme_provider.dart';
 import '../services/custom_tag_service.dart';
 import '../services/database_service.dart';
+import '../widgets/app_bar_title.dart';
 import '../widgets/glass.dart';
 import '../widgets/merchant_bar.dart';
 import '../widgets/motion.dart';
@@ -78,7 +79,8 @@ class _MerchantsScreenState extends State<MerchantsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Top Merchants'),
+        title: const AppBarTitle('Top Merchants',
+            icon: Icons.storefront_rounded),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(20),
           child: Padding(

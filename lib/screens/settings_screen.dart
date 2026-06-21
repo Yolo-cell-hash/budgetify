@@ -11,6 +11,7 @@ import '../services/app_lock_service.dart';
 import '../services/backup_service.dart';
 import '../services/background_service.dart';
 import '../services/export_service.dart';
+import '../widgets/app_bar_title.dart';
 import '../widgets/app_dialog.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/export_options_sheet.dart';
@@ -91,7 +92,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final themeProvider = context.watch<ThemeProvider>();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(
+        title: const AppBarTitle('Settings', icon: Icons.settings_rounded),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -297,7 +300,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             isDark: isDark,
             child: SwitchListTile(
               secondary: Icon(
-                Icons.auto_awesome_rounded,
+                Icons.insights_rounded,
                 color: context.watch<AppPreferences>().aiPredictionMode
                     ? const Color(0xFFA8843C)
                     : const Color(0xFF8A8D96),

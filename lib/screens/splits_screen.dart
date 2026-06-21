@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../models/ledger_models.dart';
 import '../providers/theme_provider.dart';
 import '../services/ledger_service.dart';
+import '../widgets/app_bar_title.dart';
 import '../widgets/glass.dart';
 import '../widgets/motion.dart';
 import '../widgets/person_avatar.dart';
@@ -201,18 +202,7 @@ class _SplitsScreenState extends State<SplitsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.call_split_rounded, size: 18, color: AppColors.gold),
-            SizedBox(width: 8),
-            Text('Splits',
-                style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: -0.2)),
-          ],
-        ),
+        title: const AppBarTitle('Splits', icon: Icons.call_split_rounded),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showAddMenu,

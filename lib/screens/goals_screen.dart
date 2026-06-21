@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../providers/theme_provider.dart';
 import '../services/app_events.dart';
 import '../services/savings_goal_service.dart';
+import '../widgets/app_bar_title.dart';
 import '../widgets/goal_editor_sheet.dart';
 import '../widgets/goal_jar.dart';
 import '../widgets/privacy_amount.dart';
@@ -190,7 +191,9 @@ class _GoalsScreenState extends State<GoalsScreen> {
     final goals = _goals;
     return Scaffold(
       backgroundColor: colors.background,
-      appBar: AppBar(title: const Text('Savings Goals')),
+      appBar: AppBar(
+        title: const AppBarTitle('Savings Goals', icon: Icons.savings_rounded),
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _newGoal,
         icon: const Icon(Icons.add_rounded),

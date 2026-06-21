@@ -93,6 +93,7 @@ class _BadgeMedallionState extends State<BadgeMedallion>
   @override
   Widget build(BuildContext context) {
     final style = rarityStyle(widget.rarity);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final s = widget.size;
     // Icon sits in the window — a touch below centre to clear the crown.
     final emblem = Padding(
@@ -118,14 +119,22 @@ class _BadgeMedallionState extends State<BadgeMedallion>
               builder: (_, __) => CustomPaint(
                 size: Size.square(s),
                 painter: _BadgePainter(
-                    t: _c!.value, style: style, rarity: widget.rarity, earned: true),
+                    t: _c!.value,
+                    style: style,
+                    rarity: widget.rarity,
+                    earned: true,
+                    isDark: isDark),
               ),
             )
           else
             CustomPaint(
               size: Size.square(s),
               painter: _BadgePainter(
-                  t: 0, style: style, rarity: widget.rarity, earned: widget.earned),
+                  t: 0,
+                  style: style,
+                  rarity: widget.rarity,
+                  earned: widget.earned,
+                  isDark: isDark),
             ),
           Opacity(opacity: widget.earned ? 1 : 0.32, child: emblem),
           if (!widget.earned)
@@ -134,12 +143,16 @@ class _BadgeMedallionState extends State<BadgeMedallion>
               bottom: s * 0.08,
               child: Container(
                 padding: EdgeInsets.all(s * 0.045),
-                decoration: const BoxDecoration(
-                  color: Color(0xFF2A2D36),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF2A2D36) : const Color(0xFFB7BCC6),
                   shape: BoxShape.circle,
+                  border: isDark
+                      ? null
+                      : Border.all(color: Colors.white, width: s * 0.012),
                 ),
                 child: Icon(Icons.lock_rounded,
-                    size: s * 0.15, color: Colors.white70),
+                    size: s * 0.15,
+                    color: isDark ? Colors.white70 : Colors.white),
               ),
             ),
         ],
@@ -163,12 +176,14 @@ class _BadgePainter extends CustomPainter {
   final RarityStyle style;
   final BadgeRarity rarity;
   final bool earned;
+  final bool isDark;
 
   const _BadgePainter({
     required this.t,
     required this.style,
     required this.rarity,
     required this.earned,
+    this.isDark = true,
   });
 
   @override
@@ -181,10 +196,23 @@ class _BadgePainter extends CustomPainter {
     final lvl = rarity.index; // 0..6 ornamentation level
 
     if (!earned) {
-      _crown(canvas, c, rx, ry, const [Color(0xFF4A4E58), Color(0xFF31343C)], const Color(0xFF26282F));
-      _fill(canvas, frame, const [Color(0xFF3C404A), Color(0xFF262931)], rect);
-      _stroke(canvas, frame, const Color(0xFF20232A), size.width * 0.035);
-      _window(canvas, c, rx, ry);
+      // Locked badges adapt to the theme: muted gunmetal on dark, soft
+      // brushed-silver on light — so they read as "not yet earned" without
+      // looking like a stray dark-mode element on a porcelain background.
+      if (isDark) {
+        _crown(canvas, c, rx, ry, const [Color(0xFF4A4E58), Color(0xFF31343C)],
+            const Color(0xFF26282F));
+        _fill(canvas, frame, const [Color(0xFF3C404A), Color(0xFF262931)], rect);
+        _stroke(canvas, frame, const Color(0xFF20232A), size.width * 0.035);
+        _window(canvas, c, rx, ry);
+      } else {
+        _crown(canvas, c, rx, ry, const [Color(0xFFDDE0E6), Color(0xFFBCC1CB)],
+            const Color(0xFFA6ACB7));
+        _fill(canvas, frame, const [Color(0xFFEEF0F3), Color(0xFFCBD0D8)], rect);
+        _stroke(canvas, frame, const Color(0xFFAEB4BE), size.width * 0.035);
+        _window(canvas, c, rx, ry,
+            top: const Color(0xFFE2E5EA), bottom: const Color(0xFFC6CAD2));
+      }
       return;
     }
 
@@ -291,15 +319,16 @@ class _BadgePainter extends CustomPainter {
     );
   }
 
-  void _window(Canvas canvas, Offset c, double rx, double ry) {
+  void _window(Canvas canvas, Offset c, double rx, double ry,
+      {Color top = _windowTop, Color bottom = _windowBottom}) {
     final win = _hex(c, rx * 0.62, ry * 0.62);
     canvas.drawPath(
       win,
       Paint()
-        ..shader = const LinearGradient(
+        ..shader = LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [_windowTop, _windowBottom],
+          colors: [top, bottom],
         ).createShader(Rect.fromCircle(center: c, radius: rx * 0.62)),
     );
     canvas.drawPath(
@@ -387,7 +416,10 @@ class _BadgePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_BadgePainter old) =>
-      old.t != t || old.earned != earned || old.rarity != rarity;
+      old.t != t ||
+      old.earned != earned ||
+      old.rarity != rarity ||
+      old.isDark != isDark;
 }
 
 /// Celebratory "Achievement Unlocked!" moment — a scale-in dialog with the
