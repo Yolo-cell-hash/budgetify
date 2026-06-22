@@ -2,7 +2,9 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../models/cashflow.dart';
 import '../models/holding.dart';
+import '../models/net_worth_projection.dart';
 import '../models/sip.dart';
 import '../providers/theme_provider.dart';
 import '../services/custom_tag_service.dart';
@@ -14,6 +16,7 @@ import '../widgets/app_dialog.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/glass.dart';
 import '../widgets/motion.dart';
+import '../widgets/net_worth_projection_card.dart';
 import '../widgets/privacy_amount.dart';
 import '../widgets/holding_editor_sheet.dart';
 
@@ -43,6 +46,9 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
   double _investedViaSms = 0;
   // Progress for each recurring plan, keyed by its backing holding id.
   Map<int, SipProgress> _sipByHolding = {};
+  // Typical monthly savings used by the projection card; null until there are
+  // enough completed months to estimate from.
+  double? _savingsBaseline;
   bool _loading = true;
   bool _reviewHandled = false;
 
@@ -61,6 +67,12 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
       if (s.holdingId == null) continue;
       byHolding[s.holdingId!] = await _sipService.progressFor(s);
     }
+    // Typical monthly savings, for the forward projection.
+    final txns = await _db.getAllTransactions();
+    final baseline = monthlySavingsBaseline(
+      buildMonthlyCashflow(txns),
+      now: DateTime.now(),
+    );
     // Keep the home-screen widget's net worth in sync with any edits here.
     WidgetService.update();
     if (!mounted) return;
@@ -68,6 +80,7 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
       _summary = NetWorthSummary(holdings);
       _investedViaSms = invested;
       _sipByHolding = byHolding;
+      _savingsBaseline = baseline;
       _loading = false;
     });
 
@@ -114,6 +127,20 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
     final widgets = <Widget>[
       FadeSlideIn(order: order++, child: _buildHero(colors)),
     ];
+
+    // Forward projection — only once there's enough history to estimate a
+    // typical monthly savings figure.
+    if (_savingsBaseline != null) {
+      widgets
+        ..add(const SizedBox(height: 16))
+        ..add(FadeSlideIn(
+          order: order++,
+          child: NetWorthProjectionCard(
+            currentNetWorth: _summary.netWorth,
+            monthlySavings: _savingsBaseline!,
+          ),
+        ));
+    }
 
     if (_summary.assets > 0) {
       widgets

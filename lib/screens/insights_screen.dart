@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../models/cashflow.dart';
 import '../providers/app_preferences.dart';
 import '../providers/theme_provider.dart';
 import '../services/database_service.dart';
@@ -13,6 +14,7 @@ import '../widgets/glass.dart';
 import '../widgets/motion.dart';
 import '../widgets/privacy_amount.dart';
 import '../widgets/safe_to_spend_card.dart';
+import '../widgets/you_vs_past_card.dart';
 
 /// Full-screen, illustrated breakdown of on-device spending insights:
 /// month-end forecast, a 6-month trend chart, this month's category mix,
@@ -31,6 +33,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
   InsightsResult? _result;
   List<Map<String, dynamic>> _monthly = const [];
   Map<String, double> _categories = const {};
+  List<MonthlyCashflow> _cashflow = const [];
   bool _loading = true;
 
   final _fmt =
@@ -53,11 +56,13 @@ class _InsightsScreenState extends State<InsightsScreen> {
       startDate: monthStart,
       endDate: monthEnd,
     );
+    final cashflow = buildMonthlyCashflow(await _db.getAllTransactions());
     if (!mounted) return;
     setState(() {
       _result = result;
       _monthly = monthly;
       _categories = categories;
+      _cashflow = cashflow;
       _loading = false;
     });
   }
@@ -80,6 +85,13 @@ class _InsightsScreenState extends State<InsightsScreen> {
                 child: ListView(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
                   children: [
+                    if (_cashflow.isNotEmpty) ...[
+                      FadeSlideIn(
+                        order: 0,
+                        child: YouVsPastCard(series: _cashflow),
+                      ),
+                      const SizedBox(height: 14),
+                    ],
                     if (r?.forecast != null) ...[
                       if (r!.forecast!.hasTarget) ...[
                         FadeSlideIn(

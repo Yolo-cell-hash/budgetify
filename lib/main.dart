@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:budget_tracker/screens/main_shell.dart';
 import 'package:budget_tracker/screens/lock_screen.dart';
@@ -10,6 +11,7 @@ import 'package:budget_tracker/services/background_service.dart';
 import 'package:budget_tracker/services/custom_tag_service.dart';
 import 'package:budget_tracker/providers/theme_provider.dart';
 import 'package:budget_tracker/providers/app_preferences.dart';
+import 'package:budget_tracker/providers/locale_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,16 +28,19 @@ void main() async {
   // Create providers
   final themeProvider = ThemeProvider();
   final appPreferences = AppPreferences();
+  final localeProvider = LocaleProvider();
 
   // Initialize providers
   await themeProvider.initialize();
   await appPreferences.initialize();
+  await localeProvider.initialize();
 
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider.value(value: themeProvider),
         ChangeNotifierProvider.value(value: appPreferences),
+        ChangeNotifierProvider.value(value: localeProvider),
       ],
       child: const MyApp(),
     ),
@@ -50,12 +55,19 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer2<ThemeProvider, AppPreferences>(
-      builder: (context, themeProvider, appPreferences, child) {
+    return Consumer3<ThemeProvider, AppPreferences, LocaleProvider>(
+      builder: (context, themeProvider, appPreferences, localeProvider, child) {
         return MaterialApp(
           title: 'Budget Tracker',
           debugShowCheckedModeBanner: false,
           navigatorKey: NotificationService.navigatorKey,
+          locale: localeProvider.locale,
+          supportedLocales: const [Locale('en'), Locale('hi')],
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
           // The active variant's ThemeData carries its own brightness, so it
           // always lives in the `theme` slot (light/dark/streak themes alike).
           theme: themeProvider.activeTheme,
