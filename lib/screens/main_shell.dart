@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/l10n.dart';
 import 'budget_screen.dart';
 import 'home_screen.dart';
 import 'net_worth_screen.dart';
@@ -63,26 +64,26 @@ class _MainShellState extends State<MainShell> {
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _index,
         onTap: _select,
-        items: const [
+        items: [
           BottomNavigationBarItem(
-            icon: Icon(Icons.home_outlined),
-            activeIcon: Icon(Icons.home_rounded),
-            label: 'Home',
+            icon: const Icon(Icons.home_outlined),
+            activeIcon: const Icon(Icons.home_rounded),
+            label: context.l10n.navHome,
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.pie_chart_outline_rounded),
-            activeIcon: Icon(Icons.pie_chart_rounded),
-            label: 'Budgets',
+            icon: const Icon(Icons.pie_chart_outline_rounded),
+            activeIcon: const Icon(Icons.pie_chart_rounded),
+            label: context.l10n.navBudgets,
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.account_balance_wallet_outlined),
-            activeIcon: Icon(Icons.account_balance_wallet_rounded),
-            label: 'Net Worth',
+            icon: const Icon(Icons.account_balance_wallet_outlined),
+            activeIcon: const Icon(Icons.account_balance_wallet_rounded),
+            label: context.l10n.navNetWorth,
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.settings_outlined),
-            activeIcon: Icon(Icons.settings_rounded),
-            label: 'Settings',
+            icon: const Icon(Icons.settings_outlined),
+            activeIcon: const Icon(Icons.settings_rounded),
+            label: context.l10n.navSettings,
           ),
         ],
       ),

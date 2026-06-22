@@ -4,6 +4,25 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.9.0] — 2026-06-22
+
+### Added
+
+- **Net worth projection.** The Net Worth screen now shows where your wealth is
+  headed: pick a horizon (1/3/5/10 years) and optionally assume ~8% yearly
+  growth, and see the projected figure plus "you'd reach ₹X in about Y years."
+  Projects from your **typical monthly savings** (median of recent completed
+  months) — an on-device estimate, clearly labelled, never financial advice.
+- **You vs Past You.** A reflection card on the Insights screen comparing your
+  most recent completed **month** (or **quarter**) with the one before —
+  spending, income, savings and savings rate, each with a good/bad delta and a
+  one-line verdict. Compares completed periods only, so it never pits a partial
+  month against a full one.
+- **Hindi language toggle.** Settings → Appearance → **Language** switches the
+  app between English and हिन्दी, applied instantly and remembered. Built on a
+  lightweight string table + `LocaleProvider`; navigation, the Appearance
+  settings and the two new cards are translated, with more surfaces to follow.
+
 ## [1.8.0] — 2026-06-22
 
 ### Added

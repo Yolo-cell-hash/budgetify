@@ -4,9 +4,12 @@ import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:open_filex/open_filex.dart';
 import '../app_info.dart';
+import '../l10n/app_strings.dart';
+import '../l10n/l10n.dart';
 import '../models/streak_reward.dart';
 import '../providers/theme_provider.dart';
 import '../providers/app_preferences.dart';
+import '../providers/locale_provider.dart';
 import '../services/app_events.dart';
 import '../services/app_lock_service.dart';
 import '../services/backup_service.dart';
@@ -96,6 +99,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final themeProvider = context.watch<ThemeProvider>();
+    final localeProvider = context.watch<LocaleProvider>();
 
     return Scaffold(
       appBar: AppBar(
@@ -105,7 +109,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           // Appearance Section
-          _buildSectionHeader('Appearance', isDark),
+          _buildSectionHeader(context.l10n.appearance, isDark),
           const SizedBox(height: 8),
           _buildSettingsCard(
             isDark: isDark,
@@ -116,7 +120,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      'Theme',
+                      context.l10n.theme,
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -140,12 +144,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 ListTile(
                   leading: Icon(
+                    Icons.translate_rounded,
+                    color: Theme.of(context).primaryColor,
+                  ),
+                  title: Text(context.l10n.language),
+                  subtitle: Text(
+                    localeProvider.language.nativeName,
+                    style: TextStyle(
+                      color: isDark ? const Color(0xFF8A8D96) : const Color(0xFF6E727C),
+                    ),
+                  ),
+                  trailing: Icon(
+                    Icons.chevron_right_rounded,
+                    color: isDark ? const Color(0xFF8A8D96) : const Color(0xFF9A9DA6),
+                  ),
+                  onTap: () => _showLanguageSheet(localeProvider),
+                ),
+                Divider(
+                  height: 1,
+                  color: isDark ? const Color(0xFF2E313A) : const Color(0xFFE9E9E4),
+                ),
+                ListTile(
+                  leading: Icon(
                     Icons.local_fire_department_rounded,
                     color: Theme.of(context).primaryColor,
                   ),
-                  title: const Text('Streak Rewards'),
+                  title: Text(context.l10n.streakRewards),
                   subtitle: Text(
-                    '${unlockedStreakRewards(_longestStreak).length} of ${kStreakRewards.length} themes unlocked',
+                    context.l10n.themesUnlocked(
+                      unlockedStreakRewards(_longestStreak).length,
+                      kStreakRewards.length,
+                    ),
                     style: TextStyle(
                       color: isDark ? const Color(0xFF8A8D96) : const Color(0xFF6E727C),
                     ),
@@ -564,7 +593,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         if (locked) {
           _showStyledSnackBar(
             icon: Icons.lock_outline,
-            message: 'Reach a ${reward.days}-day streak to unlock this theme',
+            message: context.l10n.lockedThemeNudge(reward.days),
             color: const Color(0xFF70798A),
           );
           return;
@@ -658,6 +687,71 @@ class _SettingsScreenState extends State<SettingsScreen> {
         AppThemeVariant.smokyIvory => 'Smoky',
         AppThemeVariant.seashellMauve => 'Seashell',
       };
+
+  /// Bottom sheet to pick the in-app language. Applies immediately and persists
+  /// via [LocaleProvider]; the whole app rebuilds in the chosen language.
+  void _showLanguageSheet(LocaleProvider localeProvider) {
+    final colors = AppColors.of(context);
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: colors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: colors.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 6),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  context.l10n.language,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: colors.text,
+                  ),
+                ),
+              ),
+            ),
+            for (final lang in AppLanguage.values)
+              ListTile(
+                title: Text(
+                  lang.nativeName,
+                  style: TextStyle(
+                    color: colors.text,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                subtitle: Text(
+                  lang.englishName,
+                  style: TextStyle(color: colors.textSecondary, fontSize: 12),
+                ),
+                trailing: localeProvider.language == lang
+                    ? Icon(Icons.check_circle_rounded, color: colors.accent)
+                    : Icon(Icons.circle_outlined, color: colors.textTertiary),
+                onTap: () {
+                  localeProvider.setLanguage(lang);
+                  Navigator.pop(sheetContext);
+                },
+              ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _buildSectionHeader(String title, bool isDark) {
     return Padding(
