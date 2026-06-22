@@ -56,9 +56,10 @@ class MyApp extends StatelessWidget {
           title: 'Budget Tracker',
           debugShowCheckedModeBanner: false,
           navigatorKey: NotificationService.navigatorKey,
-          theme: AppTheme.lightTheme,
-          darkTheme: AppTheme.darkTheme,
-          themeMode: themeProvider.themeMode,
+          // The active variant's ThemeData carries its own brightness, so it
+          // always lives in the `theme` slot (light/dark/streak themes alike).
+          theme: themeProvider.activeTheme,
+          themeMode: ThemeMode.light,
           // The lock gate wraps the Navigator itself so the lock screen
           // covers every route, not just the home screen.
           builder: (context, child) => AppLockGate(child: child!),

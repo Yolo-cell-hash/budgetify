@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/achievement.dart';
+import '../models/streak_reward.dart';
 import '../providers/theme_provider.dart';
 import '../services/app_events.dart';
 import '../services/gamification_service.dart';
@@ -9,6 +10,7 @@ import '../widgets/avatars.dart';
 import '../widgets/avatar_picker_sheet.dart';
 import '../widgets/badge_medallion.dart';
 import '../widgets/profile_share_card.dart';
+import '../widgets/streak_reward_road.dart';
 import 'profile_screen.dart';
 import 'trophy_room_screen.dart';
 
@@ -58,9 +60,35 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
     });
     if (celebrate) {
       final fresh = await _svc.popNewlyUnlocked();
-      if (fresh.isNotEmpty && mounted) {
-        WidgetsBinding.instance.addPostFrameCallback((_) => _celebrate(fresh));
-      }
+      final freshThemes = await _svc.popNewlyUnlockedStreakRewards();
+      if (!mounted) return;
+      // Show at most one celebration per load: a badge takes priority, else a
+      // newly unlocked streak-reward theme.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (fresh.isNotEmpty) {
+          _celebrate(fresh);
+        } else if (freshThemes.isNotEmpty) {
+          _celebrateThemes(freshThemes);
+        }
+      });
+    }
+  }
+
+  void _celebrateThemes(List<String> ids) {
+    StreakReward? best;
+    for (final id in ids) {
+      final r = streakRewardById(id);
+      if (r == null) continue;
+      if (best == null || r.rarity.index > best.rarity.index) best = r;
+    }
+    if (best != null && mounted) {
+      showBadgeUnlock(
+        context,
+        rarity: best.rarity,
+        emblem: best.emblem,
+        groupName: 'Streak Reward',
+        tierLabel: best.name,
+      );
     }
   }
 
@@ -100,20 +128,37 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
     final stats = _stats;
 
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Scaffold(
         backgroundColor: colors.background,
         appBar: AppBar(
           title: const AppBarTitle('Rewards', icon: Icons.emoji_events_rounded),
           bottom: const TabBar(
-            tabs: [Tab(text: 'Profile'), Tab(text: 'Trophies')],
+            tabs: [
+              Tab(text: 'Profile'),
+              Tab(text: 'Trophies'),
+              Tab(text: 'Streaks'),
+            ],
           ),
         ),
         body: _loading || stats == null
             ? const Center(child: CircularProgressIndicator())
             : TabBarView(
-                children: [_profileTab(stats), _trophyTab(stats)],
+                children: [
+                  _profileTab(stats),
+                  _trophyTab(stats),
+                  _roadTab(stats),
+                ],
               ),
+      ),
+    );
+  }
+
+  Widget _roadTab(GamiStats stats) {
+    return SingleChildScrollView(
+      child: StreakRewardRoad(
+        currentStreak: stats.currentStreak,
+        longestStreak: stats.longestStreak,
       ),
     );
   }
