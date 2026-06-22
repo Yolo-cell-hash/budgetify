@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:open_filex/open_filex.dart';
 import '../app_info.dart';
+import '../models/streak_reward.dart';
 import '../providers/theme_provider.dart';
 import '../providers/app_preferences.dart';
 import '../services/app_events.dart';
@@ -11,11 +12,13 @@ import '../services/app_lock_service.dart';
 import '../services/backup_service.dart';
 import '../services/background_service.dart';
 import '../services/export_service.dart';
+import '../services/gamification_service.dart';
 import '../widgets/app_bar_title.dart';
 import '../widgets/app_dialog.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/export_options_sheet.dart';
 import 'manage_tags_screen.dart';
+import 'streak_rewards_screen.dart';
 
 /// Settings screen with theme toggle and auto-scan configuration
 class SettingsScreen extends StatefulWidget {
@@ -33,6 +36,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   DateTime? _lastScanTime;
   bool _appLockEnabled = false;
   bool _loading = true;
+  int _longestStreak = 0;
 
   @override
   void initState() {
@@ -44,11 +48,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final settings = await BackgroundService.getScanSettings();
     final lastScan = await BackgroundService.getLastScanTime();
     final appLock = await AppLockService().isEnabled();
+    final streak = await GamificationService().streakInfo();
     setState(() {
       _autoScanEnabled = settings['enabled'] as bool;
       _scanIntervalHours = settings['intervalHours'] as int;
       _lastScanTime = lastScan;
       _appLockEnabled = appLock;
+      _longestStreak = streak.longest;
       _loading = false;
     });
   }
@@ -103,20 +109,62 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 8),
           _buildSettingsCard(
             isDark: isDark,
-            child: SwitchListTile(
-              secondary: Icon(
-                isDark ? Icons.dark_mode : Icons.light_mode,
-                color: Theme.of(context).primaryColor,
-              ),
-              title: const Text('Dark Mode'),
-              subtitle: Text(
-                isDark ? 'Switch to light theme' : 'Switch to dark theme',
-                style: TextStyle(
-                  color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 2),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Theme',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? Colors.white : const Color(0xFF1B1E28),
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-              value: themeProvider.isDarkMode,
-              onChanged: (value) => themeProvider.toggleTheme(),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 6, 10, 14),
+                  child: Row(
+                    children: [
+                      for (final v in AppThemeVariant.values)
+                        Expanded(child: _themeTile(v, themeProvider)),
+                    ],
+                  ),
+                ),
+                Divider(
+                  height: 1,
+                  color: isDark ? const Color(0xFF2E313A) : const Color(0xFFE9E9E4),
+                ),
+                ListTile(
+                  leading: Icon(
+                    Icons.local_fire_department_rounded,
+                    color: Theme.of(context).primaryColor,
+                  ),
+                  title: const Text('Streak Rewards'),
+                  subtitle: Text(
+                    '${unlockedStreakRewards(_longestStreak).length} of ${kStreakRewards.length} themes unlocked',
+                    style: TextStyle(
+                      color: isDark ? const Color(0xFF8A8D96) : const Color(0xFF6E727C),
+                    ),
+                  ),
+                  trailing: Icon(
+                    Icons.chevron_right_rounded,
+                    color: isDark ? const Color(0xFF8A8D96) : const Color(0xFF9A9DA6),
+                  ),
+                  onTap: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const StreakRewardsScreen(),
+                      ),
+                    );
+                    _loadSettings(); // refresh unlock count on return
+                  },
+                ),
+              ],
             ),
           ),
 
@@ -501,6 +549,115 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
+
+  /// One selectable theme swatch in the Appearance picker. Locked streak
+  /// themes show a lock and nudge toward the Streak Rewards road on tap.
+  Widget _themeTile(AppThemeVariant v, ThemeProvider themeProvider) {
+    final palette = AppColors.forVariant(v);
+    final reward = streakRewardForVariant(v); // null for light/dark
+    final locked = reward != null && !reward.isUnlocked(_longestStreak);
+    final active = themeProvider.variant == v;
+    final accent = Theme.of(context).colorScheme.primary;
+
+    return GestureDetector(
+      onTap: () {
+        if (locked) {
+          _showStyledSnackBar(
+            icon: Icons.lock_outline,
+            message: 'Reach a ${reward.days}-day streak to unlock this theme',
+            color: const Color(0xFF70798A),
+          );
+          return;
+        }
+        themeProvider.setVariant(v);
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        child: Column(
+          children: [
+            AspectRatio(
+              aspectRatio: 1,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Column(
+                      children: [
+                        Expanded(
+                          flex: 3,
+                          child: Container(color: palette.background),
+                        ),
+                        Expanded(
+                          flex: 2,
+                          child: Container(color: palette.accent),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Selection / lock border.
+                  Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: active ? accent : const Color(0x22000000),
+                        width: active ? 2 : 1,
+                      ),
+                    ),
+                  ),
+                  if (locked)
+                    Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        color: Colors.black.withValues(alpha: 0.32),
+                      ),
+                      child: const Icon(Icons.lock_rounded,
+                          size: 18, color: Colors.white),
+                    ),
+                  if (active && !locked)
+                    Positioned(
+                      top: 4,
+                      right: 4,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: accent,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.check,
+                            size: 12, color: Colors.white),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _variantLabel(v),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                color: active
+                    ? accent
+                    : (Theme.of(context).brightness == Brightness.dark
+                        ? const Color(0xFF9A9DA6)
+                        : const Color(0xFF6E727C)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static String _variantLabel(AppThemeVariant v) => switch (v) {
+        AppThemeVariant.light => 'Light',
+        AppThemeVariant.dark => 'Dark',
+        AppThemeVariant.smokyIvory => 'Smoky',
+        AppThemeVariant.seashellMauve => 'Seashell',
+      };
 
   Widget _buildSectionHeader(String title, bool isDark) {
     return Padding(

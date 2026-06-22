@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/achievement.dart';
 import '../models/holding.dart';
+import '../models/streak_reward.dart';
 import '../models/transaction_model.dart';
 import 'database_service.dart';
 import 'savings_goal_service.dart';
@@ -167,6 +168,41 @@ class GamificationService {
       'longest': result.longest,
     };
     await _write(blob);
+  }
+
+  /// Lightweight streak read (no database hit) for the theme picker and the
+  /// Streak Reward Road, which only need the current/longest day counts.
+  Future<({int current, int longest})> streakInfo() async {
+    final blob = await _read();
+    final s = (blob['streak'] as Map?)?.cast<String, dynamic>() ?? {};
+    return (
+      current: (s['current'] as num?)?.toInt() ?? 0,
+      longest: (s['longest'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  /// Streak-reward ids newly unlocked since the user last saw them, marking them
+  /// seen. On the first run it silently adopts whatever is already earned (no
+  /// celebration for history) — mirrors [popNewlyUnlocked].
+  Future<List<String>> popNewlyUnlockedStreakRewards() async {
+    final blob = await _read();
+    final s = (blob['streak'] as Map?)?.cast<String, dynamic>() ?? {};
+    final longest = (s['longest'] as num?)?.toInt() ?? 0;
+    final unlocked = unlockedStreakRewardIds(longest);
+
+    final seenRaw = blob['seenStreakRewards'] as List?;
+    if (seenRaw == null) {
+      blob['seenStreakRewards'] = unlocked.toList();
+      await _write(blob);
+      return const []; // first run — adopt, don't celebrate history
+    }
+    final seen = seenRaw.cast<String>().toSet();
+    final fresh = unlocked.difference(seen).toList();
+    if (fresh.isNotEmpty) {
+      blob['seenStreakRewards'] = unlocked.toList();
+      await _write(blob);
+    }
+    return fresh;
   }
 
   // ── Stats ────────────────────────────────────────────────────────────

@@ -1,59 +1,77 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Provider for managing app theme (light/dark mode)
-class ThemeProvider extends ChangeNotifier {
-  static const String _themeKey = 'theme_mode';
+/// The set of selectable app themes. [light] and [dark] are always available;
+/// [smokyIvory] and [seashellMauve] are unlocked as streak rewards (see
+/// `models/streak_reward.dart`). All but [dark] are light-brightness.
+enum AppThemeVariant { light, dark, smokyIvory, seashellMauve }
 
-  ThemeMode _themeMode = ThemeMode.light;
+/// Provider for managing the active app theme variant.
+class ThemeProvider extends ChangeNotifier {
+  static const String _variantKey = 'theme_variant';
+  static const String _legacyModeKey = 'theme_mode'; // pre-1.8 light/dark only
+
+  AppThemeVariant _variant = AppThemeVariant.light;
   bool _isInitialized = false;
 
-  ThemeMode get themeMode => _themeMode;
-  bool get isDarkMode => _themeMode == ThemeMode.dark;
+  AppThemeVariant get variant => _variant;
   bool get isInitialized => _isInitialized;
 
-  /// Initialize theme from shared preferences
+  /// The [ThemeData] for the active variant (carries its own brightness).
+  ThemeData get activeTheme => AppTheme.of(_variant);
+
+  /// Kept for callers that still think in light/dark terms.
+  bool get isDarkMode => _variant == AppThemeVariant.dark;
+  ThemeMode get themeMode =>
+      _variant == AppThemeVariant.dark ? ThemeMode.dark : ThemeMode.light;
+
+  /// Initialize from shared preferences, migrating the legacy light/dark key.
   Future<void> initialize() async {
     if (_isInitialized) return;
 
     final prefs = await SharedPreferences.getInstance();
-    final savedMode = prefs.getString(_themeKey);
-
-    if (savedMode == 'dark') {
-      _themeMode = ThemeMode.dark;
-    } else if (savedMode == 'light') {
-      _themeMode = ThemeMode.light;
+    final saved = prefs.getString(_variantKey);
+    if (saved != null) {
+      _variant = _parse(saved);
     } else {
-      _themeMode = ThemeMode.light; // Default to light
+      final legacy = prefs.getString(_legacyModeKey);
+      _variant =
+          legacy == 'dark' ? AppThemeVariant.dark : AppThemeVariant.light;
     }
 
     _isInitialized = true;
     notifyListeners();
   }
 
-  /// Toggle between light and dark mode
-  Future<void> toggleTheme() async {
-    _themeMode = _themeMode == ThemeMode.light
-        ? ThemeMode.dark
-        : ThemeMode.light;
-    notifyListeners();
-    await _saveTheme();
-  }
+  static AppThemeVariant _parse(String name) =>
+      AppThemeVariant.values.firstWhere(
+        (v) => v.name == name,
+        orElse: () => AppThemeVariant.light,
+      );
 
-  /// Set specific theme mode
-  Future<void> setThemeMode(ThemeMode mode) async {
-    if (_themeMode == mode) return;
-    _themeMode = mode;
+  /// Switch to [variant] and persist it. Callers are responsible for only
+  /// offering unlocked streak themes; base light/dark are always allowed.
+  Future<void> setVariant(AppThemeVariant variant) async {
+    if (_variant == variant) return;
+    _variant = variant;
     notifyListeners();
-    await _saveTheme();
-  }
-
-  /// Save theme preference
-  Future<void> _saveTheme() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-      _themeKey,
-      _themeMode == ThemeMode.dark ? 'dark' : 'light',
+    await prefs.setString(_variantKey, variant.name);
+  }
+
+  /// Toggle between light and dark (kept for the base appearance selector).
+  Future<void> toggleTheme() async {
+    await setVariant(
+      _variant == AppThemeVariant.dark
+          ? AppThemeVariant.light
+          : AppThemeVariant.dark,
+    );
+  }
+
+  /// Set a specific [ThemeMode] (maps to the light/dark variants).
+  Future<void> setThemeMode(ThemeMode mode) async {
+    await setVariant(
+      mode == ThemeMode.dark ? AppThemeVariant.dark : AppThemeVariant.light,
     );
   }
 }
@@ -72,6 +90,9 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
+      extensions: [
+        AppPalette(colors: AppColors.light, hero: HeroStyle._light),
+      ],
       colorScheme: const ColorScheme.light(
         primary: AppColors.inkPrimary,
         onPrimary: Colors.white,
@@ -201,6 +222,9 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
+      extensions: [
+        AppPalette(colors: AppColors.dark, hero: HeroStyle._dark),
+      ],
       colorScheme: const ColorScheme.dark(
         primary: AppColors.gold,
         onPrimary: Color(0xFF15110A),
@@ -329,6 +353,164 @@ class AppTheme {
     );
   }
 
+  // ============ STREAK-REWARD THEMES (warm, light-brightness) ============
+  // "Smoky Blue & Warm Ivory" and "Soft Seashell & Dusty Mauve". Both follow
+  // the light theme's structure but with their own palette + accent.
+  static ThemeData get smokyIvoryTheme => _lightVariantTheme(
+        AppColors.smokyIvory,
+        accent: AppColors.smokyIvory.accent,
+        hero: HeroStyle._smokyIvory,
+      );
+
+  static ThemeData get seashellMauveTheme => _lightVariantTheme(
+        AppColors.seashellMauve,
+        accent: AppColors.seashellMauve.accent,
+        hero: HeroStyle._seashellMauve,
+      );
+
+  /// The [ThemeData] for any [AppThemeVariant].
+  static ThemeData of(AppThemeVariant v) => switch (v) {
+        AppThemeVariant.light => lightTheme,
+        AppThemeVariant.dark => darkTheme,
+        AppThemeVariant.smokyIvory => smokyIvoryTheme,
+        AppThemeVariant.seashellMauve => seashellMauveTheme,
+      };
+
+  /// Builds a light-brightness theme from a palette + a single [accent] colour
+  /// (used everywhere the base light theme uses ink/gold). White is the
+  /// on-accent colour for buttons, FAB, snackbars, etc.
+  static ThemeData _lightVariantTheme(
+    AppColors c, {
+    required Color accent,
+    required HeroStyle hero,
+    Color onAccent = Colors.white,
+  }) {
+    return ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.light,
+      extensions: [AppPalette(colors: c, hero: hero)],
+      colorScheme: ColorScheme.light(
+        primary: accent,
+        onPrimary: onAccent,
+        secondary: accent,
+        onSecondary: onAccent,
+        surface: c.surface,
+        onSurface: c.text,
+        error: c.danger,
+      ),
+      fontFamily: 'Manrope',
+      scaffoldBackgroundColor: c.background,
+      textTheme: _textTheme(c.text, c.textSecondary),
+      pageTransitionsTheme: _pageTransitions,
+      appBarTheme: AppBarTheme(
+        centerTitle: true,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        backgroundColor: c.background,
+        foregroundColor: c.text,
+        surfaceTintColor: Colors.transparent,
+        titleTextStyle: TextStyle(
+          color: c.text,
+          fontSize: 17,
+          fontWeight: FontWeight.w600,
+          letterSpacing: -0.2,
+        ),
+      ),
+      cardTheme: CardThemeData(
+        color: c.card,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: c.border),
+        ),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          elevation: 0,
+          backgroundColor: accent,
+          foregroundColor: onAccent,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          textStyle: const TextStyle(
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.2,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(foregroundColor: accent),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: accent,
+          side: BorderSide(color: c.border),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+      ),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: accent,
+        foregroundColor: onAccent,
+        elevation: 2,
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: c.surface,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: c.border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: c.border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: accent, width: 1.5),
+        ),
+        hintStyle: TextStyle(color: c.textTertiary),
+      ),
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
+        backgroundColor: c.surface,
+        selectedItemColor: accent,
+        unselectedItemColor: c.textTertiary,
+        type: BottomNavigationBarType.fixed,
+      ),
+      tabBarTheme: TabBarThemeData(
+        labelColor: accent,
+        unselectedLabelColor: c.textSecondary,
+        indicatorColor: accent,
+      ),
+      dividerColor: c.border,
+      dialogTheme: DialogThemeData(
+        backgroundColor: c.surface,
+        surfaceTintColor: Colors.transparent,
+      ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: accent,
+        contentTextStyle: TextStyle(color: onAccent),
+        actionTextColor: onAccent,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: c.surface,
+        selectedColor: accent,
+        labelStyle: TextStyle(color: c.text),
+        side: BorderSide(color: c.border),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ),
+    );
+  }
+
   /// Modern fade-through page transition (subtle horizontal fade) instead
   /// of the default zoom.
   static const PageTransitionsTheme _pageTransitions = PageTransitionsTheme(
@@ -443,9 +625,69 @@ class AppColors {
     danger: dangerDark,
   );
 
+  // ── Streak-reward palettes (both light-brightness) ──────────────────────
+  // "Smoky Blue & Warm Ivory": warm ivory canvas, smoky-blue interactive.
+  static const smokyIvory = AppColors._(
+    background: Color(0xFFEDDECB), // warm ivory
+    surface: Color(0xFFF7EFE3),
+    card: Color(0xFFFAF4EA),
+    cardAlt: Color(0xFFF2E7D6),
+    border: Color(0xFFDFCFB8),
+    text: Color(0xFF2E333B), // deep slate (legible on ivory)
+    textSecondary: Color(0xFF5E6470),
+    textTertiary: Color(0xFF8C8472),
+    accent: Color(0xFF70798A), // smoky blue
+    success: successLight,
+    danger: dangerLight,
+  );
+
+  // "Soft Seashell & Dusty Mauve": blush seashell canvas, dusty-mauve accent.
+  static const seashellMauve = AppColors._(
+    background: Color(0xFFD7C4BE), // soft seashell
+    surface: Color(0xFFE7D9D4),
+    card: Color(0xFFEDE1DD),
+    cardAlt: Color(0xFFE0CFC9),
+    border: Color(0xFFCBB6AF),
+    text: Color(0xFF3A2C2A), // deep mauve-brown
+    textSecondary: Color(0xFF6E5854),
+    textTertiary: Color(0xFF9C857F),
+    accent: Color(0xFF9E756F), // dusty mauve
+    success: successLight,
+    danger: dangerLight,
+  );
+
+  /// The palette backing a given [AppThemeVariant].
+  static AppColors forVariant(AppThemeVariant v) => switch (v) {
+        AppThemeVariant.light => light,
+        AppThemeVariant.dark => dark,
+        AppThemeVariant.smokyIvory => smokyIvory,
+        AppThemeVariant.seashellMauve => seashellMauve,
+      };
+
   static AppColors of(BuildContext context) {
+    final palette = Theme.of(context).extension<AppPalette>();
+    if (palette != null) return palette.colors;
     return Theme.of(context).brightness == Brightness.dark ? dark : light;
   }
+}
+
+/// Bundles the active variant's [AppColors] + [HeroStyle] onto its [ThemeData],
+/// so `AppColors.of` / `HeroStyle.of` resolve the correct palette per variant
+/// (not just by brightness). Registered via `ThemeData.extensions`.
+class AppPalette extends ThemeExtension<AppPalette> {
+  final AppColors colors;
+  final HeroStyle hero;
+
+  const AppPalette({required this.colors, required this.hero});
+
+  @override
+  AppPalette copyWith({AppColors? colors, HeroStyle? hero}) =>
+      AppPalette(colors: colors ?? this.colors, hero: hero ?? this.hero);
+
+  // Themes are discrete, so a snap at the midpoint is fine (no colour tween).
+  @override
+  AppPalette lerp(ThemeExtension<AppPalette>? other, double t) =>
+      (other is AppPalette && t >= 0.5) ? other : this;
 }
 
 /// Premium "hero card" treatment that adapts to the active theme.
@@ -508,6 +750,8 @@ class HeroStyle {
       foreground.withValues(alpha: alpha);
 
   static HeroStyle of(BuildContext context) {
+    final palette = Theme.of(context).extension<AppPalette>();
+    if (palette != null) return palette.hero;
     final dark = Theme.of(context).brightness == Brightness.dark;
     return dark ? _dark : _light;
   }
@@ -550,6 +794,47 @@ class HeroStyle {
     innerBorder: AppColors.inkPrimary.withValues(alpha: 0.07),
     divider: AppColors.inkPrimary.withValues(alpha: 0.10),
     onDark: false,
+  );
+
+  // Smoky-blue hero on the warm-ivory theme — a saturated accent centrepiece
+  // with white text, mirroring how the dark theme uses its midnight hero.
+  static final HeroStyle _smokyIvory = HeroStyle(
+    gradientColors: const [Color(0xFF8A93A4), Color(0xFF5C6675)],
+    border: const Color(0xFF70798A).withValues(alpha: 0.5),
+    shadow: [
+      BoxShadow(
+        color: const Color(0xFF3A4150).withValues(alpha: 0.22),
+        blurRadius: 22,
+        offset: const Offset(0, 12),
+      ),
+    ],
+    foreground: Colors.white,
+    mutedForeground: Colors.white.withValues(alpha: 0.66),
+    accent: const Color(0xFFEDDECB), // warm ivory accent on the blue
+    innerFill: Colors.white.withValues(alpha: 0.10),
+    innerBorder: Colors.white.withValues(alpha: 0.14),
+    divider: Colors.white.withValues(alpha: 0.16),
+    onDark: true,
+  );
+
+  // Dusty-mauve hero on the soft-seashell theme.
+  static final HeroStyle _seashellMauve = HeroStyle(
+    gradientColors: const [Color(0xFFB08983), Color(0xFF8A645E)],
+    border: const Color(0xFF9E756F).withValues(alpha: 0.5),
+    shadow: [
+      BoxShadow(
+        color: const Color(0xFF5A3F3B).withValues(alpha: 0.22),
+        blurRadius: 22,
+        offset: const Offset(0, 12),
+      ),
+    ],
+    foreground: Colors.white,
+    mutedForeground: Colors.white.withValues(alpha: 0.66),
+    accent: const Color(0xFFF0E2DD), // light seashell accent on the mauve
+    innerFill: Colors.white.withValues(alpha: 0.10),
+    innerBorder: Colors.white.withValues(alpha: 0.14),
+    divider: Colors.white.withValues(alpha: 0.16),
+    onDark: true,
   );
 }
 

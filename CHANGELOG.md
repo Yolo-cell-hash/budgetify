@@ -4,6 +4,21 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.8.0] — 2026-06-22
+
+### Added
+
+- **Streak-reward themes.** Two new app themes, unlocked by your daily streak and
+  visualised on a new **Streak Reward Road**:
+  - **Smoky Blue & Warm Ivory** — unlocked at a **3-day streak**.
+  - **Soft Seashell & Dusty Mauve** — unlocked at a **7-day streak**.
+  Both are full themes (background, cards, accents and text all recolour), joining
+  the existing Light and Dark. Pick a theme from **Settings → Appearance**, where
+  locked themes show how far away they are; tap **Streak Rewards** there (or the
+  **Streaks** tab in the Rewards hub) to see the road and apply a theme. Unlocks
+  are based on your **best** streak, so an earned theme never re-locks if a streak
+  breaks. The road is built to grow as more streak rewards arrive.
+
 ## [1.7.0] — 2026-06-20
 
 ### Added
