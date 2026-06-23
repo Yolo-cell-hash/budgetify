@@ -2,6 +2,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../l10n/l10n.dart';
 import '../models/cashflow.dart';
 import '../models/holding.dart';
 import '../models/net_worth_projection.dart';
@@ -98,13 +99,13 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
     final colors = AppColors.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: const AppBarTitle('Net Worth',
+        title: AppBarTitle(context.l10n.navNetWorth,
             icon: Icons.account_balance_wallet_rounded),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openEditor(),
         icon: const Icon(Icons.add),
-        label: const Text('Add'),
+        label: Text(context.l10n.addLabel),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -162,7 +163,7 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
           order: order++,
           child: _buildSection(
             colors,
-            title: 'Other assets',
+            title: context.l10n.otherAssets,
             total: _summary.otherAssetHoldings.fold(0.0, (s, h) => s + h.amount),
             items: _summary.otherAssetHoldings,
           ),
@@ -176,7 +177,7 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
           order: order++,
           child: _buildSection(
             colors,
-            title: 'Liabilities',
+            title: context.l10n.liabilities,
             total: _summary.liabilities,
             items: _summary.liabilityHoldings,
             negative: true,
@@ -204,7 +205,7 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'NET WORTH',
+            context.l10n.netWorthLabel,
             style: TextStyle(
               fontSize: 12,
               letterSpacing: 1.4,
@@ -227,7 +228,7 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
           Row(
             children: [
               Expanded(
-                child: _heroStat('Assets', _summary.assets,
+                child: _heroStat(context.l10n.assets, _summary.assets,
                     colors.success, Icons.arrow_upward),
               ),
               Container(
@@ -236,7 +237,7 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
                 color: hero.divider,
               ),
               Expanded(
-                child: _heroStat('Liabilities', _summary.liabilities,
+                child: _heroStat(context.l10n.liabilities, _summary.liabilities,
                     colors.danger, Icons.arrow_downward,
                     alignEnd: true),
               ),
@@ -297,7 +298,7 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Allocation',
+            context.l10n.allocation,
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -393,7 +394,7 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
           Row(
             children: [
               Text(
-                'Investments',
+                context.l10n.investments,
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -559,7 +560,8 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
           Row(
             children: [
               Text(
-                '${progress.completed} of ${progress.total} instalments',
+                context.l10n
+                    .instalmentsProgress(progress.completed, progress.total),
                 style: TextStyle(fontSize: 11, color: colors.textSecondary),
               ),
               const Spacer(),
@@ -602,7 +604,7 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Did you make your ${amt}investment this month?',
+                  context.l10n.didYouInvestThisMonth(amt),
                   style: TextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w600,
@@ -621,7 +623,7 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                   ),
-                  child: const Text('No'),
+                  child: Text(context.l10n.no),
                 ),
               ),
               const SizedBox(width: 10),
@@ -631,7 +633,7 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                   ),
-                  child: const Text('Yes, I did'),
+                  child: Text(context.l10n.yesIDid),
                 ),
               ),
             ],
@@ -643,13 +645,18 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
 
   /// "₹5,000 · 5th monthly" or "₹5,000 · 5th · Jan '26 – Dec '26".
   String _scheduleLine(Sip sip) {
-    final amt = sip.amount != null ? _fmt.format(sip.amount) : 'Variable';
+    final amt = sip.amount != null
+        ? _fmt.format(sip.amount)
+        : context.l10nRead.variableAmount;
     if (sip.hasSchedule) {
-      final s = DateFormat("MMM ''yy").format(sip.startDate!);
-      final e = DateFormat("MMM ''yy").format(sip.endDate!);
-      return '$amt · ${_ordinalDay(sip.dayOfMonth)} · $s – $e';
+      return context.l10nRead.scheduleRange(
+        amt,
+        sip.dayOfMonth,
+        sip.startDate!,
+        sip.endDate!,
+      );
     }
-    return '$amt · ${_ordinalDay(sip.dayOfMonth)} monthly';
+    return context.l10nRead.scheduleMonthly(amt, sip.dayOfMonth);
   }
 
   Widget _statusChip(AppColors colors, SipProgress p) {
@@ -661,17 +668,17 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
     String label;
     Color color;
     if (p.isComplete) {
-      label = 'Completed';
+      label = context.l10n.statusCompleted;
       color = colors.success;
     } else if (p.dueThisPeriod) {
-      label = 'Due';
+      label = context.l10n.statusDue;
       color = AppColors.gold;
     } else if (due.isAfter(today)) {
       final next = sip.nextDueOnOrAfter(today) ?? due;
-      label = 'Next ${DateFormat('d MMM').format(next)}';
+      label = context.l10n.nextDue(next);
       color = colors.textSecondary;
     } else {
-      label = 'Logged ✓';
+      label = context.l10n.statusLogged;
       color = colors.success;
     }
 
@@ -807,8 +814,7 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
           const SizedBox(width: 8),
           Expanded(
             child: PrivacyAmount(
-              '${_fmt.format(_investedViaSms)} detected from your '
-              'Investments-tagged transactions',
+              context.l10n.investedViaSmsNote(_fmt.format(_investedViaSms)),
               style: TextStyle(
                 fontSize: 11.5,
                 height: 1.3,
@@ -832,7 +838,7 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
         const SizedBox(height: 16),
         Center(
           child: Text(
-            'Track your net worth',
+            context.l10n.trackYourNetWorth,
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w700,
@@ -842,9 +848,7 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          'Add your FDs, mutual funds, stocks, gold, savings and loans to see '
-          'your complete picture. For SIPs & RDs, add a monthly schedule and '
-          'we\'ll prompt you to log each instalment.',
+          context.l10n.netWorthEmptyDesc,
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 13.5, height: 1.45, color: colors.textSecondary),
         ),
@@ -857,7 +861,7 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
           child: ElevatedButton.icon(
             onPressed: () => _openEditor(),
             icon: const Icon(Icons.add),
-            label: const Text('Add your first holding'),
+            label: Text(context.l10n.addFirstHolding),
           ),
         ),
       ],
@@ -889,7 +893,9 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
       await _load();
       if (mounted) {
         showAppToast(context,
-            message: existingHolding != null ? 'Saved' : 'Added',
+            message: existingHolding != null
+                ? context.l10nRead.savedToast
+                : context.l10nRead.addedToast,
             type: AppToastType.success);
       }
     }
@@ -907,8 +913,8 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
       showAppToast(
         context,
         message: didInvest
-            ? 'Added ${_fmt.format(sip.amount ?? 0)} to net worth'
-            : 'Marked as not done this month',
+            ? context.l10nRead.addedToNetWorth(_fmt.format(sip.amount ?? 0))
+            : context.l10nRead.markedNotDone,
         type: didInvest ? AppToastType.success : AppToastType.info,
       );
     }
@@ -939,13 +945,12 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
         final colors = AppColors.of(ctx);
         return AppDialog(
           icon: Icons.notifications_active_outlined,
-          title: 'Did you invest in ${sip.name}?',
-          subtitle: 'Confirm this month\'s instalment and we\'ll add it to your '
-              'net worth.',
+          title: context.l10nRead.didYouInvestIn(sip.name),
+          subtitle: context.l10nRead.confirmInstalmentDesc,
           content: sip.amount != null
               ? Row(
                   children: [
-                    Text('Amount',
+                    Text(context.l10nRead.amount,
                         style: TextStyle(
                             fontSize: 13.5, color: colors.textSecondary)),
                     const Spacer(),
@@ -963,8 +968,8 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
                   controller: amountCtrl,
                   keyboardType: TextInputType.number,
                   autofocus: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Amount invested',
+                  decoration: InputDecoration(
+                    labelText: context.l10nRead.amountInvested,
                     prefixText: '₹ ',
                   ),
                 ),
@@ -974,14 +979,14 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
                 result = 'no';
                 Navigator.pop(ctx);
               },
-              child: const Text('No'),
+              child: Text(context.l10nRead.no),
             ),
             ElevatedButton(
               onPressed: () {
                 result = 'yes';
                 Navigator.pop(ctx);
               },
-              child: const Text('Yes, I did'),
+              child: Text(context.l10nRead.yesIDid),
             ),
           ],
         );
@@ -993,13 +998,14 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
       if (amount == null || amount <= 0) {
         if (mounted) {
           showAppToast(context,
-              message: 'Enter a valid amount', type: AppToastType.warning);
+              message: context.l10nRead.enterValidAmount,
+              type: AppToastType.warning);
         }
       } else {
         await _sipService.confirmCurrentInstallment(sip, amount: amount);
         if (mounted) {
           showAppToast(context,
-              message: 'Added ${_fmt.format(amount)} to net worth',
+              message: context.l10nRead.addedToNetWorth(_fmt.format(amount)),
               type: AppToastType.success);
         }
       }
@@ -1007,23 +1013,10 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
       await _sipService.skipCurrentInstallment(sip);
       if (mounted) {
         showAppToast(context,
-            message: 'Marked as not done this month', type: AppToastType.info);
+            message: context.l10nRead.markedNotDone, type: AppToastType.info);
       }
     }
     amountCtrl.dispose();
   }
 
-  static String _ordinalDay(int n) {
-    if (n >= 11 && n <= 13) return '${n}th';
-    switch (n % 10) {
-      case 1:
-        return '${n}st';
-      case 2:
-        return '${n}nd';
-      case 3:
-        return '${n}rd';
-      default:
-        return '${n}th';
-    }
-  }
 }

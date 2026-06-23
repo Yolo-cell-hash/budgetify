@@ -65,10 +65,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _toggleAppLock(bool enable) async {
     final lockService = AppLockService();
     if (enable) {
+      // Read the localized message before the async gap below.
+      final noLockMessage = context.l10nRead.noScreenLock;
       if (!await lockService.isDeviceSupported()) {
         _showStyledSnackBar(
           icon: Icons.error_outline,
-          message: 'No screen lock or biometrics set up on this device',
+          message: noLockMessage,
           color: const Color(0xFFD25A5F),
         );
         return;
@@ -89,7 +91,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (mounted) {
       showAppToast(
         context,
-        message: _autoScanEnabled ? 'Auto-scan enabled' : 'Auto-scan disabled',
+        message: _autoScanEnabled
+            ? context.l10nRead.autoScanEnabledToast
+            : context.l10nRead.autoScanDisabledToast,
         type: _autoScanEnabled ? AppToastType.success : AppToastType.info,
       );
     }
@@ -103,7 +107,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const AppBarTitle('Settings', icon: Icons.settings_rounded),
+        title: AppBarTitle(context.l10n.settingsTitle,
+            icon: Icons.settings_rounded),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -200,7 +205,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 24),
 
           // Auto-Scan Section
-          _buildSectionHeader('Auto-Scan', isDark),
+          _buildSectionHeader(context.l10n.autoScanSection, isDark),
           const SizedBox(height: 8),
           _buildSettingsCard(
             isDark: isDark,
@@ -211,11 +216,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Icons.schedule,
                     color: _autoScanEnabled ? Color(0xFF2AA76F) : Color(0xFF8A8D96),
                   ),
-                  title: const Text('Automatic SMS Scanning'),
+                  title: Text(context.l10n.autoScanTitle),
                   subtitle: Text(
                     _autoScanEnabled
-                        ? 'Transactions are scanned automatically'
-                        : 'Enable to auto-detect transactions in background',
+                        ? context.l10n.autoScanOnDesc
+                        : context.l10n.autoScanOffDesc,
                     style: TextStyle(
                       color: isDark
                           ? Color(0xFF8A8D96)
@@ -241,7 +246,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
                         child: Text(
-                          'Scan Frequency',
+                          context.l10n.scanFrequency,
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
@@ -260,7 +265,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             return Padding(
                               padding: const EdgeInsets.only(right: 8),
                               child: ChoiceChip(
-                                label: Text(h == 1 ? 'Hourly' : 'Every ${h}h'),
+                                label: Text(h == 1
+                                    ? context.l10n.hourly
+                                    : context.l10n.everyHours(h)),
                                 selected: selected,
                                 showCheckmark: false,
                                 labelStyle: TextStyle(
@@ -294,7 +301,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     ListTile(
                       leading: Icon(Icons.history, color: Color(0xFF8A8D96)),
-                      title: const Text('Last Scan'),
+                      title: Text(context.l10n.lastScan),
                       subtitle: Text(
                         DateFormat(
                           'MMM d, yyyy • h:mm a',
@@ -315,7 +322,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 24),
 
           // Security Section
-          _buildSectionHeader('Security', isDark),
+          _buildSectionHeader(context.l10n.securitySection, isDark),
           const SizedBox(height: 8),
           _buildSettingsCard(
             isDark: isDark,
@@ -328,11 +335,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ? const Color(0xFFA8843C)
                         : const Color(0xFF8A8D96),
                   ),
-                  title: const Text('App Lock'),
+                  title: Text(context.l10n.appLock),
                   subtitle: Text(
                     _appLockEnabled
-                        ? 'Unlock with fingerprint, face, or device PIN'
-                        : 'Require authentication to open the app',
+                        ? context.l10n.appLockOnDesc
+                        : context.l10n.appLockOffDesc,
                     style: TextStyle(
                       color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
                     ),
@@ -353,9 +360,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ? const Color(0xFFA8843C)
                         : const Color(0xFF8A8D96),
                   ),
-                  title: const Text('Hide Amounts'),
+                  title: Text(context.l10n.hideAmounts),
                   subtitle: Text(
-                    'Blur all figures until you tap to reveal',
+                    context.l10n.hideAmountsDesc,
                     style: TextStyle(
                       color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
                     ),
@@ -371,7 +378,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 24),
 
           // Intelligence Section
-          _buildSectionHeader('Intelligence', isDark),
+          _buildSectionHeader(context.l10n.intelligenceSection, isDark),
           const SizedBox(height: 8),
           _buildSettingsCard(
             isDark: isDark,
@@ -382,10 +389,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ? const Color(0xFFA8843C)
                     : const Color(0xFF8A8D96),
               ),
-              title: const Text('AI Prediction Mode'),
+              title: Text(context.l10n.aiPredictionMode),
               subtitle: Text(
-                'Show a spending forecast and insights on your dashboard. '
-                'Computed entirely on your device — nothing is uploaded.',
+                context.l10n.aiPredictionModeDesc,
                 style: TextStyle(
                   color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
                 ),
@@ -406,11 +412,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ? const Color(0xFFA8843C)
                     : const Color(0xFF8A8D96),
               ),
-              title: const Text('Detailed Financial Health'),
+              title: Text(context.l10n.detailedFinancialHealth),
               subtitle: Text(
-                'Show the full Financial Health card with a per-pillar '
-                'breakdown. When off, just the score appears on your balance '
-                'card.',
+                context.l10n.detailedFinancialHealthDesc,
                 style: TextStyle(
                   color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
                 ),
@@ -432,11 +436,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ? const Color(0xFFA8843C)
                     : const Color(0xFF8A8D96),
               ),
-              title: const Text('Gamified Budgets'),
+              title: Text(context.l10n.gamifiedBudgets),
               subtitle: Text(
-                'Earn achievement badges, titles and a shareable profile from '
-                'your spending. Opens a separate Rewards hub from your Home '
-                'avatar — everything stays on your device.',
+                context.l10n.gamifiedBudgetsDesc,
                 style: TextStyle(
                   color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
                 ),
@@ -450,7 +452,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 24),
 
           // Backup Section
-          _buildSectionHeader('Backup', isDark),
+          _buildSectionHeader(context.l10n.backupSection, isDark),
           const SizedBox(height: 8),
           _buildSettingsCard(
             isDark: isDark,
@@ -461,9 +463,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Icons.shield_moon_outlined,
                     color: Color(0xFFA8843C),
                   ),
-                  title: const Text('Create Encrypted Backup'),
+                  title: Text(context.l10n.createBackup),
                   subtitle: Text(
-                    'All transactions, budgets, rules & tags (AES-256)',
+                    context.l10n.createBackupDesc,
                     style: TextStyle(
                       color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
                     ),
@@ -480,9 +482,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Icons.settings_backup_restore,
                     color: Color(0xFF178A5B),
                   ),
-                  title: const Text('Restore from Backup'),
+                  title: Text(context.l10n.restoreBackup),
                   subtitle: Text(
-                    'Merge a backup file into this device',
+                    context.l10n.restoreBackupDesc,
                     style: TextStyle(
                       color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
                     ),
@@ -497,15 +499,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 24),
 
           // Data Section
-          _buildSectionHeader('Data', isDark),
+          _buildSectionHeader(context.l10n.dataSection, isDark),
           const SizedBox(height: 8),
           _buildSettingsCard(
             isDark: isDark,
             child: ListTile(
               leading: Icon(Icons.sell_outlined, color: Color(0xFFC68A2E)),
-              title: const Text('Manage Tags'),
+              title: Text(context.l10n.manageTags),
               subtitle: Text(
-                'Delete tags you don\'t use',
+                context.l10n.manageTagsDesc,
                 style: TextStyle(
                   color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
                 ),
@@ -521,15 +523,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 24),
 
           // Export Section
-          _buildSectionHeader('Export', isDark),
+          _buildSectionHeader(context.l10n.exportSection, isDark),
           const SizedBox(height: 8),
           _buildSettingsCard(
             isDark: isDark,
             child: ListTile(
               leading: Icon(Icons.ios_share, color: Color(0xFF4A6489)),
-              title: const Text('Export Data'),
+              title: Text(context.l10n.exportData),
               subtitle: Text(
-                'Excel, CSV, or text — filter by date, type, tag or payee',
+                context.l10n.exportDataDesc,
                 style: TextStyle(
                   color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
                 ),
@@ -542,7 +544,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 24),
 
           // Privacy Section
-          _buildSectionHeader('Privacy', isDark),
+          _buildSectionHeader(context.l10n.privacySection, isDark),
           const SizedBox(height: 8),
           _buildSettingsCard(
             isDark: isDark,
@@ -551,9 +553,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Icons.shield_outlined,
                 color: Color(0xFF178A5B),
               ),
-              title: const Text('Your Data is Private'),
+              title: Text(context.l10n.dataPrivateTitle),
               subtitle: Text(
-                'All data stays on your device. We do not collect or upload any information.',
+                context.l10n.dataPrivateDesc,
                 style: TextStyle(
                   color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
                 ),
@@ -564,14 +566,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 24),
 
           // About Section
-          _buildSectionHeader('About', isDark),
+          _buildSectionHeader(context.l10n.aboutSection, isDark),
           const SizedBox(height: 8),
           _buildSettingsCard(
             isDark: isDark,
-            child: const ListTile(
-              leading: Icon(Icons.info_outline),
-              title: Text('Budgetify'),
-              subtitle: Text('Version $kAppVersion'),
+            child: ListTile(
+              leading: const Icon(Icons.info_outline),
+              title: const Text('Budgetify'),
+              subtitle: Text(context.l10n.versionLabel(kAppVersion)),
             ),
           ),
         ],
@@ -593,7 +595,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         if (locked) {
           _showStyledSnackBar(
             icon: Icons.lock_outline,
-            message: context.l10n.lockedThemeNudge(reward.days),
+            message: context.l10nRead.lockedThemeNudge(reward.days),
             color: const Color(0xFF70798A),
           );
           return;
@@ -716,7 +718,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  context.l10n.language,
+                  context.l10nRead.language,
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
@@ -798,11 +800,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context,
       builder: (ctx) => AppDialog(
         icon: confirm ? Icons.lock_rounded : Icons.lock_open_rounded,
-        title: confirm ? 'Set Backup Passphrase' : 'Enter Passphrase',
+        title: confirm
+            ? context.l10nRead.setBackupPassphrase
+            : context.l10nRead.enterPassphrase,
         subtitle: confirm
-            ? 'Your backup is encrypted with this passphrase. Without it the '
-                  'backup cannot be restored — there is no recovery.'
-            : 'Enter the passphrase this backup was created with.',
+            ? context.l10nRead.setPassphraseDesc
+            : context.l10nRead.enterPassphraseDesc,
         content: Form(
           key: formKey,
           child: Column(
@@ -812,9 +815,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 controller: controller,
                 obscureText: true,
                 autofocus: true,
-                decoration: const InputDecoration(labelText: 'Passphrase'),
+                decoration:
+                    InputDecoration(labelText: context.l10nRead.passphrase),
                 validator: (v) => (v == null || v.length < 6)
-                    ? 'At least 6 characters'
+                    ? context.l10nRead.atLeast6Chars
                     : null,
               ),
               if (confirm) ...[
@@ -822,11 +826,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 TextFormField(
                   controller: confirmController,
                   obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Confirm passphrase',
+                  decoration: InputDecoration(
+                    labelText: context.l10nRead.confirmPassphrase,
                   ),
-                  validator: (v) =>
-                      v != controller.text ? 'Passphrases don\'t match' : null,
+                  validator: (v) => v != controller.text
+                      ? context.l10nRead.passphrasesDontMatch
+                      : null,
                 ),
               ],
             ],
@@ -835,7 +840,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+            child: Text(context.l10nRead.commonCancel),
           ),
           ElevatedButton(
             onPressed: () {
@@ -843,7 +848,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Navigator.pop(ctx, controller.text);
               }
             },
-            child: const Text('Continue'),
+            child: Text(context.l10nRead.commonContinue),
           ),
         ],
       ),
@@ -863,7 +868,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final passphrase = await _promptPassphrase(confirm: true);
     if (passphrase == null || !mounted) return;
 
-    _showProgressDialog('Encrypting backup…');
+    _showProgressDialog(context.l10nRead.encryptingBackup);
     try {
       final path = await _backupService.createBackup(passphrase);
       if (mounted) Navigator.pop(context);
@@ -871,9 +876,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (path == null) return; // user cancelled the save dialog
       _showStyledSnackBar(
         icon: Icons.check_circle,
-        message: 'Encrypted backup saved',
+        message: context.l10nRead.encryptedBackupSaved,
         color: const Color(0xFF2AA76F),
-        actionLabel: 'Open',
+        actionLabel: context.l10nRead.open,
         onAction: () => OpenFilex.open(path),
       );
     } catch (e) {
@@ -881,7 +886,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) {
         _showStyledSnackBar(
           icon: Icons.error_outline,
-          message: 'Backup failed: $e',
+          message: context.l10nRead.backupFailed('$e'),
           color: const Color(0xFFD25A5F),
         );
       }
@@ -892,7 +897,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final passphrase = await _promptPassphrase(confirm: false);
     if (passphrase == null || !mounted) return;
 
-    _showProgressDialog('Decrypting and restoring…');
+    _showProgressDialog(context.l10nRead.decryptingRestoring);
     try {
       final result = await _backupService.restoreBackup(passphrase);
       if (mounted) Navigator.pop(context);
@@ -904,10 +909,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _showStyledSnackBar(
         icon: Icons.check_circle,
         message: result.total == 0
-            ? 'Backup restored — everything was already on this device'
-            : 'Restored ${result.transactions} transactions, '
-                  '${result.budgets} budgets, ${result.rules} rules, '
-                  '${result.holdings} holdings, ${result.sips} SIPs',
+            ? context.l10nRead.backupRestoredNothing
+            : context.l10nRead.restoredSummary(
+                result.transactions,
+                result.budgets,
+                result.rules,
+                result.holdings,
+                result.sips,
+              ),
         color: const Color(0xFF2AA76F),
       );
     } on BackupException catch (e) {
@@ -924,7 +933,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) {
         _showStyledSnackBar(
           icon: Icons.error_outline,
-          message: 'Restore failed: $e',
+          message: context.l10nRead.restoreFailed('$e'),
           color: const Color(0xFFD25A5F),
         );
       }
@@ -957,7 +966,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           if (mounted) {
             _showStyledSnackBar(
               icon: Icons.error_outline,
-              message: 'Storage permission is required to export data',
+              message: context.l10nRead.storagePermissionRequired,
               color: const Color(0xFFD25A5F),
             );
           }
@@ -967,7 +976,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
 
     if (!mounted) return;
-    _showProgressDialog('Exporting…');
+    _showProgressDialog(context.l10nRead.exporting);
 
     try {
       final path = await _exportService.export(
@@ -981,7 +990,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (path == null) {
         _showStyledSnackBar(
           icon: Icons.filter_alt_off_outlined,
-          message: 'No transactions match those filters',
+          message: context.l10nRead.noTxnMatchFilters,
           color: const Color(0xFFD79A3C),
         );
         return;
@@ -990,9 +999,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final fileName = path.split('/').last;
       _showStyledSnackBar(
         icon: Icons.check_circle,
-        message: 'Saved to Downloads/$fileName',
+        message: context.l10nRead.savedToDownloads(fileName),
         color: const Color(0xFF2AA76F),
-        actionLabel: 'Open',
+        actionLabel: context.l10nRead.open,
         onAction: () => OpenFilex.open(path),
       );
     } catch (e) {
@@ -1000,7 +1009,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) {
         _showStyledSnackBar(
           icon: Icons.error_outline,
-          message: 'Export failed: $e',
+          message: context.l10nRead.exportFailed('$e'),
           color: const Color(0xFFD25A5F),
         );
       }

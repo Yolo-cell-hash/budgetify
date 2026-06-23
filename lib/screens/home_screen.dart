@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../l10n/l10n.dart';
 import '../models/transaction_model.dart';
 import '../providers/theme_provider.dart';
 import '../services/app_events.dart';
@@ -223,12 +224,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       onTransactionDetected: (transaction) {
         _loadData();
         final isCredit = transaction.type == TransactionType.credit;
+        final amount = '₹${transaction.amount.toStringAsFixed(2)}';
         showAppToast(
           context,
-          message:
-              '${isCredit ? "Credited" : "Debited"}: ₹${transaction.amount.toStringAsFixed(2)}',
+          message: isCredit
+              ? context.l10nRead.txnCredited(amount)
+              : context.l10nRead.txnDebited(amount),
           type: isCredit ? AppToastType.success : AppToastType.info,
-          actionLabel: 'View',
+          actionLabel: context.l10nRead.commonView,
           onAction: _openTransactionsScreen,
         );
       },
@@ -264,10 +267,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       showAppToast(
         context,
         message: scanFailed
-            ? "Couldn't read messages on this device just now — your data is up to date"
+            ? context.l10nRead.smsReadFailed
             : transactions.isEmpty
-                ? 'No new transactions found'
-                : 'Found ${transactions.length} transaction${transactions.length == 1 ? '' : 's'}',
+                ? context.l10nRead.noNewTransactions
+                : context.l10nRead.foundTransactions(transactions.length),
         type: scanFailed
             ? AppToastType.warning
             : transactions.isEmpty
@@ -306,9 +309,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           showAppToast(
             context,
             message:
-                'Found ${transactions.length} transactions from your SMS',
+                context.l10nRead.foundTransactionsFromSms(transactions.length),
             type: AppToastType.success,
-            actionLabel: 'View',
+            actionLabel: context.l10nRead.commonView,
             onAction: _openTransactionsScreen,
           );
         }
@@ -334,7 +337,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             showAppToast(
               context,
               message:
-                  '${transactions.length} new transaction${transactions.length > 1 ? 's' : ''} found',
+                  context.l10nRead.newTransactionsFound(transactions.length),
               type: AppToastType.success,
             );
           }
@@ -386,16 +389,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       context,
       builder: (ctx) => AppDialog(
         icon: Icons.logout_rounded,
-        title: 'Exit Budgetify?',
-        subtitle: 'Your data stays safely on your device. See you soon.',
+        title: context.l10nRead.exitTitle,
+        subtitle: context.l10nRead.exitSubtitle,
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Stay'),
+            child: Text(context.l10nRead.stay),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Exit'),
+            child: Text(context.l10nRead.exit),
           ),
         ],
       ),
@@ -554,7 +557,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Investment Alert',
+                        context.l10n.investmentAlert,
                         style: TextStyle(
                           fontSize: 14.5,
                           fontWeight: FontWeight.w700,
@@ -563,9 +566,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        n == 1
-                            ? 'You have an investment to confirm today'
-                            : '$n investments to confirm today',
+                        context.l10n.investmentsToConfirm(n),
                         style: TextStyle(
                           fontSize: 12.5,
                           color: hero.mutedForeground,
@@ -609,7 +610,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      DateFormat('EEEE, MMMM d').format(DateTime.now()),
+                      context.l10n.fullDate(DateTime.now()),
                       style: TextStyle(
                         fontSize: 14,
                         letterSpacing: -0.1,
@@ -642,7 +643,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        'SMS Active',
+                        context.l10n.smsActive,
                         style: TextStyle(
                           fontSize: 12,
                           color: colors.success,
@@ -661,7 +662,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         : Icons.visibility_outlined,
                     color: colors.textSecondary,
                   ),
-                  tooltip: 'Show/hide amounts',
+                  tooltip: context.l10n.showHideAmounts,
                   onPressed: () =>
                       context.read<AppPreferences>().toggleReveal(),
                 ),
@@ -681,7 +682,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Widget _buildBalanceCard({bool showHealthInline = false}) {
     final formatter = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
-    final monthName = DateFormat('MMMM').format(DateTime.now());
     final colors = AppColors.of(context);
     final hero = HeroStyle.of(context);
 
@@ -701,7 +701,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '$monthName Expenses'.toUpperCase(),
+                context.l10n.monthExpenses(DateTime.now().month),
                 style: TextStyle(
                   fontSize: 12,
                   letterSpacing: 1.4,
@@ -726,7 +726,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      'Spent',
+                      context.l10n.spent,
                       style: TextStyle(
                         fontSize: 11,
                         color: hero.mutedForeground,
@@ -781,7 +781,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              'Income',
+                              context.l10n.commonIncome,
                               style: TextStyle(
                                 fontSize: 11,
                                 letterSpacing: 0.3,
@@ -819,7 +819,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
                             Text(
-                              'Expenses',
+                              context.l10n.commonExpenses,
                               style: TextStyle(
                                 fontSize: 11,
                                 letterSpacing: 0.3,
@@ -878,7 +878,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildWrappedEntry() {
-    final monthName = DateFormat('MMMM').format(DateTime.now());
     final hero = HeroStyle.of(context);
 
     return PressableScale(
@@ -933,7 +932,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '$monthName Wrapped',
+                      context.l10n.monthWrapped(DateTime.now().month),
                       style: TextStyle(
                         color: hero.foreground,
                         fontSize: 15,
@@ -943,7 +942,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Your shareable month in review',
+                      context.l10n.wrappedSubtitle,
                       style: TextStyle(
                         color: hero.mutedForeground,
                         fontSize: 12,
@@ -1018,7 +1017,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Splits',
+                    context.l10n.splits,
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
@@ -1028,7 +1027,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'Track shared bills & who owes whom',
+                    context.l10n.splitsSubtitle,
                     style: TextStyle(fontSize: 12, color: colors.textSecondary),
                   ),
                 ],
@@ -1052,7 +1051,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           Expanded(
             child: _buildActionCard(
               icon: Icons.receipt_long_outlined,
-              label: 'Transactions',
+              label: context.l10n.transactions,
               value: _transactionCount.toString(),
               color: colors.accent,
               onTap: _openTransactionsScreen,
@@ -1062,7 +1061,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           Expanded(
             child: _buildActionCard(
               icon: Icons.pending_actions_outlined,
-              label: 'Unclassified',
+              label: context.l10n.unclassified,
               value: _unclassifiedCount.toString(),
               color: AppColors.goldDeep,
               onTap: () => _openTransactionsScreen(unclassifiedOnly: true),
@@ -1072,8 +1071,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           Expanded(
             child: _buildActionCard(
               icon: Icons.sync,
-              label: 'Scan SMS',
-              value: _isScanning ? '...' : 'Scan',
+              label: context.l10n.scanSms,
+              value: _isScanning ? '...' : context.l10n.scan,
               color: colors.success,
               onTap: _isScanning ? null : _scanExistingSms,
             ),
@@ -1161,7 +1160,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Recent Transactions',
+                context.l10n.recentTransactions,
                 style: TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w600,
@@ -1171,7 +1170,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ),
               TextButton(
                 onPressed: _openTransactionsScreen,
-                child: const Text('See All'),
+                child: Text(context.l10n.commonSeeAll),
               ),
             ],
           ),
@@ -1326,7 +1325,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Cash Transactions',
+                    context.l10n.cashTransactions,
                     style: TextStyle(
                       color: cashFg,
                       fontSize: 16,
@@ -1361,7 +1360,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     const Text('💱', style: TextStyle(fontSize: 14)),
                     const SizedBox(width: 6),
                     Text(
-                      '$conversions Cash Conversion${conversions > 1 ? 's' : ''}',
+                      context.l10n.cashConversions(conversions),
                       style: TextStyle(color: cashMuted, fontSize: 12),
                     ),
                   ],
