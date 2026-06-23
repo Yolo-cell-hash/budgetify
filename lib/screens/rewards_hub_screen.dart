@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/l10n.dart';
 import '../models/achievement.dart';
 import '../models/streak_reward.dart';
 import '../providers/theme_provider.dart';
@@ -132,12 +133,13 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
       child: Scaffold(
         backgroundColor: colors.background,
         appBar: AppBar(
-          title: const AppBarTitle('Rewards', icon: Icons.emoji_events_rounded),
-          bottom: const TabBar(
+          title: AppBarTitle(context.l10n.rewardsTitle,
+              icon: Icons.emoji_events_rounded),
+          bottom: TabBar(
             tabs: [
-              Tab(text: 'Profile'),
-              Tab(text: 'Trophies'),
-              Tab(text: 'Streaks'),
+              Tab(text: context.l10n.profileTab),
+              Tab(text: context.l10n.trophiesTab),
+              Tab(text: context.l10n.streaksTab),
             ],
           ),
         ),

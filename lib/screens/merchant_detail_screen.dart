@@ -2,6 +2,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../l10n/l10n.dart';
 import '../models/transaction_model.dart';
 import '../providers/theme_provider.dart';
 import '../services/custom_tag_service.dart';
@@ -186,13 +187,13 @@ class _MerchantDetailScreenState extends State<MerchantDetailScreen> {
     final vs = _vsLastMonth;
     return Row(
       children: [
-        _statChip(colors, 'Avg / txn', _fmt.format(_avg)),
+        _statChip(colors, context.l10n.avgPerTxn, _fmt.format(_avg)),
         const SizedBox(width: 10),
-        _statChip(colors, 'Largest', _fmt.format(_largest)),
+        _statChip(colors, context.l10n.largestLabel, _fmt.format(_largest)),
         const SizedBox(width: 10),
         _statChip(
           colors,
-          'vs last month',
+          context.l10n.vsLastMonth,
           vs == null ? '—' : '${vs >= 0 ? '↑' : '↓'} ${vs.abs().toStringAsFixed(0)}%',
           valueColor: vs == null
               ? null
@@ -349,7 +350,7 @@ class _MerchantDetailScreenState extends State<MerchantDetailScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Transactions',
+            context.l10n.transactions,
             style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w600,
@@ -360,7 +361,7 @@ class _MerchantDetailScreenState extends State<MerchantDetailScreen> {
           if (_txns.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 16),
-              child: Text('No transactions this month',
+              child: Text(context.l10n.noTxnsThisMonth,
                   style: TextStyle(color: colors.textSecondary)),
             )
           else
@@ -381,7 +382,9 @@ class _MerchantDetailScreenState extends State<MerchantDetailScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              t.category ?? 'Unclassified',
+                              t.category != null
+                                  ? context.l10n.categoryName(t.category!)
+                                  : context.l10n.unclassified,
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w500,

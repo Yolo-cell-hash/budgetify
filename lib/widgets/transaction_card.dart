@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../l10n/l10n.dart';
 import '../models/transaction_model.dart';
 import 'app_dialog.dart';
 import 'category_icon.dart';
@@ -44,13 +45,12 @@ class TransactionCard extends StatelessWidget {
               builder: (context) => AppDialog(
                 icon: Icons.delete_outline_rounded,
                 accent: const Color(0xFFD25A5F),
-                title: 'Delete Transaction',
-                subtitle:
-                    "This won't return on the next scan. Are you sure?",
+                title: context.l10nRead.deleteTransactionTitle,
+                subtitle: context.l10nRead.deleteTransactionConfirm,
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(context, false),
-                    child: const Text('Cancel'),
+                    child: Text(context.l10nRead.commonCancel),
                   ),
                   ElevatedButton(
                     onPressed: () => Navigator.pop(context, true),
@@ -58,7 +58,7 @@ class TransactionCard extends StatelessWidget {
                       backgroundColor: const Color(0xFFD25A5F),
                       foregroundColor: Colors.white,
                     ),
-                    child: const Text('Delete'),
+                    child: Text(context.l10nRead.commonDelete),
                   ),
                 ],
               ),
@@ -113,7 +113,9 @@ class TransactionCard extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
-                                transaction.type.displayName.toUpperCase(),
+                                context.l10n
+                                    .txnTypeName(isCredit)
+                                    .toUpperCase(),
                                 style: TextStyle(
                                   fontSize: 10,
                                   color: typeColor,
@@ -147,7 +149,7 @@ class TransactionCard extends StatelessWidget {
                                     ),
                                     const SizedBox(width: 3),
                                     Text(
-                                      'Unclassified',
+                                      context.l10n.unclassified,
                                       style: TextStyle(
                                         fontSize: 9,
                                         color: Color(0xFFB57A22),
@@ -163,7 +165,7 @@ class TransactionCard extends StatelessWidget {
                         const SizedBox(height: 6),
                         // Category chip with icon
                         if (transaction.category != null) ...[
-                          _buildCategoryChip(transaction.category!),
+                          _buildCategoryChip(context, transaction.category!),
                           const SizedBox(height: 4),
                         ] else
                           Text(
@@ -238,7 +240,7 @@ class TransactionCard extends StatelessWidget {
     );
   }
 
-  Widget _buildCategoryChip(String category) {
+  Widget _buildCategoryChip(BuildContext context, String category) {
     final color = ExpenseCategories.getColor(category);
     final icon = ExpenseCategories.getIcon(category);
 
@@ -258,7 +260,7 @@ class TransactionCard extends StatelessWidget {
               Text(icon, style: const TextStyle(fontSize: 12)),
               const SizedBox(width: 4),
               Text(
-                category,
+                context.l10n.categoryName(category),
                 style: TextStyle(
                   fontSize: 12,
                   color: color,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../l10n/l10n.dart';
 import '../models/ledger_models.dart';
 import '../models/transaction_model.dart';
 import '../providers/theme_provider.dart';
@@ -103,6 +104,7 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
   }
 
   Future<void> _init() async {
+    final l10n = context.l10nRead;
     final e = widget.existing;
     if (e != null) {
       _titleCtrl.text = e.title;
@@ -123,7 +125,10 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
       final t = widget.linkTxn;
       if (t != null) {
         _linkedTxnId = t.id;
-        _linkedTxnLabel = t.merchantName ?? t.category ?? 'Transaction';
+        _linkedTxnLabel = t.merchantName ??
+            (t.category != null
+                ? l10n.categoryName(t.category!)
+                : l10n.linkedTxnFallback);
         _titleCtrl.text = t.merchantName ?? t.category ?? '';
         _totalCtrl.text = t.amount.toStringAsFixed(0);
       }
@@ -159,7 +164,7 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
 
   double get _total => double.tryParse(_totalCtrl.text.trim()) ?? 0;
   int get _sharingCount => _parties.where((p) => p.sharing).length;
-  String _label(String name) => name == _me ? 'You' : name;
+  String _label(String name) => name == _me ? context.l10n.youLabel : name;
 
   /// Resolved rupee share per party (index-aligned with [_parties]). Equal mode
   /// splits the total evenly among those in the split, handing the rounding
@@ -208,11 +213,12 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
     final known = await _ledger.knownPeople();
     if (!mounted) return;
     final colors = AppColors.of(context);
+    final l10n = context.l10nRead;
     final promptTitle = asPayer
-        ? 'Who paid?'
+        ? l10n.whoPaid
         : asSoleOwer
-            ? 'Who owes you?'
-            : 'Add a person';
+            ? l10n.whoOwesYou
+            : l10n.addAPerson;
     final picked = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
@@ -241,7 +247,7 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
               controller: ctrl,
               autofocus: true,
               textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(hintText: 'Name'),
+              decoration: InputDecoration(hintText: l10n.name),
               onSubmitted: (v) => Navigator.pop(ctx, v),
             ),
             if (known.isNotEmpty) ...[
@@ -265,7 +271,7 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: () => Navigator.pop(ctx, ctrl.text),
-                child: const Text('Add'),
+                child: Text(l10n.add),
               ),
             ),
           ],
@@ -288,33 +294,34 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
   }
 
   Future<void> _save() async {
+    final l10n = context.l10nRead;
     final title = _titleCtrl.text.trim();
     if (title.isEmpty) {
       showAppToast(context,
-          message: 'Give it a title', type: AppToastType.warning);
+          message: l10n.giveItATitle, type: AppToastType.warning);
       return;
     }
     if (_total <= 0) {
       showAppToast(context,
-          message: 'Enter an amount above ₹0', type: AppToastType.warning);
+          message: l10n.enterAmountAbove0, type: AppToastType.warning);
       return;
     }
     if (_parties.length < 2) {
       showAppToast(context,
-          message: 'Add the other person involved',
+          message: l10n.addOtherPerson,
           type: AppToastType.warning);
       return;
     }
     if (_sharingCount == 0) {
       showAppToast(context,
-          message: 'Pick who the expense is split between',
+          message: l10n.pickWhoSplit,
           type: AppToastType.warning);
       return;
     }
     final shares = _resolvedShares();
     if ((_sumShares - _total).abs() > 1.0) {
       showAppToast(context,
-          message: 'Shares must add up to ${_fmt.format(_total)}',
+          message: l10n.sharesMustAddUp(_fmt.format(_total)),
           type: AppToastType.warning);
       return;
     }
@@ -381,13 +388,13 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
                     _header(colors),
                     const SizedBox(height: 20),
 
-                    _fieldLabel(colors, 'What for'),
+                    _fieldLabel(colors, context.l10n.whatFor),
                     const SizedBox(height: 8),
                     TextField(
                       controller: _titleCtrl,
                       textCapitalization: TextCapitalization.sentences,
-                      decoration: const InputDecoration(
-                        hintText: 'e.g. Dinner at Barbeque Nation',
+                      decoration: InputDecoration(
+                        hintText: context.l10n.splitTitleHint,
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -397,7 +404,7 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _fieldLabel(colors, 'Total amount'),
+                              _fieldLabel(colors, context.l10n.totalAmount),
                               const SizedBox(height: 8),
                               TextField(
                                 controller: _totalCtrl,
@@ -414,7 +421,7 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _fieldLabel(colors, 'Date'),
+                              _fieldLabel(colors, context.l10n.dateLabel),
                               const SizedBox(height: 8),
                               _dateField(colors),
                             ],
@@ -428,14 +435,14 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
                     ],
 
                     const SizedBox(height: 20),
-                    _fieldLabel(colors, 'Paid by'),
+                    _fieldLabel(colors, context.l10n.paidBy),
                     const SizedBox(height: 10),
                     _payerSelector(colors),
 
                     const SizedBox(height: 20),
                     Row(
                       children: [
-                        _fieldLabel(colors, 'Split between'),
+                        _fieldLabel(colors, context.l10n.splitBetween),
                         const Spacer(),
                         _methodToggle(colors),
                       ],
@@ -472,14 +479,17 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
   Widget _header(AppColors colors) {
     final intent = _editing ? SplitIntent.split : widget.intent;
     final (icon, title) = switch (intent) {
-      SplitIntent.iOwe => (Icons.north_east_rounded, 'Record what you owe'),
+      SplitIntent.iOwe => (
+          Icons.north_east_rounded,
+          context.l10n.recordWhatYouOwe
+        ),
       SplitIntent.owedToMe => (
           Icons.south_west_rounded,
-          "Record what you're owed"
+          context.l10n.recordWhatYoureOwed
         ),
       SplitIntent.split => (
           Icons.call_split_rounded,
-          _editing ? 'Edit split' : 'New split'
+          _editing ? context.l10n.editSplit : context.l10n.newSplit
         ),
     };
     return Row(
@@ -534,9 +544,9 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
     }
 
     return Row(mainAxisSize: MainAxisSize.min, children: [
-      chip('Equally', SplitMethod.equal),
+      chip(context.l10n.equallyLabel, SplitMethod.equal),
       const SizedBox(width: 8),
-      chip('Exact ₹', SplitMethod.exact),
+      chip(context.l10n.exactLabel, SplitMethod.exact),
     ]);
   }
 
@@ -580,10 +590,11 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
       scrollDirection: Axis.horizontal,
       child: Row(
         children: [
-          chip(_me, 'You', isMe: true),
+          chip(_me, context.l10n.youLabel, isMe: true),
           for (final p in _parties.where((p) => p.name != _me))
             chip(p.name, p.name),
-          _addChip(colors, 'Someone else', () => _promptAddPerson(asPayer: true)),
+          _addChip(colors, context.l10n.someoneElse,
+              () => _promptAddPerson(asPayer: true)),
         ],
       ),
     );
@@ -663,7 +674,7 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
           SizedBox(
             width: 92,
             child: !on
-                ? Text('not in split',
+                ? Text(context.l10n.notInSplit,
                     textAlign: TextAlign.right,
                     style:
                         TextStyle(fontSize: 12, color: colors.textTertiary))
@@ -715,7 +726,7 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
             Icon(Icons.person_add_alt_1_rounded,
                 size: 19, color: AppColors.goldDeep),
             const SizedBox(width: 9),
-            Text('Add person to the split',
+            Text(context.l10n.addPersonToSplit,
                 style: TextStyle(
                     fontSize: 13.5,
                     fontWeight: FontWeight.w600,
@@ -760,7 +771,7 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
               Icon(Icons.swap_horiz_rounded,
                   size: 15, color: colors.textSecondary),
               const SizedBox(width: 6),
-              Text('Result',
+              Text(context.l10n.resultLabel,
                   style: TextStyle(
                       fontSize: 11.5,
                       fontWeight: FontWeight.w700,
@@ -770,7 +781,7 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
           ),
           const SizedBox(height: 10),
           if (lines.isEmpty)
-            Text('Fill in the amount and who paid to see the result.',
+            Text(context.l10n.fillToSeeResult,
                 style: TextStyle(fontSize: 13, color: colors.textTertiary))
           else
             for (final l in lines)
@@ -796,30 +807,32 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
                                       text: l.name,
                                       style: const TextStyle(
                                           fontWeight: FontWeight.w700)),
-                                  const TextSpan(text: ' owes you '),
+                                  TextSpan(text: context.l10n.owesYouMid),
                                   TextSpan(
                                     text: _fmt.format(l.amt),
                                     style: TextStyle(
                                         fontWeight: FontWeight.w700,
                                         color: colors.success),
                                   ),
+                                  TextSpan(text: context.l10n.owesYouTrail),
                                 ]
                               : [
-                                  const TextSpan(
-                                      text: 'You owe ',
-                                      style: TextStyle(
+                                  TextSpan(
+                                      text: context.l10n.youOweLead,
+                                      style: const TextStyle(
                                           fontWeight: FontWeight.w700)),
                                   TextSpan(
                                       text: l.name,
                                       style: const TextStyle(
                                           fontWeight: FontWeight.w700)),
-                                  const TextSpan(text: ' '),
+                                  TextSpan(text: context.l10n.youOweMid),
                                   TextSpan(
                                     text: _fmt.format(l.amt),
                                     style: TextStyle(
                                         fontWeight: FontWeight.w700,
                                         color: colors.danger),
                                   ),
+                                  TextSpan(text: context.l10n.youOweTrail),
                                 ],
                         ),
                       ),
@@ -840,18 +853,18 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
             onPressed: _saving ? null : _delete,
             style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.dangerLight),
-            child: const Text('Delete'),
+            child: Text(context.l10n.commonDelete),
           )
         else
           OutlinedButton(
             onPressed: _saving ? null : () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(context.l10n.commonCancel),
           ),
         const SizedBox(width: 12),
         Expanded(
           child: ElevatedButton(
             onPressed: _saving ? null : _save,
-            child: Text(_editing ? 'Save' : 'Add split'),
+            child: Text(_editing ? context.l10n.commonSave : context.l10n.addSplit),
           ),
         ),
       ],
@@ -872,7 +885,7 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              'Linked to $_linkedTxnLabel — only your share counts as spending',
+              context.l10n.linkedToTxn(_linkedTxnLabel!),
               style: TextStyle(fontSize: 12, color: colors.textSecondary),
             ),
           ),

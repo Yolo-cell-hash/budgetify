@@ -664,7 +664,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 6),
             Text(
-              _variantLabel(v),
+              _variantLabel(v, context),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
@@ -683,11 +683,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  static String _variantLabel(AppThemeVariant v) => switch (v) {
-        AppThemeVariant.light => 'Light',
-        AppThemeVariant.dark => 'Dark',
-        AppThemeVariant.smokyIvory => 'Smoky',
-        AppThemeVariant.seashellMauve => 'Seashell',
+  static String _variantLabel(AppThemeVariant v, BuildContext context) =>
+      switch (v) {
+        AppThemeVariant.light => context.l10n.themeNameLight,
+        AppThemeVariant.dark => context.l10n.themeNameDark,
+        AppThemeVariant.smokyIvory => context.l10n.themeNameSmoky,
+        AppThemeVariant.seashellMauve => context.l10n.themeNameSeashell,
       };
 
   /// Bottom sheet to pick the in-app language. Applies immediately and persists

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/l10n.dart';
 import '../providers/app_preferences.dart';
 import '../providers/theme_provider.dart';
 import '../services/insights_service.dart';
@@ -46,8 +47,9 @@ class SafeToSpendCard extends StatelessWidget {
 
     final perDay = f.safeToSpendPerDay ?? 0;
     final remaining = f.safeToSpendTotal ?? 0;
-    final targetWord = f.targetFromBudget ? 'budget' : 'typical month';
-    final monthName = DateFormat('MMMM').format(DateTime.now());
+    final targetWord =
+        f.targetFromBudget ? context.l10n.budgetWord : context.l10n.typicalMonth;
+    final monthName = context.l10n.monthName(DateTime.now().month);
 
     return Container(
       width: double.infinity,
@@ -85,7 +87,7 @@ class SafeToSpendCard extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               Text(
-                'Safe to spend',
+                context.l10n.safeToSpend,
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
@@ -102,7 +104,9 @@ class SafeToSpendCard extends StatelessWidget {
                   border: Border.all(color: colors.border),
                 ),
                 child: Text(
-                  f.targetFromBudget ? 'vs budget' : 'vs typical',
+                  f.targetFromBudget
+                      ? context.l10n.vsBudget
+                      : context.l10n.vsTypical,
                   style: TextStyle(
                     fontSize: 10.5,
                     fontWeight: FontWeight.w600,
@@ -153,10 +157,10 @@ class SafeToSpendCard extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             over
-                ? mask("You've passed your $targetWord for $monthName "
-                    "by ${fmt.format(remaining.abs())}.")
-                : mask('${fmt.format(remaining)} left · '
-                    '${f.daysRemaining} day${f.daysRemaining == 1 ? '' : 's'} to go'),
+                ? mask(context.l10n.passedTarget(
+                    targetWord, monthName, fmt.format(remaining.abs())))
+                : mask(context.l10n
+                    .amountLeftDays(fmt.format(remaining), f.daysRemaining)),
             style: TextStyle(
               fontSize: 12.5,
               height: 1.35,
@@ -183,10 +187,10 @@ class SafeToSpendCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   over
-                      ? 'Over your $targetWord — go easy for the rest of $monthName.'
+                      ? context.l10n.overTargetMsg(targetWord, monthName)
                       : aheadOfPace
-                          ? 'A little ahead of pace — ease up to stay comfortable.'
-                          : 'On track. Spending evenly keeps you within plan.',
+                          ? context.l10n.aheadOfPaceMsg
+                          : context.l10n.onTrackMsg,
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,

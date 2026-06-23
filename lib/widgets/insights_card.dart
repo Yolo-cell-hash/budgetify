@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/l10n.dart';
 import '../providers/app_preferences.dart';
 import '../providers/theme_provider.dart';
 import '../screens/insights_screen.dart';
@@ -90,7 +91,7 @@ class _InsightsCardState extends State<InsightsCard> {
               ),
               const SizedBox(width: 10),
               Text(
-                'Insights',
+                context.l10n.insightsTitle,
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
@@ -100,7 +101,7 @@ class _InsightsCardState extends State<InsightsCard> {
               ),
               const Spacer(),
               Text(
-                'Details',
+                context.l10n.detailsLabel,
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -140,9 +141,8 @@ class _InsightsCardState extends State<InsightsCard> {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Text(
         hasHistory
-            ? 'No spending yet this month — insights will appear as you spend.'
-            : 'Building your baseline. Insights and forecasts sharpen after a '
-                'few weeks of activity.',
+            ? context.l10n.noSpendingYetInsights
+            : context.l10n.buildingBaselineInsights,
         style: TextStyle(fontSize: 13, color: colors.textSecondary, height: 1.4),
       ),
     );
@@ -170,7 +170,7 @@ class _InsightsCardState extends State<InsightsCard> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'PROJECTED THIS MONTH',
+            context.l10n.projectedThisMonth,
             style: TextStyle(
               fontSize: 10.5,
               letterSpacing: 1.3,
@@ -235,7 +235,7 @@ class _InsightsCardState extends State<InsightsCard> {
             Row(
               children: [
                 Text(
-                  'Safe to spend: ',
+                  context.l10n.safeToSpendPrefix,
                   style: TextStyle(
                     fontSize: 12,
                     color: hero.mutedForeground,

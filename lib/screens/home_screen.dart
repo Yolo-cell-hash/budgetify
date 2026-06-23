@@ -1204,7 +1204,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       size: 42,
                     ),
                     title: Text(
-                      transaction.category ?? transaction.sender,
+                      transaction.category != null
+                          ? context.l10n.categoryName(transaction.category!)
+                          : transaction.sender,
                       style: TextStyle(
                         fontWeight: FontWeight.w500,
                         fontSize: 14,

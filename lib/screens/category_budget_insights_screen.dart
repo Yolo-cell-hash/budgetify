@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/l10n.dart';
 import '../models/budget_model.dart';
 import '../models/transaction_model.dart';
 import '../providers/app_preferences.dart';
@@ -94,7 +95,7 @@ class _CategoryBudgetInsightsScreenState
             const SizedBox(width: 8),
             Flexible(
               child: Text(
-                widget.category,
+                context.l10n.categoryName(widget.category),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
@@ -104,7 +105,7 @@ class _CategoryBudgetInsightsScreenState
           if (_budget != null)
             IconButton(
               icon: const Icon(Icons.tune_rounded),
-              tooltip: 'Edit budget',
+              tooltip: context.l10n.editBudget,
               onPressed: _editBudget,
             ),
         ],
@@ -164,7 +165,7 @@ class _CategoryBudgetInsightsScreenState
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'CATEGORY BUDGET',
+                context.l10n.categoryBudgetUpper,
                 style: TextStyle(
                   fontSize: 12,
                   letterSpacing: 1.4,
@@ -323,7 +324,7 @@ class _CategoryBudgetInsightsScreenState
               Icon(Icons.storefront_outlined, size: 18, color: colors.textSecondary),
               const SizedBox(width: 8),
               Text(
-                'Where it goes',
+                context.l10n.whereItGoes,
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -334,7 +335,8 @@ class _CategoryBudgetInsightsScreenState
           ),
           const SizedBox(height: 4),
           Text(
-            'Top merchants in ${widget.category} this month',
+            context.l10n
+                .topMerchantsIn(context.l10n.categoryName(widget.category)),
             style: TextStyle(fontSize: 12.5, color: colors.textSecondary),
           ),
           const SizedBox(height: 16),
@@ -343,7 +345,7 @@ class _CategoryBudgetInsightsScreenState
               padding: const EdgeInsets.symmetric(vertical: 24),
               child: Center(
                 child: Text(
-                  'No spending in this category yet',
+                  context.l10n.noSpendingInCategory,
                   style: TextStyle(color: colors.textSecondary),
                 ),
               ),
@@ -378,7 +380,7 @@ class _CategoryBudgetInsightsScreenState
           shareOfTotal: _spent > 0 ? total / _spent : 0.0,
           color: accent,
           isTop: i == 0,
-          shareSuffix: 'of category',
+          shareIsCategory: true,
         ),
       ));
     }
@@ -397,15 +399,15 @@ class _CategoryBudgetInsightsScreenState
       context,
       builder: (ctx) => AppDialog(
         icon: Icons.tune_rounded,
-        title: 'Edit ${widget.category} budget',
-        subtitle: 'Set the monthly limit for this category. Alerts fire at '
-            '50, 75, 90 and 100%+.',
+        title: context.l10nRead
+            .editCategoryBudget(context.l10nRead.categoryName(widget.category)),
+        subtitle: context.l10nRead.setCategoryLimitDesc,
         content: TextField(
           controller: amountCtrl,
           autofocus: true,
           keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
-            labelText: 'Monthly amount',
+          decoration: InputDecoration(
+            labelText: context.l10nRead.monthlyAmount,
             prefixText: '₹ ',
           ),
         ),
@@ -415,11 +417,11 @@ class _CategoryBudgetInsightsScreenState
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.dangerLight,
             ),
-            child: const Text('Delete'),
+            child: Text(context.l10nRead.commonDelete),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, 'save'),
-            child: const Text('Save'),
+            child: Text(context.l10nRead.commonSave),
           ),
         ],
       ),
@@ -435,7 +437,7 @@ class _CategoryBudgetInsightsScreenState
       );
       if (mounted) {
         showAppToast(context,
-            message: 'Budget updated', type: AppToastType.success);
+            message: context.l10nRead.budgetUpdated, type: AppToastType.success);
       }
       await _load();
     } else if (action == 'delete') {

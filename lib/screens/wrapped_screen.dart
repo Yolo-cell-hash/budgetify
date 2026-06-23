@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../l10n/l10n.dart';
 import '../models/monthly_recap.dart';
 import '../providers/theme_provider.dart';
 import '../services/recap_service.dart';
@@ -100,19 +101,19 @@ class _WrappedScreenState extends State<WrappedScreen>
   Future<void> _share() async {
     if (_sharing) return;
     setState(() => _sharing = true);
+    final l10n = context.l10nRead;
     try {
       final file = await _captureCard();
       if (file == null) throw Exception('Capture failed');
-      final monthName = DateFormat('MMMM yyyy').format(_selected);
+      final monthName = l10n.monthYear(_selected);
       await Share.shareXFiles(
         [XFile(file.path, mimeType: 'image/png')],
-        text:
-            'My $monthName on Budgetify ✨ — private, on-device money tracking.',
+        text: l10n.wrappedShareText(monthName),
       );
     } catch (e) {
       if (mounted) {
         showAppToast(context,
-            message: 'Could not share the card', type: AppToastType.error);
+            message: l10n.couldNotShareCard, type: AppToastType.error);
       }
     } finally {
       if (mounted) setState(() => _sharing = false);
@@ -131,19 +132,16 @@ class _WrappedScreenState extends State<WrappedScreen>
       context,
       builder: (ctx) => AppDialog(
         icon: Icons.visibility_outlined,
-        title: 'Show actual amounts?',
-        subtitle:
-            'Your Wrapped normally shows only percentages, so it\'s safe to '
-            'share. Revealing amounts displays your real ₹ figures — and any '
-            'card you share will include them.',
+        title: context.l10nRead.showActualAmountsTitle,
+        subtitle: context.l10nRead.showAmountsDesc,
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
+            child: Text(context.l10nRead.commonCancel),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Show amounts'),
+            child: Text(context.l10nRead.showAmounts),
           ),
         ],
       ),
@@ -159,7 +157,7 @@ class _WrappedScreenState extends State<WrappedScreen>
 
     return Scaffold(
       appBar: AppBar(
-        title: const AppBarTitle('Monthly Wrapped',
+        title: AppBarTitle(context.l10n.monthlyWrappedTitle,
             icon: Icons.auto_awesome_rounded),
       ),
       body: AmbientBackground(
@@ -218,7 +216,7 @@ class _WrappedScreenState extends State<WrappedScreen>
                     : null,
               ),
               child: Text(
-                isCurrent ? 'This Month' : monthFormat.format(m),
+                isCurrent ? context.l10n.thisMonth : context.l10n.monthYear(m),
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
@@ -333,7 +331,7 @@ class _WrappedScreenState extends State<WrappedScreen>
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Show actual amounts',
+              context.l10n.showActualAmounts,
               style: TextStyle(
                 fontSize: 13.5,
                 fontWeight: FontWeight.w600,
@@ -355,15 +353,12 @@ class _WrappedScreenState extends State<WrappedScreen>
     final now = DateTime.now();
     final isCurrent =
         _selected.year == now.year && _selected.month == now.month;
-    final monthName = DateFormat('MMMM').format(_selected);
+    final monthName = context.l10n.monthName(_selected.month);
     final days = recap?.availableDays ?? 0;
 
     final message = isCurrent
-        ? "$monthName is still warming up. A Wrapped needs at least "
-            "${MonthlyRecap.minDays} days of activity — there ${days == 1 ? 'is' : 'are'} "
-            "$days day${days == 1 ? '' : 's'} so far. Check back later in the month."
-        : "Not enough data for $monthName — a Wrapped needs at least "
-            "${MonthlyRecap.minDays} days of recorded activity in the month.";
+        ? context.l10n.wrappedWarmingUp(monthName, MonthlyRecap.minDays, days)
+        : context.l10n.wrappedNotEnoughData(monthName, MonthlyRecap.minDays);
 
     return Center(
       child: Padding(
@@ -384,7 +379,7 @@ class _WrappedScreenState extends State<WrappedScreen>
             ),
             const SizedBox(height: 20),
             Text(
-              'Not enough data yet',
+              context.l10n.notEnoughDataYet,
               style: TextStyle(
                 fontSize: 19,
                 fontWeight: FontWeight.w700,
@@ -500,9 +495,9 @@ class _ShareButton extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  const Text(
-                    'Preparing…',
-                    style: TextStyle(
+                  Text(
+                    context.l10n.preparing,
+                    style: const TextStyle(
                       color: Colors.white70,
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
@@ -512,9 +507,9 @@ class _ShareButton extends StatelessWidget {
                   const Icon(Icons.ios_share_rounded,
                       color: AppColors.gold, size: 19),
                   const SizedBox(width: 10),
-                  const Text(
-                    'Share my Wrapped',
-                    style: TextStyle(
+                  Text(
+                    context.l10n.shareMyWrapped,
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 15,
                       fontWeight: FontWeight.w600,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/l10n.dart';
 import '../models/ledger_models.dart';
 import '../providers/theme_provider.dart';
 import '../services/ledger_service.dart';
@@ -129,14 +130,14 @@ class _SettleUpSheetState extends State<_SettleUpSheet> {
             // Direction toggle
             Row(
               children: [
-                _dirChip(colors, true, '${widget.person} paid me'),
+                _dirChip(colors, true, context.l10n.personPaidMe(widget.person)),
                 const SizedBox(width: 8),
-                _dirChip(colors, false, 'I paid ${widget.person}'),
+                _dirChip(colors, false, context.l10n.iPaidPerson(widget.person)),
               ],
             ),
             const SizedBox(height: 18),
 
-            Text('Amount',
+            Text(context.l10n.amount,
                 style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -154,7 +155,7 @@ class _SettleUpSheetState extends State<_SettleUpSheet> {
                 OutlinedButton(
                   onPressed:
                       _saving ? null : () => Navigator.pop(context, false),
-                  child: const Text('Cancel'),
+                  child: Text(context.l10n.commonCancel),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -163,7 +164,7 @@ class _SettleUpSheetState extends State<_SettleUpSheet> {
                         backgroundColor: AppColors.successDark,
                         foregroundColor: const Color(0xFF0B1F17)),
                     onPressed: _saving ? null : _save,
-                    child: const Text('Record settlement'),
+                    child: Text(context.l10n.recordSettlement),
                   ),
                 ),
               ],

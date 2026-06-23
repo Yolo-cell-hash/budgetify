@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../l10n/l10n.dart';
 import '../models/transaction_model.dart';
 import '../providers/theme_provider.dart';
 import '../services/database_service.dart';
@@ -236,7 +237,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       initialDateRange: (_startDate != null && _endDate != null)
           ? DateTimeRange(start: _startDate!, end: _endDate!)
           : null,
-      helpText: 'Select a date or range',
+      helpText: context.l10nRead.selectDateOrRange,
     );
     if (picked == null) return;
     setState(() {
@@ -254,12 +255,12 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     if (_datePreset == _DatePreset.custom &&
         _startDate != null &&
         _endDate != null) {
-      final f = DateFormat('d MMM');
-      final s = f.format(_startDate!);
-      final e = f.format(_endDate!);
+      final l10n = context.l10nRead;
+      final s = l10n.dayMonth(_startDate!);
+      final e = l10n.dayMonth(_endDate!);
       return s == e ? s : '$s – $e';
     }
-    return 'Custom';
+    return context.l10nRead.customRange;
   }
 
   bool get _hasActiveFilters =>
@@ -277,7 +278,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
     if (mounted) {
       showAppToast(context,
-          message: "Transaction deleted — it won't return on the next scan",
+          message: context.l10nRead.txnDeletedToast,
           type: AppToastType.info);
     }
   }
@@ -296,15 +297,16 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   }
 
   String get _appBarTitle {
+    final l10n = context.l10nRead;
     if (_startDate != null && _typeFilter != null) {
-      final monthName = DateFormat('MMMM').format(_startDate!);
+      final monthName = l10n.monthName(_startDate!.month);
       if (_typeFilter == TransactionType.credit) {
-        return '$monthName Income';
+        return '$monthName ${l10n.commonIncome}';
       } else {
-        return '$monthName Expenses';
+        return '$monthName ${l10n.commonExpenses}';
       }
     }
-    return 'Transactions';
+    return l10n.transactions;
   }
 
   @override
@@ -320,7 +322,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             IconButton(
               icon: const Icon(Icons.filter_alt_off),
               onPressed: _clearFilters,
-              tooltip: 'Clear filters',
+              tooltip: context.l10n.clearFilters,
             ),
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -337,7 +339,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           if (result == true) _loadTransactions();
         },
         icon: const Icon(Icons.add),
-        label: const Text('Add'),
+        label: Text(context.l10n.add),
       ),
       body: Column(
         children: [
@@ -393,7 +395,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               textInputAction: TextInputAction.search,
               decoration: InputDecoration(
                 isDense: true,
-                hintText: 'Search by payee, amount, or date',
+                hintText: context.l10n.searchTxnHint,
                 prefixIcon: const Icon(Icons.search, size: 20),
                 suffixIcon: _searchQuery.isNotEmpty
                     ? IconButton(
@@ -426,17 +428,17 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
             child: Row(
               children: [
-                _typeRowLabel('Type', isDark),
+                _typeRowLabel(context.l10n.filterType, isDark),
                 const SizedBox(width: 10),
                 _buildFilterChip(
-                  label: 'All',
+                  label: context.l10n.filterAll,
                   isSelected: _typeFilter == null,
                   onSelected: () => _setType(null),
                   isDark: isDark,
                 ),
                 const SizedBox(width: 8),
                 _buildFilterChip(
-                  label: 'Credits',
+                  label: context.l10n.credits,
                   isSelected: _typeFilter == TransactionType.credit,
                   onSelected: () => _setType(TransactionType.credit),
                   color: const Color(0xFF2AA76F),
@@ -444,7 +446,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 ),
                 const SizedBox(width: 8),
                 _buildFilterChip(
-                  label: 'Debits',
+                  label: context.l10n.debits,
                   isSelected: _typeFilter == TransactionType.debit,
                   onSelected: () => _setType(TransactionType.debit),
                   color: const Color(0xFFD25A5F),
@@ -460,17 +462,17 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
             child: Row(
               children: [
-                _typeRowLabel('Status', isDark),
+                _typeRowLabel(context.l10n.filterStatus, isDark),
                 const SizedBox(width: 10),
                 _buildFilterChip(
-                  label: 'All',
+                  label: context.l10n.filterAll,
                   isSelected: _classFilter == _ClassFilter.all,
                   onSelected: () => _setClass(_ClassFilter.all),
                   isDark: isDark,
                 ),
                 const SizedBox(width: 8),
                 _buildFilterChip(
-                  label: 'Classified',
+                  label: context.l10n.classified,
                   isSelected: _classFilter == _ClassFilter.classified,
                   onSelected: () => _setClass(_ClassFilter.classified),
                   color: const Color(0xFF4A6489),
@@ -478,7 +480,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 ),
                 const SizedBox(width: 8),
                 _buildFilterChip(
-                  label: 'Unclassified',
+                  label: context.l10n.unclassified,
                   isSelected: _classFilter == _ClassFilter.unclassified,
                   onSelected: () => _setClass(_ClassFilter.unclassified),
                   color: const Color(0xFFD79A3C),
@@ -495,17 +497,17 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
             child: Row(
               children: [
-                _typeRowLabel('Date', isDark),
+                _typeRowLabel(context.l10n.dateLabel, isDark),
                 const SizedBox(width: 10),
                 _buildFilterChip(
-                  label: 'All',
+                  label: context.l10n.filterAll,
                   isSelected: _datePreset == _DatePreset.all,
                   onSelected: () => _applyDatePreset(_DatePreset.all),
                   isDark: isDark,
                 ),
                 const SizedBox(width: 8),
                 _buildFilterChip(
-                  label: 'This month',
+                  label: context.l10n.thisMonth,
                   isSelected: _datePreset == _DatePreset.thisMonth,
                   onSelected: () => _applyDatePreset(_DatePreset.thisMonth),
                   color: const Color(0xFF4A6489),
@@ -513,7 +515,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 ),
                 const SizedBox(width: 8),
                 _buildFilterChip(
-                  label: 'Last month',
+                  label: context.l10n.lastMonth,
                   isSelected: _datePreset == _DatePreset.lastMonth,
                   onSelected: () => _applyDatePreset(_DatePreset.lastMonth),
                   color: const Color(0xFF4A6489),
@@ -521,7 +523,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 ),
                 const SizedBox(width: 8),
                 _buildFilterChip(
-                  label: 'Last 7 days',
+                  label: context.l10n.lastNDays(7),
                   isSelected: _datePreset == _DatePreset.last7,
                   onSelected: () => _applyDatePreset(_DatePreset.last7),
                   color: const Color(0xFF4A6489),
@@ -529,7 +531,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 ),
                 const SizedBox(width: 8),
                 _buildFilterChip(
-                  label: 'Last 30 days',
+                  label: context.l10n.lastNDays(30),
                   isSelected: _datePreset == _DatePreset.last30,
                   onSelected: () => _applyDatePreset(_DatePreset.last30),
                   color: const Color(0xFF4A6489),
@@ -553,7 +555,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: _buildDropdownFilter(
                 value: _categoryFilter,
-                hint: 'Category',
+                hint: context.l10n.category,
                 items: _categories,
                 onChanged: (value) {
                   setState(() => _categoryFilter = value);
@@ -652,7 +654,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             DropdownMenuItem<String>(
               value: null,
               child: Text(
-                'All $hint',
+                context.l10n.allOfFilter(hint),
                 style: TextStyle(
                   color: isDark ? Color(0xFF9A9DA6) : Color(0xFF6E727C),
                 ),
@@ -662,7 +664,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               (item) => DropdownMenuItem(
                 value: item,
                 child: Text(
-                  item,
+                  context.l10n.categoryName(item),
                   style: TextStyle(
                     color: isDark ? Colors.white : Colors.black87,
                   ),
@@ -678,7 +680,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
   Widget _buildSummaryCard(bool isDark) {
     final formatter = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
-    final monthName = DateFormat('MMMM').format(DateTime.now());
+    final monthName = context.l10n.monthName(DateTime.now().month);
 
     return Container(
       margin: const EdgeInsets.all(16),
@@ -702,7 +704,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: Text(
-              '$monthName Summary',
+              '$monthName ${context.l10n.summaryWord}',
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
@@ -722,7 +724,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Income',
+                      context.l10n.commonIncome,
                       style: TextStyle(
                         fontSize: 12,
                         color:
@@ -756,7 +758,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Expenses',
+                      context.l10n.commonExpenses,
                       style: TextStyle(
                         fontSize: 12,
                         color:
@@ -794,7 +796,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Net',
+                      context.l10n.netLabel,
                       style: TextStyle(
                         fontSize: 12,
                         color:
@@ -835,8 +837,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           const SizedBox(height: 16),
           Text(
             _hasActiveFilters
-                ? 'No matching transactions'
-                : 'No transactions yet',
+                ? context.l10n.noMatchingTransactions
+                : context.l10n.noTransactionsYet,
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
@@ -846,8 +848,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           const SizedBox(height: 8),
           Text(
             _hasActiveFilters
-                ? 'Try adjusting your filters'
-                : 'Transactions from bank SMS will appear here',
+                ? context.l10n.tryAdjustingFilters
+                : context.l10n.txnsFromSmsAppearHere,
             style: TextStyle(
               fontSize: 14,
               color: isDark ? Color(0xFF6E727C) : Color(0xFF9A9DA6),
@@ -858,7 +860,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             TextButton.icon(
               onPressed: _clearFilters,
               icon: const Icon(Icons.filter_alt_off),
-              label: const Text('Clear Filters'),
+              label: Text(context.l10n.clearFilters),
             ),
           ],
         ],

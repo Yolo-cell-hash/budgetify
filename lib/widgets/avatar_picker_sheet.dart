@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/l10n.dart';
+
 import '../providers/theme_provider.dart';
 import '../services/gamification_service.dart';
 import 'avatars.dart';
@@ -88,24 +90,24 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
               controller: _name,
               textCapitalization: TextCapitalization.words,
               maxLength: 20,
-              decoration: const InputDecoration(
-                labelText: 'Username',
-                hintText: 'Pick a name',
+              decoration: InputDecoration(
+                labelText: context.l10n.usernameLabel,
+                hintText: context.l10n.pickAName,
               ),
             ),
             const SizedBox(height: 8),
-            _sectionLabel(colors, 'STYLE'),
+            _sectionLabel(colors, context.l10n.styleLabel),
             const SizedBox(height: 10),
             Row(
               children: [
-                _segment('Emoji', _kind == 'emoji', () {
+                _segment(context.l10n.emojiStyle, _kind == 'emoji', () {
                   setState(() {
                     _kind = 'emoji';
                     _value = kEmojiAvatars.contains(_value) ? _value : kEmojiAvatars.first;
                   });
                 }),
                 const SizedBox(width: 10),
-                _segment('Pixel', _kind == 'pixel', () {
+                _segment(context.l10n.pixelStyle, _kind == 'pixel', () {
                   setState(() {
                     _kind = 'pixel';
                     _value = (int.tryParse(_value) ?? 0).toString();
@@ -114,7 +116,8 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
               ],
             ),
             const SizedBox(height: 16),
-            _sectionLabel(colors, _kind == 'emoji' ? 'AVATAR' : 'PIXEL AVATAR'),
+            _sectionLabel(colors,
+                _kind == 'emoji' ? context.l10n.avatarLabel : context.l10n.pixelAvatarLabel),
             const SizedBox(height: 12),
             Wrap(
               spacing: 12,
@@ -130,7 +133,7 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
             // their own colours.
             if (_kind == 'emoji') ...[
               const SizedBox(height: 16),
-              _sectionLabel(colors, 'ACCENT'),
+              _sectionLabel(colors, context.l10n.accentLabel),
               const SizedBox(height: 12),
               Wrap(
                 spacing: 12,
@@ -158,7 +161,8 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
             const SizedBox(height: 22),
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton(onPressed: _save, child: const Text('Save')),
+              child: ElevatedButton(
+                  onPressed: _save, child: Text(context.l10n.commonSave)),
             ),
           ],
         ),

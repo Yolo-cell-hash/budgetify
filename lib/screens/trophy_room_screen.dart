@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
+import '../l10n/l10n.dart';
 import '../models/achievement.dart';
 import '../providers/theme_provider.dart';
 import '../widgets/badge_medallion.dart';
@@ -231,7 +231,7 @@ class _GroupCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              '${rarityName(tier.rarity)} tier',
+              context.l10n.tierLabel(context.l10n.tierName(rarityName(tier.rarity))),
               style: TextStyle(fontSize: 12.5, color: colors.textSecondary),
             ),
             const SizedBox(height: 12),
@@ -250,9 +250,11 @@ class _GroupCard extends StatelessWidget {
               child: Text(
                 earned
                     ? (date != null
-                        ? 'Earned ${DateFormat('d MMM yyyy').format(date)}'
-                        : 'Earned')
-                    : 'Locked · ${gamiFormat(progress.value, g.unit)} / ${gamiFormat(tier.threshold, g.unit)}',
+                        ? context.l10n.earnedOn(context.l10n.mediumDate(date))
+                        : context.l10n.earned)
+                    : context.l10n.lockedProgress(
+                        gamiFormat(progress.value, g.unit),
+                        gamiFormat(tier.threshold, g.unit)),
                 style: TextStyle(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w600,

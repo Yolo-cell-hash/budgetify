@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../l10n/l10n.dart';
 import 'package:provider/provider.dart';
 
 import '../models/streak_reward.dart';
@@ -98,7 +100,7 @@ class _StreakHeader extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      'Best: $longestStreak ${longestStreak == 1 ? 'day' : 'days'}',
+                      context.l10n.bestStreak(longestStreak),
                       style: TextStyle(
                         fontSize: 12.5,
                         color: colors.textSecondary,
@@ -112,8 +114,9 @@ class _StreakHeader extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             next == null
-                ? 'Every streak reward unlocked — more on the way!'
-                : 'Open Budgetify ${_daysAway(next)} to unlock “${next.name}”.',
+                ? context.l10n.allStreakRewardsUnlocked
+                : context.l10n
+                    .openToUnlock(_daysAway(context, next), next.name),
             style: TextStyle(
               fontSize: 13,
               height: 1.35,
@@ -125,10 +128,10 @@ class _StreakHeader extends StatelessWidget {
     );
   }
 
-  String _daysAway(StreakReward next) {
+  String _daysAway(BuildContext context, StreakReward next) {
     final remaining = (next.days - longestStreak).clamp(0, next.days);
-    if (remaining <= 0) return 'today';
-    return '$remaining more ${remaining == 1 ? 'day' : 'days'}';
+    if (remaining <= 0) return context.l10n.todayWord;
+    return context.l10n.daysMore(remaining);
   }
 }
 
@@ -316,8 +319,8 @@ class _RewardCard extends StatelessWidget {
           Expanded(
             child: Text(
               remaining > 0
-                  ? 'Reach a ${reward.days}-day streak · $currentStreak/${reward.days}'
-                  : 'Unlocking soon…',
+                  ? context.l10n.reachStreakStatus(reward.days, currentStreak)
+                  : context.l10n.unlockingSoon,
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
@@ -330,7 +333,7 @@ class _RewardCard extends StatelessWidget {
     }
 
     if (reward.themeVariant == null) {
-      return _earnedPill(colors);
+      return _earnedPill(context, colors);
     }
 
     if (active) {
@@ -339,7 +342,7 @@ class _RewardCard extends StatelessWidget {
           Icon(Icons.check_circle_rounded, size: 16, color: colors.accent),
           const SizedBox(width: 6),
           Text(
-            'Currently applied',
+            context.l10n.currentlyApplied,
             style: TextStyle(
               fontSize: 12.5,
               fontWeight: FontWeight.w700,
@@ -361,19 +364,19 @@ class _RewardCard extends StatelessWidget {
           side: BorderSide(color: colors.accent.withValues(alpha: 0.6)),
           padding: const EdgeInsets.symmetric(vertical: 11),
         ),
-        label: const Text('Apply theme'),
+        label: Text(context.l10n.applyTheme),
       ),
     );
   }
 
-  Widget _earnedPill(AppColors colors) => Container(
+  Widget _earnedPill(BuildContext context, AppColors colors) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
           color: colors.success.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Text(
-          'Unlocked',
+          context.l10n.unlockedLabel,
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w700,
@@ -396,7 +399,7 @@ class _ActivePill extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
-        'ACTIVE',
+        context.l10n.activeBadge,
         style: TextStyle(
           fontSize: 9,
           fontWeight: FontWeight.w800,
@@ -471,7 +474,7 @@ class _ComingSoonTile extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 6),
               child: Text(
-                'More streak rewards on the way.',
+                context.l10n.moreStreakRewards,
                 style: TextStyle(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w600,

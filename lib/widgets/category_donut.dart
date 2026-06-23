@@ -2,6 +2,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../l10n/l10n.dart';
 import '../models/transaction_model.dart';
 import '../providers/theme_provider.dart';
 import 'privacy_amount.dart';
@@ -16,7 +17,7 @@ import 'privacy_amount.dart';
 class CategoryDonut extends StatelessWidget {
   final Map<String, double> spending;
   final bool showLegend;
-  final String centerLabel;
+  final String? centerLabel;
 
   static const int maxSlices = 5;
   static const double minSliceShare = 0.04;
@@ -26,7 +27,7 @@ class CategoryDonut extends StatelessWidget {
     super.key,
     required this.spending,
     this.showLegend = true,
-    this.centerLabel = 'Spent',
+    this.centerLabel,
   });
 
   @override
@@ -95,7 +96,7 @@ class CategoryDonut extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    centerLabel.toUpperCase(),
+                    (centerLabel ?? context.l10n.spent).toUpperCase(),
                     style: TextStyle(
                       fontSize: 11,
                       letterSpacing: 1.2,
@@ -136,7 +137,7 @@ class CategoryDonut extends StatelessWidget {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      s.name,
+                      context.l10n.categoryName(s.name),
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
