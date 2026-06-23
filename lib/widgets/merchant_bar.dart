@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/l10n.dart';
 import '../providers/theme_provider.dart';
 import 'privacy_amount.dart';
 
@@ -16,8 +17,9 @@ class MerchantBar extends StatelessWidget {
   final Color color;
   final bool isTop;
 
-  /// Trailing caption noun, e.g. "of category" or "of spending".
-  final String shareSuffix;
+  /// Whether the share caption reads "of category" (vs the default
+  /// "of spending"). Localized at build time.
+  final bool shareIsCategory;
 
   /// Optional tap handler (e.g. to drill into a merchant).
   final VoidCallback? onTap;
@@ -32,7 +34,7 @@ class MerchantBar extends StatelessWidget {
     required this.shareOfTotal,
     required this.color,
     this.isTop = false,
-    this.shareSuffix = 'of spending',
+    this.shareIsCategory = false,
     this.onTap,
   });
 
@@ -83,7 +85,7 @@ class MerchantBar extends StatelessWidget {
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
-                  'TOP',
+                  context.l10n.topBadge,
                   style: TextStyle(
                     fontSize: 9,
                     fontWeight: FontWeight.w800,
@@ -134,8 +136,9 @@ class MerchantBar extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         Text(
-          '$count transaction${count == 1 ? '' : 's'} · '
-          '${(shareOfTotal * 100).toStringAsFixed(0)}% $shareSuffix',
+          '${context.l10n.txnCountCaption(count)} · '
+          '${(shareOfTotal * 100).toStringAsFixed(0)}% '
+          '${shareIsCategory ? context.l10n.ofCategory : context.l10n.ofSpending}',
           style: TextStyle(fontSize: 11.5, color: colors.textSecondary),
         ),
       ],

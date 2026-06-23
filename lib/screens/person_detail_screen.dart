@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../l10n/l10n.dart';
 import '../models/ledger_models.dart';
 import '../providers/theme_provider.dart';
 import '../services/ledger_service.dart';
@@ -73,7 +74,7 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.ios_share_rounded, size: 20),
-            tooltip: 'Share summary',
+            tooltip: context.l10n.shareSummary,
             onPressed: _loading ? null : _share,
           ),
         ],
@@ -92,7 +93,7 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
                       Padding(
                         padding: const EdgeInsets.only(left: 4, bottom: 8),
                         child: Text(
-                          'Activity',
+                          context.l10n.activityLabel,
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
@@ -140,10 +141,10 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
         children: [
           Text(
             settled
-                ? 'ALL SETTLED UP'
+                ? context.l10n.allSettledUp
                 : owesMe
-                    ? '${widget.person.toUpperCase()} OWES YOU'
-                    : 'YOU OWE ${widget.person.toUpperCase()}',
+                    ? context.l10n.personOwesYou(widget.person)
+                    : context.l10n.youOwePerson(widget.person),
             style: TextStyle(
               fontSize: 11,
               letterSpacing: 1.3,
@@ -167,7 +168,7 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
               Expanded(
                 child: _heroButton(
                   Icons.handshake_rounded,
-                  'Settle up',
+                  context.l10n.settleUp,
                   _settleUp,
                   filled: true,
                 ),
@@ -176,7 +177,7 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
               Expanded(
                 child: _heroButton(
                   Icons.ios_share_rounded,
-                  'Share',
+                  context.l10n.shareLabel,
                   _share,
                   filled: false,
                 ),

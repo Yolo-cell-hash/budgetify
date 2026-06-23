@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../l10n/l10n.dart';
 import '../models/merchant_summary.dart';
 import '../providers/theme_provider.dart';
 import '../services/custom_tag_service.dart';
@@ -79,7 +80,7 @@ class _MerchantsScreenState extends State<MerchantsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const AppBarTitle('Top Merchants',
+        title: AppBarTitle(context.l10n.topMerchants,
             icon: Icons.storefront_rounded),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(20),
@@ -87,8 +88,8 @@ class _MerchantsScreenState extends State<MerchantsScreen> {
             padding: const EdgeInsets.only(bottom: 8),
             child: Text(
               isCurrent
-                  ? 'This month'
-                  : DateFormat('MMMM yyyy').format(widget.month),
+                  ? context.l10n.thisMonth
+                  : context.l10n.monthYear(widget.month),
               style: TextStyle(fontSize: 12, color: colors.textSecondary),
             ),
           ),
@@ -121,7 +122,7 @@ class _MerchantsScreenState extends State<MerchantsScreen> {
         children: [
           Icon(Icons.storefront_outlined, size: 56, color: colors.textTertiary),
           const SizedBox(height: 12),
-          Text('No merchant spending this month',
+          Text(context.l10n.noMerchantSpending,
               style: TextStyle(color: colors.textSecondary)),
         ],
       ),
@@ -182,7 +183,7 @@ class _MerchantsScreenState extends State<MerchantsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Top merchant',
+                        context.l10n.topMerchantLabel,
                         style: TextStyle(
                           fontSize: 11,
                           color: Colors.white.withValues(alpha: 0.6),
@@ -200,8 +201,8 @@ class _MerchantsScreenState extends State<MerchantsScreen> {
                         ),
                       ),
                       Text(
-                        '${(_summary.topShare * 100).toStringAsFixed(0)}% of '
-                        'merchant spend',
+                        context.l10n
+                            .pctOfMerchantSpend((_summary.topShare * 100).round()),
                         style: TextStyle(
                           fontSize: 11.5,
                           color: Colors.white.withValues(alpha: 0.55),

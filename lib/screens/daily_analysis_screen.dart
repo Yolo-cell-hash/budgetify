@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../l10n/l10n.dart';
 import '../models/transaction_model.dart';
 import '../services/database_service.dart';
 import '../widgets/app_bar_title.dart';
@@ -99,7 +100,8 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
     return Scaffold(
       backgroundColor: bgColor,
       appBar: AppBar(
-        title: const AppBarTitle('Daily Analysis', icon: Icons.today_rounded),
+        title: AppBarTitle(context.l10n.dailyAnalysisTitle,
+            icon: Icons.today_rounded),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -190,7 +192,7 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            'No transactions',
+            context.l10n.noTransactions,
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
@@ -266,7 +268,7 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
                   },
                   child: _buildSummaryItem(
                     icon: Icons.arrow_upward,
-                    label: 'Spent',
+                    label: context.l10n.spent,
                     amount: fmt.format(_totalSpent),
                     color: Color(0xFFD25A5F),
                     isDark: isDark,
@@ -288,7 +290,7 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
                   },
                   child: _buildSummaryItem(
                     icon: Icons.arrow_downward,
-                    label: 'Received',
+                    label: context.l10n.received,
                     amount: fmt.format(_totalReceived),
                     color: Color(0xFF2AA76F),
                     isDark: isDark,
@@ -300,7 +302,7 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
               Expanded(
                 child: _buildSummaryItem(
                   icon: isPositive ? Icons.trending_up : Icons.trending_down,
-                  label: 'Net',
+                  label: context.l10n.netLabel,
                   amount: '${isPositive ? '+' : ''}${fmt.format(netAmount)}',
                   color: isPositive ? Color(0xFF4A6489) : Color(0xFFD79A3C),
                   isDark: isDark,
@@ -393,7 +395,7 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Spending Breakdown',
+            context.l10n.spendingBreakdown,
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -561,7 +563,10 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
           ),
         ),
         title: Text(
-          txn.merchantName ?? txn.category ?? txn.sender,
+          txn.merchantName ??
+              (txn.category != null
+                  ? context.l10n.categoryName(txn.category!)
+                  : txn.sender),
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w500,
@@ -589,7 +594,7 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
               const SizedBox(width: 6),
               Flexible(
                 child: Text(
-                  cat,
+                  context.l10n.categoryName(cat),
                   style: TextStyle(fontSize: 12, color: subtextColor),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -701,7 +706,7 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
               children: [
                 buildSectionHeader(
                   key: _expensesKey,
-                  title: 'Expenses',
+                  title: context.l10n.commonExpenses,
                   icon: Icons.arrow_upward,
                   color: Color(0xFFD25A5F),
                   amount: fmt.format(_totalSpent),
@@ -716,7 +721,7 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
                 }),
                 // Unclassified debits
                 if (unclassifiedDebits.isNotEmpty) ...[
-                  buildSubHeader('Unclassified', Color(0xFFD79A3C)),
+                  buildSubHeader(context.l10n.unclassified, Color(0xFFD79A3C)),
                   ...unclassifiedDebits.expand((txn) sync* {
                     yield buildTxnTile(txn);
                     if (txn != unclassifiedDebits.last) {
@@ -744,7 +749,7 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
               children: [
                 buildSectionHeader(
                   key: _incomeKey,
-                  title: 'Income',
+                  title: context.l10n.commonIncome,
                   icon: Icons.arrow_downward,
                   color: Color(0xFF2AA76F),
                   amount: fmt.format(_totalReceived),

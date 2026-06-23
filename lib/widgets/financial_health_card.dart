@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../l10n/l10n.dart';
 import '../providers/theme_provider.dart';
 import '../services/financial_health_service.dart';
 import 'app_dialog.dart';
@@ -64,7 +65,10 @@ class FinancialHealthCard extends StatelessWidget {
         children: [
           _header(context, colors),
           const SizedBox(height: 16),
-          if (!hasScore) _emptyState(colors) else _scored(colors, accent),
+          if (!hasScore)
+            _emptyState(context, colors)
+          else
+            _scored(context, colors, accent),
         ],
       ),
     );
@@ -84,7 +88,7 @@ class FinancialHealthCard extends StatelessWidget {
         ),
         const SizedBox(width: 10),
         Text(
-          'Financial Health',
+          context.l10n.financialHealth,
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w700,
@@ -99,7 +103,7 @@ class FinancialHealthCard extends StatelessWidget {
           visualDensity: VisualDensity.compact,
           padding: EdgeInsets.zero,
           constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-          tooltip: 'How your score is calculated',
+          tooltip: context.l10n.howScoreCalculated,
           icon: Icon(Icons.info_outline_rounded,
               size: 18, color: colors.textTertiary),
           onPressed: () => showFinancialHealthExplainer(context, health),
@@ -108,7 +112,7 @@ class FinancialHealthCard extends StatelessWidget {
     );
   }
 
-  Widget _scored(AppColors colors, Color accent) {
+  Widget _scored(BuildContext context, AppColors colors, Color accent) {
     final score = health.score!;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -150,13 +154,13 @@ class FinancialHealthCard extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 18),
-        _pillar(colors, 'Savings rate', health.savingsScore),
+        _pillar(colors, context.l10n.mSavingsRate, health.savingsScore),
         const SizedBox(height: 12),
-        _pillar(colors, 'Budget adherence', health.budgetScore),
+        _pillar(colors, context.l10n.budgetAdherence, health.budgetScore),
         const SizedBox(height: 12),
-        _pillar(colors, 'Recurring load', health.recurringScore),
+        _pillar(colors, context.l10n.recurringLoad, health.recurringScore),
         const SizedBox(height: 12),
-        _pillar(colors, 'Net worth', health.netWorthScore),
+        _pillar(colors, context.l10n.netWorthWord, health.netWorthScore),
       ],
     );
   }
@@ -224,12 +228,11 @@ class FinancialHealthCard extends StatelessWidget {
     );
   }
 
-  Widget _emptyState(AppColors colors) {
+  Widget _emptyState(BuildContext context, AppColors colors) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Text(
-        'Add some income, a budget, or holdings and your Financial Health '
-        'Score will appear here.',
+        context.l10n.healthEmptyDesc,
         style: TextStyle(
           fontSize: 13,
           height: 1.4,
@@ -268,7 +271,7 @@ class FinancialHealthInline extends StatelessWidget {
     return Row(
       children: [
         Text(
-          'FINANCIAL HEALTH',
+          context.l10n.financialHealthUpper,
           style: TextStyle(
             fontSize: 11,
             letterSpacing: 1.2,
@@ -317,29 +320,22 @@ void showFinancialHealthExplainer(BuildContext context, FinancialHealth h) {
     context,
     builder: (_) => AppDialog(
       icon: Icons.monitor_heart_outlined,
-      title: 'How your score works',
-      subtitle:
-          'A single 0–100 number (100 is healthy, 0 is poor) blended from up '
-          'to four pillars. Pillars without data yet are skipped and the rest '
-          'reweighted, so the score always reflects what we can see.',
+      title: context.l10nRead.howScoreWorks,
+      subtitle: context.l10nRead.howScoreWorksDesc,
       content: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _explainRow(colors, 'Savings rate', '35%',
-              'How much of your income you keep. 20% or more earns full marks.',
-              h.savingsScore),
-          _explainRow(colors, 'Budget adherence', '25%',
-              'Staying within the budgets you set. Going over costs points.',
-              h.budgetScore),
-          _explainRow(colors, 'Recurring load', '20%',
-              'Recurring commitments (SIPs/RDs) versus income — more headroom scores higher.',
-              h.recurringScore),
-          _explainRow(colors, 'Net worth', '20%',
-              'Your equity — assets versus debts. Counts only if you track holdings.',
-              h.netWorthScore),
+          _explainRow(colors, context.l10nRead.mSavingsRate, '35%',
+              context.l10nRead.savingsRateExplain, h.savingsScore),
+          _explainRow(colors, context.l10nRead.budgetAdherence, '25%',
+              context.l10nRead.budgetAdherenceExplain, h.budgetScore),
+          _explainRow(colors, context.l10nRead.recurringLoad, '20%',
+              context.l10nRead.recurringLoadExplain, h.recurringScore),
+          _explainRow(colors, context.l10nRead.netWorthWord, '20%',
+              context.l10nRead.netWorthExplain, h.netWorthScore),
           const SizedBox(height: 4),
           Text(
-            'Everything is computed on your device.',
+            context.l10nRead.computedOnDevice,
             style: TextStyle(
               fontSize: 11.5,
               fontStyle: FontStyle.italic,
@@ -351,7 +347,7 @@ void showFinancialHealthExplainer(BuildContext context, FinancialHealth h) {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Got it'),
+          child: Text(context.l10nRead.gotIt),
         ),
       ],
     ),

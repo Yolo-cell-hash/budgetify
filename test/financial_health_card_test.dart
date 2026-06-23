@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
+import 'package:budget_tracker/providers/locale_provider.dart';
 import 'package:budget_tracker/services/financial_health_service.dart';
 import 'package:budget_tracker/widgets/financial_health_card.dart';
 
@@ -15,7 +17,10 @@ const _scored = FinancialHealth(
 
 Future<void> _pump(WidgetTester tester, Widget child) async {
   await tester.pumpWidget(
-    MaterialApp(home: Scaffold(body: SingleChildScrollView(child: child))),
+    ChangeNotifierProvider<LocaleProvider>(
+      create: (_) => LocaleProvider(),
+      child: MaterialApp(home: Scaffold(body: SingleChildScrollView(child: child))),
+    ),
   );
   await tester.pumpAndSettle();
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
+import '../l10n/l10n.dart';
 import '../providers/theme_provider.dart';
 
 typedef ContributionInput = ({double amount, DateTime date, String? note});
@@ -79,7 +80,7 @@ class _ContributionSheetState extends State<_ContributionSheet> {
               ),
             ),
             const SizedBox(height: 16),
-            Text('Add to goal',
+            Text(context.l10n.addToGoal,
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: colors.text)),
             const SizedBox(height: 16),
             TextField(
@@ -87,7 +88,8 @@ class _ContributionSheetState extends State<_ContributionSheet> {
               autofocus: true,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
-              decoration: const InputDecoration(labelText: 'Amount', prefixText: '₹ '),
+              decoration: InputDecoration(
+                  labelText: context.l10n.amount, prefixText: '₹ '),
               onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: 10),
@@ -101,7 +103,8 @@ class _ContributionSheetState extends State<_ContributionSheet> {
                   ),
                 if (widget.remaining > 0)
                   ActionChip(
-                    label: Text('Complete (${fmt.format(widget.remaining)})'),
+                    label: Text(
+                        context.l10n.completeAmount(fmt.format(widget.remaining))),
                     onPressed: () =>
                         setState(() => _amount.text = widget.remaining.toStringAsFixed(0)),
                   ),
@@ -122,7 +125,7 @@ class _ContributionSheetState extends State<_ContributionSheet> {
                       if (picked != null) setState(() => _date = picked);
                     },
                     icon: const Icon(Icons.event_outlined, size: 18),
-                    label: Text(DateFormat('d MMM yyyy').format(_date)),
+                    label: Text(context.l10n.mediumDate(_date)),
                   ),
                 ),
               ],
@@ -130,14 +133,14 @@ class _ContributionSheetState extends State<_ContributionSheet> {
             const SizedBox(height: 10),
             TextField(
               controller: _note,
-              decoration: const InputDecoration(labelText: 'Note (optional)'),
+              decoration: InputDecoration(labelText: context.l10n.noteOptional),
             ),
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: _valid ? _save : null,
-                child: const Text('Add'),
+                child: Text(context.l10n.add),
               ),
             ),
           ],

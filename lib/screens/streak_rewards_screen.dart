@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/l10n.dart';
 import '../providers/theme_provider.dart';
 import '../services/app_events.dart';
 import '../services/gamification_service.dart';
@@ -46,8 +47,8 @@ class _StreakRewardsScreenState extends State<StreakRewardsScreen> {
     return Scaffold(
       backgroundColor: colors.background,
       appBar: AppBar(
-        title: const AppBarTitle(
-          'Streak Rewards',
+        title: AppBarTitle(
+          context.l10n.streakRewards,
           icon: Icons.local_fire_department_rounded,
         ),
       ),

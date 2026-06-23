@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../l10n/l10n.dart';
 import '../models/savings_goal.dart';
 import '../providers/theme_provider.dart';
 import '../services/app_events.dart';
@@ -72,12 +73,14 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
       context,
       builder: (ctx) => AppDialog(
         icon: Icons.emoji_events_rounded,
-        title: 'Goal reached! 🎉',
-        subtitle:
-            'You saved ${_fmt.format(g.targetAmount)} for ${g.name}. Incredible work!',
+        title: context.l10nRead.goalReachedTitle,
+        subtitle: context.l10nRead
+            .goalReachedMsg(_fmt.format(g.targetAmount), g.name),
         content: Center(child: GoalJar(fraction: 1, accent: g.accent, size: 120)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Nice!')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(context.l10nRead.niceExclaim)),
         ],
       ),
     );
@@ -99,11 +102,15 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
       builder: (ctx) => AppDialog(
         icon: Icons.delete_outline_rounded,
         accent: AppColors.dangerLight,
-        title: 'Delete goal?',
-        subtitle: 'This removes the goal and all its contributions. It can\'t be undone.',
+        title: context.l10nRead.deleteGoalTitle,
+        subtitle: context.l10nRead.deleteGoalConfirm,
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(context.l10nRead.commonCancel)),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(context.l10nRead.commonDelete)),
         ],
       ),
     );
@@ -120,7 +127,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
     return Scaffold(
       backgroundColor: colors.background,
       appBar: AppBar(
-        title: Text(v?.goal.name ?? 'Goal'),
+        title: Text(v?.goal.name ?? context.l10n.goalLabel),
         actions: [
           IconButton(onPressed: v == null ? null : _edit, icon: const Icon(Icons.edit_outlined)),
           IconButton(onPressed: v == null ? null : _delete, icon: const Icon(Icons.delete_outline_rounded)),
@@ -136,7 +143,8 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                 const SizedBox(height: 16),
                 Center(
                   child: PrivacyAmount(
-                    '${_fmt.format(v.saved)} of ${_fmt.format(v.goal.targetAmount)}',
+                    context.l10n.budgetSpentOf(_fmt.format(v.saved),
+                        _fmt.format(v.goal.targetAmount)),
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: colors.text),
                   ),
                 ),
@@ -148,15 +156,17 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                   child: ElevatedButton.icon(
                     onPressed: v.progress.isComplete ? null : _addContribution,
                     icon: const Icon(Icons.add_rounded, size: 18),
-                    label: Text(v.progress.isComplete ? 'Goal complete' : 'Add to goal'),
+                    label: Text(v.progress.isComplete
+                        ? context.l10n.goalComplete
+                        : context.l10n.addToGoal),
                   ),
                 ),
                 const SizedBox(height: 24),
-                Text('Contributions',
+                Text(context.l10n.contributionsLabel,
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: colors.text)),
                 const SizedBox(height: 8),
                 if (_contributions.isEmpty)
-                  Text('No contributions yet — add your first deposit above.',
+                  Text(context.l10n.noContributionsYet,
                       style: TextStyle(fontSize: 13, color: colors.textSecondary))
                 else
                   ..._contributions.map((c) => _contributionRow(colors, c)),
@@ -181,17 +191,21 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
           ),
         ));
 
-    add('Progress', '${(p.fraction * 100).round()}%');
-    if (!p.isComplete) add('Remaining', _fmt.format(p.remaining));
+    add(context.l10n.progressLabel, '${(p.fraction * 100).round()}%');
+    if (!p.isComplete) {
+      add(context.l10n.remainingLabel, _fmt.format(p.remaining));
+    }
     if (v.goal.deadline != null) {
-      add('Deadline', DateFormat('d MMM yyyy').format(v.goal.deadline!),
+      add(context.l10n.deadlineLabel, context.l10n.mediumDate(v.goal.deadline!),
           color: p.isOverdue ? colors.danger : null);
     }
     if (p.neededPerMonth != null) {
-      add('To stay on track', '${_fmt.format(p.neededPerMonth!)}/month');
+      add(context.l10n.toStayOnTrack,
+          context.l10n.perMonthValue(_fmt.format(p.neededPerMonth!)));
     }
     if (p.isComplete) {
-      add('Status', 'Completed 🎉', color: colors.success);
+      add(context.l10n.statusLabel, context.l10n.completedStatus,
+          color: colors.success);
     }
 
     return Container(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../l10n/l10n.dart';
 import '../providers/theme_provider.dart';
 import '../services/app_lock_service.dart';
 
@@ -62,9 +63,9 @@ class _LockScreenState extends State<LockScreen> {
                   ),
                 ),
                 const SizedBox(height: 28),
-                const Text(
-                  'Budgetify is locked',
-                  style: TextStyle(
+                Text(
+                  context.l10n.appLockedTitle,
+                  style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.w700,
                     letterSpacing: -0.4,
@@ -73,7 +74,7 @@ class _LockScreenState extends State<LockScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Unlock with fingerprint, face, or device PIN',
+                  context.l10n.appLockOnDesc,
                   style: TextStyle(
                     fontSize: 14,
                     color: Colors.white.withOpacity(0.6),
@@ -91,7 +92,8 @@ class _LockScreenState extends State<LockScreen> {
                     ),
                   ),
                   icon: const Icon(Icons.fingerprint),
-                  label: Text(_authenticating ? 'Waiting…' : 'Unlock'),
+                  label: Text(
+                      _authenticating ? context.l10n.waiting : context.l10n.unlock),
                 ),
               ],
             ),

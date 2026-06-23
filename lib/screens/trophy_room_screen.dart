@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../l10n/l10n.dart';
 import '../models/achievement.dart';
 import '../providers/theme_provider.dart';
 import '../widgets/badge_medallion.dart';
@@ -76,7 +77,7 @@ class _GroupCard extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  g.name,
+                  context.l10n.achievementName(g.id),
                   style: TextStyle(
                     fontSize: 15.5,
                     fontWeight: FontWeight.w700,
@@ -106,7 +107,7 @@ class _GroupCard extends StatelessWidget {
           ),
           if (!progress.isComplete) ...[
             const SizedBox(height: 16),
-            _nextProgress(colors),
+            _nextProgress(context, colors),
           ],
         ],
       ),
@@ -131,7 +132,7 @@ class _GroupCard extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              tier.label,
+              context.l10n.tierBadgeLabel(tier.label),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
@@ -147,7 +148,7 @@ class _GroupCard extends StatelessWidget {
     );
   }
 
-  Widget _nextProgress(AppColors colors) {
+  Widget _nextProgress(BuildContext context, AppColors colors) {
     final next = progress.nextTier!;
     final g = progress.group;
     return Column(
@@ -156,7 +157,7 @@ class _GroupCard extends StatelessWidget {
         Row(
           children: [
             Text(
-              'Next: ${next.label}',
+              context.l10n.nextTierLabel(context.l10n.tierBadgeLabel(next.label)),
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
@@ -221,7 +222,7 @@ class _GroupCard extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Text(
-              '${g.name} · ${tier.label}',
+              '${context.l10nRead.achievementName(g.id)} · ${context.l10nRead.tierBadgeLabel(tier.label)}',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 18,
@@ -231,12 +232,13 @@ class _GroupCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              '${rarityName(tier.rarity)} tier',
+              context.l10nRead
+                  .tierLabel(context.l10nRead.tierName(rarityName(tier.rarity))),
               style: TextStyle(fontSize: 12.5, color: colors.textSecondary),
             ),
             const SizedBox(height: 12),
             Text(
-              g.blurb,
+              context.l10nRead.achievementBlurb(g.id),
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13.5, height: 1.4, color: colors.textSecondary),
             ),
@@ -250,9 +252,12 @@ class _GroupCard extends StatelessWidget {
               child: Text(
                 earned
                     ? (date != null
-                        ? 'Earned ${DateFormat('d MMM yyyy').format(date)}'
-                        : 'Earned')
-                    : 'Locked · ${gamiFormat(progress.value, g.unit)} / ${gamiFormat(tier.threshold, g.unit)}',
+                        ? context.l10nRead
+                            .earnedOn(context.l10nRead.mediumDate(date))
+                        : context.l10nRead.earned)
+                    : context.l10nRead.lockedProgress(
+                        gamiFormat(progress.value, g.unit),
+                        gamiFormat(tier.threshold, g.unit)),
                 style: TextStyle(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w600,

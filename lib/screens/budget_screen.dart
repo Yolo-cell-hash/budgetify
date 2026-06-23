@@ -1947,7 +1947,8 @@ class _BudgetScreenState extends State<BudgetScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  context.l10n.setBudgetForCategory(cat),
+                  context.l10n.setBudgetForCategory(
+                      context.l10n.categoryName(cat)),
                   style: TextStyle(
                     fontSize: 14.5,
                     fontWeight: FontWeight.w700,
@@ -2037,7 +2038,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        cat,
+                        context.l10n.categoryName(cat),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -2259,7 +2260,8 @@ class _BudgetScreenState extends State<BudgetScreen>
       if (mounted) {
         showAppToast(
           context,
-          message: context.l10nRead.categoryBudgetSet(selected),
+          message: context.l10nRead
+              .categoryBudgetSet(context.l10nRead.categoryName(selected)),
           type: AppToastType.success,
         );
       }
@@ -2268,7 +2270,7 @@ class _BudgetScreenState extends State<BudgetScreen>
 
   Future<void> _showBudgetDialog() async {
     final nameCtrl = TextEditingController(
-      text: _budget?.name ?? 'Monthly Budget',
+      text: _budget?.name ?? context.l10nRead.defaultBudgetName,
     );
     final amountCtrl = TextEditingController(
       text: _budget?.amount.toStringAsFixed(0) ?? '',
@@ -2325,7 +2327,7 @@ class _BudgetScreenState extends State<BudgetScreen>
               final b = Budget(
                 id: _budget?.id,
                 name: nameCtrl.text.trim().isEmpty
-                    ? 'Monthly Budget'
+                    ? context.l10nRead.defaultBudgetName
                     : nameCtrl.text.trim(),
                 amount: amt,
                 startDate: DateTime.now(),

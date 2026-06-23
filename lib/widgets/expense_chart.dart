@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
+import '../l10n/l10n.dart';
 import '../models/transaction_model.dart';
 import '../providers/theme_provider.dart';
 import '../screens/daily_analysis_screen.dart';
@@ -55,7 +56,7 @@ class _ExpenseChartWidgetState extends State<ExpenseChartWidget> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Expense Trend',
+                context.l10n.expenseTrend,
                 style: TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w600,
@@ -76,9 +77,9 @@ class _ExpenseChartWidgetState extends State<ExpenseChartWidget> {
                       color: AppColors.gold.withOpacity(0.12),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Text(
-                      'Last 7 Days',
-                      style: TextStyle(
+                    child: Text(
+                      context.l10n.last7Days,
+                      style: const TextStyle(
                         fontSize: 12,
                         color: AppColors.goldDeep,
                         fontWeight: FontWeight.w500,
@@ -91,7 +92,7 @@ class _ExpenseChartWidgetState extends State<ExpenseChartWidget> {
           ),
           const SizedBox(height: 4),
           Text(
-            'Tap a day for detailed analysis',
+            context.l10n.tapForAnalysis,
             style: TextStyle(
               fontSize: 12,
               color: isDark ? Color(0xFF8A8D96) : Color(0xFF8A8D96),
@@ -204,7 +205,7 @@ class _ExpenseChartWidgetState extends State<ExpenseChartWidget> {
                 ),
                 children: [
                   TextSpan(
-                    text: 'Tap for details',
+                    text: context.l10n.tapForDetails,
                     style: TextStyle(
                       color: Colors.white.withAlpha(180),
                       fontWeight: FontWeight.normal,
@@ -292,7 +293,7 @@ class _ExpenseChartWidgetState extends State<ExpenseChartWidget> {
                   ),
                   children: [
                     TextSpan(
-                      text: 'Tap for details',
+                      text: context.l10n.tapForDetails,
                       style: TextStyle(
                         color: Colors.white.withAlpha(180),
                         fontWeight: FontWeight.normal,
@@ -432,7 +433,7 @@ class _ExpenseChartWidgetState extends State<ExpenseChartWidget> {
           Icon(Icons.bar_chart_rounded, size: 48, color: Color(0xFFD5D5CF)),
           const SizedBox(height: 8),
           Text(
-            'No expense data yet',
+            context.l10n.noExpenseData,
             style: TextStyle(color: Color(0xFF9A9DA6), fontSize: 14),
           ),
         ],
@@ -464,7 +465,7 @@ class _ExpenseChartWidgetState extends State<ExpenseChartWidget> {
         _DailyExpense(
           date: date,
           amount: total,
-          dayLabel: i == 0 ? 'Today' : dayFormat.format(date),
+          dayLabel: i == 0 ? context.l10nRead.todayLabel : dayFormat.format(date),
         ),
       );
     }

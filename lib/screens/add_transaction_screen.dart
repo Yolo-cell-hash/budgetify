@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import '../l10n/l10n.dart';
 import '../models/transaction_model.dart';
 import '../services/database_service.dart';
 import '../widgets/app_bar_title.dart';
@@ -48,9 +48,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     final transaction = TransactionModel(
       amount: amount,
       type: _type,
-      sender: 'Manual Entry',
+      sender: context.l10nRead.manualEntry,
       message: _notesController.text.isEmpty
-          ? 'Manually added transaction'
+          ? context.l10nRead.manuallyAddedTxn
           : _notesController.text,
       detectedAt: _date,
       isClassified: true,
@@ -70,7 +70,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const AppBarTitle('Add Transaction',
+        title: AppBarTitle(context.l10n.addTransactionTitle,
             icon: Icons.add_card_rounded),
       ),
       body: Form(
@@ -89,14 +89,14 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   Expanded(
                     child: _buildTypeButton(
                       TransactionType.debit,
-                      '💸 Expense',
+                      '💸 ${context.l10n.expenseWord}',
                       Color(0xFFD25A5F),
                     ),
                   ),
                   Expanded(
                     child: _buildTypeButton(
                       TransactionType.credit,
-                      '💰 Income',
+                      '💰 ${context.l10n.commonIncome}',
                       Color(0xFF2AA76F),
                     ),
                   ),
@@ -125,8 +125,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     : Color(0xFFFAFAF8),
               ),
               validator: (v) {
-                if (v == null || v.isEmpty) return 'Enter amount';
-                if (double.tryParse(v) == null) return 'Invalid amount';
+                if (v == null || v.isEmpty) return context.l10nRead.enterAmount;
+                if (double.tryParse(v) == null) {
+                  return context.l10nRead.invalidAmount;
+                }
                 return null;
               },
             ),
@@ -136,7 +138,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             DropdownButtonFormField<String>(
               value: _category,
               decoration: InputDecoration(
-                labelText: 'Category',
+                labelText: context.l10n.category,
                 prefixIcon: const Icon(Icons.category_outlined),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -150,7 +152,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         children: [
                           Text(ExpenseCategories.getIcon(c)),
                           const SizedBox(width: 12),
-                          Text(c),
+                          Text(context.l10n.categoryName(c)),
                         ],
                       ),
                     ),
@@ -175,8 +177,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 ),
               ),
               leading: const Icon(Icons.calendar_today),
-              title: const Text('Date'),
-              subtitle: Text(DateFormat('EEEE, MMM d, yyyy').format(_date)),
+              title: Text(context.l10n.dateLabel),
+              subtitle: Text(context.l10n.fullDate(_date)),
               onTap: () async {
                 final picked = await showDatePicker(
                   context: context,
@@ -194,8 +196,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               controller: _notesController,
               maxLines: 3,
               decoration: InputDecoration(
-                labelText: 'Notes (Optional)',
-                hintText: 'Add a description...',
+                labelText: context.l10n.notesOptional,
+                hintText: context.l10n.addDescriptionHint,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -220,7 +222,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 child: _saving
                     ? const CircularProgressIndicator(color: Colors.white)
                     : Text(
-                        'Save ${_type == TransactionType.debit ? 'Expense' : 'Income'}',
+                        context.l10n
+                            .saveTxnLabel(_type == TransactionType.debit),
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,

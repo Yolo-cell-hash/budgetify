@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../l10n/app_strings.dart';
+import '../l10n/l10n.dart';
 import '../models/monthly_recap.dart';
 import '../providers/theme_provider.dart';
 
@@ -40,7 +42,8 @@ class WrappedCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final monthLabel = DateFormat('MMMM yyyy').format(recap.month);
+    final l10n = context.l10n;
+    final monthLabel = l10n.wrappedCardMonth(recap.month);
 
     return SizedBox(
       width: width,
@@ -199,7 +202,7 @@ class WrappedCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'My month in review',
+                    l10n.myMonthInReview,
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.45),
                       fontSize: 13,
@@ -208,7 +211,7 @@ class WrappedCard extends StatelessWidget {
                   ),
 
                   const SizedBox(height: 24),
-                  _hero(),
+                  _hero(l10n),
                   const SizedBox(height: 22),
 
                   // Divider with gradient fade
@@ -226,7 +229,7 @@ class WrappedCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
 
-                  Expanded(child: _stats()),
+                  Expanded(child: _stats(l10n)),
 
                   // Footer
                   Container(
@@ -252,7 +255,7 @@ class WrappedCard extends StatelessWidget {
                             color: Colors.white.withValues(alpha: 0.40)),
                         const SizedBox(width: 5),
                         Text(
-                          'Private & on-device',
+                          l10n.privateOnDevice,
                           style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.40),
                             fontSize: 10.5,
@@ -312,25 +315,25 @@ class WrappedCard extends StatelessWidget {
 
   /// Big hero stat. In numbers mode, lead with total spent; otherwise the
   /// privacy-safe savings rate / top-category share.
-  Widget _hero() {
+  Widget _hero(AppStrings l10n) {
     if (showAmounts) {
-      return _heroBlock(_money.format(recap.totalSpent), 'SPENT THIS MONTH',
-          _gold);
+      return _heroBlock(
+          _money.format(recap.totalSpent), l10n.wSpentThisMonth, _gold);
     }
     final rate = recap.savingsRatePct;
     if (rate != null && rate >= 0) {
-      return _heroBlock('$rate%', 'OF INCOME SAVED', _gold);
+      return _heroBlock('$rate%', l10n.wOfIncomeSaved, _gold);
     }
     if (rate != null && rate < 0) {
-      return _heroBlock('Over', 'SPENT MORE THAN EARNED', _red);
+      return _heroBlock(l10n.wOver, l10n.wSpentMoreThanEarned, _red);
     }
     final c = recap.topCategory;
     if (c != null) {
-      return _heroBlock(
-          '${c.sharePct}%', 'WENT TO ${c.label.toUpperCase()}', _gold);
+      return _heroBlock('${c.sharePct}%',
+          l10n.wWentTo(l10n.categoryName(c.label).toUpperCase()), _gold);
     }
     return _heroBlock(
-        '${recap.transactionCount}', 'TRANSACTIONS THIS MONTH', _gold);
+        '${recap.transactionCount}', l10n.wTransactionsThisMonth, _gold);
   }
 
   Widget _heroBlock(String value, String label, Color color) {
@@ -391,19 +394,20 @@ class WrappedCard extends StatelessWidget {
     );
   }
 
-  Widget _stats() {
+  Widget _stats(AppStrings l10n) {
     final rows = <Widget>[];
 
     if (recap.topCategory != null) {
       final c = recap.topCategory!;
-      rows.add(_statRow('🍔', 'Top category',
+      final cat = l10n.categoryName(c.label);
+      rows.add(_statRow('🍔', l10n.wTopCategory,
           showAmounts && recap.topCategoryAmount != null
-              ? '${c.label} · ${_money.format(recap.topCategoryAmount)}'
-              : '${c.label} · ${c.sharePct}%'));
+              ? '$cat · ${_money.format(recap.topCategoryAmount)}'
+              : '$cat · ${c.sharePct}%'));
     }
     if (recap.topMerchant != null) {
       final m = recap.topMerchant!;
-      rows.add(_statRow('🏪', 'Top merchant',
+      rows.add(_statRow('🏪', l10n.wTopMerchant,
           showAmounts && recap.topMerchantAmount != null
               ? '${m.label} · ${_money.format(recap.topMerchantAmount)}'
               : '${m.label} · ${m.sharePct}%'));
@@ -413,35 +417,36 @@ class WrappedCard extends StatelessWidget {
       final down = p <= 0;
       rows.add(_statRow(
         down ? '📉' : '📈',
-        'Spending vs last month',
+        l10n.wSpendingVsLastMonth,
         '${down ? '↓' : '↑'} ${p.abs()}%',
         valueColor: down ? _green : _red,
       ));
     }
     if (showAmounts) {
       // Numbers-mode-only insights.
-      rows.add(_statRow('📅', 'Avg per day', _money.format(recap.avgPerDay)));
+      rows.add(_statRow('📅', l10n.wAvgPerDay, _money.format(recap.avgPerDay)));
       if (recap.biggestTxnAmount != null) {
-        rows.add(_statRow('💥', 'Biggest expense',
+        rows.add(_statRow('💥', l10n.wBiggestExpense,
             '${recap.biggestTxnLabel ?? ''} · ${_money.format(recap.biggestTxnAmount)}'));
       }
       if (recap.totalIncome > 0) {
-        rows.add(_statRow('💰', 'Income', _money.format(recap.totalIncome),
+        rows.add(_statRow('💰', l10n.commonIncome, _money.format(recap.totalIncome),
             valueColor: _green));
       }
     } else {
       if (recap.netWorthChangePct != null) {
         final p = recap.netWorthChangePct!;
         rows.add(_statRow(
-            '💎', 'Net worth', '${p >= 0 ? '↑' : '↓'} ${p.abs()}%',
+            '💎', l10n.wNetWorth, '${p >= 0 ? '↑' : '↓'} ${p.abs()}%',
             valueColor: p >= 0 ? _green : _red));
       } else if (recap.investedPct != null) {
-        rows.add(_statRow('💎', 'Invested', '${recap.investedPct}% of assets'));
+        rows.add(_statRow(
+            '💎', l10n.wInvested, l10n.wInvestedPctOfAssets(recap.investedPct!)));
       }
       if (recap.categoryMover != null) {
         final m = recap.categoryMover!;
         rows.add(_statRow(
-            m.icon, '${m.label} ${m.up ? 'up' : 'down'}',
+            m.icon, l10n.wMover(l10n.categoryName(m.label), m.up),
             '${m.up ? '↑' : '↓'} ${m.changePct.abs()}%',
             valueColor: m.up ? _red : _green));
       }
@@ -450,8 +455,8 @@ class WrappedCard extends StatelessWidget {
     // The card is a fixed-height shareable image, so cap the rows: keep the
     // top 5 highlights plus the Activity summary (6 total). Numbers mode adds
     // extra rows and would otherwise overflow into the footer.
-    final activity = _statRow('🧾', 'Activity',
-        '${recap.transactionCount} txns · ${recap.merchantCount} merchants');
+    final activity = _statRow('🧾', l10n.wActivity,
+        l10n.wActivitySummary(recap.transactionCount, recap.merchantCount));
     final shown = [...rows.take(5), activity];
 
     return Column(

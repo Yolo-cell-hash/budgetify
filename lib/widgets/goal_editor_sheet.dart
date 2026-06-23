@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:intl/intl.dart';
 
+import '../l10n/l10n.dart';
 import '../models/savings_goal.dart';
 import '../providers/theme_provider.dart';
 import 'avatars.dart';
@@ -100,14 +100,19 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
               ),
             ),
             const SizedBox(height: 16),
-            Text(widget.existing == null ? 'New savings goal' : 'Edit goal',
+            Text(
+                widget.existing == null
+                    ? context.l10n.newSavingsGoal
+                    : context.l10n.editGoal,
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: colors.text)),
             const SizedBox(height: 16),
             TextField(
               controller: _name,
               textCapitalization: TextCapitalization.sentences,
               maxLength: 40,
-              decoration: const InputDecoration(labelText: 'Goal name', hintText: 'e.g. Goa trip'),
+              decoration: InputDecoration(
+                  labelText: context.l10n.goalNameLabel,
+                  hintText: context.l10n.goalNameHint),
               onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: 8),
@@ -115,11 +120,12 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
               controller: _amount,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
-              decoration: const InputDecoration(labelText: 'Target amount', prefixText: '₹ '),
+              decoration: InputDecoration(
+                  labelText: context.l10n.targetAmount, prefixText: '₹ '),
               onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: 16),
-            _label(colors, 'ICON'),
+            _label(colors, context.l10n.iconLabel),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
@@ -143,7 +149,7 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
               ],
             ),
             const SizedBox(height: 16),
-            _label(colors, 'COLOUR'),
+            _label(colors, context.l10n.colourLabel),
             const SizedBox(height: 8),
             Wrap(
               spacing: 12,
@@ -166,7 +172,7 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
               ],
             ),
             const SizedBox(height: 16),
-            _label(colors, 'DEADLINE (OPTIONAL)'),
+            _label(colors, context.l10n.deadlineOptionalLabel),
             const SizedBox(height: 8),
             Row(
               children: [
@@ -175,8 +181,8 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
                     onPressed: _pickDeadline,
                     icon: const Icon(Icons.event_outlined, size: 18),
                     label: Text(_deadline == null
-                        ? 'Pick a date'
-                        : DateFormat('d MMM yyyy').format(_deadline!)),
+                        ? context.l10n.pickADate
+                        : context.l10n.mediumDate(_deadline!)),
                   ),
                 ),
                 if (_deadline != null)
@@ -191,7 +197,9 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: _valid ? _save : null,
-                child: Text(widget.existing == null ? 'Create goal' : 'Save'),
+                child: Text(widget.existing == null
+                    ? context.l10n.createGoal
+                    : context.l10n.commonSave),
               ),
             ),
           ],

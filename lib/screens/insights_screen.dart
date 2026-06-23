@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/l10n.dart';
 import '../models/cashflow.dart';
 import '../providers/app_preferences.dart';
 import '../providers/theme_provider.dart';
@@ -75,7 +76,8 @@ class _InsightsScreenState extends State<InsightsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const AppBarTitle('Insights', icon: Icons.insights_rounded),
+        title: AppBarTitle(context.l10n.insightsTitle,
+            icon: Icons.insights_rounded),
       ),
       body: AmbientBackground(
         child: _loading
@@ -108,8 +110,8 @@ class _InsightsScreenState extends State<InsightsScreen> {
                       order: 1,
                       child: _sectionCard(
                         colors,
-                        title: 'Spending trend',
-                        subtitle: 'Last 6 months',
+                        title: context.l10n.spendingTrend,
+                        subtitle: context.l10n.last6Months,
                         child: _trendChart(colors, hidden),
                       ),
                     ),
@@ -119,8 +121,8 @@ class _InsightsScreenState extends State<InsightsScreen> {
                         order: 2,
                         child: _sectionCard(
                           colors,
-                          title: 'Where it went',
-                          subtitle: 'This month',
+                          title: context.l10n.whereItWent,
+                          subtitle: context.l10n.thisMonth,
                           child: CategoryDonut(spending: _categories),
                         ),
                       ),
@@ -131,7 +133,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
                         order: 3,
                         child: _sectionCard(
                           colors,
-                          title: 'Highlights',
+                          title: context.l10n.highlights,
                           child: Column(
                             children: [
                               for (var i = 0; i < r.insights.length; i++) ...[
@@ -172,7 +174,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'PROJECTED THIS MONTH',
+            context.l10n.projectedThisMonth,
             style: TextStyle(
               fontSize: 11,
               letterSpacing: 1.4,
@@ -243,7 +245,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
       return SizedBox(
         height: 120,
         child: Center(
-          child: Text('Not enough history yet',
+          child: Text(context.l10n.notEnoughHistoryYet,
               style: TextStyle(color: colors.textSecondary)),
         ),
       );
@@ -413,8 +415,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 24),
       child: Text(
-        'Building your baseline. Trends and forecasts sharpen after a few '
-        'weeks of activity.',
+        context.l10n.buildingBaselineTrends,
         textAlign: TextAlign.center,
         style: TextStyle(color: colors.textSecondary, height: 1.4),
       ),

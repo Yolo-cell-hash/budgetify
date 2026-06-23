@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../l10n/l10n.dart';
 import '../models/ledger_models.dart';
 import '../providers/theme_provider.dart';
 import '../services/ledger_service.dart';
@@ -83,7 +84,7 @@ class _SplitsScreenState extends State<SplitsScreen> {
               const SizedBox(height: 18),
               Padding(
                 padding: const EdgeInsets.only(left: 4, bottom: 12),
-                child: Text('Add to ledger',
+                child: Text(context.l10nRead.addToLedger,
                     style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
@@ -93,8 +94,8 @@ class _SplitsScreenState extends State<SplitsScreen> {
                 colors,
                 icon: Icons.call_split_rounded,
                 accent: AppColors.gold,
-                title: 'Split an expense',
-                subtitle: 'You paid or split a bill — others owe you their share',
+                title: context.l10nRead.splitAnExpense,
+                subtitle: context.l10nRead.splitAnExpenseDesc,
                 onTap: () => Navigator.pop(ctx, 'split'),
               ),
               const SizedBox(height: 10),
@@ -102,8 +103,8 @@ class _SplitsScreenState extends State<SplitsScreen> {
                 colors,
                 icon: Icons.south_west_rounded,
                 accent: AppColors.successDark,
-                title: 'Someone owes me',
-                subtitle: 'You paid for or lent them — expect the cash back',
+                title: context.l10nRead.someoneOwesMe,
+                subtitle: context.l10nRead.someoneOwesMeDesc,
                 onTap: () => Navigator.pop(ctx, 'owed'),
               ),
               const SizedBox(height: 10),
@@ -111,8 +112,8 @@ class _SplitsScreenState extends State<SplitsScreen> {
                 colors,
                 icon: Icons.north_east_rounded,
                 accent: AppColors.dangerDark,
-                title: 'I owe someone',
-                subtitle: 'Someone covered you — record what you owe them',
+                title: context.l10nRead.iOweSomeone,
+                subtitle: context.l10nRead.iOweSomeoneDesc,
                 onTap: () => Navigator.pop(ctx, 'iowe'),
               ),
             ],
@@ -202,12 +203,12 @@ class _SplitsScreenState extends State<SplitsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const AppBarTitle('Splits', icon: Icons.call_split_rounded),
+        title: AppBarTitle(context.l10n.splits, icon: Icons.call_split_rounded),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showAddMenu,
         icon: const Icon(Icons.add_rounded),
-        label: const Text('Add'),
+        label: Text(context.l10n.add),
       ),
       body: AmbientBackground(
         child: _loading
@@ -225,7 +226,7 @@ class _SplitsScreenState extends State<SplitsScreen> {
                       Padding(
                         padding: const EdgeInsets.only(left: 4, bottom: 8),
                         child: Text(
-                          'People',
+                          context.l10n.peopleLabel,
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
@@ -272,10 +273,10 @@ class _SplitsScreenState extends State<SplitsScreen> {
         children: [
           Text(
             s.net.abs() < personBalanceEps
-                ? 'ALL SETTLED'
+                ? context.l10n.allSettled
                 : s.net > 0
-                    ? "YOU'RE OWED OVERALL"
-                    : 'YOU OWE OVERALL',
+                    ? context.l10n.owedOverall
+                    : context.l10n.youOweOverall,
             style: TextStyle(
               fontSize: 11,
               letterSpacing: 1.4,
@@ -304,15 +305,15 @@ class _SplitsScreenState extends State<SplitsScreen> {
             child: Row(
               children: [
                 Expanded(
-                  child: _miniStat('Owed to you', s.owedToMe,
+                  child: _miniStat(context.l10n.owedToYou, s.owedToMe,
                       AppColors.successDark, Icons.south_west_rounded),
                 ),
                 Container(
                     width: 1, height: 38,
                     color: Colors.white.withValues(alpha: 0.12)),
                 Expanded(
-                  child: _miniStat('You owe', s.iOwe, AppColors.dangerDark,
-                      Icons.north_east_rounded,
+                  child: _miniStat(context.l10n.youOwe, s.iOwe,
+                      AppColors.dangerDark, Icons.north_east_rounded,
                       alignEnd: true),
                 ),
               ],
@@ -362,10 +363,10 @@ class _SplitsScreenState extends State<SplitsScreen> {
 
   Widget _personTile(AppColors colors, PersonBalance p) {
     final (status, color) = p.owesMe
-        ? ('owes you', colors.success)
+        ? (context.l10n.owesYouStatus, colors.success)
         : p.iOwe
-            ? ('you owe', colors.danger)
-            : ('settled up', colors.textTertiary);
+            ? (context.l10n.youOweStatus, colors.danger)
+            : (context.l10n.settledUp, colors.textTertiary);
 
     final ctx = _context[p.person];
     final String subtitle;
@@ -374,7 +375,7 @@ class _SplitsScreenState extends State<SplitsScreen> {
           ? '${ctx.latestExpense}  ·  +${ctx.splitCount - 1} more'
           : ctx.latestExpense!;
     } else {
-      subtitle = 'Settled from payments';
+      subtitle = context.l10n.settledFromPayments;
     }
 
     return Padding(
@@ -488,7 +489,7 @@ class _SplitsScreenState extends State<SplitsScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            'No splits yet',
+            context.l10n.noSplitsYet,
             style: TextStyle(
               fontSize: 17,
               fontWeight: FontWeight.w700,
@@ -497,9 +498,7 @@ class _SplitsScreenState extends State<SplitsScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Split a bill, or record what you owe someone — all on your device. '
-            'Tap Add to get started. When you pay for a group, only your share '
-            'counts as your spending.',
+            context.l10n.noSplitsDesc,
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 13,

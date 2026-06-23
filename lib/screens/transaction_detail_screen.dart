@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../l10n/l10n.dart';
 import '../models/transaction_model.dart';
 import '../models/transaction_rule_model.dart';
 import '../services/database_service.dart';
@@ -61,7 +62,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
         await _dbService.updateTransaction(untagged);
         if (mounted) {
           showAppToast(context,
-              message: 'Tag removed', type: AppToastType.info);
+              message: context.l10nRead.tagRemoved, type: AppToastType.info);
           Navigator.pop(context, true);
         }
         return;
@@ -82,7 +83,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     } catch (e) {
       if (mounted) {
         showAppToast(context,
-            message: 'Error saving: $e', type: AppToastType.error);
+            message: context.l10nRead.errorSaving(e), type: AppToastType.error);
       }
     } finally {
       setState(() => _isSaving = false);
@@ -119,7 +120,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
             ),
             const SizedBox(height: 20),
             Text(
-              'Apply to Similar Transactions?',
+              context.l10nRead.applyToSimilarTitle,
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -128,7 +129,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Found transactions for "$_merchantDisplayName". How would you like to classify them?',
+              context.l10nRead.foundTxnsForMerchant(_merchantDisplayName),
               style: TextStyle(
                 color: isDark ? Color(0xFF9A9DA6) : Color(0xFF6E727C),
               ),
@@ -137,8 +138,8 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
             _buildOption(
               ctx,
               icon: Icons.select_all,
-              title: 'Apply to All',
-              subtitle: 'Classify all existing & auto-flag future transactions',
+              title: context.l10nRead.applyToAll,
+              subtitle: context.l10nRead.applyToAllDesc,
               value: 1,
               color: Color(0xFF2AA76F),
               isDark: isDark,
@@ -147,9 +148,8 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
             _buildOption(
               ctx,
               icon: Icons.history,
-              title: 'Apply to Existing Only',
-              subtitle:
-                  'Classify existing transactions, flag future ones manually',
+              title: context.l10nRead.applyToExisting,
+              subtitle: context.l10nRead.applyToExistingDesc,
               value: 2,
               color: Color(0xFFD79A3C),
               isDark: isDark,
@@ -158,8 +158,8 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
             _buildOption(
               ctx,
               icon: Icons.touch_app,
-              title: 'Only This One',
-              subtitle: 'Tag only this transaction, handle others manually',
+              title: context.l10nRead.onlyThisOne,
+              subtitle: context.l10nRead.onlyThisOneDesc,
               value: 3,
               color: Color(0xFF4A6489),
               isDark: isDark,
@@ -254,7 +254,8 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
         ? null
         : _notesController.text.trim();
 
-    String message = 'Transaction saved';
+    final l10n = context.l10nRead;
+    String message = l10n.txnSaved;
 
     try {
       if (option == 1 || option == 2) {
@@ -270,12 +271,10 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
             category: category,
             notes: notes,
           );
-          final typeStr = transactionType == TransactionType.debit
-              ? 'debits'
-              : 'credits';
-          message = 'Updated $updatedCount similar $typeStr';
+          message = l10n.updatedSimilarTxns(
+              updatedCount, transactionType == TransactionType.debit);
         } else {
-          message = 'Transaction saved (no merchant to match)';
+          message = l10n.txnSavedNoMerchant;
         }
       }
 
@@ -305,11 +304,8 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
             );
             await _dbService.insertTransactionRule(rule);
           }
-          final typeStr = transactionType == TransactionType.debit
-              ? 'debits'
-              : 'credits';
-          message +=
-              ' • Future $typeStr from "$_merchantDisplayName" will be auto-classified';
+          message += l10n.futureTxnsAutoClassified(
+              transactionType == TransactionType.debit, _merchantDisplayName);
         }
       }
       // Option 2: Just bulk update, no rule for future (already handled above)
@@ -322,7 +318,8 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     } catch (e) {
       if (mounted) {
         showAppToast(context,
-            message: 'Error: $e', type: AppToastType.error);
+            message: context.l10nRead.errorGeneric(e),
+            type: AppToastType.error);
         Navigator.pop(context, true);
       }
     }
@@ -353,7 +350,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Emoji for "$category"',
+              context.l10nRead.emojiForTag(context.l10nRead.categoryName(category)),
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -445,7 +442,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                   ),
                   const SizedBox(height: 20),
                   Text(
-                    'Create Custom Tag',
+                    context.l10nRead.createCustomTag,
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -454,7 +451,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Choose an emoji and name for your tag',
+                    context.l10nRead.createTagDesc,
                     style: TextStyle(color: subtextColor),
                   ),
                   const SizedBox(height: 20),
@@ -463,7 +460,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                     controller: nameController,
                     style: TextStyle(color: textColor),
                     decoration: InputDecoration(
-                      hintText: 'Tag name (e.g. Rent, Gym)',
+                      hintText: context.l10nRead.tagNameHint,
                       hintStyle: TextStyle(color: subtextColor),
                       filled: true,
                       fillColor: inputBg,
@@ -488,7 +485,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                   const SizedBox(height: 16),
                   // Emoji picker grid
                   Text(
-                    'Pick an emoji',
+                    context.l10nRead.pickAnEmoji,
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
@@ -545,10 +542,11 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: () async {
+                        final l10n = context.l10nRead;
                         final name = nameController.text.trim();
                         if (name.isEmpty) {
                           showAppToast(context,
-                              message: 'Please enter a tag name',
+                              message: l10n.enterTagName,
                               type: AppToastType.warning);
                           return;
                         }
@@ -559,7 +557,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                         if (!success) {
                           if (context.mounted) {
                             showAppToast(context,
-                                message: 'A tag with this name already exists',
+                                message: l10n.tagExists,
                                 type: AppToastType.warning);
                           }
                           return;
@@ -578,9 +576,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                         ),
                         elevation: 0,
                       ),
-                      child: const Text(
-                        'Create Tag',
-                        style: TextStyle(
+                      child: Text(
+                        context.l10nRead.createTag,
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
                         ),
@@ -621,7 +619,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     return Scaffold(
       backgroundColor: bgColor,
       appBar: AppBar(
-        title: const AppBarTitle('Transaction Details',
+        title: AppBarTitle(context.l10n.transactionDetailsTitle,
             icon: Icons.receipt_long_rounded),
         backgroundColor: cardColor,
         foregroundColor: textColor,
@@ -682,7 +680,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: Text(
-                      _transaction.type.displayName,
+                      context.l10n.txnTypeName(isCredit),
                       style: TextStyle(
                         color: isCredit ? Color(0xFF2AA76F) : Color(0xFFD25A5F),
                         fontWeight: FontWeight.w600,
@@ -712,7 +710,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Details',
+                    context.l10n.detailsLabel,
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -721,21 +719,21 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                   ),
                   const SizedBox(height: 16),
                   _buildDetailRow(
-                    'From',
+                    context.l10n.fromLabel,
                     _transaction.sender,
                     subtextColor,
                     textColor,
                   ),
                   if (_transaction.merchantName != null)
                     _buildDetailRow(
-                      'Payee',
+                      context.l10n.payeeLabel,
                       _transaction.merchantName!,
                       subtextColor,
                       textColor,
                     ),
                   if (_transaction.accountInfo != null)
                     _buildDetailRow(
-                      'Account',
+                      context.l10n.accountLabel,
                       _transaction.accountInfo!,
                       subtextColor,
                       textColor,
@@ -745,7 +743,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                     color: isDark ? Color(0xFF4E525C) : null,
                   ),
                   Text(
-                    'Original Message',
+                    context.l10n.originalMessage,
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
@@ -788,7 +786,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                   Row(
                     children: [
                       Text(
-                        'Category',
+                        context.l10n.category,
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -806,9 +804,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                             color: Color(0xFFD79A3C).withAlpha(26),
                             borderRadius: BorderRadius.circular(4),
                           ),
-                          child: const Text(
-                            'Unclassified',
-                            style: TextStyle(
+                          child: Text(
+                            context.l10n.unclassified,
+                            style: const TextStyle(
                               fontSize: 11,
                               color: Color(0xFFD79A3C),
                               fontWeight: FontWeight.w500,
@@ -860,7 +858,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
-                                  category,
+                                  context.l10n.categoryName(category),
                                   style: TextStyle(
                                     fontSize: 13,
                                     color: isSelected
@@ -910,7 +908,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                               ),
                               const SizedBox(width: 4),
                               Text(
-                                'New Tag',
+                                context.l10n.newTag,
                                 style: TextStyle(
                                   fontSize: 13,
                                   color: isDark
@@ -942,7 +940,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Notes',
+                    context.l10n.notesLabel,
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -955,7 +953,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                     maxLines: 3,
                     style: TextStyle(color: textColor),
                     decoration: InputDecoration(
-                      hintText: 'Add notes about this transaction...',
+                      hintText: context.l10n.addNotesHint,
                       hintStyle: TextStyle(color: subtextColor),
                       filled: true,
                       fillColor: inputBgColor,
@@ -1009,8 +1007,8 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                     : Text(
                         _selectedCategory == null &&
                                 _transaction.category != null
-                            ? 'Remove Tag'
-                            : 'Save Classification',
+                            ? context.l10n.removeTag
+                            : context.l10n.saveClassification,
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,

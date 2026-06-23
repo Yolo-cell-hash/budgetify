@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../l10n/l10n.dart';
 import '../providers/theme_provider.dart';
 import 'privacy_amount.dart';
 
@@ -68,7 +69,7 @@ class SavingsRateBar extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              'SAVINGS RATE',
+              context.l10n.savingsRateUpper,
               style: TextStyle(
                 fontSize: 11,
                 letterSpacing: 1.2,
@@ -117,12 +118,13 @@ class SavingsRateBar extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-        _caption(stats, fmt, subText, neg),
+        _caption(context, stats, fmt, subText, neg),
       ],
     );
   }
 
   Widget _caption(
+    BuildContext context,
     SavingsStats stats,
     NumberFormat fmt,
     Color subText,
@@ -131,8 +133,8 @@ class SavingsRateBar extends StatelessWidget {
     if (!stats.hasIncome) {
       return Text(
         stats.expenses > 0
-            ? 'No income recorded this month'
-            : 'No activity yet this month',
+            ? context.l10n.noIncomeThisMonth
+            : context.l10n.noActivityThisMonth,
         style: TextStyle(fontSize: 12, color: subText),
       );
     }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../l10n/l10n.dart';
 import '../providers/theme_provider.dart';
 import '../screens/daily_analysis_screen.dart';
 import '../services/database_service.dart';
@@ -109,7 +110,7 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
 
           // Weekday headers (Mon-first)
           Row(
-            children: ['M', 'T', 'W', 'T', 'F', 'S', 'S']
+            children: context.l10n.weekdayInitials
                 .map(
                   (d) => Expanded(
                     child: Center(
@@ -211,7 +212,7 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Text('Less',
+        Text(context.l10n.lessLabel,
             style: TextStyle(fontSize: 11, color: colors.textTertiary)),
         const SizedBox(width: 8),
         ...[0.18, 0.35, 0.55, 0.75, 0.85].map(
@@ -226,7 +227,7 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
           ),
         ),
         const SizedBox(width: 8),
-        Text('More',
+        Text(context.l10n.moreLabel,
             style: TextStyle(fontSize: 11, color: colors.textTertiary)),
       ],
     );

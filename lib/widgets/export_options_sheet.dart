@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../l10n/l10n.dart';
 import '../models/transaction_model.dart';
 import '../providers/theme_provider.dart';
 import '../services/export_service.dart';
@@ -63,7 +64,7 @@ class _ExportOptionsSheetState extends State<ExportOptionsSheet> {
             ),
             const SizedBox(height: 18),
             Text(
-              'Export Data',
+              context.l10n.exportData,
               style: TextStyle(
                 fontSize: 19,
                 fontWeight: FontWeight.w700,
@@ -73,7 +74,7 @@ class _ExportOptionsSheetState extends State<ExportOptionsSheet> {
             ),
             const SizedBox(height: 18),
 
-            _label('Format'),
+            _label(context.l10n.formatLabel),
             const SizedBox(height: 8),
             Row(
               children: [
@@ -82,12 +83,13 @@ class _ExportOptionsSheetState extends State<ExportOptionsSheet> {
                 _formatChip(
                     ExportFormat.csv, 'CSV', Icons.description_outlined, colors),
                 const SizedBox(width: 8),
-                _formatChip(ExportFormat.text, 'Text', Icons.notes, colors),
+                _formatChip(
+                    ExportFormat.text, context.l10n.textFormat, Icons.notes, colors),
               ],
             ),
             const SizedBox(height: 20),
 
-            _label('Date Range'),
+            _label(context.l10n.dateRangeLabel),
             const SizedBox(height: 8),
             InkWell(
               borderRadius: BorderRadius.circular(12),
@@ -107,7 +109,7 @@ class _ExportOptionsSheetState extends State<ExportOptionsSheet> {
                     Expanded(
                       child: Text(
                         _dateRange == null
-                            ? 'All time'
+                            ? context.l10n.allTime
                             : '${DateFormat('dd MMM yyyy').format(_dateRange!.start)}  →  '
                                 '${DateFormat('dd MMM yyyy').format(_dateRange!.end)}',
                         style: TextStyle(color: colors.text, fontSize: 14),
@@ -124,27 +126,27 @@ class _ExportOptionsSheetState extends State<ExportOptionsSheet> {
             ),
             const SizedBox(height: 20),
 
-            _label('Type'),
+            _label(context.l10n.typeLabel),
             const SizedBox(height: 8),
             Row(
               children: [
-                _typeChip(null, 'All', colors),
+                _typeChip(null, context.l10n.allFilter, colors),
                 const SizedBox(width: 8),
-                _typeChip(TransactionType.debit, 'Expenses', colors),
+                _typeChip(TransactionType.debit, context.l10n.commonExpenses, colors),
                 const SizedBox(width: 8),
-                _typeChip(TransactionType.credit, 'Income', colors),
+                _typeChip(TransactionType.credit, context.l10n.commonIncome, colors),
               ],
             ),
             const SizedBox(height: 20),
 
-            _label('Payee / Merchant contains'),
+            _label(context.l10n.payeeMerchantContains),
             const SizedBox(height: 8),
             TextField(
               controller: _merchant,
-              decoration: const InputDecoration(
-                hintText: 'e.g. Swiggy, Amazon (leave blank for all)',
+              decoration: InputDecoration(
+                hintText: context.l10n.merchantQueryHint,
                 isDense: true,
-                prefixIcon: Icon(Icons.search, size: 20),
+                prefixIcon: const Icon(Icons.search, size: 20),
               ),
             ),
             const SizedBox(height: 20),
@@ -153,13 +155,13 @@ class _ExportOptionsSheetState extends State<ExportOptionsSheet> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 _label(_categories.isEmpty
-                    ? 'Categories (all)'
-                    : 'Categories (${_categories.length})'),
+                    ? context.l10n.categoriesAll
+                    : context.l10n.categoriesSelected(_categories.length)),
                 if (_categories.isNotEmpty)
                   GestureDetector(
                     onTap: () => setState(_categories.clear),
                     child: Text(
-                      'Clear',
+                      context.l10n.clearLabel,
                       style: TextStyle(
                         color: colors.accent,
                         fontSize: 13,
@@ -196,7 +198,7 @@ class _ExportOptionsSheetState extends State<ExportOptionsSheet> {
                       ),
                     ),
                     child: Text(
-                      c,
+                      context.l10n.categoryName(c),
                       style: TextStyle(
                         fontSize: 12.5,
                         fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
@@ -225,7 +227,7 @@ class _ExportOptionsSheetState extends State<ExportOptionsSheet> {
                   ),
                 ),
                 icon: const Icon(Icons.ios_share, size: 18),
-                label: const Text('Export'),
+                label: Text(context.l10n.exportLabel),
               ),
             ),
           ],

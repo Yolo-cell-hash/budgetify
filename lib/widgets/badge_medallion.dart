@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../l10n/l10n.dart';
 import '../models/achievement.dart';
 import '../providers/theme_provider.dart';
 
@@ -454,7 +455,7 @@ Future<void> showBadgeUnlock(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'ACHIEVEMENT UNLOCKED',
+                context.l10nRead.achievementUnlocked,
                 style: TextStyle(
                   fontSize: 12,
                   letterSpacing: 2,
@@ -477,7 +478,8 @@ Future<void> showBadgeUnlock(
               ),
               const SizedBox(height: 4),
               Text(
-                '${rarityName(rarity)} tier',
+                context.l10nRead.tierLabel(
+                    context.l10nRead.tierName(rarityName(rarity))),
                 style: TextStyle(fontSize: 13, color: colors.textSecondary),
               ),
               const SizedBox(height: 22),
@@ -485,7 +487,7 @@ Future<void> showBadgeUnlock(
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Awesome'),
+                  child: Text(context.l10nRead.awesomeBtn),
                 ),
               ),
             ],

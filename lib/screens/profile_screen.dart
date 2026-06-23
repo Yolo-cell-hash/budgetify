@@ -6,6 +6,7 @@ import 'package:flutter/rendering.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../l10n/l10n.dart';
 import '../models/achievement.dart';
 import '../providers/theme_provider.dart';
 import '../services/gamification_service.dart';
@@ -71,6 +72,7 @@ class _ProfileViewState extends State<ProfileView> {
   Future<void> _share() async {
     if (_sharing) return;
     setState(() => _sharing = true);
+    final l10n = context.l10nRead;
     try {
       // Let any in-flight layout settle before capturing.
       await Future.delayed(const Duration(milliseconds: 60));
@@ -83,12 +85,12 @@ class _ProfileViewState extends State<ProfileView> {
       await file.writeAsBytes(bytes!.buffer.asUint8List());
       await Share.shareXFiles(
         [XFile(file.path, mimeType: 'image/png')],
-        text: 'My Budgetify rewards 🏆',
+        text: l10n.profileShareText,
       );
     } catch (_) {
       if (mounted) {
         showAppToast(context,
-            message: "Couldn't create the share image just now",
+            message: l10n.couldntCreateShareImage,
             type: AppToastType.warning);
       }
     } finally {
@@ -121,7 +123,7 @@ class _ProfileViewState extends State<ProfileView> {
               child: OutlinedButton.icon(
                 onPressed: widget.onEdit,
                 icon: const Icon(Icons.edit_outlined, size: 18),
-                label: const Text('Edit'),
+                label: Text(context.l10n.commonEdit),
               ),
             ),
             const SizedBox(width: 12),
@@ -129,19 +131,20 @@ class _ProfileViewState extends State<ProfileView> {
               child: ElevatedButton.icon(
                 onPressed: _sharing ? null : _share,
                 icon: const Icon(Icons.ios_share_rounded, size: 18),
-                label: Text(_sharing ? 'Sharing…' : 'Share'),
+                label: Text(
+                    _sharing ? context.l10n.sharingProgress : context.l10n.shareLabel),
               ),
             ),
           ],
         ),
         const SizedBox(height: 24),
-        _sectionHeader(colors, 'Showcase', '${widget.showcased.length}/$kMaxShowcase'),
+        _sectionHeader(colors, context.l10n.showcase, '${widget.showcased.length}/$kMaxShowcase'),
         const SizedBox(height: 8),
         _card(
           colors,
           widget.allEarned.isEmpty
               ? Text(
-                  'Earn badges in the Trophies tab to feature them here.',
+                  context.l10n.earnBadgesDesc,
                   style: TextStyle(fontSize: 13, color: colors.textSecondary),
                 )
               : InkWell(
@@ -154,8 +157,8 @@ class _ProfileViewState extends State<ProfileView> {
                         Expanded(
                           child: Text(
                             widget.showcased.isEmpty
-                                ? 'Choose up to 5 badges to feature'
-                                : 'Tap to change your featured badges',
+                                ? context.l10n.chooseBadgesToFeature
+                                : context.l10n.tapToChangeBadges,
                             style: TextStyle(fontSize: 13.5, color: colors.text),
                           ),
                         ),
@@ -166,7 +169,7 @@ class _ProfileViewState extends State<ProfileView> {
                 ),
         ),
         const SizedBox(height: 24),
-        _sectionHeader(colors, 'Titles', ''),
+        _sectionHeader(colors, context.l10n.titlesLabel, ''),
         const SizedBox(height: 8),
         _card(colors, _titles(colors)),
       ],
@@ -184,8 +187,8 @@ class _ProfileViewState extends State<ProfileView> {
       children: [
         Text(
           earnedCount == 0
-              ? 'Titles reflect where your money goes — each shows your progress. Tap one for details.'
-              : 'Tap a title for details. Earned titles can be featured on your profile.',
+              ? context.l10n.titlesIntro
+              : context.l10n.tapTitleDesc,
           style: TextStyle(fontSize: 12, color: colors.textTertiary, height: 1.4),
         ),
         const SizedBox(height: 8),
@@ -263,7 +266,7 @@ class _ProfileViewState extends State<ProfileView> {
                     children: [
                       Expanded(
                         child: Text(
-                          t.name,
+                          context.l10n.titleName(t.id),
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
@@ -284,7 +287,7 @@ class _ProfileViewState extends State<ProfileView> {
                     children: [
                       Expanded(child: _progressBar(colors, p.fraction, earned)),
                       const SizedBox(width: 8),
-                      Text('$shown/${p.target} ${t.unit}',
+                      Text('$shown/${p.target} ${context.l10n.gamiUnit(t.unit)}',
                           style: TextStyle(fontSize: 11, color: colors.textTertiary)),
                     ],
                   ),
@@ -318,7 +321,7 @@ class _ProfileViewState extends State<ProfileView> {
           children: [
             _titleEmoji(colors, t.emoji, earned, 72),
             const SizedBox(height: 14),
-            Text(t.name,
+            Text(context.l10nRead.titleName(t.id),
                 style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700, color: colors.text)),
             const SizedBox(height: 8),
             Container(
@@ -333,7 +336,7 @@ class _ProfileViewState extends State<ProfileView> {
                   Icon(earned ? Icons.check_circle_rounded : Icons.lock_rounded,
                       size: 14, color: earned ? colors.success : colors.textSecondary),
                   const SizedBox(width: 5),
-                  Text(earned ? 'Earned' : 'In progress',
+                  Text(earned ? context.l10nRead.earned : context.l10nRead.inProgress,
                       style: TextStyle(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w700,
@@ -343,18 +346,18 @@ class _ProfileViewState extends State<ProfileView> {
             ),
             const SizedBox(height: 14),
             Text(
-              t.blurb,
+              context.l10nRead.titleBlurb(t.id),
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13.5, height: 1.45, color: colors.textSecondary),
             ),
             const SizedBox(height: 18),
             Row(
               children: [
-                Text('Progress',
+                Text(context.l10nRead.progressLabel,
                     style: TextStyle(
                         fontSize: 12.5, fontWeight: FontWeight.w600, color: colors.textSecondary)),
                 const Spacer(),
-                Text('$shown / ${p.target} ${t.unit}',
+                Text('$shown / ${p.target} ${context.l10nRead.gamiUnit(t.unit)}',
                     style: TextStyle(
                         fontSize: 12.5, fontWeight: FontWeight.w700, color: colors.text)),
               ],
@@ -371,7 +374,9 @@ class _ProfileViewState extends State<ProfileView> {
                     Navigator.pop(ctx);
                   },
                   icon: Icon(primary ? Icons.star_rounded : Icons.star_outline_rounded, size: 18),
-                  label: Text(primary ? 'Remove from profile' : 'Feature on profile'),
+                  label: Text(primary
+                      ? context.l10nRead.removeFromProfile
+                      : context.l10nRead.featureOnProfile),
                 ),
               ),
             ],
@@ -474,7 +479,7 @@ class _ShowcasePickerState extends State<_ShowcasePicker> {
           Row(
             children: [
               Text(
-                'Featured badges',
+                context.l10n.featuredBadges,
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
@@ -538,7 +543,7 @@ class _ShowcasePickerState extends State<_ShowcasePicker> {
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () => Navigator.pop(context, _sel),
-              child: const Text('Done'),
+              child: Text(context.l10n.commonDone),
             ),
           ),
         ],

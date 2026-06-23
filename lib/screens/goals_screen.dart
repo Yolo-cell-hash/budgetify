@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../l10n/l10n.dart';
 import '../providers/theme_provider.dart';
 import '../services/app_events.dart';
 import '../services/savings_goal_service.dart';
@@ -92,11 +93,11 @@ class _HomeGoalsCardState extends State<HomeGoalsCard> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Savings Goals',
+                            Text(context.l10n.savingsGoalsTitle,
                                 style: TextStyle(
                                     fontSize: 15, fontWeight: FontWeight.w700, color: colors.text)),
                             const SizedBox(height: 2),
-                            Text('Set a target and watch the jar fill up',
+                            Text(context.l10n.goalsSubtitle,
                                 style: TextStyle(fontSize: 12.5, color: colors.textSecondary)),
                           ],
                         ),
@@ -111,11 +112,11 @@ class _HomeGoalsCardState extends State<HomeGoalsCard> {
                         children: [
                           const Text('🎯', style: TextStyle(fontSize: 16)),
                           const SizedBox(width: 8),
-                          Text('Savings Goals',
+                          Text(context.l10n.savingsGoalsTitle,
                               style: TextStyle(
                                   fontSize: 15, fontWeight: FontWeight.w700, color: colors.text)),
                           const Spacer(),
-                          Text('See all',
+                          Text(context.l10n.seeAllLower,
                               style: TextStyle(
                                   fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.goldDeep)),
                           Icon(Icons.chevron_right_rounded, size: 18, color: AppColors.goldDeep),
@@ -192,12 +193,13 @@ class _GoalsScreenState extends State<GoalsScreen> {
     return Scaffold(
       backgroundColor: colors.background,
       appBar: AppBar(
-        title: const AppBarTitle('Savings Goals', icon: Icons.savings_rounded),
+        title: AppBarTitle(context.l10n.savingsGoalsTitle,
+            icon: Icons.savings_rounded),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _newGoal,
         icon: const Icon(Icons.add_rounded),
-        label: const Text('New goal'),
+        label: Text(context.l10n.newGoal),
       ),
       body: goals == null
           ? const Center(child: CircularProgressIndicator())
@@ -221,12 +223,11 @@ class _GoalsScreenState extends State<GoalsScreen> {
           children: [
             const GoalJar(fraction: 0.35, accent: 4, size: 110, showPercent: false),
             const SizedBox(height: 20),
-            Text('Set your first savings goal',
+            Text(context.l10n.setFirstGoal,
                 style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: colors.text)),
             const SizedBox(height: 8),
             Text(
-              'Name a target like "Goa trip ₹40k by December", then chip away at '
-              'it. Add to it whenever you set money aside.',
+              context.l10n.setFirstGoalDesc,
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13.5, height: 1.4, color: colors.textSecondary),
             ),

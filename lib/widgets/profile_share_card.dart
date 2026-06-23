@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/app_strings.dart';
+import '../l10n/l10n.dart';
 import '../models/achievement.dart';
 import '../providers/theme_provider.dart';
 import '../services/gamification_service.dart';
@@ -44,7 +46,9 @@ class ProfileShareCard extends StatelessWidget {
     final accent = profile.avatarKind == 'pixel'
         ? pixelHaloOf(int.tryParse(profile.avatarValue) ?? 0)
         : accentOf(profile.avatarAccent);
-    final name = profile.username.trim().isEmpty ? 'Budgeteer' : profile.username.trim();
+    final name = profile.username.trim().isEmpty
+        ? context.l10n.defaultBudgeteer
+        : profile.username.trim();
 
     return Container(
       width: 340,
@@ -95,23 +99,24 @@ class ProfileShareCard extends StatelessWidget {
               spacing: 6,
               runSpacing: 6,
               children: [
-                for (final t in titles.take(3)) _titleChip('${t.emoji} ${t.name}'),
+                for (final t in titles.take(3))
+                  _titleChip('${t.emoji} ${context.l10n.titleName(t.id)}'),
                 if (titles.length > 3) _titleChip('+${titles.length - 3}'),
               ],
             )
           else
             Text(
-              'Tracking with Budgetify',
+              context.l10n.trackingWithBudgetify,
               style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.55)),
             ),
           const SizedBox(height: 18),
-          _statsStrip(),
+          _statsStrip(context.l10n),
           if (showcased.isNotEmpty) ...[
             const SizedBox(height: 20),
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                'TROPHY CASE',
+                context.l10n.trophyCase,
                 style: TextStyle(
                   fontSize: 10.5, letterSpacing: 2, fontWeight: FontWeight.w700,
                   color: AppColors.gold.withValues(alpha: 0.85)),
@@ -142,7 +147,7 @@ class ProfileShareCard extends StatelessWidget {
     );
   }
 
-  Widget _statsStrip() {
+  Widget _statsStrip(AppStrings l10n) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12),
       decoration: BoxDecoration(
@@ -152,11 +157,11 @@ class ProfileShareCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          _stat('🔥', '$currentStreak', 'day streak'),
+          _stat('🔥', '$currentStreak', l10n.dayStreakLabel),
           _divider(),
-          _stat('🏆', '$trophyCount', trophyCount == 1 ? 'trophy' : 'trophies'),
+          _stat('🏆', '$trophyCount', l10n.trophyWord(trophyCount)),
           _divider(),
-          _stat('🎖️', '${titles.length}', titles.length == 1 ? 'title' : 'titles'),
+          _stat('🎖️', '${titles.length}', l10n.titleWord(titles.length)),
         ],
       ),
     );

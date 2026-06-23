@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../l10n/l10n.dart';
 import '../providers/app_preferences.dart';
 import '../services/background_service.dart';
 import '../widgets/app_toast.dart';
@@ -68,7 +69,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       }
     } catch (e) {
       if (mounted) {
-        showAppToast(context, message: 'Error: $e', type: AppToastType.error);
+        showAppToast(context,
+            message: context.l10nRead.genericError(e), type: AppToastType.error);
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -125,7 +127,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ),
           const SizedBox(height: 32),
           Text(
-            'Welcome to\nBudget Tracker',
+            context.l10n.onboardWelcomeTitle,
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 32,
@@ -135,7 +137,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            'Track your expenses automatically by reading bank SMS messages',
+            context.l10n.onboardWelcomeDesc,
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 16,
@@ -162,7 +164,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Your data stays on your device. We do not collect or upload any information.',
+                    context.l10n.dataPrivateDesc,
                     style: TextStyle(
                       fontSize: 13,
                       color: isDark
@@ -184,7 +186,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 backgroundColor: Theme.of(context).primaryColor,
                 foregroundColor: Colors.white,
               ),
-              child: const Text('Get Started', style: TextStyle(fontSize: 18)),
+              child: Text(context.l10n.getStarted,
+                  style: const TextStyle(fontSize: 18)),
             ),
           ),
         ],
@@ -205,7 +208,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ),
           const SizedBox(height: 32),
           Text(
-            'SMS Permission Required',
+            context.l10n.smsPermissionTitle,
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 24,
@@ -215,7 +218,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            'We need SMS permission to automatically detect transactions from your bank messages.',
+            context.l10n.smsPermissionDesc,
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 14,
@@ -235,7 +238,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Your SMS stays private and is never uploaded to any server. All processing happens locally on your device.',
+                    context.l10n.smsPrivacyNote,
                     style: TextStyle(
                       fontSize: 12,
                       color: Color(0xFF11744C),
@@ -248,7 +251,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           const Spacer(),
           Row(
             children: [
-              TextButton(onPressed: _previousPage, child: const Text('Back')),
+              TextButton(
+                  onPressed: _previousPage, child: Text(context.l10n.back)),
               const Spacer(),
               _isLoading
                   ? const CircularProgressIndicator()
@@ -273,7 +277,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           vertical: 16,
                         ),
                       ),
-                      child: const Text('Grant Permission & Start'),
+                      child: Text(context.l10n.grantPermissionAndStart),
                     ),
             ],
           ),
