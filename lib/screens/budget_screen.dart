@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import '../l10n/l10n.dart';
 import '../models/budget_model.dart';
 import '../models/merchant_summary.dart';
 import '../models/transaction_model.dart';
@@ -271,7 +272,7 @@ class _BudgetScreenState extends State<BudgetScreen>
 
     return Scaffold(
       appBar: AppBar(
-        title: const AppBarTitle('Budget & Analytics',
+        title: AppBarTitle(context.l10n.budgetAndAnalytics,
             icon: Icons.donut_small_rounded),
         actions: [
           IconButton(icon: const Icon(Icons.refresh), onPressed: _loadData),
@@ -279,18 +280,18 @@ class _BudgetScreenState extends State<BudgetScreen>
         bottom: TabBar(
           controller: _tabController,
           isScrollable: true,
-          tabs: const [
-            Tab(text: 'Overview'),
-            Tab(text: 'Calendar'),
-            Tab(text: 'Categories'),
-            Tab(text: 'Trends'),
+          tabs: [
+            Tab(text: context.l10n.tabOverview),
+            Tab(text: context.l10n.tabCalendar),
+            Tab(text: context.l10n.tabCategories),
+            Tab(text: context.l10n.tabTrends),
           ],
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showBudgetDialog,
         icon: Icon(_budget == null ? Icons.add : Icons.edit),
-        label: Text(_budget == null ? 'Set Budget' : 'Edit'),
+        label: Text(_budget == null ? context.l10n.setBudget : context.l10n.commonEdit),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -313,7 +314,6 @@ class _BudgetScreenState extends State<BudgetScreen>
     required DateTime selected,
     required ValueChanged<DateTime> onSelect,
   }) {
-    final monthFormat = DateFormat('MMM yyyy');
     final now = DateTime.now();
 
     return SizedBox(
@@ -349,7 +349,9 @@ class _BudgetScreenState extends State<BudgetScreen>
               ),
               alignment: Alignment.center,
               child: Text(
-                isCurrent ? 'This Month' : monthFormat.format(month),
+                isCurrent
+                    ? context.l10n.thisMonth
+                    : context.l10n.monthYearShort(month),
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
@@ -426,8 +428,8 @@ class _BudgetScreenState extends State<BudgetScreen>
               children: [
                 Text(
                   isCurrent
-                      ? 'This Month'
-                      : DateFormat('MMMM yyyy').format(month),
+                      ? context.l10n.thisMonth
+                      : context.l10n.monthYear(month),
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 16,
@@ -437,7 +439,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                   ),
                 ),
                 Text(
-                  'Swipe for other months',
+                  context.l10n.swipeForOtherMonths,
                   style: TextStyle(
                     fontSize: 11,
                     color: colors.textTertiary,
@@ -483,7 +485,7 @@ class _BudgetScreenState extends State<BudgetScreen>
             ),
             const SizedBox(height: 12),
             Text(
-              'No activity in ${DateFormat('MMMM yyyy').format(month)}',
+              context.l10n.noActivityIn(context.l10n.monthYear(month)),
               style: TextStyle(
                 color: AppColors.of(context).textSecondary,
               ),
@@ -511,7 +513,7 @@ class _BudgetScreenState extends State<BudgetScreen>
               order: order++,
               child: _buildOverviewCard(
                 isDark: isDark,
-                title: 'Where it went',
+                title: context.l10n.whereItWent,
                 child: CategoryDonut(spending: data.categories),
               ),
             ),
@@ -600,7 +602,7 @@ class _BudgetScreenState extends State<BudgetScreen>
             children: [
               Expanded(
                 child: _buildSummaryItem(
-                  label: 'Income',
+                  label: context.l10n.commonIncome,
                   amount: data.income,
                   fmt: fmt,
                   color: const Color(0xFF2AA76F),
@@ -611,7 +613,7 @@ class _BudgetScreenState extends State<BudgetScreen>
               const SizedBox(width: 12),
               Expanded(
                 child: _buildSummaryItem(
-                  label: 'Expenses',
+                  label: context.l10n.commonExpenses,
                   amount: data.spent,
                   fmt: fmt,
                   color: const Color(0xFFD25A5F),
@@ -772,7 +774,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                     ),
                     const SizedBox(height: 4),
                     PrivacyAmount(
-                      'of ${fmt.format(_budget!.amount)}',
+                      context.l10n.budgetOf(fmt.format(_budget!.amount)),
                       style: TextStyle(
                         fontSize: 12,
                         color: hero.mutedForeground,
@@ -802,8 +804,8 @@ class _BudgetScreenState extends State<BudgetScreen>
                 const SizedBox(width: 8),
                 PrivacyAmount(
                   remaining >= 0
-                      ? '${fmt.format(remaining)} left'
-                      : '${fmt.format(remaining.abs())} over!',
+                      ? context.l10n.amountLeft(fmt.format(remaining))
+                      : context.l10n.amountOver(fmt.format(remaining.abs())),
                   style: TextStyle(
                     color: pillColor,
                     fontWeight: FontWeight.w600,
@@ -856,7 +858,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                   size: 18, color: colors.textSecondary),
               const SizedBox(width: 8),
               Text(
-                'Top merchants',
+                context.l10n.topMerchants,
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -876,7 +878,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   visualDensity: VisualDensity.compact,
                 ),
-                child: const Text('See all'),
+                child: Text(context.l10n.seeAllLower),
               ),
             ],
           ),
@@ -964,15 +966,15 @@ class _BudgetScreenState extends State<BudgetScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Daily Spending',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          Text(
+            context.l10n.dailySpending,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 16),
           SizedBox(
             height: 200,
             child: spots.isEmpty
-                ? const Center(child: Text('No data yet'))
+                ? Center(child: Text(context.l10n.noDataYet))
                 : LineChart(
                     LineChartData(
                       minX: 0,
@@ -1079,7 +1081,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                   Icon(Icons.pie_chart_outline, size: 48, color: Color(0xFF9A9DA6)),
                   const SizedBox(height: 12),
                   Text(
-                    'No spending data for this month',
+                    context.l10n.noSpendingThisMonth,
                     style: TextStyle(color: Color(0xFF8A8D96)),
                   ),
                 ],
@@ -1292,7 +1294,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                                 overflow: TextOverflow.ellipsis,
                               ),
                               Text(
-                                DateFormat('MMM d, yyyy').format(txn.detectedAt),
+                                context.l10n.mediumDate(txn.detectedAt),
                                 style: TextStyle(
                                   fontSize: 11,
                                   color: isDark
@@ -1332,7 +1334,7 @@ class _BudgetScreenState extends State<BudgetScreen>
   // ==================== TRENDS TAB ====================
   Widget _buildTrendsTab(bool isDark, NumberFormat fmt) {
     if (_monthlySpending.isEmpty) {
-      return const Center(child: Text('No historical data available'));
+      return Center(child: Text(context.l10n.noHistoricalData));
     }
 
     final maxValue = _monthlySpending
@@ -1364,9 +1366,10 @@ class _BudgetScreenState extends State<BudgetScreen>
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        'Monthly Spending Trend',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                      Text(
+                        context.l10n.monthlySpendingTrend,
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w600),
                       ),
                       _buildTrendsChartToggle(isDark),
                     ],
@@ -1590,7 +1593,9 @@ class _BudgetScreenState extends State<BudgetScreen>
           getTitlesWidget: (v, _) {
             if (v.toInt() < _monthlySpending.length) {
               return Text(
-                monthFormat.format(_monthlySpending[v.toInt()]['month']),
+                context.l10nRead.monthAbbr(
+                  (_monthlySpending[v.toInt()]['month'] as DateTime).month,
+                ),
                 style: const TextStyle(fontSize: 10),
               );
             }
@@ -1670,9 +1675,9 @@ class _BudgetScreenState extends State<BudgetScreen>
                       color: Color(0xFFA8843C),
                       borderRadius: BorderRadius.circular(4),
                     ),
-                    child: const Text(
-                      'NOW',
-                      style: TextStyle(
+                    child: Text(
+                      context.l10n.nowBadge,
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
@@ -1681,7 +1686,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                   ),
                 Expanded(
                   child: Text(
-                    DateFormat('MMMM yyyy').format(month),
+                    context.l10n.monthYear(month),
                     style: TextStyle(
                       fontWeight: FontWeight.w500,
                       color: textColor,
@@ -1852,7 +1857,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Category Budgets',
+                      context.l10n.categoryBudgets,
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -1863,7 +1868,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                   TextButton.icon(
                     onPressed: () => _showCategoryBudgetDialog(),
                     icon: const Icon(Icons.add, size: 18),
-                    label: const Text('Add'),
+                    label: Text(context.l10n.add),
                     style: TextButton.styleFrom(
                       foregroundColor: AppColors.goldDeep,
                       padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -1876,8 +1881,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                 Padding(
                   padding: const EdgeInsets.fromLTRB(2, 6, 8, 4),
                   child: Text(
-                    'Set a monthly limit for individual categories like Food '
-                    'or Shopping, and track exactly where the money goes.',
+                    context.l10n.categoryBudgetsEmptyDesc,
                     style: TextStyle(
                       fontSize: 12.5,
                       height: 1.4,
@@ -1943,7 +1947,7 @@ class _BudgetScreenState extends State<BudgetScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Set a budget for $cat?',
+                  context.l10n.setBudgetForCategory(cat),
                   style: TextStyle(
                     fontSize: 14.5,
                     fontWeight: FontWeight.w700,
@@ -1952,9 +1956,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  "It's your most-tagged spend this month "
-                  '($_suggestedCount transactions). A monthly limit keeps it '
-                  'in check.',
+                  context.l10n.suggestionMostTagged(_suggestedCount),
                   style: TextStyle(
                     fontSize: 12.5,
                     height: 1.35,
@@ -1974,7 +1976,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    child: const Text('Set budget'),
+                    child: Text(context.l10n.setBudgetLower),
                   ),
                 ),
               ],
@@ -1983,7 +1985,7 @@ class _BudgetScreenState extends State<BudgetScreen>
           IconButton(
             icon: const Icon(Icons.close, size: 18),
             color: colors.textTertiary,
-            tooltip: 'Not now',
+            tooltip: context.l10n.notNow,
             onPressed: () =>
                 context.read<AppPreferences>().dismissBudgetSuggestion(cat),
           ),
@@ -2045,7 +2047,8 @@ class _BudgetScreenState extends State<BudgetScreen>
                       ),
                       const SizedBox(height: 2),
                       PrivacyAmount(
-                        '${fmt.format(spent)} of ${fmt.format(b.amount)}',
+                        context.l10n.budgetSpentOf(
+                            fmt.format(spent), fmt.format(b.amount)),
                         style: TextStyle(
                           fontSize: 12,
                           color: colors.textSecondary,
@@ -2066,7 +2069,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                     ),
                     if (over)
                       Text(
-                        'over',
+                        context.l10n.over,
                         style: TextStyle(fontSize: 10, color: colors.danger),
                       ),
                   ],
@@ -2115,7 +2118,7 @@ class _BudgetScreenState extends State<BudgetScreen>
     if (available.isEmpty) {
       showAppToast(
         context,
-        message: 'Every category already has a budget',
+        message: context.l10nRead.everyCategoryHasBudget,
         type: AppToastType.info,
       );
       return;
@@ -2131,9 +2134,8 @@ class _BudgetScreenState extends State<BudgetScreen>
       context,
       builder: (ctx) => AppDialog(
         icon: Icons.flag_outlined,
-        title: 'New category budget',
-        subtitle: 'Set a monthly limit for one category. Alerts fire at '
-            '50, 75, 90 and 100%+.',
+        title: context.l10nRead.newCategoryBudget,
+        subtitle: context.l10nRead.newCategoryBudgetDesc,
         content: StatefulBuilder(
           builder: (ctx, setLocal) {
             final colors = AppColors.of(ctx);
@@ -2147,8 +2149,8 @@ class _BudgetScreenState extends State<BudgetScreen>
                   controller: amountCtrl,
                   autofocus: true,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Monthly amount',
+                  decoration: InputDecoration(
+                    labelText: context.l10nRead.monthlyAmount,
                     prefixText: '₹ ',
                   ),
                 ),
@@ -2156,7 +2158,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                 Row(
                   children: [
                     Text(
-                      'Category',
+                      context.l10nRead.category,
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
@@ -2228,7 +2230,7 @@ class _BudgetScreenState extends State<BudgetScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+            child: Text(context.l10nRead.commonCancel),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -2245,7 +2247,7 @@ class _BudgetScreenState extends State<BudgetScreen>
               saved = true;
               if (ctx.mounted) Navigator.pop(ctx);
             },
-            child: const Text('Set budget'),
+            child: Text(context.l10nRead.setBudgetLower),
           ),
         ],
       ),
@@ -2257,7 +2259,7 @@ class _BudgetScreenState extends State<BudgetScreen>
       if (mounted) {
         showAppToast(
           context,
-          message: '$selected budget set',
+          message: context.l10nRead.categoryBudgetSet(selected),
           type: AppToastType.success,
         );
       }
@@ -2277,23 +2279,22 @@ class _BudgetScreenState extends State<BudgetScreen>
       context,
       builder: (ctx) => AppDialog(
         icon: Icons.account_balance_wallet_rounded,
-        title: editing ? 'Edit Budget' : 'Set Budget',
-        subtitle: 'Track spending against a monthly limit. Self-transfers '
-            'and investments are excluded automatically.',
+        title: editing ? context.l10nRead.editBudget : context.l10nRead.setBudget,
+        subtitle: context.l10nRead.budgetDialogDesc,
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: nameCtrl,
               textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(labelText: 'Name'),
+              decoration: InputDecoration(labelText: context.l10nRead.name),
             ),
             const SizedBox(height: 14),
             TextField(
               controller: amountCtrl,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Monthly amount',
+              decoration: InputDecoration(
+                labelText: context.l10nRead.monthlyAmount,
                 prefixText: '₹ ',
               ),
             ),
@@ -2310,12 +2311,12 @@ class _BudgetScreenState extends State<BudgetScreen>
               style: OutlinedButton.styleFrom(
                 foregroundColor: const Color(0xFFD25A5F),
               ),
-              child: const Text('Delete'),
+              child: Text(context.l10nRead.commonDelete),
             )
           else
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
+              child: Text(context.l10nRead.commonCancel),
             ),
           ElevatedButton(
             onPressed: () async {
@@ -2333,7 +2334,7 @@ class _BudgetScreenState extends State<BudgetScreen>
               if (ctx.mounted) Navigator.pop(ctx);
               _loadData();
             },
-            child: Text(editing ? 'Save' : 'Set Budget'),
+            child: Text(editing ? context.l10nRead.commonSave : context.l10nRead.setBudget),
           ),
         ],
       ),
