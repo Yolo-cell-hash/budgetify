@@ -266,7 +266,7 @@ class _ProfileViewState extends State<ProfileView> {
                     children: [
                       Expanded(
                         child: Text(
-                          t.name,
+                          context.l10n.titleName(t.id),
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
@@ -287,7 +287,7 @@ class _ProfileViewState extends State<ProfileView> {
                     children: [
                       Expanded(child: _progressBar(colors, p.fraction, earned)),
                       const SizedBox(width: 8),
-                      Text('$shown/${p.target} ${t.unit}',
+                      Text('$shown/${p.target} ${context.l10n.gamiUnit(t.unit)}',
                           style: TextStyle(fontSize: 11, color: colors.textTertiary)),
                     ],
                   ),
@@ -321,7 +321,7 @@ class _ProfileViewState extends State<ProfileView> {
           children: [
             _titleEmoji(colors, t.emoji, earned, 72),
             const SizedBox(height: 14),
-            Text(t.name,
+            Text(context.l10nRead.titleName(t.id),
                 style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700, color: colors.text)),
             const SizedBox(height: 8),
             Container(
@@ -336,7 +336,7 @@ class _ProfileViewState extends State<ProfileView> {
                   Icon(earned ? Icons.check_circle_rounded : Icons.lock_rounded,
                       size: 14, color: earned ? colors.success : colors.textSecondary),
                   const SizedBox(width: 5),
-                  Text(earned ? context.l10n.earned : context.l10n.inProgress,
+                  Text(earned ? context.l10nRead.earned : context.l10nRead.inProgress,
                       style: TextStyle(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w700,
@@ -346,18 +346,18 @@ class _ProfileViewState extends State<ProfileView> {
             ),
             const SizedBox(height: 14),
             Text(
-              t.blurb,
+              context.l10nRead.titleBlurb(t.id),
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13.5, height: 1.45, color: colors.textSecondary),
             ),
             const SizedBox(height: 18),
             Row(
               children: [
-                Text(context.l10n.progressLabel,
+                Text(context.l10nRead.progressLabel,
                     style: TextStyle(
                         fontSize: 12.5, fontWeight: FontWeight.w600, color: colors.textSecondary)),
                 const Spacer(),
-                Text('$shown / ${p.target} ${t.unit}',
+                Text('$shown / ${p.target} ${context.l10nRead.gamiUnit(t.unit)}',
                     style: TextStyle(
                         fontSize: 12.5, fontWeight: FontWeight.w700, color: colors.text)),
               ],
@@ -375,8 +375,8 @@ class _ProfileViewState extends State<ProfileView> {
                   },
                   icon: Icon(primary ? Icons.star_rounded : Icons.star_outline_rounded, size: 18),
                   label: Text(primary
-                      ? context.l10n.removeFromProfile
-                      : context.l10n.featureOnProfile),
+                      ? context.l10nRead.removeFromProfile
+                      : context.l10nRead.featureOnProfile),
                 ),
               ),
             ],

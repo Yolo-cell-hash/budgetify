@@ -1179,4 +1179,531 @@ class AppStrings {
   String get themeNameDark => _t('Dark', 'गहरा');
   String get themeNameSmoky => _t('Smoky', 'स्मोकी');
   String get themeNameSeashell => _t('Seashell', 'सीशेल');
+
+  // ── Onboarding ────────────────────────────────────────────────────────────
+  String get onboardWelcomeTitle =>
+      _t('Welcome to\nBudget Tracker', 'Budget Tracker में\nआपका स्वागत है');
+  String get onboardWelcomeDesc => _t(
+        'Track your expenses automatically by reading bank SMS messages',
+        'बैंक SMS संदेश पढ़कर अपने खर्च अपने आप ट्रैक करें',
+      );
+  String get smsPermissionTitle =>
+      _t('SMS Permission Required', 'SMS अनुमति आवश्यक है');
+  String get smsPermissionDesc => _t(
+        'We need SMS permission to automatically detect transactions from your bank messages.',
+        'आपके बैंक संदेशों से लेन-देन अपने आप पहचानने के लिए हमें SMS अनुमति चाहिए।',
+      );
+  String get smsPrivacyNote => _t(
+        'Your SMS stays private and is never uploaded to any server. All processing happens locally on your device.',
+        'आपका SMS निजी रहता है और कभी किसी सर्वर पर अपलोड नहीं होता। सारी प्रोसेसिंग आपके डिवाइस पर ही होती है।',
+      );
+  String get getStarted => _t('Get Started', 'शुरू करें');
+  String get back => _t('Back', 'पीछे');
+  String get grantPermissionAndStart =>
+      _t('Grant Permission & Start', 'अनुमति दें और शुरू करें');
+  String genericError(Object e) => _t('Error: $e', 'त्रुटि: $e');
+
+  // ── Lock screen ───────────────────────────────────────────────────────────
+  String get appLockedTitle => _t('Budgetify is locked', 'Budgetify लॉक है');
+  String get unlock => _t('Unlock', 'अनलॉक करें');
+  String get waiting => _t('Waiting…', 'प्रतीक्षा…');
+
+  // ── Permission request card ───────────────────────────────────────────────
+  String get enableSmsReading => _t('Enable SMS Reading', 'SMS पढ़ना चालू करें');
+  String get smsDeniedDesc => _t(
+        'SMS permission was denied. Please enable it in Settings to auto-detect bank transactions.',
+        'SMS अनुमति अस्वीकृत कर दी गई। बैंक लेन-देन अपने आप पहचानने के लिए कृपया इसे सेटिंग्स में चालू करें।',
+      );
+  String get smsAllowDesc => _t(
+        'Allow Budget Tracker to read your SMS messages to automatically detect and log bank transactions.',
+        'बैंक लेन-देन अपने आप पहचानने और दर्ज करने के लिए Budget Tracker को अपने SMS संदेश पढ़ने दें।',
+      );
+  String get featAutoDetect =>
+      _t('Auto-detect credits & debits', 'जमा और निकासी अपने आप पहचानें');
+  String get featWorksInBackground =>
+      _t('Works in background', 'बैकग्राउंड में काम करता है');
+  String get featSecurePrivate => _t('Secure & private', 'सुरक्षित और निजी');
+  String get openSettings => _t('Open Settings', 'सेटिंग्स खोलें');
+  String get grantPermission => _t('Grant Permission', 'अनुमति दें');
+  String get dataStaysOnDevice =>
+      _t('Your data stays on your device', 'आपका डेटा आपके डिवाइस पर रहता है');
+
+  // ── Manage tags ───────────────────────────────────────────────────────────
+  String get manageTagsIntro => _t(
+        "Delete tags you don't use. Deleting a tag never deletes your "
+            'transactions — they just become unclassified.',
+        'जो टैग आप उपयोग नहीं करते उन्हें हटाएँ। टैग हटाने से आपके लेन-देन कभी '
+            'नहीं हटते — वे बस अवर्गीकृत हो जाते हैं।',
+      );
+  String get hiddenTags => _t('HIDDEN TAGS', 'छिपे हुए टैग');
+  String get restore => _t('Restore', 'पुनर्स्थापित करें');
+  String get deleteTagTooltip => _t('Delete tag', 'टैग हटाएँ');
+  String get untagAndDelete => _t('Untag & Delete', 'टैग हटाएँ और मिटाएँ');
+  String deleteTagTitle(String tag) => _t('Delete "$tag"?', '"$tag" हटाएँ?');
+  String deleteTagWithCount(int count, String tag) => _t(
+        '$count transaction${count == 1 ? '' : 's'} '
+            '${count == 1 ? 'is' : 'are'} tagged "$tag". Deleting the tag will '
+            'untag ${count == 1 ? 'it' : 'them'} (moved to Unclassified). '
+            'The transactions are kept.',
+        '$count लेन-देन पर "$tag" टैग है। टैग हटाने पर ${count == 1 ? 'इसका' : 'इनका'} '
+            'टैग हट जाएगा (अवर्गीकृत में चला जाएगा)। लेन-देन सुरक्षित रहेंगे।',
+      );
+  String get deleteCustomTagDesc =>
+      _t('This custom tag will be removed.', 'यह कस्टम टैग हटा दिया जाएगा।');
+  String get deleteBuiltinTagDesc => _t(
+        'This tag will be hidden from the tag pickers. You can restore it later.',
+        'यह टैग, टैग-चयन से छिप जाएगा। आप इसे बाद में पुनर्स्थापित कर सकते हैं।',
+      );
+  String deletedTagWithCount(int count, String tag) => _t(
+        'Deleted "$tag" and untagged $count transaction${count == 1 ? '' : 's'}',
+        '"$tag" हटाया और $count लेन-देन से टैग हटाया',
+      );
+  String deletedTag(String tag) => _t('Deleted "$tag"', '"$tag" हटाया');
+  String restoredTag(String tag) =>
+      _t('Restored "$tag"', '"$tag" पुनर्स्थापित किया');
+  String tagMeta(bool isCustom, int count) {
+    final kind = isCustom ? _t('Custom', 'कस्टम') : _t('Built-in', 'अंतर्निहित');
+    final usage = count == 0
+        ? _t('unused', 'अप्रयुक्त')
+        : _t('$count tagged', '$count पर टैग');
+    return '$kind · $usage';
+  }
+
+  // ── Export sheet ──────────────────────────────────────────────────────────
+  String get formatLabel => _t('Format', 'फ़ॉर्मेट');
+  String get textFormat => _t('Text', 'टेक्स्ट');
+  String get dateRangeLabel => _t('Date Range', 'तिथि सीमा');
+  String get allTime => _t('All time', 'पूरा समय');
+  String get typeLabel => _t('Type', 'प्रकार');
+  String get allFilter => _t('All', 'सभी');
+  String get payeeMerchantContains =>
+      _t('Payee / Merchant contains', 'प्राप्तकर्ता / व्यापारी में हो');
+  String get merchantQueryHint => _t(
+        'e.g. Swiggy, Amazon (leave blank for all)',
+        'जैसे Swiggy, Amazon (सभी के लिए खाली छोड़ें)',
+      );
+  String get categoriesAll => _t('Categories (all)', 'श्रेणियाँ (सभी)');
+  String categoriesSelected(int n) => _t('Categories ($n)', 'श्रेणियाँ ($n)');
+  String get clearLabel => _t('Clear', 'साफ़ करें');
+  String get exportLabel => _t('Export', 'एक्सपोर्ट');
+
+  // ── Net worth entry editor ────────────────────────────────────────────────
+  String get editEntry => _t('Edit entry', 'प्रविष्टि संपादित करें');
+  String get addToNetWorth => _t('Add to net worth', 'नेट वर्थ में जोड़ें');
+  String get assetKind => _t('Asset', 'संपत्ति');
+  String get liabilityKind => _t('Liability', 'देनदारी');
+  String get nameLabel => _t('Name', 'नाम');
+  String get holdingNameHint =>
+      _t('e.g. HDFC Tax Saver', 'जैसे HDFC Tax Saver');
+  String get investedSoFar => _t('Invested so far', 'अब तक निवेशित');
+  String get currentValue => _t('Current value', 'वर्तमान मूल्य');
+  String get recurringSipRd => _t('Recurring SIP / RD', 'आवर्ती SIP / RD');
+  String get trackEachInstalment =>
+      _t('Track each monthly instalment', 'हर मासिक किस्त ट्रैक करें');
+  String get onDay => _t('On day', 'किस दिन');
+  String get remindToLog => _t('Remind me to log it', 'दर्ज करने की याद दिलाएँ');
+  String get remindToLogDesc => _t(
+        'Get a Yes/No alert at noon (and 8 PM if unanswered).',
+        'दोपहर को हाँ/नहीं अलर्ट पाएँ (और उत्तर न देने पर रात 8 बजे)।',
+      );
+  String get durationOptional => _t('Duration (optional)', 'अवधि (वैकल्पिक)');
+  String get durationDesc => _t(
+        'Add a start & end date to see a progress bar to your goal.',
+        'अपने लक्ष्य तक प्रगति बार देखने के लिए आरंभ और समाप्ति तिथि जोड़ें।',
+      );
+  String get startLabel => _t('Start', 'आरंभ');
+  String get endLabel => _t('End', 'समाप्ति');
+  String catchingUpSince(String month) =>
+      _t('Catching up since $month', '$month से बकाया भर रहे हैं');
+  String get catchUpDesc => _t(
+        "We can't verify past instalments, so just tell us how many you've "
+            'already completed — your progress will reflect them.',
+        'हम पिछली किस्तों की पुष्टि नहीं कर सकते, इसलिए हमें बस बताएँ कि आपने '
+            'कितनी पहले ही पूरी कर लीं — आपकी प्रगति में वे दिखेंगी।',
+      );
+  String get instalmentsAlreadyPaid =>
+      _t('Instalments already paid', 'पहले से भरी किस्तें');
+  String get giveItAName => _t('Give it a name', 'इसे एक नाम दें');
+  String get enterMonthlyAmount =>
+      _t('Enter the monthly amount', 'मासिक राशि दर्ज करें');
+  String get endAfterStart => _t(
+        'End date must be after the start date',
+        'समाप्ति तिथि आरंभ तिथि के बाद होनी चाहिए',
+      );
+  String get enterValueAboveZero =>
+      _t('Enter a value above ₹0', '₹0 से अधिक मान दर्ज करें');
+  String deleteHoldingTitle(bool isInvestment) => _t(
+        'Delete ${isInvestment ? 'investment' : 'entry'}?',
+        '${isInvestment ? 'निवेश' : 'प्रविष्टि'} हटाएँ?',
+      );
+  String deleteHoldingWithPlan(String name) => _t(
+        'This removes "$name", its recurring schedule and all logged '
+            "instalments from your net worth. This can't be undone.",
+        'यह "$name", इसका आवर्ती शेड्यूल और सभी दर्ज किस्तें आपकी नेट वर्थ से '
+            'हटा देगा। इसे पूर्ववत नहीं किया जा सकता।',
+      );
+  String deleteHoldingSimple(String name) => _t(
+        "This removes \"$name\" from your net worth. This can't be undone.",
+        'यह "$name" को आपकी नेट वर्थ से हटा देगा। इसे पूर्ववत नहीं किया जा सकता।',
+      );
+  String dayOrdinal(int n) => _t(_enOrdinal(n), '$n');
+
+  /// Display label for a net-worth holding category. Keys stay the canonical
+  /// English value in the DB; this maps to a Hindi label for display only.
+  String holdingCategoryName(String key) {
+    switch (key) {
+      case 'Fixed Deposit':
+        return _t('Fixed Deposit', 'सावधि जमा');
+      case 'Recurring Deposit':
+        return _t('Recurring Deposit', 'आवर्ती जमा');
+      case 'Mutual Fund':
+        return _t('Mutual Fund', 'म्यूचुअल फंड');
+      case 'Stocks':
+        return _t('Stocks', 'स्टॉक');
+      case 'Bonds':
+        return _t('Bonds', 'बॉन्ड');
+      case 'Gold':
+        return _t('Gold', 'सोना');
+      case 'PPF / EPF':
+        return _t('PPF / EPF', 'PPF / EPF');
+      case 'Crypto':
+        return _t('Crypto', 'क्रिप्टो');
+      case 'Other Investment':
+        return _t('Other Investment', 'अन्य निवेश');
+      case 'Savings':
+        return _t('Savings', 'बचत');
+      case 'Cash':
+        return _t('Cash', 'नकद');
+      case 'Real Estate':
+        return _t('Real Estate', 'रियल एस्टेट');
+      case 'Vehicle':
+        return _t('Vehicle', 'वाहन');
+      case 'Other Asset':
+        return _t('Other Asset', 'अन्य संपत्ति');
+      case 'Home Loan':
+        return _t('Home Loan', 'होम लोन');
+      case 'Personal Loan':
+        return _t('Personal Loan', 'पर्सनल लोन');
+      case 'Car Loan':
+        return _t('Car Loan', 'कार लोन');
+      case 'Credit Card':
+        return _t('Credit Card', 'क्रेडिट कार्ड');
+      case 'Other Liability':
+        return _t('Other Liability', 'अन्य देनदारी');
+      default:
+        return key;
+    }
+  }
+
+  // ── Wrapped share card ────────────────────────────────────────────────────
+  String wrappedCardMonth(DateTime d) => _t(
+        DateFormat('MMMM yyyy').format(d),
+        '${_hiMonths[d.month - 1]} ${d.year}',
+      );
+  String get myMonthInReview =>
+      _t('My month in review', 'मेरा महीना, एक नज़र में');
+  String get privateOnDevice => _t('Private & on-device', 'निजी और ऑन-डिवाइस');
+  String get wSpentThisMonth => _t('SPENT THIS MONTH', 'इस माह खर्च');
+  String get wOfIncomeSaved => _t('OF INCOME SAVED', 'आय में से बचत');
+  String get wOver => _t('Over', 'अधिक');
+  String get wSpentMoreThanEarned =>
+      _t('SPENT MORE THAN EARNED', 'कमाई से ज़्यादा खर्च');
+  String wWentTo(String category) => _t('WENT TO $category', '$category में गया');
+  String get wTransactionsThisMonth =>
+      _t('TRANSACTIONS THIS MONTH', 'इस माह लेन-देन');
+  String get wTopCategory => _t('Top category', 'शीर्ष श्रेणी');
+  String get wTopMerchant => _t('Top merchant', 'शीर्ष व्यापारी');
+  String get wSpendingVsLastMonth =>
+      _t('Spending vs last month', 'पिछले माह की तुलना में खर्च');
+  String get wAvgPerDay => _t('Avg per day', 'प्रति दिन औसत');
+  String get wBiggestExpense => _t('Biggest expense', 'सबसे बड़ा खर्च');
+  String get wNetWorth => _t('Net worth', 'नेट वर्थ');
+  String wInvestedPctOfAssets(int pct) =>
+      _t('$pct% of assets', 'संपत्ति का $pct%');
+  String get wInvested => _t('Invested', 'निवेशित');
+  String get wActivity => _t('Activity', 'गतिविधि');
+  String wActivitySummary(int txns, int merchants) => _t(
+        '$txns txns · $merchants merchants',
+        '$txns लेन-देन · $merchants व्यापारी',
+      );
+  String wMover(String label, bool up) =>
+      _t('$label ${up ? 'up' : 'down'}', '$label ${up ? 'ऊपर' : 'नीचे'}');
+
+  // ── Profile share card ─────────────────────────────────────────────────────
+  String get defaultBudgeteer => _t('Budgeteer', 'बजटीयर');
+  String get trackingWithBudgetify =>
+      _t('Tracking with Budgetify', 'Budgetify के साथ ट्रैकिंग');
+  String get trophyCase => _t('TROPHY CASE', 'ट्रॉफ़ी केस');
+  String get dayStreakLabel => _t('day streak', 'दिन की स्ट्रीक');
+  String trophyWord(int n) => _t(n == 1 ? 'trophy' : 'trophies', 'ट्रॉफ़ी');
+  String titleWord(int n) => _t(n == 1 ? 'title' : 'titles', 'खिताब');
+
+  // ── Streak rewards (catalog content) ────────────────────────────────────────
+  String get streakRewardGroup => _t('Streak Reward', 'स्ट्रीक रिवॉर्ड');
+  String streakRewardName(String id) {
+    switch (id) {
+      case 'theme_smoky_ivory':
+        return _t('Smoky Blue & Warm Ivory', 'स्मोकी ब्लू और वॉर्म आइवरी');
+      case 'theme_seashell_mauve':
+        return _t('Soft Seashell & Dusty Mauve', 'सॉफ़्ट सीशेल और डस्टी मॉव');
+      default:
+        return id;
+    }
+  }
+  String streakRewardBlurb(String id) {
+    switch (id) {
+      case 'theme_smoky_ivory':
+        return _t(
+          'A calm smoky-blue accent on a warm ivory canvas. Unlocked at a 3-day streak.',
+          'गर्म आइवरी कैनवास पर शांत स्मोकी-ब्लू रंग। 3-दिन की स्ट्रीक पर अनलॉक।',
+        );
+      case 'theme_seashell_mauve':
+        return _t(
+          'Blush seashell with a dusty-mauve accent. Unlocked at a 7-day streak.',
+          'डस्टी-मॉव रंग के साथ ब्लश सीशेल। 7-दिन की स्ट्रीक पर अनलॉक।',
+        );
+      default:
+        return '';
+    }
+  }
+
+  // ── Gamification catalog (display names; ids stay canonical keys) ───────────
+  String achievementName(String id) {
+    switch (id) {
+      case 'streak':
+        return _t('Daily Streak', 'रोज़ की स्ट्रीक');
+      case 'amount':
+        return _t('Money Tracked', 'ट्रैक किया पैसा');
+      case 'txn':
+        return _t('Transactions', 'लेन-देन');
+      case 'history':
+        return _t('Time Tracked', 'ट्रैक किया समय');
+      case 'tagged':
+        return _t('Fully Tagged', 'पूरी तरह टैग');
+      case 'budget':
+        return _t('Budget Hero', 'बजट हीरो');
+      case 'saver':
+        return _t('Super Saver', 'सुपर सेवर');
+      case 'networth':
+        return _t('Net Worth', 'नेट वर्थ');
+      case 'debtfree':
+        return _t('Debt-Free', 'कर्ज़-मुक्त');
+      case 'nospend':
+        return _t('No-Spend Days', 'बिना-खर्च दिन');
+      case 'goals':
+        return _t('Goal Getter', 'लक्ष्य-प्राप्तकर्ता');
+      case 'explorer':
+        return _t('Category Explorer', 'श्रेणी अन्वेषक');
+      default:
+        return id;
+    }
+  }
+  String achievementBlurb(String id) {
+    switch (id) {
+      case 'streak':
+        return _t(
+          'Open Budgetify on consecutive days. Your best streak keeps the badge.',
+          'लगातार दिनों तक Budgetify खोलें। आपकी सर्वश्रेष्ठ स्ट्रीक बैज बनाए रखती है।',
+        );
+      case 'amount':
+        return _t(
+          'Total value tracked across every transaction, money in and out.',
+          'हर लेन-देन में ट्रैक किया कुल मूल्य, आने और जाने वाला पैसा।',
+        );
+      case 'txn':
+        return _t(
+          'Every transaction the app has tracked for you.',
+          'ऐप ने आपके लिए ट्रैक किए सभी लेन-देन।',
+        );
+      case 'history':
+        return _t(
+          'How long your money history spans.',
+          'आपका पैसा-इतिहास कितने समय तक फैला है।',
+        );
+      case 'tagged':
+        return _t(
+          'Months where every transaction was categorised (need not be in a row).',
+          'वे महीने जब हर लेन-देन वर्गीकृत था (लगातार होना ज़रूरी नहीं)।',
+        );
+      case 'budget':
+        return _t(
+          'Months you finished within your overall budget.',
+          'वे महीने जब आप अपने कुल बजट के भीतर रहे।',
+        );
+      case 'saver':
+        return _t(
+          'Months you saved at least 20% of your income.',
+          'वे महीने जब आपने अपनी आय का कम से कम 20% बचाया।',
+        );
+      case 'networth':
+        return _t(
+          'Your tracked net worth (assets minus debts).',
+          'आपकी ट्रैक की नेट वर्थ (संपत्ति घटा कर्ज़)।',
+        );
+      case 'debtfree':
+        return _t(
+          'Stay debt-free (assets, zero liabilities) for 120 days straight.',
+          'लगातार 120 दिन कर्ज़-मुक्त रहें (संपत्ति, शून्य देनदारी)।',
+        );
+      case 'nospend':
+        return _t(
+          'Days with zero spending, totalled up over time.',
+          'शून्य खर्च वाले दिन, समय के साथ जोड़े गए।',
+        );
+      case 'goals':
+        return _t(
+          'Savings goals you have fully funded.',
+          'वे बचत-लक्ष्य जिन्हें आपने पूरी तरह पूरा किया।',
+        );
+      case 'explorer':
+        return _t(
+          'Different spending categories you have used.',
+          'आपके द्वारा उपयोग की गई विभिन्न खर्च श्रेणियाँ।',
+        );
+      default:
+        return '';
+    }
+  }
+  String titleName(String id) {
+    switch (id) {
+      case 'foodie':
+        return _t('Foodie', 'फ़ूडी');
+      case 'homechef':
+        return _t('Home Chef', 'होम शेफ़');
+      case 'shopaholic':
+        return _t('Shopaholic', 'शॉपहॉलिक');
+      case 'roadwarrior':
+        return _t('Road Warrior', 'रोड वॉरियर');
+      case 'billmaster':
+        return _t('Bill Master', 'बिल मास्टर');
+      case 'showstopper':
+        return _t('Showstopper', 'शोस्टॉपर');
+      case 'wellness':
+        return _t('Wellness Warrior', 'वेलनेस वॉरियर');
+      case 'globetrotter':
+        return _t('Globetrotter', 'ग्लोबट्रॉटर');
+      case 'scholar':
+        return _t('Scholar', 'स्कॉलर');
+      case 'investor':
+        return _t('Investor', 'निवेशक');
+      case 'moneymagnet':
+        return _t('Money Magnet', 'मनी मैग्नेट');
+      case 'frugal':
+        return _t('Frugal Master', 'फ्रूगल मास्टर');
+      case 'broke':
+        return _t('Broke Spender', 'ब्रोक स्पेंडर');
+      default:
+        return id;
+    }
+  }
+  String titleBlurb(String id) {
+    switch (id) {
+      case 'foodie':
+        return _t(
+          'Have 6 months where Food & Dining was 35%+ of your income.',
+          '6 महीने ऐसे हों जब खान-पान आपकी आय का 35%+ रहा।',
+        );
+      case 'homechef':
+        return _t(
+          'Have 6 months where Groceries were 25%+ of your income.',
+          '6 महीने ऐसे हों जब किराना आपकी आय का 25%+ रहा।',
+        );
+      case 'shopaholic':
+        return _t(
+          'Have 6 months where Shopping was 25%+ of your income.',
+          '6 महीने ऐसे हों जब खरीदारी आपकी आय का 25%+ रही।',
+        );
+      case 'roadwarrior':
+        return _t(
+          'Have 6 months where Transportation was 20%+ of your income.',
+          '6 महीने ऐसे हों जब परिवहन आपकी आय का 20%+ रहा।',
+        );
+      case 'billmaster':
+        return _t(
+          'Have 6 months where Bills & Utilities were 25%+ of your income.',
+          '6 महीने ऐसे हों जब बिल और यूटिलिटी आपकी आय का 25%+ रहे।',
+        );
+      case 'showstopper':
+        return _t(
+          'Have 6 months where Entertainment was 20%+ of your income.',
+          '6 महीने ऐसे हों जब मनोरंजन आपकी आय का 20%+ रहा।',
+        );
+      case 'wellness':
+        return _t(
+          'Have 6 months where Health & Medical was 15%+ of your income.',
+          '6 महीने ऐसे हों जब स्वास्थ्य और चिकित्सा आपकी आय का 15%+ रहा।',
+        );
+      case 'globetrotter':
+        return _t(
+          'Have 3 months where Travel was 25%+ of your income.',
+          '3 महीने ऐसे हों जब यात्रा आपकी आय का 25%+ रही।',
+        );
+      case 'scholar':
+        return _t(
+          'Have 6 months where Education was 15%+ of your income.',
+          '6 महीने ऐसे हों जब शिक्षा आपकी आय का 15%+ रही।',
+        );
+      case 'investor':
+        return _t(
+          'Have 6 months where you invested 20%+ of your income.',
+          '6 महीने ऐसे हों जब आपने अपनी आय का 20%+ निवेश किया।',
+        );
+      case 'moneymagnet':
+        return _t(
+          'Have 6 months with a savings rate of 35%+.',
+          '35%+ बचत दर वाले 6 महीने हों।',
+        );
+      case 'frugal':
+        return _t(
+          'Have 6 months with a savings rate of 60%+.',
+          '60%+ बचत दर वाले 6 महीने हों।',
+        );
+      case 'broke':
+        return _t(
+          'Rack up 90 total no-spend days (they need not be in a row).',
+          'कुल 90 बिना-खर्च दिन जमा करें (लगातार होना ज़रूरी नहीं)।',
+        );
+      default:
+        return '';
+    }
+  }
+
+  /// Display label for a [GamiUnit]/title unit string ('days', 'months', …).
+  String gamiUnit(String unit) {
+    switch (unit) {
+      case 'days':
+        return _t('days', 'दिन');
+      case 'months':
+        return _t('months', 'माह');
+      case 'rupees':
+        return _t('rupees', 'रुपये');
+      case 'count':
+        return _t('count', 'गिनती');
+      default:
+        return unit;
+    }
+  }
+
+  /// Translate the time-unit words inside a tier badge label ('7-Day',
+  /// '3 Months', '1 Year', 'All'…). Currency/number labels pass through.
+  String tierBadgeLabel(String label) {
+    if (lang != AppLanguage.hindi) return label;
+    return label
+        .replaceAll('Days', 'दिन')
+        .replaceAll('Day', 'दिन')
+        .replaceAll('Years', 'वर्ष')
+        .replaceAll('Year', 'वर्ष')
+        .replaceAll('Months', 'माह')
+        .replaceAll('Month', 'माह')
+        .replaceAll('Goals', 'लक्ष्य')
+        .replaceAll('Goal', 'लक्ष्य')
+        .replaceAll('All', 'सभी');
+  }
+  String nextTierLabel(String label) => _t('Next: $label', 'अगला: $label');
+
+  // ── Misc toasts ────────────────────────────────────────────────────────────
+  String errorLoadingTransactions(Object e) =>
+      _t('Error loading transactions: $e', 'लेन-देन लोड करने में त्रुटि: $e');
+  String get enterAmountAboveZero =>
+      _t('Enter an amount above ₹0', '₹0 से अधिक राशि दर्ज करें');
 }

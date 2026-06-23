@@ -1,14 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
 
 import 'package:budget_tracker/models/achievement.dart';
+import 'package:budget_tracker/providers/locale_provider.dart';
 import 'package:budget_tracker/services/gamification_service.dart';
 import 'package:budget_tracker/widgets/avatars.dart';
 import 'package:budget_tracker/widgets/badge_medallion.dart';
 import 'package:budget_tracker/widgets/profile_share_card.dart';
 
 Future<void> _pump(WidgetTester tester, Widget child) async {
-  await tester.pumpWidget(MaterialApp(home: Scaffold(body: Center(child: child))));
+  await tester.pumpWidget(
+    ChangeNotifierProvider<LocaleProvider>(
+      create: (_) => LocaleProvider(),
+      child: MaterialApp(home: Scaffold(body: Center(child: child))),
+    ),
+  );
   await tester.pump(const Duration(milliseconds: 100)); // not settle: badges loop
 }
 

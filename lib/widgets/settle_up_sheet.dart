@@ -62,7 +62,8 @@ class _SettleUpSheetState extends State<_SettleUpSheet> {
     final amount = double.tryParse(_amountCtrl.text.trim()) ?? 0;
     if (amount <= 0) {
       showAppToast(context,
-          message: 'Enter an amount above ₹0', type: AppToastType.warning);
+          message: context.l10nRead.enterAmountAboveZero,
+          type: AppToastType.warning);
       return;
     }
     setState(() => _saving = true);

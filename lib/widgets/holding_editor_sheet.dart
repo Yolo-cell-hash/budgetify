@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
+import '../l10n/l10n.dart';
 import '../models/holding.dart';
 import '../models/sip.dart';
 import '../providers/theme_provider.dart';
@@ -170,26 +170,29 @@ class _HoldingEditorSheetState extends State<_HoldingEditorSheet> {
     final amount = double.tryParse(_amountCtrl.text.trim());
 
     if (name.isEmpty) {
-      showAppToast(context, message: 'Give it a name', type: AppToastType.warning);
+      showAppToast(context,
+          message: context.l10nRead.giveItAName, type: AppToastType.warning);
       return;
     }
     if (_showAutomation) {
       if (amount == null || amount <= 0) {
         showAppToast(context,
-            message: 'Enter the monthly amount', type: AppToastType.warning);
+            message: context.l10nRead.enterMonthlyAmount,
+            type: AppToastType.warning);
         return;
       }
       if (_startDate != null &&
           _endDate != null &&
           _endDate!.isBefore(_startDate!)) {
         showAppToast(context,
-            message: 'End date must be after the start date',
+            message: context.l10nRead.endAfterStart,
             type: AppToastType.warning);
         return;
       }
     } else if (value <= 0) {
       showAppToast(context,
-          message: 'Enter a value above ₹0', type: AppToastType.warning);
+          message: context.l10nRead.enterValueAboveZero,
+          type: AppToastType.warning);
       return;
     }
 
@@ -252,23 +255,20 @@ class _HoldingEditorSheetState extends State<_HoldingEditorSheet> {
       builder: (ctx) => AppDialog(
         icon: Icons.delete_outline_rounded,
         accent: AppColors.dangerLight,
-        title: 'Delete ${isInvestment ? 'investment' : 'entry'}?',
+        title: context.l10nRead.deleteHoldingTitle(isInvestment),
         subtitle: hasPlan
-            ? 'This removes "${_nameCtrl.text.trim()}", its recurring schedule '
-                'and all logged instalments from your net worth. This can\'t be '
-                'undone.'
-            : 'This removes "${_nameCtrl.text.trim()}" from your net worth. '
-                'This can\'t be undone.',
+            ? context.l10nRead.deleteHoldingWithPlan(_nameCtrl.text.trim())
+            : context.l10nRead.deleteHoldingSimple(_nameCtrl.text.trim()),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
+            child: Text(context.l10nRead.commonCancel),
           ),
           ElevatedButton(
             style:
                 ElevatedButton.styleFrom(backgroundColor: AppColors.dangerLight),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete'),
+            child: Text(context.l10nRead.commonDelete),
           ),
         ],
       ),
@@ -328,7 +328,9 @@ class _HoldingEditorSheetState extends State<_HoldingEditorSheet> {
                   const SizedBox(width: 14),
                   Expanded(
                     child: Text(
-                      _editing ? 'Edit entry' : 'Add to net worth',
+                      _editing
+                          ? context.l10n.editEntry
+                          : context.l10n.addToNetWorth,
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
@@ -344,16 +346,18 @@ class _HoldingEditorSheetState extends State<_HoldingEditorSheet> {
               // Asset / Liability toggle
               Row(
                 children: [
-                  _kindChip('Asset', _kind == HoldingKind.asset,
+                  _kindChip(context.l10n.assetKind, _kind == HoldingKind.asset,
                       () => _selectKind(HoldingKind.asset)),
                   const SizedBox(width: 8),
-                  _kindChip('Liability', _kind == HoldingKind.liability,
+                  _kindChip(
+                      context.l10n.liabilityKind,
+                      _kind == HoldingKind.liability,
                       () => _selectKind(HoldingKind.liability)),
                 ],
               ),
               const SizedBox(height: 16),
 
-              _label(colors, 'Type'),
+              _label(colors, context.l10n.typeLabel),
               const SizedBox(height: 10),
               SizedBox(
                 height: 38,
@@ -378,7 +382,7 @@ class _HoldingEditorSheetState extends State<_HoldingEditorSheet> {
                           ),
                         ),
                         child: Text(
-                          '${HoldingCategories.icon(c)}  $c',
+                          '${HoldingCategories.icon(c)}  ${context.l10n.holdingCategoryName(c)}',
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
@@ -394,18 +398,22 @@ class _HoldingEditorSheetState extends State<_HoldingEditorSheet> {
               ),
               const SizedBox(height: 16),
 
-              _label(colors, 'Name'),
+              _label(colors, context.l10n.nameLabel),
               const SizedBox(height: 8),
               TextField(
                 controller: _nameCtrl,
                 textCapitalization: TextCapitalization.words,
-                decoration: const InputDecoration(
-                  hintText: 'e.g. HDFC Tax Saver',
+                decoration: InputDecoration(
+                  hintText: context.l10n.holdingNameHint,
                 ),
               ),
               const SizedBox(height: 16),
 
-              _label(colors, _showAutomation ? 'Invested so far' : 'Current value'),
+              _label(
+                  colors,
+                  _showAutomation
+                      ? context.l10n.investedSoFar
+                      : context.l10n.currentValue),
               const SizedBox(height: 8),
               TextField(
                 controller: _valueCtrl,
@@ -432,19 +440,20 @@ class _HoldingEditorSheetState extends State<_HoldingEditorSheet> {
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.dangerLight,
                       ),
-                      child: const Text('Delete'),
+                      child: Text(context.l10n.commonDelete),
                     )
                   else
                     OutlinedButton(
                       onPressed:
                           _saving ? null : () => Navigator.pop(context, false),
-                      child: const Text('Cancel'),
+                      child: Text(context.l10n.commonCancel),
                     ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton(
                       onPressed: _saving ? null : _save,
-                      child: Text(_editing ? 'Save' : 'Add'),
+                      child: Text(
+                          _editing ? context.l10n.commonSave : context.l10n.addLabel),
                     ),
                   ),
                 ],
@@ -472,13 +481,13 @@ class _HoldingEditorSheetState extends State<_HoldingEditorSheet> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Recurring SIP / RD',
+                Text(context.l10n.recurringSipRd,
                     style: TextStyle(
                         fontSize: 13.5,
                         fontWeight: FontWeight.w700,
                         color: colors.text)),
                 const SizedBox(height: 2),
-                Text('Track each monthly instalment',
+                Text(context.l10n.trackEachInstalment,
                     style:
                         TextStyle(fontSize: 11.5, color: colors.textSecondary)),
               ],
@@ -505,7 +514,7 @@ class _HoldingEditorSheetState extends State<_HoldingEditorSheet> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _label(colors, 'Monthly amount'),
+                  _label(colors, context.l10n.monthlyAmount),
                   const SizedBox(height: 8),
                   TextField(
                     controller: _amountCtrl,
@@ -523,14 +532,15 @@ class _HoldingEditorSheetState extends State<_HoldingEditorSheet> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _label(colors, 'On day'),
+                  _label(colors, context.l10n.onDay),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<int>(
                     initialValue: _dayOfMonth,
                     isExpanded: true,
                     items: [
                       for (var d = 1; d <= 31; d++)
-                        DropdownMenuItem(value: d, child: Text(_ordinal(d))),
+                        DropdownMenuItem(
+                            value: d, child: Text(context.l10n.dayOrdinal(d))),
                     ],
                     onChanged: (v) =>
                         setState(() => _dayOfMonth = v ?? _dayOfMonth),
@@ -543,29 +553,29 @@ class _HoldingEditorSheetState extends State<_HoldingEditorSheet> {
         const SizedBox(height: 8),
         _switchTile(
           colors,
-          title: 'Remind me to log it',
-          subtitle: 'Get a Yes/No alert at noon (and 8 PM if unanswered).',
+          title: context.l10n.remindToLog,
+          subtitle: context.l10n.remindToLogDesc,
           value: _remindMe,
           onChanged: (v) => setState(() => _remindMe = v),
         ),
         const SizedBox(height: 16),
-        _label(colors, 'Duration (optional)'),
+        _label(colors, context.l10n.durationOptional),
         const SizedBox(height: 4),
         Text(
-          'Add a start & end date to see a progress bar to your goal.',
+          context.l10n.durationDesc,
           style: TextStyle(fontSize: 12, color: colors.textSecondary),
         ),
         const SizedBox(height: 10),
         Row(
           children: [
             Expanded(
-              child: _dateField(
-                  colors, 'Start', _startDate, () => _pickDate(isStart: true)),
+              child: _dateField(colors, context.l10n.startLabel, _startDate,
+                  () => _pickDate(isStart: true)),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: _dateField(
-                  colors, 'End', _endDate, () => _pickDate(isStart: false)),
+              child: _dateField(colors, context.l10n.endLabel, _endDate,
+                  () => _pickDate(isStart: false)),
             ),
           ],
         ),
@@ -579,7 +589,7 @@ class _HoldingEditorSheetState extends State<_HoldingEditorSheet> {
 
   Widget _catchUpCard(AppColors colors) {
     final fmtStart =
-        _startDate != null ? DateFormat('MMM yyyy').format(_startDate!) : '';
+        _startDate != null ? context.l10n.monthYearShort(_startDate!) : '';
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -596,7 +606,7 @@ class _HoldingEditorSheetState extends State<_HoldingEditorSheet> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Catching up since $fmtStart',
+                  context.l10n.catchingUpSince(fmtStart),
                   style: TextStyle(
                     fontSize: 13.5,
                     fontWeight: FontWeight.w700,
@@ -608,8 +618,7 @@ class _HoldingEditorSheetState extends State<_HoldingEditorSheet> {
           ),
           const SizedBox(height: 6),
           Text(
-            'We can\'t verify past instalments, so just tell us how many '
-            'you\'ve already completed — your progress will reflect them.',
+            context.l10n.catchUpDesc,
             style: TextStyle(
               fontSize: 12.5,
               height: 1.35,
@@ -620,7 +629,7 @@ class _HoldingEditorSheetState extends State<_HoldingEditorSheet> {
           Row(
             children: [
               Expanded(
-                child: Text('Instalments already paid',
+                child: Text(context.l10n.instalmentsAlreadyPaid,
                     style: TextStyle(fontSize: 13.5, color: colors.text)),
               ),
               _stepperButton(colors, Icons.remove, () {
@@ -720,7 +729,7 @@ class _HoldingEditorSheetState extends State<_HoldingEditorSheet> {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                value != null ? DateFormat('d MMM yyyy').format(value) : label,
+                value != null ? context.l10n.mediumDate(value) : label,
                 style: TextStyle(
                   fontSize: 13.5,
                   color: value != null ? colors.text : colors.textTertiary,
@@ -774,18 +783,4 @@ class _HoldingEditorSheetState extends State<_HoldingEditorSheet> {
           color: colors.textSecondary,
         ),
       );
-}
-
-String _ordinal(int n) {
-  if (n >= 11 && n <= 13) return '${n}th';
-  switch (n % 10) {
-    case 1:
-      return '${n}st';
-    case 2:
-      return '${n}nd';
-    case 3:
-      return '${n}rd';
-    default:
-      return '${n}th';
-  }
 }

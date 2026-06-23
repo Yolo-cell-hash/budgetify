@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/l10n.dart';
+
 /// Widget for requesting SMS permission from the user
 class PermissionRequestCard extends StatelessWidget {
   final VoidCallback onRequestPermission;
@@ -52,9 +54,9 @@ class PermissionRequestCard extends StatelessWidget {
           const SizedBox(height: 16),
 
           // Title
-          const Text(
-            'Enable SMS Reading',
-            style: TextStyle(
+          Text(
+            context.l10n.enableSmsReading,
+            style: const TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
               color: Colors.white,
@@ -65,8 +67,8 @@ class PermissionRequestCard extends StatelessWidget {
           // Description
           Text(
             isPermanentlyDenied
-                ? 'SMS permission was denied. Please enable it in Settings to auto-detect bank transactions.'
-                : 'Allow Budget Tracker to read your SMS messages to automatically detect and log bank transactions.',
+                ? context.l10n.smsDeniedDesc
+                : context.l10n.smsAllowDesc,
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 14,
@@ -77,9 +79,9 @@ class PermissionRequestCard extends StatelessWidget {
 
           // Features list
           if (!isPermanentlyDenied) ...[
-            _buildFeature('Auto-detect credits & debits'),
-            _buildFeature('Works in background'),
-            _buildFeature('Secure & private'),
+            _buildFeature(context.l10n.featAutoDetect),
+            _buildFeature(context.l10n.featWorksInBackground),
+            _buildFeature(context.l10n.featSecurePrivate),
             const SizedBox(height: 20),
           ],
 
@@ -100,7 +102,9 @@ class PermissionRequestCard extends StatelessWidget {
                 elevation: 0,
               ),
               child: Text(
-                isPermanentlyDenied ? 'Open Settings' : 'Grant Permission',
+                isPermanentlyDenied
+                    ? context.l10n.openSettings
+                    : context.l10n.grantPermission,
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -112,7 +116,7 @@ class PermissionRequestCard extends StatelessWidget {
           if (!isPermanentlyDenied) ...[
             const SizedBox(height: 12),
             Text(
-              'Your data stays on your device',
+              context.l10n.dataStaysOnDevice,
               style: TextStyle(
                 fontSize: 12,
                 color: Colors.white.withOpacity(0.7),

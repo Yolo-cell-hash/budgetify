@@ -1,4 +1,5 @@
 import 'package:budget_tracker/models/streak_reward.dart';
+import 'package:budget_tracker/providers/locale_provider.dart';
 import 'package:budget_tracker/providers/theme_provider.dart';
 import 'package:budget_tracker/services/gamification_service.dart';
 import 'package:budget_tracker/widgets/streak_reward_road.dart';
@@ -122,8 +123,12 @@ void main() {
       // longestStreak 0 → every medallion is locked, so there are no repeating
       // animations to settle; a single frame fully renders the road.
       await tester.pumpWidget(
-        ChangeNotifierProvider<ThemeProvider>.value(
-          value: ThemeProvider(),
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<ThemeProvider>.value(value: ThemeProvider()),
+            ChangeNotifierProvider<LocaleProvider>(
+                create: (_) => LocaleProvider()),
+          ],
           child: const MaterialApp(
             home: Scaffold(
               body: SingleChildScrollView(

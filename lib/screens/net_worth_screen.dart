@@ -461,7 +461,7 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
           Text(HoldingCategories.icon(cat), style: const TextStyle(fontSize: 12)),
           const SizedBox(width: 6),
           Text(
-            cat.toUpperCase(),
+            context.l10n.holdingCategoryName(cat).toUpperCase(),
             style: TextStyle(
               fontSize: 10.5,
               letterSpacing: 0.8,
@@ -528,7 +528,9 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        sip != null ? _scheduleLine(sip) : h.category,
+                        sip != null
+                            ? _scheduleLine(sip)
+                            : context.l10n.holdingCategoryName(h.category),
                         style: TextStyle(
                             fontSize: 11.5, color: colors.textSecondary),
                       ),

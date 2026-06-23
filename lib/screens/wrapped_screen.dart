@@ -179,7 +179,6 @@ class _WrappedScreenState extends State<WrappedScreen>
   }
 
   Widget _monthSelector(AppColors colors) {
-    final monthFormat = DateFormat('MMM yyyy');
     final now = DateTime.now();
     return SizedBox(
       height: 44,

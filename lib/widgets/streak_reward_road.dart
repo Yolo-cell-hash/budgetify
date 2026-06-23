@@ -115,8 +115,8 @@ class _StreakHeader extends StatelessWidget {
           Text(
             next == null
                 ? context.l10n.allStreakRewardsUnlocked
-                : context.l10n
-                    .openToUnlock(_daysAway(context, next), next.name),
+                : context.l10n.openToUnlock(_daysAway(context, next),
+                    context.l10n.streakRewardName(next.id)),
             style: TextStyle(
               fontSize: 13,
               height: 1.35,
@@ -261,7 +261,7 @@ class _RewardCard extends StatelessWidget {
                     Row(
                       children: [
                         Text(
-                          '${reward.days}-Day',
+                          context.l10n.tierBadgeLabel('${reward.days}-Day'),
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
@@ -279,7 +279,7 @@ class _RewardCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      reward.name,
+                      context.l10n.streakRewardName(reward.id),
                       style: TextStyle(
                         fontSize: 14.5,
                         fontWeight: FontWeight.w700,
@@ -294,7 +294,7 @@ class _RewardCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            reward.blurb,
+            context.l10n.streakRewardBlurb(reward.id),
             style: TextStyle(
               fontSize: 12.5,
               height: 1.35,

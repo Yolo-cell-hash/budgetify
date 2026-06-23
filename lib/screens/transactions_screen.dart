@@ -172,7 +172,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       setState(() => _isLoading = false);
       if (mounted) {
         showAppToast(context,
-            message: 'Error loading transactions: $e',
+            message: context.l10nRead.errorLoadingTransactions(e),
             type: AppToastType.error);
       }
     }

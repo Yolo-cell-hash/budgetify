@@ -87,8 +87,8 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
         context,
         rarity: best.rarity,
         emblem: best.emblem,
-        groupName: 'Streak Reward',
-        tierLabel: best.name,
+        groupName: context.l10nRead.streakRewardGroup,
+        tierLabel: context.l10nRead.streakRewardName(best.id),
       );
     }
   }
@@ -112,8 +112,8 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
         context,
         rarity: tier.rarity,
         emblem: group.emblem,
-        groupName: group.name,
-        tierLabel: tier.label,
+        groupName: context.l10nRead.achievementName(group.id),
+        tierLabel: context.l10nRead.tierBadgeLabel(tier.label),
       );
     }
   }
@@ -184,8 +184,8 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
       showcased.add((
         rarity: tier.rarity,
         emblem: b.group.emblem,
-        label: tier.label,
-        group: b.group.name,
+        label: context.l10n.tierBadgeLabel(tier.label),
+        group: context.l10n.achievementName(b.group.id),
       ));
     }
 
@@ -196,10 +196,10 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
         if (p.earned[i]) {
           allEarned.add((
             id: g.badgeId(i),
-            group: g.name,
+            group: context.l10n.achievementName(g.id),
             emblem: g.emblem,
             rarity: g.tiers[i].rarity,
-            label: g.tiers[i].label,
+            label: context.l10n.tierBadgeLabel(g.tiers[i].label),
           ));
         }
       }

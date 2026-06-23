@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/l10n.dart';
 import '../models/transaction_model.dart';
 import '../providers/theme_provider.dart';
 import '../services/custom_tag_service.dart';
@@ -56,21 +57,16 @@ class _ManageTagsScreenState extends State<ManageTagsScreen> {
       builder: (ctx) => AppDialog(
         icon: Icons.label_off_rounded,
         accent: const Color(0xFFD25A5F),
-        title: 'Delete "$tag"?',
+        title: context.l10nRead.deleteTagTitle(tag),
         subtitle: count > 0
-            ? '$count transaction${count == 1 ? '' : 's'} '
-                  '${count == 1 ? 'is' : 'are'} tagged "$tag". '
-                  'Deleting the tag will untag '
-                  '${count == 1 ? 'it' : 'them'} (moved to Unclassified). '
-                  'The transactions are kept.'
+            ? context.l10nRead.deleteTagWithCount(count, tag)
             : isCustom
-                ? 'This custom tag will be removed.'
-                : 'This tag will be hidden from the tag pickers. '
-                      'You can restore it later.',
+                ? context.l10nRead.deleteCustomTagDesc
+                : context.l10nRead.deleteBuiltinTagDesc,
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
+            child: Text(context.l10nRead.commonCancel),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -78,7 +74,9 @@ class _ManageTagsScreenState extends State<ManageTagsScreen> {
               backgroundColor: const Color(0xFFD25A5F),
               foregroundColor: Colors.white,
             ),
-            child: Text(count > 0 ? 'Untag & Delete' : 'Delete'),
+            child: Text(count > 0
+                ? context.l10nRead.untagAndDelete
+                : context.l10nRead.commonDelete),
           ),
         ],
       ),
@@ -93,9 +91,8 @@ class _ManageTagsScreenState extends State<ManageTagsScreen> {
       showAppToast(
         context,
         message: count > 0
-            ? 'Deleted "$tag" and untagged $count transaction'
-                  '${count == 1 ? '' : 's'}'
-            : 'Deleted "$tag"',
+            ? context.l10nRead.deletedTagWithCount(count, tag)
+            : context.l10nRead.deletedTag(tag),
         type: AppToastType.success,
       );
     }
@@ -105,7 +102,8 @@ class _ManageTagsScreenState extends State<ManageTagsScreen> {
     await _tags.restoreTag(tag);
     await _load();
     if (mounted) {
-      showAppToast(context, message: 'Restored "$tag"', type: AppToastType.info);
+      showAppToast(context,
+          message: context.l10nRead.restoredTag(tag), type: AppToastType.info);
     }
   }
 
@@ -116,7 +114,7 @@ class _ManageTagsScreenState extends State<ManageTagsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const AppBarTitle('Manage Tags', icon: Icons.sell_rounded),
+        title: AppBarTitle(context.l10n.manageTags, icon: Icons.sell_rounded),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -124,8 +122,7 @@ class _ManageTagsScreenState extends State<ManageTagsScreen> {
               padding: const EdgeInsets.all(16),
               children: [
                 Text(
-                  'Delete tags you don\'t use. Deleting a tag never deletes '
-                  'your transactions — they just become unclassified.',
+                  context.l10n.manageTagsIntro,
                   style: TextStyle(fontSize: 13, color: colors.textSecondary),
                 ),
                 const SizedBox(height: 16),
@@ -142,7 +139,7 @@ class _ManageTagsScreenState extends State<ManageTagsScreen> {
                 if (hidden.isNotEmpty) ...[
                   const SizedBox(height: 24),
                   Text(
-                    'HIDDEN TAGS',
+                    context.l10n.hiddenTags,
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -161,10 +158,10 @@ class _ManageTagsScreenState extends State<ManageTagsScreen> {
                             ExpenseCategories.getIcon(hidden[i]),
                             style: const TextStyle(fontSize: 20),
                           ),
-                          title: Text(hidden[i]),
+                          title: Text(context.l10n.categoryName(hidden[i])),
                           trailing: TextButton(
                             onPressed: () => _restore(hidden[i]),
-                            child: const Text('Restore'),
+                            child: Text(context.l10n.restore),
                           ),
                         ),
                       ],
@@ -213,21 +210,20 @@ class _ManageTagsScreenState extends State<ManageTagsScreen> {
         ),
       ),
       title: Text(
-        tag,
+        context.l10n.categoryName(tag),
         style: TextStyle(
           fontWeight: FontWeight.w500,
           color: colors.text,
         ),
       ),
       subtitle: Text(
-        '${isCustom ? 'Custom' : 'Built-in'} · '
-        '${count == 0 ? 'unused' : '$count tagged'}',
+        context.l10n.tagMeta(isCustom, count),
         style: TextStyle(fontSize: 12, color: colors.textTertiary),
       ),
       trailing: IconButton(
         icon: const Icon(Icons.delete_outline_rounded),
         color: const Color(0xFFD25A5F),
-        tooltip: 'Delete tag',
+        tooltip: context.l10n.deleteTagTooltip,
         onPressed: () => _deleteTag(tag),
       ),
     );
