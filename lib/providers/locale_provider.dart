@@ -25,8 +25,11 @@ class LocaleProvider extends ChangeNotifier {
     if (_isInitialized) return;
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString(_key);
-    _language =
-        saved == 'hi' ? AppLanguage.hindi : AppLanguage.english;
+    _language = switch (saved) {
+      'hi' => AppLanguage.hindi,
+      'mr' => AppLanguage.marathi,
+      _ => AppLanguage.english,
+    };
     _isInitialized = true;
     notifyListeners();
   }
