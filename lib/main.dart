@@ -62,7 +62,7 @@ class MyApp extends StatelessWidget {
           debugShowCheckedModeBanner: false,
           navigatorKey: NotificationService.navigatorKey,
           locale: localeProvider.locale,
-          supportedLocales: const [Locale('en'), Locale('hi')],
+          supportedLocales: const [Locale('en'), Locale('hi'), Locale('mr')],
           localizationsDelegates: const [
             GlobalMaterialLocalizations.delegate,
             GlobalWidgetsLocalizations.delegate,
