@@ -243,7 +243,9 @@ class _RecurringEditorSheetState extends State<_RecurringEditorSheet> {
                       TextStyle(fontSize: 12, color: colors.textSecondary)),
             ),
             if (_autoMatch) ...[
-              const SizedBox(height: 4),
+              const SizedBox(height: 12),
+              _label(colors, context.l10n.reminderLabel),
+              const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
                 children: [

@@ -821,6 +821,7 @@ class AppStrings {
   String get endDateOptionalLabel =>
       _t('End date (optional)', 'समाप्ति तिथि (वैकल्पिक)', 'शेवटची तारीख (पर्यायी)');
   String get remindMeLabel => _t('Remind me', 'मुझे याद दिलाएँ', 'मला आठवण करा');
+  String get reminderLabel => _t('Reminder', 'रिमाइंडर', 'स्मरणपत्र');
   String get autoDetectSmsLabel => _t(
       'Auto-detect from bank SMS', 'बैंक SMS से स्वतः पहचानें',
       'बँक SMS मधून स्वयं ओळखा');
