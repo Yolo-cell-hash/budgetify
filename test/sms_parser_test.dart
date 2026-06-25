@@ -382,4 +382,54 @@ void main() {
       expect(a.fingerprint, b.fingerprint);
     });
   });
+
+  // Some banks send credit alerts with no payee/"recipient" name at all — the
+  // money came in via UPI ref, net banking, or a slash-delimited ref. These
+  // must still be recorded as transactions; the label falls back to the
+  // account number (or the embedded name when one is present).
+  group('Credits that omit the recipient name', () {
+    test('BOI "Credited to your Ac" with only a UPI ref — account fallback', () {
+      final txn = SmsParserService.parseTransaction(
+        'JM-BOIIND-S',
+        'Rs.150.00 Credited to your Ac XX0227 on 25-06-26 by UPI ref '
+        'No.654223485048.Avl Bal 15075.63',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 150.0);
+      expect(txn.type, TransactionType.credit);
+      expect(txn.accountInfo, 'XX0227');
+      // No payer name in the body → labelled by the account it landed in.
+      expect(txn.merchantName, 'XX0227');
+    });
+
+    test('Saraswat credit — last 4 of an unmasked a/c, payer name from UPI ref',
+        () {
+      final txn = SmsParserService.parseTransaction(
+        'VM-SARASW-S',
+        'Your A/c no. 000404 is credited with INR 150.00 on 25-06-2026 towards '
+        'UPI/340983713462/HUSAIN M N/SR. Current Bal is INR 9,657.61 CR. '
+        '- Saraswat Co-op Bank Ltd.',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 150.0); // not the 9,657.61 balance
+      expect(txn.type, TransactionType.credit);
+      expect(txn.accountInfo, 'XX0404'); // last 4 of 000404, not 0004
+      expect(txn.merchantName, 'Husain M N'); // pulled from the slash ref
+    });
+
+    test('IDBI net-banking credit with letter-masked a/c (NN15983)', () {
+      final txn = SmsParserService.parseTransaction(
+        'JD-IDBIBK-S',
+        'IDBI Bank A/c NN15983 credited for INR 5400.00 through Net Banking. '
+        'Bal INR 8438.51 (incl. of chq in clg)  as of 13 MAY 19:33 hrs.',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 5400.0); // not the 8438.51 balance
+      expect(txn.type, TransactionType.credit);
+      expect(txn.accountInfo, 'XX5983'); // last 4 of the NN-masked number
+    });
+  });
 }

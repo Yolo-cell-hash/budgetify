@@ -2162,9 +2162,19 @@ class SmsParserService {
   static String? _extractAccountInfo(String message) {
     // Patterns to match account numbers
     final patterns = [
-      // A/c XX1234 or A/c No. XX1234 or Acct XX1234 or Ac XXXXXX1234
+      // A/c XX1234 / A/c No. XX1234 / Acct XX1234 / Ac XXXXXX1234, and also a
+      // fully unmasked number like Saraswat's "A/c no. 000404". The trailing
+      // `\d*(\d{4})` captures the LAST four digits of the account run (the
+      // convention banks display), so "000404" yields 0404, not 0004.
       RegExp(
-        r'A/?C(?:CT)?\.?\s*(?:NO\.?)?\s*[X*]*([\d]{4})',
+        r'A/?C(?:CT)?\.?\s*(?:NO\.?)?\s*[X*]*\d*(\d{4})',
+        caseSensitive: false,
+      ),
+      // Letter-masked account with no X/* mask, e.g. IDBI "A/c NN15983" → last
+      // four of the trailing digit run. The mask letters must butt directly
+      // against the digits, so this can't latch onto a word + nearby amount.
+      RegExp(
+        r'A/?C\.?\s*(?:NO\.?)?\s*[A-Z]{1,4}\d*(\d{4})',
         caseSensitive: false,
       ),
       // Account ending 1234 or Account XX1234
@@ -2274,6 +2284,22 @@ class SmsParserService {
         merchant = _cleanMerchant(candidate);
         if (merchant != null) return merchant;
       }
+    }
+
+    // --- Pattern 4b: slash-delimited UPI ref carrying the counterparty name ---
+    // Co-op / PSU credits embed the payer inside the UPI ref instead of a
+    // "from {NAME}" clause, e.g. Saraswat's
+    //   "...credited with INR 150.00 ... towards UPI/340983713462/HUSAIN M N/SR."
+    // The name is the segment right after UPI/<digits>/, ending at the next
+    // slash, stop, comma, or " on <date>". Requiring a letter-led run of
+    // letters/spaces/dots keeps it from latching onto numeric refs or VPA codes.
+    final upiRefName = RegExp(
+      r'\bUPI[/-]\d+[/-]([A-Za-z][A-Za-z .]{2,}?)(?:[/-]|\.|,|\s+on\b|$)',
+      caseSensitive: false,
+    ).firstMatch(message);
+    if (upiRefName != null) {
+      merchant = _cleanMerchant(upiRefName.group(1));
+      if (merchant != null) return merchant;
     }
 
     // --- Pattern 5: UPI VPA in body ---

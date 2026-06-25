@@ -218,31 +218,42 @@ class NotificationService {
     }
   }
 
+  /// Body text for a transaction alert. Pure and unit-tested.
+  ///
+  /// A *tagged* transaction — one the app has classified
+  /// ([TransactionModel.isClassified]) — names its category so the alert shows
+  /// the tag at a glance:
+  ///   • "₹500.00 debited towards Food & Dining"
+  ///   • "₹50,000.00 credited towards Salary"
+  /// An untagged transaction stays plain, matching its "Unclassified" status in
+  /// the app:
+  ///   • "₹500.00 debited"
+  ///   • "₹150.00 credited"
+  ///
+  /// The tag is gated on [TransactionModel.isClassified] (not merely a
+  /// non-null [category]) so the notification's tag status never disagrees with
+  /// the transaction list — a merchant the parser *guessed* a category for is
+  /// still "needs a tag" until classified, and stays plain here too.
+  @visibleForTesting
+  static String buildTransactionBody(TransactionModel transaction) {
+    final formatter = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
+    final amountStr = formatter.format(transaction.amount);
+    final verb =
+        transaction.type == TransactionType.credit ? 'credited' : 'debited';
+    final cat = transaction.category?.trim();
+    final hasTag = transaction.isClassified && cat != null && cat.isNotEmpty;
+    return hasTag ? '$amountStr $verb towards $cat' : '$amountStr $verb';
+  }
+
   Future<void> showTransactionNotification(TransactionModel transaction) async {
     if (!_isInitialized) await initialize();
 
-    final formatter = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
-    final amountStr = formatter.format(transaction.amount);
     final isCredit = transaction.type == TransactionType.credit;
-
-    // When the transaction is already tagged with a real spending category
-    // (e.g. a saved rule auto-classified it), name it — "₹50 spent towards
-    // Food" — otherwise fall back to the plain "₹50 spent". Non-expense tags
-    // (Self Transfer / Investments / Settlement) and untagged debits stay plain.
-    final cat = transaction.category;
-    final hasSpendTag = !isCredit &&
-        transaction.isClassified &&
-        cat != null &&
-        cat.isNotEmpty &&
-        ExpenseCategories.isExpenseCategory(cat);
-    final body = isCredit
-        ? '$amountStr received'
-        : (hasSpendTag ? '$amountStr spent towards $cat' : '$amountStr spent');
 
     await _notifications.show(
       transaction.detectedAt.millisecondsSinceEpoch ~/ 1000,
       isCredit ? '💰 Money Credited' : '💸 Money Debited',
-      body,
+      buildTransactionBody(transaction),
       const NotificationDetails(
         android: AndroidNotificationDetails(
           'transaction_channel',
