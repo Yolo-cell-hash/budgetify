@@ -3,10 +3,12 @@ import 'package:intl/intl.dart';
 import '../l10n/l10n.dart';
 import '../models/transaction_model.dart';
 import '../models/transaction_rule_model.dart';
+import '../providers/theme_provider.dart';
 import '../services/database_service.dart';
 import '../services/custom_tag_service.dart';
 import '../widgets/app_bar_title.dart';
 import '../widgets/app_toast.dart';
+import '../widgets/split_transaction_sheet.dart';
 
 /// Screen for viewing and classifying a transaction
 class TransactionDetailScreen extends StatefulWidget {
@@ -25,6 +27,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   String? _selectedCategory;
   final TextEditingController _notesController = TextEditingController();
   bool _isSaving = false;
+  // Set when a split is added/edited/removed here, so the back navigation
+  // signals the transactions list to refresh.
+  bool _changed = false;
 
   @override
   void initState() {
@@ -43,6 +48,21 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   /// Display name for the merchant/payee used in dialogs
   String get _merchantDisplayName {
     return _transaction.merchantName ?? _transaction.sender;
+  }
+
+  /// Open the split sheet for this transaction, then refresh the row so the
+  /// headline + split card reflect the new share immediately.
+  Future<void> _openSplit() async {
+    final changed =
+        await showSplitTransactionSheet(context, transaction: _transaction);
+    if (!changed) return;
+    _changed = true;
+    if (_transaction.id != null) {
+      final fresh = await _dbService.getTransactionById(_transaction.id!);
+      if (fresh != null && mounted) {
+        setState(() => _transaction = fresh);
+      }
+    }
   }
 
   Future<void> _saveClassification() async {
@@ -598,6 +618,11 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isCredit = _transaction.type == TransactionType.credit;
+    final colors = AppColors.of(context);
+    // A debit with a share override is "split": the headline shows the user's
+    // own share (what counts toward budgets), with the full amount struck out.
+    final isSplit = _transaction.splitShare != null;
+    final headlineAmount = _transaction.effectiveAmount;
     final formatter = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
     final dateFormatter = DateFormat('EEEE, MMMM d, y • h:mm a');
 
@@ -616,7 +641,12 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
         ? const Color(0xFF121318)
         : Color(0xFFFAFAF8);
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) Navigator.pop(context, _changed);
+      },
+      child: Scaffold(
       backgroundColor: bgColor,
       appBar: AppBar(
         title: AppBarTitle(context.l10n.transactionDetailsTitle,
@@ -660,32 +690,82 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    '${isCredit ? '+' : '-'} ${formatter.format(_transaction.amount)}',
+                    '${isCredit ? '+' : '-'} ${formatter.format(headlineAmount)}',
                     style: TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.bold,
                       color: isCredit ? Color(0xFF2AA76F) : Color(0xFFD25A5F),
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isCredit
-                          ? Color(0xFF2AA76F).withAlpha(26)
-                          : Color(0xFFD25A5F).withAlpha(26),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Text(
-                      context.l10n.txnTypeName(isCredit),
+                  if (isSplit) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      formatter.format(_transaction.amount),
                       style: TextStyle(
-                        color: isCredit ? Color(0xFF2AA76F) : Color(0xFFD25A5F),
-                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                        color: subtextColor,
+                        decoration: TextDecoration.lineThrough,
+                        decorationColor: subtextColor,
                       ),
                     ),
+                  ],
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isCredit
+                              ? Color(0xFF2AA76F).withAlpha(26)
+                              : Color(0xFFD25A5F).withAlpha(26),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Text(
+                          context.l10n.txnTypeName(isCredit),
+                          style: TextStyle(
+                            color: isCredit
+                                ? Color(0xFF2AA76F)
+                                : Color(0xFFD25A5F),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      if (isSplit) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: colors.accent.withValues(alpha: 0.14),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                                color: colors.accent.withValues(alpha: 0.30)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.call_split_rounded,
+                                  size: 13, color: colors.accent),
+                              const SizedBox(width: 4),
+                              Text(
+                                context.l10n.splitBadgeLabel,
+                                style: TextStyle(
+                                  color: colors.accent,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -771,6 +851,12 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
             ),
 
             const SizedBox(height: 16),
+
+            // Split section — only debits can be split (a credit isn't a spend).
+            if (!isCredit) ...[
+              _buildSplitCard(colors, isSplit, formatter),
+              const SizedBox(height: 16),
+            ],
 
             // Category section
             Container(
@@ -1019,6 +1105,84 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
 
             const SizedBox(height: 32),
           ],
+        ),
+      ),
+      ),
+    );
+  }
+
+  /// "Split this transaction" entry (debits only). Shows the call-to-action
+  /// when unsplit, or the user's share of the total when already split. Themed
+  /// via [AppColors] so it adapts across all four app themes.
+  Widget _buildSplitCard(
+    AppColors colors,
+    bool isSplit,
+    NumberFormat formatter,
+  ) {
+    final l10n = context.l10n;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _openSplit,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: colors.card,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isSplit
+                    ? colors.accent.withValues(alpha: 0.35)
+                    : colors.border,
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: colors.accent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(Icons.call_split_rounded,
+                      color: colors.accent, size: 22),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        isSplit
+                            ? l10n.yourShareOfTotal(
+                                formatter.format(_transaction.effectiveAmount),
+                                formatter.format(_transaction.amount),
+                              )
+                            : l10n.splitThisTransaction,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: colors.text,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        isSplit ? l10n.editSplit : l10n.splitTagline,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right_rounded,
+                    size: 20, color: colors.textTertiary),
+              ],
+            ),
+          ),
         ),
       ),
     );

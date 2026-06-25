@@ -1,6 +1,7 @@
 import 'package:intl/intl.dart';
 
 import '../models/ledger_models.dart';
+import '../models/transaction_split_math.dart';
 import 'database_service.dart';
 
 /// One entry in a person's activity feed — either a split that involves them
@@ -92,6 +93,69 @@ class LedgerService {
           splitCount: count[person] ?? 0,
         ),
     };
+  }
+
+  /// The split (if any) already linked to [transactionId].
+  Future<SplitEntry?> splitForTransaction(int transactionId) =>
+      _db.getSplitByTransactionId(transactionId);
+
+  /// Split a single transaction so only [myShare] counts toward spending.
+  ///
+  /// When [owedBy] is non-empty, the remainder is recorded in the ledger (those
+  /// people owe you, evenly split) and the share override is set; otherwise we
+  /// just set the share override and track no one. Reconciles any existing
+  /// split on the same transaction (so editing works), making this idempotent.
+  Future<void> setTransactionSplit({
+    required int transactionId,
+    required String title,
+    required double total,
+    required double myShare,
+    required DateTime date,
+    List<String> owedBy = const [],
+  }) async {
+    final existing = await _db.getSplitByTransactionId(transactionId);
+
+    if (owedBy.isNotEmpty) {
+      final shares =
+          TransactionSplitMath.owedShares(total, myShare, owedBy);
+      final participants = [
+        for (final s in shares)
+          SplitParticipant(person: s.person, share: s.share),
+      ];
+      final split = SplitEntry(
+        id: existing?.id,
+        title: title,
+        totalAmount: total,
+        myShare: myShare,
+        payer: null, // you paid the bill
+        date: date,
+        transactionId: transactionId,
+        createdAt: existing?.createdAt ?? DateTime.now(),
+      );
+      if (existing != null) {
+        await updateSplit(split, participants);
+      } else {
+        await addSplit(split, participants);
+      }
+    } else {
+      // No one tracked: drop any prior ledger split, keep only the share
+      // override on the transaction.
+      if (existing != null) {
+        await deleteSplit(existing.id!); // clears the override
+      }
+      await _db.setTransactionSplitShare(transactionId, myShare);
+    }
+  }
+
+  /// Remove a transaction's split entirely — clears the share override and any
+  /// linked ledger entry, so the full amount counts again.
+  Future<void> clearTransactionSplit(int transactionId) async {
+    final existing = await _db.getSplitByTransactionId(transactionId);
+    if (existing != null) {
+      await deleteSplit(existing.id!); // also nulls the override
+    } else {
+      await _db.setTransactionSplitShare(transactionId, null);
+    }
   }
 
   /// Create a split, applying the my-share override to its linked transaction.

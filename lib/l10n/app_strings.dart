@@ -997,6 +997,70 @@ class AppStrings {
       _t('I paid $name', 'मैंने $name को भुगतान किया', 'मी $name ला पैसे दिले');
   String get recordSettlement => _t('Record settlement', 'निपटान दर्ज करें', 'निकाली नोंदवा');
 
+  // ── Split a transaction ─────────────────────────────────────────────────────
+  String get splitThisTransaction =>
+      _t('Split this transaction', 'इस लेन-देन को विभाजित करें', 'हा व्यवहार विभागा');
+  String get splitTransactionTitle =>
+      _t('Split transaction', 'लेन-देन विभाजित करें', 'व्यवहार विभागा');
+  String get splitTagline => _t(
+        'Count only your share toward budgets',
+        'बजट में केवल अपना हिस्सा गिनें',
+        'बजेटमध्ये फक्त तुमचा वाटा मोजा',
+      );
+  String get yourShareLabel => _t('Your share', 'आपका हिस्सा', 'तुमचा वाटा');
+  String get quickSplit => _t('Quick split', 'त्वरित विभाजन', 'झटपट विभाजन');
+  String splitEquallyAmongN(int n) => _t(
+        'Split equally among $n',
+        '$n लोगों में बराबर बाँटें',
+        '$n जणांमध्ये समान वाटा',
+      );
+  String countsToBudgets(String share) => _t(
+        '$share counts toward your budgets',
+        '$share आपके बजट में गिना जाएगा',
+        '$share तुमच्या बजेटमध्ये मोजला जाईल',
+      );
+  String restNotYours(String rest) => _t(
+        "$rest isn't your spend",
+        '$rest आपका खर्च नहीं है',
+        '$rest तुमचा खर्च नाही',
+      );
+  String trackWhoOwes(String amount) => _t(
+        'Track who owes you $amount',
+        'आपको $amount किसका बकाया है, ट्रैक करें',
+        'तुम्हाला $amount कोण देणे आहे ते ट्रॅक करा',
+      );
+  String get trackWhoOwesHint => _t(
+        'Records it in the ledger so you can settle up later',
+        'इसे लेज़र में दर्ज करता है ताकि आप बाद में निपटा सकें',
+        'नंतर निकाली करता यावी म्हणून लेजरमध्ये नोंदवते',
+      );
+  String owesAmount(String share) =>
+      _t('owes $share', '$share बकाया', '$share देणे');
+  String get removeSplit => _t('Remove split', 'विभाजन हटाएँ', 'विभाजन काढा');
+  String get splitSavedToast =>
+      _t('Split saved', 'विभाजन सहेजा गया', 'विभाजन जतन केले');
+  String get splitRemovedToast =>
+      _t('Split removed', 'विभाजन हटाया गया', 'विभाजन काढले');
+  String get shareCantExceedTotal => _t(
+        "Your share can't exceed the total",
+        'आपका हिस्सा कुल से अधिक नहीं हो सकता',
+        'तुमचा वाटा एकूणपेक्षा जास्त असू शकत नाही',
+      );
+  String get addSomeoneWhoOwes => _t(
+        'Add at least one person who owes you',
+        'कम से कम एक व्यक्ति जोड़ें जिस पर आपका बकाया है',
+        'तुम्हाला देणे असलेली किमान एक व्यक्ती जोडा',
+      );
+  String yourShareOfTotal(String share, String total) => _t(
+        'Your share · $share of $total',
+        'आपका हिस्सा · $total में से $share',
+        'तुमचा वाटा · $total पैकी $share',
+      );
+  String get splitBadgeLabel => _t('Split', 'विभाजित', 'विभागलेले');
+  String cardYourShare(String share) =>
+      _t('your share $share', 'आपका हिस्सा $share', 'तुमचा वाटा $share');
+  String get saveSplitCta => _t('Save', 'सहेजें', 'जतन करा');
+
   // ── Savings goals ─────────────────────────────────────────────────────────
   String get savingsGoalsTitle => _t('Savings Goals', 'बचत लक्ष्य', 'बचत उद्दिष्टे');
   String get goalsSubtitle => _t('Set a target and watch the jar fill up',
