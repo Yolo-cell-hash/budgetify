@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../models/transaction_model.dart';
 import 'coach_service.dart';
 import 'database_service.dart';
+import 'recurring_service.dart';
 
 /// Visual weight / tone of an insight, used to pick its accent color.
 enum InsightTone { neutral, positive, caution, alert }
@@ -162,10 +163,13 @@ class InsightsService {
           (budget != null && budget.amount > 0) ? budget.amount : typicalMonth;
       final bool targetFromBudget = budget != null && budget.amount > 0;
 
-      // Money already spoken for this month (recurring bills/EMIs/SIPs). 0 for
-      // now — recurring detection isn't built yet — but subtracted here so the
-      // pool tightens automatically once it lands.
-      const committed = 0.0;
+      // Money already spoken for this month (recurring bills/EMIs you haven't
+      // paid yet): reserved out of the pool so "safe to spend" already sets
+      // aside the rent/EMI still to go. Only fixed-amount, unresolved dues from
+      // today through month-end count.
+      final committed = await RecurringService(db: _db).reservedForRestOfMonth(
+        now: today,
+      );
       final remainingDays = (daysInMonth - daysElapsed).clamp(1, 31);
       double? safePerDay;
       double? safeTotal;

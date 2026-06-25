@@ -3,12 +3,18 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../models/transaction_model.dart';
 import '../screens/transactions_screen.dart';
 import '../screens/net_worth_screen.dart';
+import '../screens/recurring_screen.dart';
 import 'sip_service.dart';
+import 'recurring_service.dart';
 import 'package:intl/intl.dart';
 
 /// Action button ids on the "Investment Alert" SIP/RD prompt.
 const String sipYesAction = 'sip_yes';
 const String sipNoAction = 'sip_no';
+
+/// Action button ids on the "Bill reminder" recurring-payment prompt.
+const String billPaidAction = 'bill_paid';
+const String billSkipAction = 'bill_skip';
 
 /// Status-bar (small) icon for every notification. Android renders the small
 /// icon as an alpha-only silhouette, so the full-colour launcher icon
@@ -19,12 +25,15 @@ const String sipNoAction = 'sip_no';
 /// getResources().getIdentifier(name, "drawable", package).
 const String _notificationIcon = 'ic_stat_notify';
 
-/// Background isolate handler for SIP prompt action buttons. Must be a
-/// top-level, vm:entry-point function. Used for the silent "No" path; "Yes"
-/// opens the app and is handled in the main isolate for reliability.
+/// Background isolate handler for notification action buttons. Must be a
+/// top-level, vm:entry-point function. Used for the silent "No"/"Skip" paths;
+/// the affirmative actions open the app and are handled in the main isolate for
+/// reliability. Each resolver is guarded by its own action ids, so dispatching
+/// to both here is safe.
 @pragma('vm:entry-point')
-void sipNotificationBackgroundHandler(NotificationResponse response) {
+void notificationActionBackgroundHandler(NotificationResponse response) {
   resolveSipNotificationAction(response.actionId, response.payload);
+  resolveRecurringNotificationAction(response.actionId, response.payload);
 }
 
 /// Parse a `sip:<id>:<period>` payload and resolve the instalment. Idempotent.
@@ -37,6 +46,19 @@ void resolveSipNotificationAction(String? actionId, String? payload) {
   if (id == null) return;
   // Fire-and-forget; resolveFromAction is idempotent and quick.
   SipService().resolveFromAction(id, parts[2], actionId == sipYesAction);
+}
+
+/// Parse a `bill:<planId>:<periodKey>` payload and resolve the cycle.
+/// Idempotent. [periodKey] is `YYYY-MM-DD` (hyphens only, so it survives the
+/// `:` split).
+void resolveRecurringNotificationAction(String? actionId, String? payload) {
+  if (actionId != billPaidAction && actionId != billSkipAction) return;
+  if (payload == null || !payload.startsWith('bill:')) return;
+  final parts = payload.split(':');
+  if (parts.length < 3) return;
+  final id = int.tryParse(parts[1]);
+  if (id == null) return;
+  RecurringService().resolveFromAction(id, parts[2], actionId == billPaidAction);
 }
 
 /// Service for showing local notifications
@@ -55,6 +77,9 @@ class NotificationService {
 
   /// Payload that routes to the Net Worth tab to confirm a due SIP/RD.
   static const String openSipReviewPayload = 'open_sip_review';
+
+  /// Payload that routes to the Recurring payments screen.
+  static const String openRecurringPayload = 'open_recurring';
 
   factory NotificationService() => _instance;
 
@@ -79,7 +104,7 @@ class NotificationService {
         initSettings,
         onDidReceiveNotificationResponse: _onNotificationTapped,
         onDidReceiveBackgroundNotificationResponse:
-            sipNotificationBackgroundHandler,
+            notificationActionBackgroundHandler,
       );
 
       final androidPlugin = _notifications
@@ -114,6 +139,15 @@ class NotificationService {
         ),
       );
 
+      await androidPlugin?.createNotificationChannel(
+        const AndroidNotificationChannel(
+          'recurring_channel',
+          'Bill Reminders',
+          description: 'Reminders for upcoming subscriptions, rent and bills',
+          importance: Importance.high,
+        ),
+      );
+
       _isInitialized = true;
     } catch (e, st) {
       debugPrint('NotificationService.initialize failed (continuing): $e\n$st');
@@ -126,6 +160,12 @@ class NotificationService {
       resolveSipNotificationAction(actionId, response.payload);
       // "Yes" opens the app to the Net Worth review so the user sees it land.
       if (actionId == sipYesAction) _routeForPayload(openSipReviewPayload);
+      return;
+    }
+    if (actionId == billPaidAction || actionId == billSkipAction) {
+      resolveRecurringNotificationAction(actionId, response.payload);
+      // "Paid" opens the Recurring screen so the user sees it land.
+      if (actionId == billPaidAction) _routeForPayload(openRecurringPayload);
       return;
     }
     _routeForPayload(response.payload);
@@ -142,6 +182,13 @@ class NotificationService {
       resolveSipNotificationAction(actionId, response?.payload);
       WidgetsBinding.instance.addPostFrameCallback(
         (_) => _routeForPayload(openSipReviewPayload),
+      );
+      return;
+    }
+    if (actionId == billPaidAction || actionId == billSkipAction) {
+      resolveRecurringNotificationAction(actionId, response?.payload);
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _routeForPayload(openRecurringPayload),
       );
       return;
     }
@@ -163,6 +210,10 @@ class NotificationService {
         MaterialPageRoute(
           builder: (_) => const NetWorthScreen(reviewSips: true),
         ),
+      );
+    } else if (payload == openRecurringPayload) {
+      navigatorKey.currentState?.push(
+        MaterialPageRoute(builder: (_) => const RecurringScreen()),
       );
     }
   }
@@ -431,6 +482,62 @@ class NotificationService {
         ),
       ),
       payload: 'sip:$sipId:$periodKey',
+    );
+  }
+
+  /// "Bill reminder" for a recurring expense due (or overdue), with Paid / Skip
+  /// action buttons. **Paid** opens the app and logs it; **Skip** marks the
+  /// cycle skipped silently. A stable per-plan id keeps the noon prompt and its
+  /// 8 PM follow-up in the same slot. [periodKey] is `YYYY-MM-DD` of the due.
+  Future<void> showRecurringPrompt({
+    required int planId,
+    required String name,
+    double? amount,
+    required String periodKey,
+    required bool overdue,
+  }) async {
+    if (!_isInitialized) await initialize();
+
+    final fmt = NumberFormat.currency(
+      locale: 'en_IN',
+      symbol: '₹',
+      decimalDigits: 0,
+    );
+    final amt = amount != null ? '${fmt.format(amount)} ' : '';
+    final title = overdue ? '⏰ Bill overdue' : '🔔 Bill reminder';
+    final body = overdue
+        ? 'Your ${amt}payment for "$name" looks overdue. Did you pay it?'
+        : 'Your ${amt}payment for "$name" is due. Did you pay it?';
+
+    await _notifications.show(
+      7000 + planId, // one slot per plan; noon prompt is replaced at 8 PM
+      title,
+      body,
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'recurring_channel',
+          'Bill Reminders',
+          channelDescription:
+              'Reminders for upcoming subscriptions, rent and bills',
+          importance: Importance.high,
+          priority: Priority.high,
+          showWhen: true,
+          actions: <AndroidNotificationAction>[
+            AndroidNotificationAction(
+              billPaidAction,
+              'Yes, paid',
+              showsUserInterface: true,
+              cancelNotification: true,
+            ),
+            AndroidNotificationAction(
+              billSkipAction,
+              'Skip',
+              cancelNotification: true,
+            ),
+          ],
+        ),
+      ),
+      payload: 'bill:$planId:$periodKey',
     );
   }
 

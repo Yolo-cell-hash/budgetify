@@ -18,6 +18,7 @@ class RestoreResult {
   final int holdings;
   final int sips;
   final int goals;
+  final int recurring;
 
   const RestoreResult({
     required this.transactions,
@@ -27,10 +28,18 @@ class RestoreResult {
     this.holdings = 0,
     this.sips = 0,
     this.goals = 0,
+    this.recurring = 0,
   });
 
   int get total =>
-      transactions + budgets + rules + customTags + holdings + sips + goals;
+      transactions +
+      budgets +
+      rules +
+      customTags +
+      holdings +
+      sips +
+      goals +
+      recurring;
 }
 
 /// Thrown when a backup file can't be decrypted (wrong passphrase) or is
@@ -216,6 +225,7 @@ class BackupService {
       holdings: counts['holdings'] ?? 0,
       sips: counts['sips'] ?? 0,
       goals: counts['goals'] ?? 0,
+      recurring: counts['recurring'] ?? 0,
     );
   }
 }

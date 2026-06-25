@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../l10n/l10n.dart';
 import '../models/ledger_models.dart';
+import '../models/recurring_payment.dart';
 import '../models/transaction_model.dart';
 import '../models/transaction_rule_model.dart';
 import '../providers/theme_provider.dart';
@@ -10,6 +11,7 @@ import '../services/custom_tag_service.dart';
 import '../services/ledger_service.dart';
 import '../widgets/app_bar_title.dart';
 import '../widgets/app_toast.dart';
+import '../widgets/recurring_editor_sheet.dart';
 import '../widgets/settlement_sheet.dart';
 import '../widgets/split_transaction_sheet.dart';
 
@@ -933,6 +935,8 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
             if (!isCredit && !isSettlement) ...[
               _buildSplitCard(colors, isSplit, formatter),
               const SizedBox(height: 16),
+              _buildTrackRecurringCard(colors),
+              const SizedBox(height: 16),
             ],
 
             // Settlement section — a repayment that shouldn't count as
@@ -1252,6 +1256,103 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                       const SizedBox(height: 2),
                       Text(
                         isSplit ? l10n.editSplit : l10n.splitTagline,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right_rounded,
+                    size: 20, color: colors.textTertiary),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Build a recurring-plan template from this transaction and open the editor;
+  /// persists the plan the user confirms. Lowest-friction way to start tracking
+  /// a bill the user is already looking at.
+  Future<void> _trackAsRecurring() async {
+    final t = _transaction;
+    final now = DateTime.now();
+    final label = (t.merchantName?.trim().isNotEmpty ?? false)
+        ? t.merchantName!.trim()
+        : t.sender;
+    final day = t.detectedAt.day.clamp(1, 28);
+    var anchor = DateTime(now.year, now.month, day);
+    if (!anchor.isAfter(DateTime(now.year, now.month, now.day))) {
+      anchor = DateTime(now.year, now.month + 1, day);
+    }
+    final template = RecurringPayment(
+      name: label,
+      category: t.category ?? 'Bills & Utilities',
+      amount: t.amount,
+      cadence: RecurringCadence.monthly,
+      dayOfMonth: anchor.day,
+      anchorDate: anchor,
+      matchHint: label,
+      createdAt: now,
+    );
+    final plan = await showRecurringEditor(context, template: template);
+    if (plan == null) return;
+    await DatabaseService().insertRecurringPayment(plan);
+    if (mounted) {
+      showAppToast(context,
+          message: context.l10nRead.recurringPaymentsTitle,
+          type: AppToastType.success);
+    }
+  }
+
+  /// "Track as recurring" entry (debits only) — turn a one-off spend into a
+  /// tracked subscription/bill. Themed via [AppColors] for all four themes.
+  Widget _buildTrackRecurringCard(AppColors colors) {
+    final l10n = context.l10n;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _trackAsRecurring,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: colors.card,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: colors.border),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: colors.accent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(Icons.autorenew_rounded,
+                      color: colors.accent, size: 22),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l10n.trackAsRecurring,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: colors.text,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        l10n.trackAsRecurringDesc,
                         style: TextStyle(
                           fontSize: 12.5,
                           color: colors.textSecondary,

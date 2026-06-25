@@ -25,6 +25,7 @@ import '../widgets/glass.dart';
 import '../widgets/insights_card.dart';
 import '../widgets/savings_summary.dart';
 import '../widgets/privacy_amount.dart';
+import '../widgets/upcoming_recurring_card.dart';
 import '../widgets/motion.dart';
 import '../widgets/permission_request_card.dart';
 import '../widgets/expense_chart.dart';
@@ -489,6 +490,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           FadeSlideIn(order: 4, child: _buildCashSection()),
                           const SizedBox(height: 12),
                           FadeSlideIn(order: 5, child: const HomeGoalsCard()),
+                          const SizedBox(height: 12),
+                          FadeSlideIn(
+                              order: 5, child: const UpcomingRecurringCard()),
                           const SizedBox(height: 12),
                           FadeSlideIn(order: 5, child: _buildWrappedEntry()),
                           const SizedBox(height: 12),

@@ -223,13 +223,20 @@ class FinancialHealthService {
       budgets.add(BudgetUsage(limit: b.amount, spent: spent));
     }
 
-    // ── Recurring monthly commitment: active, fixed-amount SIP/RD plans ──
+    // ── Recurring monthly commitment ──
+    // Both halves of "money committed every month": fixed-amount SIP/RD
+    // investments and fixed-amount recurring bills (subscriptions, rent, EMIs,
+    // insurance) normalised to a monthly figure.
     double recurring = 0;
     for (final sip in await _db.getSips()) {
       final amount = sip.amount;
       if (amount == null || amount <= 0 || !sip.amountIsFixed) continue;
       if (!_activeThisMonth(sip, today)) continue;
       recurring += amount;
+    }
+    for (final plan in await _db.getRecurringPayments()) {
+      if (!plan.isActiveForMonth(today)) continue;
+      recurring += plan.monthlyEquivalent; // 0 for variable-amount plans
     }
 
     // ── Net worth from manually-tracked holdings ──
