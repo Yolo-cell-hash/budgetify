@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../l10n/l10n.dart';
 import '../models/recurring_payment.dart';
@@ -65,11 +66,36 @@ class _RecurringScreenState extends State<RecurringScreen> {
   List<RecurringCandidate> _candidates = const [];
   double _monthlyCommitment = 0;
 
+  // Merchants the user has dismissed from the "Looks recurring" suggestions,
+  // so they don't keep reappearing. Persisted across launches.
+  static const String _dismissedKey = 'recurring_dismissed_suggestions_v1';
+  Set<String> _dismissedSuggestions = {};
+
   @override
   void initState() {
     super.initState();
     appDataRevision.addListener(_load);
-    _load();
+    _initAndLoad();
+  }
+
+  Future<void> _initAndLoad() async {
+    final prefs = await SharedPreferences.getInstance();
+    _dismissedSuggestions =
+        (prefs.getStringList(_dismissedKey) ?? const <String>[]).toSet();
+    await _load();
+  }
+
+  String _suggestionKey(String merchant) =>
+      merchant.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+
+  Future<void> _dismissSuggestions() async {
+    final keys = _candidates.map((c) => _suggestionKey(c.merchant)).toSet();
+    setState(() {
+      _dismissedSuggestions = {..._dismissedSuggestions, ...keys};
+      _candidates = const [];
+    });
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_dismissedKey, _dismissedSuggestions.toList());
   }
 
   @override
@@ -83,7 +109,9 @@ class _RecurringScreenState extends State<RecurringScreen> {
     final views = await _svc.statusViews();
     final plans = await _db.getRecurringPayments();
     final commitment = await _svc.monthlyCommitment();
-    final candidates = await _svc.detectCandidates();
+    final candidates = (await _svc.detectCandidates())
+        .where((c) => !_dismissedSuggestions.contains(_suggestionKey(c.merchant)))
+        .toList();
     if (!mounted) return;
     setState(() {
       _views = views;
@@ -268,6 +296,16 @@ class _RecurringScreenState extends State<RecurringScreen> {
                       fontSize: 13.5,
                       fontWeight: FontWeight.w700,
                       color: colors.text)),
+              const Spacer(),
+              GestureDetector(
+                onTap: _dismissSuggestions,
+                behavior: HitTestBehavior.opaque,
+                child: Padding(
+                  padding: const EdgeInsets.all(2),
+                  child: Icon(Icons.close_rounded,
+                      size: 18, color: colors.textTertiary),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 2),
