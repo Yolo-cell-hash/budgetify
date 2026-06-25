@@ -1061,6 +1061,50 @@ class AppStrings {
       _t('your share $share', 'आपका हिस्सा $share', 'तुमचा वाटा $share');
   String get saveSplitCta => _t('Save', 'सहेजें', 'जतन करा');
 
+  // ── Settlement (repayments are not income) ──────────────────────────────────
+  String get thisIsASettlement =>
+      _t('This is a settlement', 'यह एक निपटान है', 'हे एक निकाली आहे');
+  String get markAsSettlement => _t('Mark as settlement',
+      'निपटान के रूप में चिह्नित करें', 'निकाली म्हणून चिन्हांकित करा');
+  String get settlementTagline => _t(
+        "Money settled — won't count as income or spending",
+        'निपटाया गया पैसा — आय या खर्च में नहीं गिना जाएगा',
+        'निकाली केलेले पैसे — उत्पन्न किंवा खर्चात मोजले जाणार नाहीत',
+      );
+  String get settlementExplainer => _t(
+        'Repaying — or being repaid for — money one of you fronted. It stays '
+            'out of your income and spending.',
+        'किसी के द्वारा आगे दिए गए पैसे की वापसी — यह आपकी आय और खर्च से बाहर रहता है।',
+        'कोणीतरी आधी दिलेल्या पैशांची परतफेड — हे तुमच्या उत्पन्न आणि खर्चाबाहेर राहते.',
+      );
+  String get settlementBadge => _t('Settlement', 'निपटान', 'निकाली');
+  String get whoPaidYouBack =>
+      _t('Who paid you back?', 'किसने आपको लौटाया?', 'कोणी परत दिले?');
+  String get settlementFromOptional =>
+      _t('From (optional)', 'से (वैकल्पिक)', 'कडून (पर्यायी)');
+  String clearsBalance(String person, String amount) => _t(
+        "Clears $person's balance by $amount",
+        '$person का बकाया $amount से घटाता है',
+        '$person चे येणे $amount ने कमी करते',
+      );
+  String get removeSettlement =>
+      _t('Remove settlement', 'निपटान हटाएँ', 'निकाली काढा');
+  String get settlementSavedToast => _t('Marked as settlement',
+      'निपटान के रूप में चिह्नित', 'निकाली म्हणून चिन्हांकित');
+  String get settlementRemovedToast =>
+      _t('Settlement removed', 'निपटान हटाया गया', 'निकाली काढली');
+  String settlementSuggestFrom(String person) => _t(
+        'Looks like $person settling up — mark as settlement?',
+        'लगता है $person निपटा रहे हैं — निपटान के रूप में चिह्नित करें?',
+        '$person निकाली करत आहेत असे दिसते — निकाली म्हणून चिन्हांकित करावे?',
+      );
+  String get settlementSuggestGeneric => _t(
+        'Looks like a repayment — mark as settlement?',
+        'यह एक वापसी लगती है — निपटान के रूप में चिह्नित करें?',
+        'ही परतफेड वाटते — निकाली म्हणून चिन्हांकित करावे?',
+      );
+  String get cardSettlement => _t('settlement', 'निपटान', 'निकाली');
+
   // ── Savings goals ─────────────────────────────────────────────────────────
   String get savingsGoalsTitle => _t('Savings Goals', 'बचत लक्ष्य', 'बचत उद्दिष्टे');
   String get goalsSubtitle => _t('Set a target and watch the jar fill up',

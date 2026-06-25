@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../l10n/l10n.dart';
+import '../models/ledger_models.dart';
 import '../models/transaction_model.dart';
 import '../models/transaction_rule_model.dart';
 import '../providers/theme_provider.dart';
 import '../services/database_service.dart';
 import '../services/custom_tag_service.dart';
+import '../services/ledger_service.dart';
 import '../widgets/app_bar_title.dart';
 import '../widgets/app_toast.dart';
+import '../widgets/settlement_sheet.dart';
 import '../widgets/split_transaction_sheet.dart';
 
 /// Screen for viewing and classifying a transaction
@@ -27,9 +30,12 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   String? _selectedCategory;
   final TextEditingController _notesController = TextEditingController();
   bool _isSaving = false;
-  // Set when a split is added/edited/removed here, so the back navigation
-  // signals the transactions list to refresh.
+  // Set when a split/settlement is added/edited/removed here, so the back
+  // navigation signals the transactions list to refresh.
   bool _changed = false;
+  // Tier-3 proactive suggestion: does this incoming credit look like a known
+  // person settling a debt? Computed once on open for unclassified credits.
+  SettlementSuggestion? _settleSuggestion;
 
   @override
   void initState() {
@@ -37,6 +43,18 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     _transaction = widget.transaction;
     _selectedCategory = _transaction.category;
     _notesController.text = _transaction.notes ?? '';
+    _maybeSuggestSettlement();
+  }
+
+  /// Check (once) whether an incoming, not-yet-settled credit matches an
+  /// outstanding ledger debt, to offer the "mark as settlement" nudge.
+  Future<void> _maybeSuggestSettlement() async {
+    if (_transaction.type != TransactionType.credit) return;
+    if (_transaction.category == 'Settlement') return;
+    final s = await LedgerService().suggestSettlement(_transaction.amount);
+    if (mounted && s.looksLikeSettlement) {
+      setState(() => _settleSuggestion = s);
+    }
   }
 
   @override
@@ -61,6 +79,27 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
       final fresh = await _dbService.getTransactionById(_transaction.id!);
       if (fresh != null && mounted) {
         setState(() => _transaction = fresh);
+      }
+    }
+  }
+
+  /// Open the settlement sheet for this transaction, then refresh the row.
+  Future<void> _openSettlement({String? suggested}) async {
+    final changed = await showSettlementSheet(
+      context,
+      transaction: _transaction,
+      suggestedPerson: suggested,
+    );
+    if (!changed) return;
+    _changed = true;
+    if (_transaction.id != null) {
+      final fresh = await _dbService.getTransactionById(_transaction.id!);
+      if (fresh != null && mounted) {
+        setState(() {
+          _transaction = fresh;
+          _selectedCategory = fresh.category;
+          _settleSuggestion = null; // resolved; hide the nudge
+        });
       }
     }
   }
@@ -622,6 +661,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     // A debit with a share override is "split": the headline shows the user's
     // own share (what counts toward budgets), with the full amount struck out.
     final isSplit = _transaction.splitShare != null;
+    final isSettlement = _transaction.category == 'Settlement';
     final headlineAmount = _transaction.effectiveAmount;
     final formatter = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
     final dateFormatter = DateFormat('EEEE, MMMM d, y • h:mm a');
@@ -765,6 +805,37 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                           ),
                         ),
                       ],
+                      if (isSettlement) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: colors.accent.withValues(alpha: 0.14),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                                color: colors.accent.withValues(alpha: 0.30)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.handshake_rounded,
+                                  size: 13, color: colors.accent),
+                              const SizedBox(width: 4),
+                              Text(
+                                context.l10n.settlementBadge,
+                                style: TextStyle(
+                                  color: colors.accent,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 8),
@@ -777,6 +848,12 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
             ),
 
             const SizedBox(height: 16),
+
+            // Tier-3 nudge: this incoming credit looks like a known repayment.
+            if (_settleSuggestion != null) ...[
+              _buildSettlementSuggestion(colors),
+              const SizedBox(height: 16),
+            ],
 
             // Details section
             Container(
@@ -852,11 +929,16 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
 
             const SizedBox(height: 16),
 
-            // Split section — only debits can be split (a credit isn't a spend).
-            if (!isCredit) ...[
+            // Split section — debits only, and not when this is a settlement.
+            if (!isCredit && !isSettlement) ...[
               _buildSplitCard(colors, isSplit, formatter),
               const SizedBox(height: 16),
             ],
+
+            // Settlement section — a repayment that shouldn't count as
+            // income/spend (shown for both directions; primary case is credits).
+            _buildSettlementCard(colors, isSettlement),
+            const SizedBox(height: 16),
 
             // Category section
             Container(
@@ -1180,6 +1262,132 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                 ),
                 Icon(Icons.chevron_right_rounded,
                     size: 20, color: colors.textTertiary),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// "This is a settlement" entry. When already a settlement, shows the state
+  /// with edit/remove (inside the sheet); otherwise a one-tap CTA. Themed via
+  /// [AppColors] for all four themes.
+  Widget _buildSettlementCard(AppColors colors, bool isSettlement) {
+    final l10n = context.l10n;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _openSettlement(),
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: colors.card,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isSettlement
+                    ? colors.accent.withValues(alpha: 0.35)
+                    : colors.border,
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: colors.accent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(Icons.handshake_rounded,
+                      color: colors.accent, size: 22),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        isSettlement
+                            ? l10n.settlementBadge
+                            : l10n.thisIsASettlement,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: colors.text,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        l10n.settlementTagline,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right_rounded,
+                    size: 20, color: colors.textTertiary),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Tier-3 nudge banner: "looks like a known person settling up — mark as
+  /// settlement?" Tapping opens the sheet with the suggestion pre-selected.
+  Widget _buildSettlementSuggestion(AppColors colors) {
+    final s = _settleSuggestion!;
+    final l10n = context.l10n;
+    final text = s.person != null
+        ? l10n.settlementSuggestFrom(s.person!)
+        : l10n.settlementSuggestGeneric;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _openSettlement(suggested: s.person),
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: colors.accent.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: colors.accent.withValues(alpha: 0.30)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: colors.accent.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(Icons.lightbulb_outline_rounded,
+                      size: 18, color: colors.accent),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    text,
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.3,
+                      fontWeight: FontWeight.w600,
+                      color: colors.text,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(Icons.chevron_right_rounded,
+                    size: 18, color: colors.accent),
               ],
             ),
           ),

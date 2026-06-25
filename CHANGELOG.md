@@ -4,6 +4,22 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.9.2] — 2026-06-25
+
+### Added
+
+- **Settlements — repayments no longer count as income.** When you cover a
+  group bill and friends pay you back, those incoming payments were being
+  counted as income (inflating your savings rate and Financial Health). Open
+  any transaction → **"This is a settlement"** and it's excluded from **both**
+  income and spending — the same neutral treatment as Self Transfer. Optionally
+  pick **who** paid you back to also clear their balance in the split ledger
+  (settle-up). And when an incoming payment matches an outstanding debt,
+  Budgetify proactively suggests *"Looks like Rohan settling up — mark as
+  settlement?"* (suggestion only; real income is never reclassified for you).
+  Works both ways — repaying a debt you owe also stays out of your spending.
+  On-device, all four themes, localised (EN/HI/MR).
+
 ## [1.9.1] — 2026-06-25
 
 ### Added
