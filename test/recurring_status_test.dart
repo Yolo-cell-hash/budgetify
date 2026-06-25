@@ -56,24 +56,48 @@ void main() {
       expect(v.dueDate, DateTime(2026, 6, 10));
     });
 
-    test('a paid cycle focuses on the next upcoming one', () {
+    test('paying the current cycle shows Paid immediately (not the next)', () {
       final ledger = {
         RecurringPayment.periodKeyFor(DateTime(2026, 6, 10)):
             _charge(DateTime(2026, 6, 10), RecurringChargeStatus.confirmed),
       };
+      // The next cycle (10 Jul) is 25 days out — still far — so the row keeps
+      // reading "Paid" for the cycle the user just resolved.
       final v = view(DateTime(2026, 6, 15), ledger);
-      expect(v.state, RecurringDueState.upcoming);
-      expect(v.dueDate, DateTime(2026, 7, 10));
+      expect(v.state, RecurringDueState.paid);
+      expect(v.dueDate, DateTime(2026, 6, 10));
     });
 
-    test('a detected charge counts as handled', () {
+    test('a detected charge counts as handled (shows Paid on that cycle)', () {
       final ledger = {
         RecurringPayment.periodKeyFor(DateTime(2026, 6, 10)):
             _charge(DateTime(2026, 6, 10), RecurringChargeStatus.detected),
       };
       final v = view(DateTime(2026, 6, 11), ledger);
+      expect(v.state, RecurringDueState.paid);
+      expect(v.dueDate, DateTime(2026, 6, 10));
+    });
+
+    test('flips to upcoming once the next cycle is within the look-ahead', () {
+      final ledger = {
+        RecurringPayment.periodKeyFor(DateTime(2026, 6, 10)):
+            _charge(DateTime(2026, 6, 10), RecurringChargeStatus.confirmed),
+      };
+      // 30 Jun: next cycle (10 Jul) is 10 days out (<= 14) → upcoming.
+      final v = view(DateTime(2026, 6, 30), ledger);
       expect(v.state, RecurringDueState.upcoming);
       expect(v.dueDate, DateTime(2026, 7, 10));
+      expect(v.daysUntilDue, 10);
+    });
+
+    test('a skipped current cycle shows Skipped', () {
+      final ledger = {
+        RecurringPayment.periodKeyFor(DateTime(2026, 6, 10)):
+            _charge(DateTime(2026, 6, 10), RecurringChargeStatus.skipped),
+      };
+      final v = view(DateTime(2026, 6, 15), ledger);
+      expect(v.state, RecurringDueState.skipped);
+      expect(v.dueDate, DateTime(2026, 6, 10));
     });
 
     test('paused plan reports none', () {

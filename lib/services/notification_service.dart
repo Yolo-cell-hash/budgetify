@@ -225,10 +225,24 @@ class NotificationService {
     final amountStr = formatter.format(transaction.amount);
     final isCredit = transaction.type == TransactionType.credit;
 
+    // When the transaction is already tagged with a real spending category
+    // (e.g. a saved rule auto-classified it), name it — "₹50 spent towards
+    // Food" — otherwise fall back to the plain "₹50 spent". Non-expense tags
+    // (Self Transfer / Investments / Settlement) and untagged debits stay plain.
+    final cat = transaction.category;
+    final hasSpendTag = !isCredit &&
+        transaction.isClassified &&
+        cat != null &&
+        cat.isNotEmpty &&
+        ExpenseCategories.isExpenseCategory(cat);
+    final body = isCredit
+        ? '$amountStr received'
+        : (hasSpendTag ? '$amountStr spent towards $cat' : '$amountStr spent');
+
     await _notifications.show(
       transaction.detectedAt.millisecondsSinceEpoch ~/ 1000,
       isCredit ? '💰 Money Credited' : '💸 Money Debited',
-      '$amountStr ${isCredit ? 'received' : 'spent'}',
+      body,
       const NotificationDetails(
         android: AndroidNotificationDetails(
           'transaction_channel',

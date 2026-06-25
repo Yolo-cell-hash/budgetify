@@ -31,8 +31,19 @@ class RecurringService {
 
   // ──────────────────────────── derived views ────────────────────────────
 
-  /// The current-cycle status of a plan, given a lookup of its resolved
-  /// charges by period key. Pure (no I/O) so it's unit-tested directly.
+  /// How near (days) the *next* cycle must be before a just-resolved plan stops
+  /// reading "Paid" and starts showing the next one as upcoming. Until then, a
+  /// paid bill keeps its "Paid" confirmation instead of jumping a cycle ahead.
+  static const int lookAheadDays = 14;
+
+  /// The current-cycle status of a plan, given a lookup of its resolved charges
+  /// by period key. Pure (no I/O) so it's unit-tested directly.
+  ///
+  /// The focus cycle is the most recent one that has **arrived** (due ≤ today):
+  /// unresolved → overdue/due-today; resolved → **Paid/Skipped** (so acting on
+  /// it shows immediately). Only once the *next* cycle is near (within
+  /// [lookAheadDays]) — or nothing has been handled yet — does the view move on
+  /// to that upcoming cycle.
   static RecurringStatusView statusViewFor(
     RecurringPayment plan,
     DateTime now,
@@ -40,86 +51,67 @@ class RecurringService {
   ) {
     final today = _dateOnly(now);
 
-    if (plan.paused) {
-      return RecurringStatusView(
-        plan: plan,
-        dueDate: null,
-        charge: null,
-        daysUntilDue: null,
-        state: RecurringDueState.none,
-      );
-    }
-
-    // 1) Has a due date already arrived and gone unresolved? That's the cycle
-    //    that needs action (overdue or due today).
-    final lastDue = plan.dueOnOrBefore(today);
-    if (lastDue != null) {
-      final c = chargeFor(RecurringPayment.periodKeyFor(lastDue));
-      if (c == null) {
-        final days = _daysBetween(today, lastDue); // <= 0
-        return RecurringStatusView(
+    RecurringStatusView build(
+      DateTime? due,
+      RecurringCharge? charge,
+      RecurringDueState state,
+    ) =>
+        RecurringStatusView(
           plan: plan,
-          dueDate: lastDue,
-          charge: null,
-          daysUntilDue: days,
-          state: days == 0
-              ? RecurringDueState.dueToday
-              : RecurringDueState.overdue,
+          dueDate: due,
+          charge: charge,
+          daysUntilDue: due == null ? null : _daysBetween(today, due),
+          state: state,
         );
-      }
-    }
 
-    // 2) Otherwise focus on the next upcoming cycle.
-    final from =
-        lastDue == null ? today : lastDue.add(const Duration(days: 1));
-    final nextDue = plan.nextDueOnOrAfter(from);
-    if (nextDue == null) {
-      // Plan has ended — reflect the final cycle's resolution if we have it.
-      if (lastDue != null) {
-        final c = chargeFor(RecurringPayment.periodKeyFor(lastDue));
-        if (c != null) {
-          return RecurringStatusView(
-            plan: plan,
-            dueDate: lastDue,
-            charge: c,
-            daysUntilDue: _daysBetween(today, lastDue),
-            state: c.status == RecurringChargeStatus.skipped
-                ? RecurringDueState.skipped
-                : RecurringDueState.paid,
-          );
-        }
-      }
-      return RecurringStatusView(
-        plan: plan,
-        dueDate: null,
-        charge: null,
-        daysUntilDue: null,
-        state: RecurringDueState.none,
-      );
-    }
-
-    final days = _daysBetween(today, nextDue); // >= 0
-    final c = chargeFor(RecurringPayment.periodKeyFor(nextDue));
-    if (c != null) {
-      return RecurringStatusView(
-        plan: plan,
-        dueDate: nextDue,
-        charge: c,
-        daysUntilDue: days,
-        state: c.status == RecurringChargeStatus.skipped
+    RecurringDueState resolvedState(RecurringCharge c) =>
+        c.status == RecurringChargeStatus.skipped
             ? RecurringDueState.skipped
-            : RecurringDueState.paid,
-      );
+            : RecurringDueState.paid;
+
+    if (plan.paused) return build(null, null, RecurringDueState.none);
+
+    // The most recent cycle that has already arrived (due <= today).
+    final arrived = plan.dueOnOrBefore(today);
+    final arrivedCharge = arrived == null
+        ? null
+        : chargeFor(RecurringPayment.periodKeyFor(arrived));
+
+    // 1) An arrived cycle still needing action wins — overdue / due today.
+    if (arrived != null && arrivedCharge == null) {
+      final days = _daysBetween(today, arrived); // <= 0
+      return build(arrived, null,
+          days == 0 ? RecurringDueState.dueToday : RecurringDueState.overdue);
     }
-    return RecurringStatusView(
-      plan: plan,
-      dueDate: nextDue,
-      charge: null,
-      daysUntilDue: days,
-      state: days == 0
-          ? RecurringDueState.dueToday
-          : RecurringDueState.upcoming,
-    );
+
+    // 2) Look ahead to the next cycle after the arrived one.
+    final from = arrived == null ? today : arrived.add(const Duration(days: 1));
+    final nextDue = plan.nextDueOnOrAfter(from);
+    if (nextDue != null) {
+      final nextCharge = chargeFor(RecurringPayment.periodKeyFor(nextDue));
+      if (nextCharge != null) {
+        return build(nextDue, nextCharge, resolvedState(nextCharge));
+      }
+      final daysToNext = _daysBetween(today, nextDue); // >= 0
+      // Surface the upcoming cycle when nothing's been handled yet, or when it
+      // is genuinely near; otherwise keep showing the just-paid cycle (step 3).
+      if (arrived == null || daysToNext <= lookAheadDays) {
+        return build(
+            nextDue,
+            null,
+            daysToNext == 0
+                ? RecurringDueState.dueToday
+                : RecurringDueState.upcoming);
+      }
+    }
+
+    // 3) Nothing pending nearby — show the most recent resolved cycle, so the
+    //    user sees their "Paid" / "Skipped" confirmation right after acting.
+    if (arrived != null && arrivedCharge != null) {
+      return build(arrived, arrivedCharge, resolvedState(arrivedCharge));
+    }
+
+    return build(null, null, RecurringDueState.none);
   }
 
   /// Status views for every non-paused plan, sorted by urgency (overdue first,
