@@ -21,7 +21,6 @@ import '../widgets/app_dialog.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/export_options_sheet.dart';
 import 'manage_tags_screen.dart';
-import 'recurring_screen.dart';
 import 'streak_rewards_screen.dart';
 
 /// Settings screen with theme toggle and auto-scan configuration
@@ -504,44 +503,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 8),
           _buildSettingsCard(
             isDark: isDark,
-            child: Column(
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.autorenew_rounded,
-                      color: Color(0xFF4A6489)),
-                  title: Text(context.l10n.recurringPaymentsTitle),
-                  subtitle: Text(
-                    context.l10n.recurringSubtitle,
-                    style: TextStyle(
-                      color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
-                    ),
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const RecurringScreen()),
-                  ),
+            child: ListTile(
+              leading: Icon(Icons.sell_outlined, color: Color(0xFFC68A2E)),
+              title: Text(context.l10n.manageTags),
+              subtitle: Text(
+                context.l10n.manageTagsDesc,
+                style: TextStyle(
+                  color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
                 ),
-                Divider(
-                  height: 1,
-                  color: isDark ? Color(0xFF2E313A) : Color(0xFFE9E9E4),
-                ),
-                ListTile(
-                  leading: Icon(Icons.sell_outlined, color: Color(0xFFC68A2E)),
-                  title: Text(context.l10n.manageTags),
-                  subtitle: Text(
-                    context.l10n.manageTagsDesc,
-                    style: TextStyle(
-                      color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
-                    ),
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const ManageTagsScreen()),
-                  ),
-                ),
-              ],
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ManageTagsScreen()),
+              ),
             ),
           ),
 

@@ -47,6 +47,7 @@ class AppStrings {
   // ── Bottom navigation ──────────────────────────────────────────────────
   String get navHome => _t('Home', 'होम', 'होम');
   String get navBudgets => _t('Budgets', 'बजट', 'बजेट');
+  String get navRecurring => _t('Recurring', 'आवर्ती', 'आवर्ती');
   String get navNetWorth => _t('Net Worth', 'नेट वर्थ', 'नेट वर्थ');
   String get navSettings => _t('Settings', 'सेटिंग्स', 'सेटिंग्ज');
 
