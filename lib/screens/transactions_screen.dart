@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../l10n/l10n.dart';
 import '../models/transaction_model.dart';
 import '../providers/theme_provider.dart';
@@ -51,6 +52,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   double _monthlyCredits = 0;
   double _monthlyDebits = 0;
 
+  // One-time swipe-to-delete discoverability hint: the first card peeks open
+  // on the user's first ever visit, then never again (persisted below).
+  static const String _swipeHintKey = 'swipe_to_delete_hint_shown_v1';
+  bool _showSwipeHint = false;
+
   @override
   void initState() {
     super.initState();
@@ -62,8 +68,23 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     _endDate = widget.initialEndDate;
     _datePreset =
         widget.initialStartDate != null ? _DatePreset.custom : _DatePreset.all;
+    _loadSwipeHintFlag();
     _loadFiltersData();
     _loadTransactions();
+  }
+
+  Future<void> _loadSwipeHintFlag() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    if (!(prefs.getBool(_swipeHintKey) ?? false)) {
+      setState(() => _showSwipeHint = true);
+    }
+  }
+
+  Future<void> _markSwipeHintShown() async {
+    _showSwipeHint = false; // stop re-triggering on later rebuilds
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_swipeHintKey, true);
   }
 
   @override
@@ -365,6 +386,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                         final transaction = _transactions[index];
                         return TransactionCard(
                           transaction: transaction,
+                          animateSwipeHint: index == 0 && _showSwipeHint,
+                          onSwipeHintShown: _markSwipeHintShown,
                           onTap: () => _openTransactionDetail(transaction),
                           onDelete: () => _deleteTransaction(transaction),
                         );
