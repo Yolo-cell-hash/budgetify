@@ -7,6 +7,7 @@ import '../models/holding.dart';
 import '../models/sip.dart';
 import '../models/ledger_models.dart';
 import '../models/savings_goal.dart';
+import '../models/recurring_payment.dart';
 import 'sms_parser_service.dart';
 import 'app_events.dart';
 
@@ -33,7 +34,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 18,
+      version: 19,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -145,6 +146,13 @@ class DatabaseService {
     await db.execute(_createGoalContributionsTable);
     await db.execute(
       'CREATE INDEX idx_goal_contributions_goal ON goal_contributions(goal_id)',
+    );
+
+    // Recurring expenses (subscriptions, rent, EMIs…) + their occurrence ledger.
+    await db.execute(_createRecurringPaymentsTable);
+    await db.execute(_createRecurringChargesTable);
+    await db.execute(
+      'CREATE INDEX idx_recurring_charges_plan ON recurring_charges(plan_id)',
     );
   }
 
@@ -272,6 +280,43 @@ class DatabaseService {
         amount REAL NOT NULL,
         date INTEGER NOT NULL,
         note TEXT
+      )
+    ''';
+
+  static const String _createRecurringPaymentsTable = '''
+      CREATE TABLE IF NOT EXISTS recurring_payments(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        category TEXT NOT NULL,
+        amount REAL,
+        amount_is_fixed INTEGER NOT NULL DEFAULT 1,
+        cadence TEXT NOT NULL DEFAULT 'monthly',
+        day_of_month INTEGER NOT NULL DEFAULT 1,
+        anchor_date INTEGER NOT NULL,
+        end_date INTEGER,
+        auto_match INTEGER NOT NULL DEFAULT 1,
+        match_hint TEXT,
+        reminder_lead_days INTEGER NOT NULL DEFAULT 2,
+        paused INTEGER NOT NULL DEFAULT 0,
+        last_reminder_period TEXT,
+        note TEXT,
+        created_at INTEGER NOT NULL
+      )
+    ''';
+
+  // One row per resolved occurrence. UNIQUE(plan_id, period_key) makes
+  // reconciliation idempotent — re-scanning never double-records a cycle.
+  static const String _createRecurringChargesTable = '''
+      CREATE TABLE IF NOT EXISTS recurring_charges(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        plan_id INTEGER NOT NULL,
+        period_key TEXT NOT NULL,
+        due_date INTEGER NOT NULL,
+        amount REAL NOT NULL,
+        status TEXT NOT NULL,
+        transaction_id INTEGER,
+        resolved_at INTEGER NOT NULL,
+        UNIQUE(plan_id, period_key)
       )
     ''';
 
@@ -501,6 +546,15 @@ class DatabaseService {
       } catch (e) {
         // Column may already exist
       }
+    }
+
+    if (oldVersion < 19) {
+      // Recurring expenses (subscriptions, rent, EMIs…) + occurrence ledger.
+      await db.execute(_createRecurringPaymentsTable);
+      await db.execute(_createRecurringChargesTable);
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_recurring_charges_plan ON recurring_charges(plan_id)',
+      );
     }
   }
 
@@ -1686,6 +1740,74 @@ class DatabaseService {
     return Sip.fromMap(r.first);
   }
 
+  // ============ RECURRING PAYMENTS (BILLS / SUBSCRIPTIONS) ============
+
+  Future<int> insertRecurringPayment(RecurringPayment plan) async {
+    final db = await database;
+    final id = await db.insert('recurring_payments', plan.toMap());
+    notifyAppDataChanged();
+    return id;
+  }
+
+  Future<int> updateRecurringPayment(RecurringPayment plan) async {
+    final db = await database;
+    final n = await db.update('recurring_payments', plan.toMap(),
+        where: 'id = ?', whereArgs: [plan.id]);
+    notifyAppDataChanged();
+    return n;
+  }
+
+  /// Delete a plan and its occurrence ledger.
+  Future<void> deleteRecurringPayment(int id) async {
+    final db = await database;
+    await db
+        .delete('recurring_charges', where: 'plan_id = ?', whereArgs: [id]);
+    await db.delete('recurring_payments', where: 'id = ?', whereArgs: [id]);
+    notifyAppDataChanged();
+  }
+
+  Future<List<RecurringPayment>> getRecurringPayments() async {
+    final db = await database;
+    final maps =
+        await db.query('recurring_payments', orderBy: 'created_at DESC');
+    return maps.map((m) => RecurringPayment.fromMap(m)).toList();
+  }
+
+  Future<RecurringPayment?> getRecurringPayment(int id) async {
+    final db = await database;
+    final r = await db.query('recurring_payments',
+        where: 'id = ?', whereArgs: [id], limit: 1);
+    if (r.isEmpty) return null;
+    return RecurringPayment.fromMap(r.first);
+  }
+
+  /// All occurrences recorded for a plan, newest first.
+  Future<List<RecurringCharge>> getRecurringCharges(int planId) async {
+    final db = await database;
+    final maps = await db.query('recurring_charges',
+        where: 'plan_id = ?', whereArgs: [planId], orderBy: 'due_date DESC');
+    return maps.map((m) => RecurringCharge.fromMap(m)).toList();
+  }
+
+  /// The occurrence recorded for a given cycle, or null if unresolved.
+  Future<RecurringCharge?> getRecurringChargeForPeriod(
+      int planId, String periodKey) async {
+    final db = await database;
+    final r = await db.query('recurring_charges',
+        where: 'plan_id = ? AND period_key = ?',
+        whereArgs: [planId, periodKey],
+        limit: 1);
+    if (r.isEmpty) return null;
+    return RecurringCharge.fromMap(r.first);
+  }
+
+  /// Insert or replace the occurrence for a (plan, cycle) — idempotent.
+  Future<void> upsertRecurringCharge(RecurringCharge charge) async {
+    final db = await database;
+    await db.insert('recurring_charges', charge.toMap(),
+        conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
   // ==================== SPLIT LEDGER OPERATIONS ====================
 
   /// Set (or clear, with null) a transaction's "my share" override. When set,
@@ -1932,6 +2054,8 @@ class DatabaseService {
       'settlements': await db.query('settlements'),
       'savings_goals': await db.query('savings_goals'),
       'goal_contributions': await db.query('goal_contributions'),
+      'recurring_payments': await db.query('recurring_payments'),
+      'recurring_charges': await db.query('recurring_charges'),
     };
   }
 
@@ -2200,6 +2324,50 @@ class DatabaseService {
       await db.insert('goal_contributions', row);
     }
 
+    // Recurring plans: remap plan ids so the occurrence ledger re-points
+    // correctly; dedupe by (name, cadence, anchor_date).
+    final recurringIdMap = <int, int>{};
+    var recurringCount = 0;
+    for (final raw in (data['recurring_payments'] as List? ?? const [])) {
+      final row = Map<String, dynamic>.from(raw as Map);
+      final oldId = row['id'] as int?;
+      row.remove('id');
+      final exists = await db.query(
+        'recurring_payments',
+        where: 'name = ? AND cadence = ? AND anchor_date = ?',
+        whereArgs: [row['name'], row['cadence'], row['anchor_date']],
+        limit: 1,
+      );
+      final int localId;
+      if (exists.isNotEmpty) {
+        localId = exists.first['id'] as int;
+      } else {
+        localId = await db.insert('recurring_payments', row);
+        recurringCount++;
+      }
+      if (oldId != null) recurringIdMap[oldId] = localId;
+    }
+
+    // Recurring occurrence ledger: re-point to the restored plan. The
+    // transaction_id link is dropped (ids aren't stable across a restore) — the
+    // occurrence's status/amount are what matter for history and reminders.
+    for (final raw in (data['recurring_charges'] as List? ?? const [])) {
+      final row = Map<String, dynamic>.from(raw as Map);
+      row.remove('id');
+      final newPlanId = recurringIdMap[row['plan_id'] as int?];
+      if (newPlanId == null) continue; // orphaned occurrence — skip
+      row['plan_id'] = newPlanId;
+      row['transaction_id'] = null;
+      final exists = await db.query(
+        'recurring_charges',
+        where: 'plan_id = ? AND period_key = ?',
+        whereArgs: [newPlanId, row['period_key']],
+        limit: 1,
+      );
+      if (exists.isNotEmpty) continue;
+      await db.insert('recurring_charges', row);
+    }
+
     return {
       'transactions': txnCount,
       'budgets': budgetCount,
@@ -2208,6 +2376,7 @@ class DatabaseService {
       'sips': sipCount,
       'splits': splitCount,
       'goals': goalCount,
+      'recurring': recurringCount,
     };
   }
 

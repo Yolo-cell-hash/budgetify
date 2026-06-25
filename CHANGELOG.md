@@ -4,6 +4,36 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.10.0] — 2026-06-25
+
+### Added
+
+- **Recurring payments.** Track the money that goes out on a schedule —
+  subscriptions (Netflix, Prime), rent, EMIs, insurance premiums, utilities,
+  gym — and stop being surprised by it. Add a plan with an amount (or mark it
+  **"amount varies"** for bills like electricity), a cadence (**weekly /
+  monthly / quarterly / yearly**), a next-due date and an optional end date.
+  - **See what's coming.** A new **Recurring Payments** screen (Settings → Data,
+    or the bell from a reminder) lists everything by urgency — overdue first,
+    then due-today, then upcoming — with one-tap **Mark paid** / **Skip**. A
+    **Home card** surfaces the next bills due (overdue highlighted) and hides
+    itself entirely if you track none.
+  - **Auto-detect from SMS.** Budgetify links a matching bank-SMS debit to the
+    cycle it pays (a ⚡ marks auto-detected ones) and can **suggest** recurring
+    charges it spots in your history — suggestion only, never auto-created. A
+    predicted bill is never counted as spend; only the real debit is, exactly
+    once.
+  - **Reminders.** A **Bill reminder** notification with **Paid / Skip** buttons
+    fires before each due date (your choice of lead time) and again if it goes
+    overdue — resolved straight from the notification, even in the background.
+  - **It feeds the rest of the app.** Fixed-amount plans count toward Financial
+    Health's **recurring-load** pillar, and **Safe-to-Spend** now reserves the
+    bills you still have to pay this month, so "₹X/day safe" already sets aside
+    the rent and EMIs.
+  - **Track as recurring** from any transaction (pre-fills name, amount,
+    category and day). Fully on-device, in all four themes, localised (EN/HI/MR),
+    and included in encrypted backups.
+
 ## [1.9.2] — 2026-06-25
 
 ### Added

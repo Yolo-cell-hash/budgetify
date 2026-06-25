@@ -218,6 +218,7 @@ class AppStrings {
   String get commonContinue => _t('Continue', 'जारी रखें', 'सुरू ठेवा');
   String get commonDone => _t('Done', 'हो गया', 'झाले');
   String get commonClose => _t('Close', 'बंद करें', 'बंद करा');
+  String get commonAmount => _t('Amount', 'राशि', 'रक्कम');
   String get commonView => _t('View', 'देखें', 'पाहा');
   String get commonSeeAll => _t('See All', 'सभी देखें', 'सर्व पाहा');
   String get commonRetry => _t('Retry', 'फिर से', 'पुन्हा');
@@ -788,6 +789,101 @@ class AppStrings {
         'व्यवहार हटवला — हे पुढील स्कॅनमध्ये परत येणार नाही',
       );
   String allOfFilter(String hint) => _t('All $hint', 'सभी $hint', 'सर्व $hint');
+
+  // ── Recurring payments (subscriptions, rent, EMIs, bills) ─────────────────
+  String get recurringTitle =>
+      _t('Recurring', 'आवर्ती', 'आवर्ती');
+  String get recurringPaymentsTitle => _t(
+      'Recurring Payments', 'आवर्ती भुगतान', 'आवर्ती देयके');
+  String get recurringSubtitle => _t(
+      'Subscriptions, rent, EMIs & bills',
+      'सब्सक्रिप्शन, किराया, EMI और बिल',
+      'सबस्क्रिप्शन, भाडे, EMI आणि बिले');
+  String get newRecurring =>
+      _t('New recurring', 'नया आवर्ती', 'नवीन आवर्ती');
+  String get editRecurring =>
+      _t('Edit recurring', 'आवर्ती संपादित करें', 'आवर्ती संपादित करा');
+  String get recurringNameLabel => _t('Name', 'नाम', 'नाव');
+  String get recurringNameHint => _t(
+      'Netflix, Rent, Insurance…', 'नेटफ्लिक्स, किराया, बीमा…',
+      'नेटफ्लिक्स, भाडे, विमा…');
+  String get amountVariesLabel =>
+      _t('Amount varies', 'राशि बदलती है', 'रक्कम बदलते');
+  String get amountVariesShort => _t('Varies', 'परिवर्तनशील', 'बदलते');
+  String get repeatsLabel => _t('Repeats', 'दोहराव', 'पुनरावृत्ती');
+  String get cadenceWeekly => _t('Weekly', 'साप्ताहिक', 'साप्ताहिक');
+  String get cadenceMonthly => _t('Monthly', 'मासिक', 'मासिक');
+  String get cadenceQuarterly => _t('Quarterly', 'त्रैमासिक', 'त्रैमासिक');
+  String get cadenceYearly => _t('Yearly', 'वार्षिक', 'वार्षिक');
+  String get nextDueDateLabel =>
+      _t('Next due date', 'अगली देय तिथि', 'पुढील देय तारीख');
+  String get endDateOptionalLabel =>
+      _t('End date (optional)', 'समाप्ति तिथि (वैकल्पिक)', 'शेवटची तारीख (पर्यायी)');
+  String get remindMeLabel => _t('Remind me', 'मुझे याद दिलाएँ', 'मला आठवण करा');
+  String get autoDetectSmsLabel => _t(
+      'Auto-detect from bank SMS', 'बैंक SMS से स्वतः पहचानें',
+      'बँक SMS मधून स्वयं ओळखा');
+  String get autoDetectSmsDesc => _t(
+      'Match a debit and send a reminder',
+      'डेबिट मिलाएँ और रिमाइंडर भेजें',
+      'डेबिट जुळवा आणि स्मरणपत्र पाठवा');
+  String remindLeadDays(int n) => _t(
+      '$n day${n == 1 ? '' : 's'} before', '$n दिन पहले', '$n दिवस आधी');
+  String get remindOnDueDay =>
+      _t('On the due day', 'देय दिन पर', 'देय दिवशी');
+  String get addRecurring => _t('Add', 'जोड़ें', 'जोडा');
+  String get recurringEmptyTitle => _t(
+      'No recurring payments yet', 'अभी कोई आवर्ती भुगतान नहीं',
+      'अजून आवर्ती देयके नाहीत');
+  String get recurringEmptyDesc => _t(
+      'Track subscriptions, rent, EMIs and bills — and get a nudge before each one is due.',
+      'सब्सक्रिप्शन, किराया, EMI और बिल ट्रैक करें — और हर देय तिथि से पहले याद पाएँ।',
+      'सबस्क्रिप्शन, भाडे, EMI आणि बिले ट्रॅक करा — आणि प्रत्येक देय तारखेआधी आठवण मिळवा.');
+  String get dueTodayLabel => _t('Due today', 'आज देय', 'आज देय');
+  String dueInDays(int n) =>
+      _t('Due in $n day${n == 1 ? '' : 's'}', '$n दिन में देय', '$n दिवसांत देय');
+  String overdueByDays(int n) => _t(
+      'Overdue by $n day${n == 1 ? '' : 's'}', '$n दिन से अतिदेय',
+      '$n दिवसांनी थकीत');
+  String get recurringPaidLabel => _t('Paid', 'चुकाया', 'भरले');
+  String get recurringSkippedLabel => _t('Skipped', 'छोड़ा', 'वगळले');
+  String get markPaidAction => _t('Mark paid', 'चुकाया चिह्नित करें', 'भरले म्हणून खूण करा');
+  String get skipThisCycle => _t('Skip', 'छोड़ें', 'वगळा');
+  String get pauseAction => _t('Pause', 'रोकें', 'थांबवा');
+  String get resumeAction => _t('Resume', 'फिर शुरू करें', 'पुन्हा सुरू करा');
+  String get pausedLabel => _t('Paused', 'रुका हुआ', 'थांबवले');
+  String get upcomingBillsTitle =>
+      _t('Upcoming bills', 'आगामी बिल', 'आगामी बिले');
+  String get recurringHistoryTitle =>
+      _t('Payment history', 'भुगतान इतिहास', 'भरणा इतिहास');
+  String get deleteRecurringTitle => _t(
+      'Delete recurring payment', 'आवर्ती भुगतान हटाएँ', 'आवर्ती देयक हटवा');
+  String get deleteRecurringConfirm => _t(
+      'This stops tracking and reminders. Your transactions are untouched.',
+      'इससे ट्रैकिंग और रिमाइंडर बंद हो जाएँगे। आपके लेन-देन वैसे ही रहेंगे।',
+      'यामुळे ट्रॅकिंग आणि स्मरणपत्रे थांबतील. तुमचे व्यवहार तसेच राहतील.');
+  String get trackAsRecurring => _t(
+      'Track as recurring', 'आवर्ती के रूप में ट्रैक करें', 'आवर्ती म्हणून ट्रॅक करा');
+  String get trackAsRecurringDesc => _t(
+      'Get reminded before it’s due each time',
+      'हर बार देय से पहले याद पाएँ',
+      'प्रत्येक वेळी देयआधी आठवण मिळवा');
+  String get detectedSubsTitle => _t(
+      'Looks recurring', 'आवर्ती लगता है', 'आवर्ती वाटते');
+  String detectedSubsDesc(int n) => _t(
+      '$n payment${n == 1 ? '' : 's'} you might want to track',
+      'ट्रैक करने योग्य $n भुगतान',
+      'ट्रॅक करण्याजोगी $n देयके');
+  String get trackShort => _t('Track', 'ट्रैक', 'ट्रॅक');
+  String get monthlyCommitmentLabel =>
+      _t('Monthly commitment', 'मासिक प्रतिबद्धता', 'मासिक वचनबद्धता');
+  String autoDetectedFromSms(String name) => _t(
+      'Auto-detected from "$name"', '"$name" से स्वतः पता चला',
+      '"$name" मधून स्वयं आढळले');
+  String get recurringPaymentDeleted => _t(
+      'Recurring payment deleted', 'आवर्ती भुगतान हटाया गया', 'आवर्ती देयक हटवले');
+  String get enterAmountForCycle => _t(
+      'Enter the amount paid', 'चुकाई गई राशि दर्ज करें', 'भरलेली रक्कम प्रविष्ट करा');
 
   // ── Transaction detail ────────────────────────────────────────────────────
   String get transactionDetailsTitle =>

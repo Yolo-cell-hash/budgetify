@@ -5,6 +5,7 @@ import '../models/transaction_model.dart';
 import 'database_service.dart';
 import 'notification_service.dart';
 import 'sip_service.dart';
+import 'recurring_service.dart';
 import 'sms_service.dart';
 import 'widget_service.dart';
 
@@ -31,6 +32,13 @@ class BackgroundService {
   static const String sipEveningTaskName = 'sip_evening_check';
   static const String sipEveningUniqueName = 'budget_tracker_sip_evening';
 
+  // Daily recurring-bill "Bill reminder" prompts: noon and evening, mirroring
+  // the SIP slots (evening only fires if noon went unanswered).
+  static const String billNoonTaskName = 'bill_noon_check';
+  static const String billNoonUniqueName = 'budget_tracker_bill_noon';
+  static const String billEveningTaskName = 'bill_evening_check';
+  static const String billEveningUniqueName = 'budget_tracker_bill_evening';
+
   static const int sipNoonHour = 12; // 12 PM
   static const int sipEveningHour = 20; // 8 PM
 
@@ -51,6 +59,7 @@ class BackgroundService {
     await _ensureScheduled();
     await _ensureWeeklyReminder();
     await _ensureSipPrompts();
+    await _ensureBillPrompts();
   }
 
   /// Register the daily SIP/RD "Investment Alert" prompts at ~12 PM and ~8 PM
@@ -59,6 +68,13 @@ class BackgroundService {
     await _registerDailyAt(sipNoonUniqueName, sipNoonTaskName, sipNoonHour);
     await _registerDailyAt(
         sipEveningUniqueName, sipEveningTaskName, sipEveningHour);
+  }
+
+  /// Register the daily recurring-bill prompts at ~12 PM and ~8 PM local.
+  static Future<void> _ensureBillPrompts() async {
+    await _registerDailyAt(billNoonUniqueName, billNoonTaskName, sipNoonHour);
+    await _registerDailyAt(
+        billEveningUniqueName, billEveningTaskName, sipEveningHour);
   }
 
   static Future<void> _registerDailyAt(
@@ -248,6 +264,19 @@ class BackgroundService {
     }
   }
 
+  /// Reconcile recurring bills against recent SMS debits, then send the
+  /// noon / evening "Bill reminder" prompt for any cycle still unresolved and
+  /// within its reminder window.
+  static Future<void> performBillPromptCheck({required bool evening}) async {
+    try {
+      final recurring = RecurringService();
+      await recurring.reconcile();
+      await recurring.sendDuePrompts(evening: evening);
+    } catch (e) {
+      // Best-effort reminder
+    }
+  }
+
   /// Perform a foreground SMS scan (called when app opens).
   /// Returns the list of newly found transactions.
   static Future<List<TransactionModel>> performForegroundScan({
@@ -289,6 +318,10 @@ void callbackDispatcher() {
       await BackgroundService.performSipPromptCheck(evening: false);
     } else if (taskName == BackgroundService.sipEveningTaskName) {
       await BackgroundService.performSipPromptCheck(evening: true);
+    } else if (taskName == BackgroundService.billNoonTaskName) {
+      await BackgroundService.performBillPromptCheck(evening: false);
+    } else if (taskName == BackgroundService.billEveningTaskName) {
+      await BackgroundService.performBillPromptCheck(evening: true);
     }
     return Future.value(true);
   });

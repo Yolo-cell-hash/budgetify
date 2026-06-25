@@ -365,9 +365,9 @@ Enable the biometric App Lock, and keep an encrypted backup somewhere safe.
 
 ## 🗺️ Roadmap ideas
 
-- Per-account balance tracking from SMS balances
-- Subscription / recurring-payment detection
 - An "unparsed bank SMS" review screen to teach the parser new formats
+- Subscription **price-increase** & duplicate-charge alerts (builds on recurring)
+- Bill-due reminders parsed from "total/min due" SMS
 - Richer widget sizes
 
 ---
