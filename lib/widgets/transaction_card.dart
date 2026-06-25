@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../l10n/l10n.dart';
 import '../models/transaction_model.dart';
+import '../providers/theme_provider.dart';
 import 'app_dialog.dart';
 import 'category_icon.dart';
 import 'privacy_amount.dart';
@@ -188,6 +189,10 @@ class TransactionCard extends StatelessWidget {
                             color: Color(0xFF8A8D96),
                           ),
                         ),
+                        if (transaction.splitShare != null) ...[
+                          const SizedBox(height: 5),
+                          _buildSplitChip(context),
+                        ],
                       ],
                     ),
                   ),
@@ -236,6 +241,38 @@ class TransactionCard extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  /// Small "÷ your share ₹X" chip shown when only part of this transaction
+  /// counts toward the user's spending. Themed via [AppColors] (4 themes).
+  Widget _buildSplitChip(BuildContext context) {
+    final colors = AppColors.of(context);
+    final fmt =
+        NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: colors.accent.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: colors.accent.withValues(alpha: 0.28)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.call_split_rounded, size: 10, color: colors.accent),
+          const SizedBox(width: 4),
+          Text(
+            context.l10n.cardYourShare(
+                fmt.format(transaction.effectiveAmount)),
+            style: TextStyle(
+              fontSize: 10.5,
+              color: colors.accent,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }

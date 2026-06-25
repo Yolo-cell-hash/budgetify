@@ -661,6 +661,16 @@ class DatabaseService {
     return maps.map((map) => TransactionModel.fromMap(map)).toList();
   }
 
+  /// A single transaction by id, or null. Used to refresh a row after its
+  /// split share changes.
+  Future<TransactionModel?> getTransactionById(int id) async {
+    final db = await database;
+    final maps =
+        await db.query('transactions', where: 'id = ?', whereArgs: [id], limit: 1);
+    if (maps.isEmpty) return null;
+    return TransactionModel.fromMap(maps.first);
+  }
+
   /// Get transactions filtered by type
   Future<List<TransactionModel>> getTransactionsByType(
     TransactionType type,
@@ -1730,6 +1740,20 @@ class DatabaseService {
     final db = await database;
     final r =
         await db.query('splits', where: 'id = ?', whereArgs: [id], limit: 1);
+    if (r.isEmpty) return null;
+    return SplitEntry.fromMap(r.first);
+  }
+
+  /// The split (if any) linked to a transaction — so a transaction that was
+  /// split with people tracked can be reopened and edited.
+  Future<SplitEntry?> getSplitByTransactionId(int transactionId) async {
+    final db = await database;
+    final r = await db.query(
+      'splits',
+      where: 'transaction_id = ?',
+      whereArgs: [transactionId],
+      limit: 1,
+    );
     if (r.isEmpty) return null;
     return SplitEntry.fromMap(r.first);
   }

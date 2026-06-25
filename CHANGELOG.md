@@ -4,6 +4,21 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.9.1] — 2026-06-25
+
+### Added
+
+- **Split a transaction.** Open any spend and tap **Split this transaction** to
+  count only **your share** toward your budgets — no more deleting and
+  re-entering when you pay for the group. Set your share directly or use the
+  **quick equal-split** (÷2 / ÷3 / ÷4 / ÷5), and see live exactly what counts.
+  Optionally flip on **"Track who owes you"** to record the rest in the split
+  ledger so you can settle up later. A split transaction shows **your share as
+  the headline** (with the full amount struck through) and a **Split** badge,
+  and carries a "÷ your share" tag in transaction lists. Budgets, category
+  budgets, the spending curve, the money coach and Financial Health all update
+  instantly. Fully on-device, in all four themes, and localised (EN/HI/MR).
+
 ## [1.9.0] — 2026-06-22
 
 ### Added
