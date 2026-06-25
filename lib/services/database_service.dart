@@ -33,7 +33,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 17,
+      version: 18,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -245,6 +245,7 @@ class DatabaseService {
         paid_to_me INTEGER NOT NULL,
         date INTEGER NOT NULL,
         note TEXT,
+        transaction_id INTEGER,
         created_at INTEGER NOT NULL
       )
     ''';
@@ -488,6 +489,18 @@ class DatabaseService {
       await db.execute(
         'CREATE INDEX IF NOT EXISTS idx_goal_contributions_goal ON goal_contributions(goal_id)',
       );
+    }
+
+    if (oldVersion < 18) {
+      // Link a settlement to the bank transaction it was recorded from, so an
+      // incoming repayment marked "Settlement" can also clear a ledger balance.
+      try {
+        await db.execute(
+          'ALTER TABLE settlements ADD COLUMN transaction_id INTEGER',
+        );
+      } catch (e) {
+        // Column may already exist
+      }
     }
   }
 
@@ -1789,9 +1802,24 @@ class DatabaseService {
     return db.insert('settlements', s.toMap());
   }
 
+  Future<void> updateSettlement(Settlement s) async {
+    final db = await database;
+    await db.update('settlements', s.toMap(),
+        where: 'id = ?', whereArgs: [s.id]);
+  }
+
   Future<void> deleteSettlement(int id) async {
     final db = await database;
     await db.delete('settlements', where: 'id = ?', whereArgs: [id]);
+  }
+
+  /// The settlement (if any) recorded from a given transaction.
+  Future<Settlement?> getSettlementByTransactionId(int transactionId) async {
+    final db = await database;
+    final r = await db.query('settlements',
+        where: 'transaction_id = ?', whereArgs: [transactionId], limit: 1);
+    if (r.isEmpty) return null;
+    return Settlement.fromMap(r.first);
   }
 
   Future<List<Settlement>> getSettlements() async {
@@ -2114,6 +2142,10 @@ class DatabaseService {
     for (final raw in (data['settlements'] as List? ?? const [])) {
       final row = Map<String, dynamic>.from(raw as Map);
       row.remove('id');
+      // Transaction ids aren't stable across a restore; drop the link (the
+      // transaction's own 'Settlement' category is restored with the row, so
+      // the income exclusion is preserved regardless).
+      row['transaction_id'] = null;
       final exists = await db.query(
         'settlements',
         where: 'person = ? AND amount = ? AND date = ? AND paid_to_me = ?',

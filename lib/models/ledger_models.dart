@@ -108,6 +108,12 @@ class Settlement {
   final bool paidToMe;
   final DateTime date;
   final String? note;
+
+  /// Optional link to the bank transaction this settlement was recorded from
+  /// (an incoming repayment marked "Settlement"), so it can be edited/removed
+  /// from that transaction.
+  final int? transactionId;
+
   final DateTime createdAt;
 
   const Settlement({
@@ -117,6 +123,7 @@ class Settlement {
     required this.paidToMe,
     required this.date,
     this.note,
+    this.transactionId,
     required this.createdAt,
   });
 
@@ -127,6 +134,7 @@ class Settlement {
         paidToMe: (m['paid_to_me'] as int) == 1,
         date: DateTime.fromMillisecondsSinceEpoch(m['date'] as int),
         note: m['note'] as String?,
+        transactionId: m['transaction_id'] as int?,
         createdAt: DateTime.fromMillisecondsSinceEpoch(m['created_at'] as int),
       );
 
@@ -137,8 +145,35 @@ class Settlement {
         'paid_to_me': paidToMe ? 1 : 0,
         'date': date.millisecondsSinceEpoch,
         'note': note,
+        'transaction_id': transactionId,
         'created_at': createdAt.millisecondsSinceEpoch,
       };
+}
+
+/// Result of checking whether an incoming amount looks like a settlement of a
+/// known debt. [looksLikeSettlement] drives the suggestion banner;
+/// [person] is the single matching debtor (null when ambiguous or none).
+class SettlementSuggestion {
+  final bool looksLikeSettlement;
+  final String? person;
+  const SettlementSuggestion(this.looksLikeSettlement, this.person);
+
+  static const none = SettlementSuggestion(false, null);
+
+  /// Suggest whether [amount] (an incoming credit) settles a debt: true when
+  /// any person owes you ≈ [amount] (within [tol]). [person] is set only when
+  /// exactly one debtor matches, so we never guess wrong between equal debts.
+  static SettlementSuggestion suggest(
+    double amount,
+    List<PersonBalance> balances, {
+    double tol = 1.0,
+  }) {
+    final matches = balances
+        .where((b) => b.owesMe && (b.net - amount).abs() <= tol)
+        .toList();
+    if (matches.isEmpty) return none;
+    return SettlementSuggestion(true, matches.length == 1 ? matches.first.person : null);
+  }
 }
 
 /// A person's net balance with you.

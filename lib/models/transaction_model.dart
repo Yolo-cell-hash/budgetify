@@ -242,16 +242,24 @@ class ExpenseCategories {
     'Transfer',
     'Self Transfer',
     'Investments',
+    'Settlement',
     'Refund',
     'Cash',
     'Cash Conversion',
     'Other',
   ];
 
-  /// Debit categories that are NOT real spending and must be excluded from
-  /// every expense/spending total: moving money between your own accounts,
-  /// and money put into investments (it's still yours, just relocated).
-  static const Set<String> nonExpense = {'Self Transfer', 'Investments'};
+  /// Categories that are NOT real income or spending and must be excluded from
+  /// every total: moving money between your own accounts, money put into
+  /// investments (still yours, just relocated), and **settlements** —
+  /// repaying/being repaid for money one of you fronted (e.g. you cover a
+  /// group bill and friends pay you back; the repayment isn't income, and your
+  /// share was already counted when you split the bill).
+  static const Set<String> nonExpense = {
+    'Self Transfer',
+    'Investments',
+    'Settlement',
+  };
 
   /// Whether a debit in [category] should count toward expense totals.
   static bool isExpenseCategory(String? category) =>
@@ -314,6 +322,8 @@ class ExpenseCategories {
         return '🔁';
       case 'Investments':
         return '📈';
+      case 'Settlement':
+        return '🤝';
       case 'Refund':
         return '↩️';
       case 'Cash':
@@ -359,6 +369,8 @@ class ExpenseCategories {
         return const Color(0xFF5B7C99);
       case 'Investments':
         return const Color(0xFF2E8B7A);
+      case 'Settlement':
+        return const Color(0xFF5E8B9E);
       case 'Refund':
         return const Color(0xFF16A085);
       case 'Cash':

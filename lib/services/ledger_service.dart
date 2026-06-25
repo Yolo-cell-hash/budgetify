@@ -1,6 +1,7 @@
 import 'package:intl/intl.dart';
 
 import '../models/ledger_models.dart';
+import '../models/transaction_model.dart';
 import '../models/transaction_split_math.dart';
 import 'database_service.dart';
 
@@ -198,6 +199,67 @@ class LedgerService {
 
   Future<int> addSettlement(Settlement s) => _db.insertSettlement(s);
   Future<void> deleteSettlement(int id) => _db.deleteSettlement(id);
+
+  /// The ledger settle-up (if any) recorded from [transactionId].
+  Future<Settlement?> settlementForTransaction(int transactionId) =>
+      _db.getSettlementByTransactionId(transactionId);
+
+  /// Does this incoming [amount] look like a known person settling a debt?
+  /// Used for the proactive "mark as settlement" suggestion.
+  Future<SettlementSuggestion> suggestSettlement(double amount) async {
+    final s = await summary();
+    return SettlementSuggestion.suggest(amount, s.people);
+  }
+
+  /// Mark [txn] as a **settlement** so it stops counting as income/expense, and
+  /// (optionally) record it against [person] in the ledger so their balance
+  /// clears. Reconciles any existing linked settle-up, so editing is idempotent.
+  ///
+  /// A credit means the person paid *you* back (`paidToMe: true`); a debit
+  /// means *you* settled what you owed them (`paidToMe: false`).
+  Future<void> setTransactionSettlement({
+    required TransactionModel txn,
+    String? person,
+  }) async {
+    // 1. Tag the transaction neutral (excluded from income & expense).
+    await _db.updateTransaction(
+      txn.copyWith(category: 'Settlement', isClassified: true),
+    );
+
+    // 2. Reconcile the linked ledger settle-up.
+    final existing =
+        txn.id == null ? null : await _db.getSettlementByTransactionId(txn.id!);
+    final name = person?.trim() ?? '';
+    if (name.isNotEmpty) {
+      final s = Settlement(
+        id: existing?.id,
+        person: name,
+        amount: txn.amount,
+        paidToMe: txn.type == TransactionType.credit,
+        date: txn.detectedAt,
+        transactionId: txn.id,
+        createdAt: existing?.createdAt ?? DateTime.now(),
+      );
+      if (existing != null) {
+        await _db.updateSettlement(s);
+      } else {
+        await _db.insertSettlement(s);
+      }
+    } else if (existing != null) {
+      // No person now: drop the prior ledger entry, keep the neutral category.
+      await _db.deleteSettlement(existing.id!);
+    }
+  }
+
+  /// Undo a settlement: remove any linked ledger settle-up and untag the
+  /// transaction (back to unclassified, counting normally again).
+  Future<void> clearTransactionSettlement(TransactionModel txn) async {
+    if (txn.id != null) {
+      final existing = await _db.getSettlementByTransactionId(txn.id!);
+      if (existing != null) await _db.deleteSettlement(existing.id!);
+    }
+    await _db.updateTransaction(txn.untagged());
+  }
 
   /// A unified, newest-first feed of everything involving [person].
   Future<List<LedgerActivity>> activityFor(String person) async {
