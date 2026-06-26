@@ -140,8 +140,8 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: _emoji == e ? AppColors.gold.withValues(alpha: 0.16) : colors.cardAlt,
-                        border: Border.all(color: _emoji == e ? AppColors.gold : colors.border),
+                        color: _emoji == e ? colors.brandAccent.withValues(alpha: 0.16) : colors.cardAlt,
+                        border: Border.all(color: _emoji == e ? colors.brandAccent : colors.border),
                       ),
                       child: Text(e, style: const TextStyle(fontSize: 18)),
                     ),
@@ -165,7 +165,7 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
                         shape: BoxShape.circle,
                         gradient: LinearGradient(colors: accentOf(i)),
                         border: Border.all(
-                            color: _accent == i ? AppColors.gold : Colors.transparent, width: 3),
+                            color: _accent == i ? colors.brandAccent : Colors.transparent, width: 3),
                       ),
                     ),
                   ),

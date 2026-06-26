@@ -21,7 +21,8 @@ class PersonAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isMe ? AppColors.gold : CustomTagService.colorFromName(name);
+    final color =
+        isMe ? AppColors.of(context).brandAccent : CustomTagService.colorFromName(name);
     return Container(
       width: size,
       height: size,

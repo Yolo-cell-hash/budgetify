@@ -26,7 +26,7 @@ class AppDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
-    final a = accent ?? AppColors.gold;
+    final a = accent ?? colors.brandAccent;
 
     return Dialog(
       backgroundColor: colors.surface,
@@ -145,12 +145,12 @@ class _ProgressDialog extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(
+            SizedBox(
               width: 26,
               height: 26,
               child: CircularProgressIndicator(
                 strokeWidth: 2.6,
-                valueColor: AlwaysStoppedAnimation(AppColors.gold),
+                valueColor: AlwaysStoppedAnimation(colors.brandAccent),
               ),
             ),
             const SizedBox(width: 18),

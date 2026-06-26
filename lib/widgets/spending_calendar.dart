@@ -177,7 +177,7 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
       fg = colors.textTertiary;
     } else {
       final opacity = (0.18 + 0.62 * ratio).clamp(0.18, 0.85);
-      bg = AppColors.gold.withOpacity(opacity);
+      bg = colors.brandAccent.withOpacity(opacity);
       fg = ratio > 0.45 ? const Color(0xFF15110A) : colors.text;
     }
 
@@ -190,7 +190,7 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
             color: bg,
             borderRadius: BorderRadius.circular(10),
             border: isToday
-                ? Border.all(color: AppColors.gold, width: 2)
+                ? Border.all(color: colors.brandAccent, width: 2)
                 : Border.all(color: colors.border),
           ),
           child: Center(
@@ -221,7 +221,7 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
             width: 16,
             height: 16,
             decoration: BoxDecoration(
-              color: AppColors.gold.withOpacity(o),
+              color: colors.brandAccent.withOpacity(o),
               borderRadius: BorderRadius.circular(4),
             ),
           ),

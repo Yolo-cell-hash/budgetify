@@ -80,11 +80,11 @@ class FinancialHealthCard extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(7),
           decoration: BoxDecoration(
-            color: AppColors.gold.withValues(alpha: 0.14),
+            color: colors.brandAccent.withValues(alpha: 0.14),
             borderRadius: BorderRadius.circular(10),
           ),
-          child: const Icon(Icons.monitor_heart_outlined,
-              size: 18, color: AppColors.goldDeep),
+          child: Icon(Icons.monitor_heart_outlined,
+              size: 18, color: colors.brandAccent),
         ),
         const SizedBox(width: 10),
         Text(
@@ -264,7 +264,8 @@ class FinancialHealthInline extends StatelessWidget {
 
     final score = health.score!;
     final color = _scoreColor(health.scoreValue!, onDark: onDark, colors: colors);
-    final labelColor = onDark ? AppColors.gold : colors.textSecondary;
+    final labelColor =
+        onDark ? HeroStyle.of(context).accent : colors.textSecondary;
     final muted =
         onDark ? Colors.white.withValues(alpha: 0.55) : colors.textTertiary;
 
