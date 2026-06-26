@@ -386,7 +386,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               secondary: Icon(
                 Icons.insights_rounded,
                 color: context.watch<AppPreferences>().aiPredictionMode
-                    ? const Color(0xFFA8843C)
+                    ? AppColors.of(context).brandAccent
                     : const Color(0xFF8A8D96),
               ),
               title: Text(context.l10n.aiPredictionMode),
@@ -409,7 +409,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               secondary: Icon(
                 Icons.monitor_heart_outlined,
                 color: context.watch<AppPreferences>().financialHealthDetailed
-                    ? const Color(0xFFA8843C)
+                    ? AppColors.of(context).brandAccent
                     : const Color(0xFF8A8D96),
               ),
               title: Text(context.l10n.detailedFinancialHealth),
@@ -433,7 +433,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               secondary: Icon(
                 Icons.emoji_events_outlined,
                 color: context.watch<AppPreferences>().gamifiedMode
-                    ? const Color(0xFFA8843C)
+                    ? AppColors.of(context).brandAccent
                     : const Color(0xFF8A8D96),
               ),
               title: Text(context.l10n.gamifiedBudgets),

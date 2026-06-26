@@ -39,11 +39,11 @@ class SafeToSpendCard extends StatelessWidget {
         f.hasTarget ? (f.spentSoFar / f.target!).clamp(0.0, 1.0) : 0.0;
     final aheadOfPace = spentFrac > paceFrac + 0.03;
 
-    // Green when comfortably on/under the time-pace, gold when running a touch
-    // fast, red once the whole target is gone.
+    // Green when comfortably on/under the time-pace, the theme accent when
+    // running a touch fast, red once the whole target is gone.
     final Color accent = over
         ? colors.danger
-        : (aheadOfPace ? AppColors.gold : colors.success);
+        : (aheadOfPace ? colors.brandAccent : colors.success);
 
     final perDay = f.safeToSpendPerDay ?? 0;
     final remaining = f.safeToSpendTotal ?? 0;

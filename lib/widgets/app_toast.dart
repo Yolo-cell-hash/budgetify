@@ -18,11 +18,12 @@ void showAppToast(
   final messenger = ScaffoldMessenger.maybeOf(context);
   if (messenger == null) return;
 
+  final brand = AppColors.of(context).brandAccent;
   final (icon, accent) = switch (type) {
     AppToastType.success => (Icons.check_circle_rounded, AppColors.successDark),
     AppToastType.error => (Icons.error_rounded, AppColors.dangerDark),
-    AppToastType.warning => (Icons.warning_amber_rounded, AppColors.gold),
-    AppToastType.info => (Icons.info_rounded, AppColors.gold),
+    AppToastType.warning => (Icons.warning_amber_rounded, brand),
+    AppToastType.info => (Icons.info_rounded, brand),
   };
 
   messenger
