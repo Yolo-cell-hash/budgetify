@@ -170,6 +170,23 @@ class GamificationService {
     await _write(blob);
   }
 
+  // TEMPORARY TEST HOOK — REMOVE BEFORE RELEASE.
+  /// Forces the streak to [days] so locked streak-reward themes (e.g. Onyx &
+  /// Amber at 14 days) can be tested on a real device without waiting. Stamps
+  /// today as the last-active day, so the normal [recordActiveDay] on launch
+  /// is a no-op and these values survive.
+  Future<void> debugSeedStreak(int days, {DateTime? now}) async {
+    final today = now ?? DateTime.now();
+    final t = DateTime(today.year, today.month, today.day);
+    final blob = await _read();
+    blob['streak'] = {
+      'last': t.toIso8601String(),
+      'current': days,
+      'longest': days,
+    };
+    await _write(blob);
+  }
+
   /// Lightweight streak read (no database hit) for the theme picker and the
   /// Streak Reward Road, which only need the current/longest day counts.
   Future<({int current, int longest})> streakInfo() async {

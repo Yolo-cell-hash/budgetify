@@ -9,6 +9,7 @@ import 'package:budget_tracker/services/app_lock_service.dart';
 import 'package:budget_tracker/services/notification_service.dart';
 import 'package:budget_tracker/services/background_service.dart';
 import 'package:budget_tracker/services/custom_tag_service.dart';
+import 'package:budget_tracker/services/gamification_service.dart';
 import 'package:budget_tracker/providers/theme_provider.dart';
 import 'package:budget_tracker/providers/app_preferences.dart';
 import 'package:budget_tracker/providers/locale_provider.dart';
@@ -24,6 +25,11 @@ void main() async {
 
   // Initialize custom tags (must be before UI builds)
   await CustomTagService().initialize();
+
+  // TEMPORARY (manual on-device test): force a 30-day streak so the streak
+  // counter shows 30 and the streak-reward themes (incl. Onyx & Amber, which
+  // unlocks at 14 days) are available immediately. REMOVE BEFORE RELEASE.
+  await GamificationService().debugSeedStreak(30);
 
   // Create providers
   final themeProvider = ThemeProvider();
