@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// The set of selectable app themes. [light] and [dark] are always available;
-/// [smokyIvory] and [seashellMauve] are unlocked as streak rewards (see
-/// `models/streak_reward.dart`). All but [dark] are light-brightness.
-enum AppThemeVariant { light, dark, smokyIvory, seashellMauve }
+/// [smokyIvory], [seashellMauve] and [onyxAmber] are unlocked as streak rewards
+/// (see `models/streak_reward.dart`). [dark] and [onyxAmber] are dark-brightness;
+/// the rest are light-brightness.
+enum AppThemeVariant { light, dark, smokyIvory, seashellMauve, onyxAmber }
 
 /// Provider for managing the active app theme variant.
 class ThemeProvider extends ChangeNotifier {
@@ -368,12 +369,24 @@ class AppTheme {
         hero: HeroStyle._seashellMauve,
       );
 
+  // ====== DARK-BRIGHTNESS STREAK REWARD THEME: "Onyx & Amber" ======
+  // Mirrors the base dark theme's structure (near-black canvas, elevated grey
+  // cards) but swaps champagne gold for a vivid amber accent. Dark ink is the
+  // on-accent colour so text reads on the bright yellow.
+  static ThemeData get onyxAmberTheme => _darkVariantTheme(
+        AppColors.onyxAmber,
+        accent: AppColors.onyxAmber.accent,
+        hero: HeroStyle._onyxAmber,
+        onAccent: const Color(0xFF202427),
+      );
+
   /// The [ThemeData] for any [AppThemeVariant].
   static ThemeData of(AppThemeVariant v) => switch (v) {
         AppThemeVariant.light => lightTheme,
         AppThemeVariant.dark => darkTheme,
         AppThemeVariant.smokyIvory => smokyIvoryTheme,
         AppThemeVariant.seashellMauve => seashellMauveTheme,
+        AppThemeVariant.onyxAmber => onyxAmberTheme,
       };
 
   /// Builds a light-brightness theme from a palette + a single [accent] colour
@@ -501,6 +514,148 @@ class AppTheme {
       ),
       chipTheme: ChipThemeData(
         backgroundColor: c.surface,
+        selectedColor: accent,
+        labelStyle: TextStyle(color: c.text),
+        side: BorderSide(color: c.border),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ),
+    );
+  }
+
+  /// Builds a dark-brightness theme from a palette + a single [accent] colour —
+  /// the dark counterpart to [_lightVariantTheme], used for dark streak-reward
+  /// variants. [onAccent] is painted on top of the accent (buttons, FAB,
+  /// snackbar text); pass a dark ink for light accents like amber.
+  static ThemeData _darkVariantTheme(
+    AppColors c, {
+    required Color accent,
+    required HeroStyle hero,
+    required Color onAccent,
+  }) {
+    return ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.dark,
+      extensions: [AppPalette(colors: c, hero: hero)],
+      colorScheme: ColorScheme.dark(
+        primary: accent,
+        onPrimary: onAccent,
+        secondary: accent,
+        onSecondary: onAccent,
+        surface: c.surface,
+        onSurface: c.text,
+        error: c.danger,
+      ),
+      fontFamily: 'Manrope',
+      scaffoldBackgroundColor: c.background,
+      textTheme: _textTheme(c.text, c.textSecondary),
+      pageTransitionsTheme: _pageTransitions,
+      appBarTheme: AppBarTheme(
+        centerTitle: true,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        backgroundColor: c.background,
+        foregroundColor: c.text,
+        surfaceTintColor: Colors.transparent,
+        titleTextStyle: TextStyle(
+          color: c.text,
+          fontSize: 17,
+          fontWeight: FontWeight.w600,
+          letterSpacing: -0.2,
+        ),
+      ),
+      cardTheme: CardThemeData(
+        color: c.card,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: c.border),
+        ),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          elevation: 0,
+          backgroundColor: accent,
+          foregroundColor: onAccent,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          textStyle: const TextStyle(
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.2,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(foregroundColor: accent),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: c.text,
+          side: BorderSide(color: c.border),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+      ),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: accent,
+        foregroundColor: onAccent,
+        elevation: 2,
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: c.card,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: c.border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: c.border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: accent, width: 1.5),
+        ),
+        hintStyle: TextStyle(color: c.textTertiary),
+        labelStyle: TextStyle(color: c.textSecondary),
+      ),
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
+        backgroundColor: c.surface,
+        selectedItemColor: accent,
+        unselectedItemColor: c.textTertiary,
+        type: BottomNavigationBarType.fixed,
+      ),
+      tabBarTheme: TabBarThemeData(
+        labelColor: accent,
+        unselectedLabelColor: c.textSecondary,
+        indicatorColor: accent,
+      ),
+      dividerColor: c.border,
+      iconTheme: IconThemeData(color: c.textSecondary),
+      dialogTheme: DialogThemeData(
+        backgroundColor: c.cardAlt,
+        surfaceTintColor: Colors.transparent,
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: c.cardAlt,
+        surfaceTintColor: Colors.transparent,
+      ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: c.cardAlt,
+        contentTextStyle: TextStyle(color: c.text),
+        actionTextColor: accent,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: c.card,
         selectedColor: accent,
         labelStyle: TextStyle(color: c.text),
         side: BorderSide(color: c.border),
@@ -656,12 +811,29 @@ class AppColors {
     danger: dangerLight,
   );
 
+  // "Onyx & Amber" (dark-brightness): deep onyx canvas, elevated gunmetal-grey
+  // cards, vivid amber accent. Mirrors the base dark theme's structure.
+  static const onyxAmber = AppColors._(
+    background: Color(0xFF202427), // onyx
+    surface: Color(0xFF2B3138), // gunmetal grey
+    card: Color(0xFF2B3138),
+    cardAlt: Color(0xFF333A42),
+    border: Color(0xFF3A424B),
+    text: Color(0xFFF1F3F5),
+    textSecondary: Color(0xFF9BA3AD),
+    textTertiary: Color(0xFF6B747E),
+    accent: Color(0xFFFAD32E), // vivid amber
+    success: successDark,
+    danger: dangerDark,
+  );
+
   /// The palette backing a given [AppThemeVariant].
   static AppColors forVariant(AppThemeVariant v) => switch (v) {
         AppThemeVariant.light => light,
         AppThemeVariant.dark => dark,
         AppThemeVariant.smokyIvory => smokyIvory,
         AppThemeVariant.seashellMauve => seashellMauve,
+        AppThemeVariant.onyxAmber => onyxAmber,
       };
 
   static AppColors of(BuildContext context) {
@@ -834,6 +1006,28 @@ class HeroStyle {
     innerFill: Colors.white.withValues(alpha: 0.10),
     innerBorder: Colors.white.withValues(alpha: 0.14),
     divider: Colors.white.withValues(alpha: 0.16),
+    onDark: true,
+  );
+
+  // Amber-on-onyx hero: a subtly elevated charcoal gradient with the amber
+  // accent and white text — echoing how the base dark theme uses its midnight
+  // hero with gold.
+  static final HeroStyle _onyxAmber = HeroStyle(
+    gradientColors: const [Color(0xFF2E343C), Color(0xFF1E2226)],
+    border: const Color(0xFFFAD32E).withValues(alpha: 0.35),
+    shadow: [
+      BoxShadow(
+        color: Colors.black.withValues(alpha: 0.30),
+        blurRadius: 24,
+        offset: const Offset(0, 12),
+      ),
+    ],
+    foreground: Colors.white,
+    mutedForeground: Colors.white.withValues(alpha: 0.62),
+    accent: const Color(0xFFFAD32E),
+    innerFill: Colors.white.withValues(alpha: 0.06),
+    innerBorder: Colors.white.withValues(alpha: 0.08),
+    divider: Colors.white.withValues(alpha: 0.12),
     onDark: true,
   );
 }

@@ -18,6 +18,10 @@ void main() {
         unlockedStreakRewards(7).map((r) => r.id),
         ['theme_smoky_ivory', 'theme_seashell_mauve'],
       );
+      expect(
+        unlockedStreakRewards(14).map((r) => r.id),
+        ['theme_smoky_ivory', 'theme_seashell_mauve', 'theme_onyx_amber'],
+      );
       expect(unlockedStreakRewards(100).length, kStreakRewards.length);
     });
 
@@ -63,8 +67,10 @@ void main() {
       }
     });
 
-    test('dark is the only dark-brightness variant', () {
+    test('dark and onyxAmber are the dark-brightness variants', () {
       expect(AppTheme.of(AppThemeVariant.dark).brightness, Brightness.dark);
+      expect(
+          AppTheme.of(AppThemeVariant.onyxAmber).brightness, Brightness.dark);
       expect(AppTheme.of(AppThemeVariant.light).brightness, Brightness.light);
       expect(
           AppTheme.of(AppThemeVariant.smokyIvory).brightness, Brightness.light);

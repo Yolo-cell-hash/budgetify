@@ -1582,6 +1582,7 @@ class AppStrings {
   String get themeNameDark => _t('Dark', 'गहरा', 'गडद');
   String get themeNameSmoky => _t('Smoky', 'स्मोकी', 'स्मोकी');
   String get themeNameSeashell => _t('Seashell', 'सीशेल', 'सीशेल');
+  String get themeNameAmber => _t('Amber', 'एम्बर', 'अंबर');
 
   // ── Onboarding ────────────────────────────────────────────────────────────
   String get onboardWelcomeTitle => _t('Welcome to\nBudget Tracker',
@@ -1875,6 +1876,8 @@ class AppStrings {
         return _t('Smoky Blue & Warm Ivory', 'स्मोकी ब्लू और वॉर्म आइवरी', 'स्मोकी ब्लू व वॉर्म आयव्हरी');
       case 'theme_seashell_mauve':
         return _t('Soft Seashell & Dusty Mauve', 'सॉफ़्ट सीशेल और डस्टी मॉव', 'सॉफ्ट सीशेल व डस्टी मॉव');
+      case 'theme_onyx_amber':
+        return _t('Onyx & Amber', 'ओनिक्स और एम्बर', 'ओनिक्स व अंबर');
       default:
         return id;
     }
@@ -1892,6 +1895,12 @@ class AppStrings {
           'Blush seashell with a dusty-mauve accent. Unlocked at a 7-day streak.',
           'डस्टी-मॉव रंग के साथ ब्लश सीशेल। 7-दिन की स्ट्रीक पर अनलॉक।',
           'डस्टी-मॉव रंगासह ब्लश सीशेल. 7-दिवसांच्या स्ट्रीकवर अनलॉक.',
+        );
+      case 'theme_onyx_amber':
+        return _t(
+          'A vivid amber accent on a deep onyx canvas. Unlocked at a 14-day streak.',
+          'गहरे ओनिक्स कैनवास पर चमकीला एम्बर रंग। 14-दिन की स्ट्रीक पर अनलॉक।',
+          'गडद ओनिक्स कॅनव्हासवर ठळक अंबर रंग. 14-दिवसांच्या स्ट्रीकवर अनलॉक.',
         );
       default:
         return '';
