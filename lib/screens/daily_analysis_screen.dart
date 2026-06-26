@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../l10n/l10n.dart';
 import '../models/transaction_model.dart';
+import '../providers/theme_provider.dart';
 import '../services/database_service.dart';
 import '../widgets/app_bar_title.dart';
 import '../widgets/category_donut.dart';
