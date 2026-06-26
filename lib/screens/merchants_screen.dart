@@ -142,7 +142,8 @@ class _MerchantsScreenState extends State<MerchantsScreen> {
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.gold.withValues(alpha: 0.30)),
+        border:
+            Border.all(color: AppColors.of(context).brandAccent.withValues(alpha: 0.30)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -154,7 +155,7 @@ class _MerchantsScreenState extends State<MerchantsScreen> {
               fontSize: 10.5,
               letterSpacing: 1.2,
               fontWeight: FontWeight.w600,
-              color: AppColors.gold.withValues(alpha: 0.9),
+              color: AppColors.of(context).brandAccent.withValues(alpha: 0.9),
             ),
           ),
           const SizedBox(height: 6),

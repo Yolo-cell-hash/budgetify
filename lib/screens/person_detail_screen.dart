@@ -119,7 +119,7 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
     final settled = _net.abs() < personBalanceEps;
     final owesMe = _net > 0;
     final accent = settled
-        ? AppColors.gold
+        ? colors.brandAccent
         : owesMe
             ? AppColors.successDark
             : AppColors.dangerDark;
@@ -198,12 +198,12 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: filled
-              ? AppColors.gold
+              ? AppColors.of(context).brandAccent
               : Colors.white.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(13),
           border: Border.all(
             color: filled
-                ? AppColors.gold
+                ? AppColors.of(context).brandAccent
                 : Colors.white.withValues(alpha: 0.16),
           ),
         ),

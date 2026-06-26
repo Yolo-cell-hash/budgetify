@@ -118,8 +118,8 @@ class _HomeGoalsCardState extends State<HomeGoalsCard> {
                           const Spacer(),
                           Text(context.l10n.seeAllLower,
                               style: TextStyle(
-                                  fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.goldDeep)),
-                          Icon(Icons.chevron_right_rounded, size: 18, color: AppColors.goldDeep),
+                                  fontSize: 12, fontWeight: FontWeight.w600, color: colors.brandAccent)),
+                          Icon(Icons.chevron_right_rounded, size: 18, color: colors.brandAccent),
                         ],
                       ),
                       const SizedBox(height: 14),

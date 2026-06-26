@@ -139,7 +139,7 @@ class _CategoryBudgetInsightsScreenState
         ? AppColors.dangerDark
         : pct >= 0.9
             ? const Color(0xFFD79A3C)
-            : AppColors.gold;
+            : AppColors.of(context).brandAccent;
 
     return Container(
       padding: const EdgeInsets.all(22),
@@ -150,7 +150,7 @@ class _CategoryBudgetInsightsScreenState
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.gold.withOpacity(0.35)),
+        border: Border.all(color: AppColors.of(context).brandAccent.withOpacity(0.35)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.25),
@@ -170,7 +170,7 @@ class _CategoryBudgetInsightsScreenState
                   fontSize: 12,
                   letterSpacing: 1.4,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.gold,
+                  color: AppColors.of(context).brandAccent,
                 ),
               ),
               Container(

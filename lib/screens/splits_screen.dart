@@ -93,7 +93,7 @@ class _SplitsScreenState extends State<SplitsScreen> {
               _addOption(
                 colors,
                 icon: Icons.call_split_rounded,
-                accent: AppColors.gold,
+                accent: colors.brandAccent,
                 title: context.l10nRead.splitAnExpense,
                 subtitle: context.l10nRead.splitAnExpenseDesc,
                 onTap: () => Navigator.pop(ctx, 'split'),
@@ -259,7 +259,8 @@ class _SplitsScreenState extends State<SplitsScreen> {
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.gold.withValues(alpha: 0.30)),
+        border:
+            Border.all(color: AppColors.of(context).brandAccent.withValues(alpha: 0.30)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.22),
@@ -281,7 +282,7 @@ class _SplitsScreenState extends State<SplitsScreen> {
               fontSize: 11,
               letterSpacing: 1.4,
               fontWeight: FontWeight.w600,
-              color: AppColors.gold.withValues(alpha: 0.9),
+              color: AppColors.of(context).brandAccent.withValues(alpha: 0.9),
             ),
           ),
           const SizedBox(height: 10),
@@ -475,17 +476,18 @@ class _SplitsScreenState extends State<SplitsScreen> {
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  AppColors.gold.withValues(alpha: 0.20),
-                  AppColors.gold.withValues(alpha: 0.06),
+                  AppColors.of(context).brandAccent.withValues(alpha: 0.20),
+                  AppColors.of(context).brandAccent.withValues(alpha: 0.06),
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.gold.withValues(alpha: 0.25)),
+              border: Border.all(
+                  color: AppColors.of(context).brandAccent.withValues(alpha: 0.25)),
             ),
-            child: const Icon(Icons.diversity_3_rounded,
-                size: 30, color: AppColors.goldDeep),
+            child: Icon(Icons.diversity_3_rounded,
+                size: 30, color: AppColors.of(context).brandAccent),
           ),
           const SizedBox(height: 16),
           Text(

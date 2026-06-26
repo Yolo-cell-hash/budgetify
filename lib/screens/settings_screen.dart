@@ -332,7 +332,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   secondary: Icon(
                     Icons.fingerprint,
                     color: _appLockEnabled
-                        ? const Color(0xFFA8843C)
+                        ? AppColors.of(context).brandAccent
                         : const Color(0xFF8A8D96),
                   ),
                   title: Text(context.l10n.appLock),
@@ -357,7 +357,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ? Icons.visibility_off_outlined
                         : Icons.visibility_outlined,
                     color: context.watch<AppPreferences>().privacyMode
-                        ? const Color(0xFFA8843C)
+                        ? AppColors.of(context).brandAccent
                         : const Color(0xFF8A8D96),
                   ),
                   title: Text(context.l10n.hideAmounts),
@@ -459,9 +459,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Column(
               children: [
                 ListTile(
-                  leading: const Icon(
+                  leading: Icon(
                     Icons.shield_moon_outlined,
-                    color: Color(0xFFA8843C),
+                    color: AppColors.of(context).brandAccent,
                   ),
                   title: Text(context.l10n.createBackup),
                   subtitle: Text(

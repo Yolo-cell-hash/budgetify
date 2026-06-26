@@ -317,8 +317,8 @@ class _InsightsScreenState extends State<InsightsScreen> {
                     top: Radius.circular(6),
                   ),
                   color: isCurrent
-                      ? AppColors.gold
-                      : AppColors.gold.withOpacity(0.4),
+                      ? AppColors.of(context).brandAccent
+                      : AppColors.of(context).brandAccent.withOpacity(0.4),
                 ),
               ],
             );
