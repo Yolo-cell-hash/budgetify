@@ -8,24 +8,35 @@ import '../services/financial_health_service.dart';
 import 'app_dialog.dart';
 
 /// Design-system colour for a health band. On a dark surface ([onDark], e.g. the
-/// balance card) the brighter dark-mode variants are used regardless of the app
-/// theme; on a normal card the theme-aware palette is used.
+/// balance card) the band tracks the active [hero] so the gauge stays tuned to
+/// the reward themes' coloured heroes (instead of a stray champagne gold / dull
+/// green); on a normal card the theme-aware palette is used. [hero] is only
+/// consulted when [onDark]; pass it from any hero surface.
 Color healthBandColor(
   HealthBand band, {
   required bool onDark,
   required AppColors colors,
+  HeroStyle? hero,
 }) =>
     switch (band) {
-      HealthBand.excellent => onDark ? AppColors.successDark : colors.success,
-      HealthBand.good => AppColors.gold,
+      HealthBand.excellent =>
+        onDark ? (hero?.positive ?? AppColors.successDark) : colors.success,
+      HealthBand.good => onDark ? (hero?.accent ?? AppColors.gold) : colors.brandAccent,
       HealthBand.fair => const Color(0xFFD79A3C),
       HealthBand.needsWork =>
         onDark ? const Color(0xFFE0904A) : const Color(0xFFD2772F),
-      HealthBand.atRisk => onDark ? AppColors.dangerDark : colors.danger,
+      HealthBand.atRisk =>
+        onDark ? (hero?.negative ?? AppColors.dangerDark) : colors.danger,
     };
 
-Color _scoreColor(double score, {required bool onDark, required AppColors colors}) =>
-    healthBandColor(FinancialHealth.bandFor(score), onDark: onDark, colors: colors);
+Color _scoreColor(
+  double score, {
+  required bool onDark,
+  required AppColors colors,
+  HeroStyle? hero,
+}) =>
+    healthBandColor(FinancialHealth.bandFor(score),
+        onDark: onDark, colors: colors, hero: hero);
 
 /// Dashboard card for the **Financial Health Score** — a single 0–100 number
 /// (100 healthy, 0 poor) blending savings rate, budget adherence, recurring
@@ -80,11 +91,11 @@ class FinancialHealthCard extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(7),
           decoration: BoxDecoration(
-            color: AppColors.gold.withValues(alpha: 0.14),
+            color: colors.brandAccent.withValues(alpha: 0.14),
             borderRadius: BorderRadius.circular(10),
           ),
-          child: const Icon(Icons.monitor_heart_outlined,
-              size: 18, color: AppColors.goldDeep),
+          child: Icon(Icons.monitor_heart_outlined,
+              size: 18, color: colors.brandAccent),
         ),
         const SizedBox(width: 10),
         Text(
@@ -262,9 +273,11 @@ class FinancialHealthInline extends StatelessWidget {
     final colors = AppColors.of(context);
     if (!health.hasScore) return const SizedBox.shrink();
 
+    final hero = onDark ? HeroStyle.of(context) : null;
     final score = health.score!;
-    final color = _scoreColor(health.scoreValue!, onDark: onDark, colors: colors);
-    final labelColor = onDark ? AppColors.gold : colors.textSecondary;
+    final color = _scoreColor(health.scoreValue!,
+        onDark: onDark, colors: colors, hero: hero);
+    final labelColor = onDark ? hero!.accent : colors.textSecondary;
     final muted =
         onDark ? Colors.white.withValues(alpha: 0.55) : colors.textTertiary;
 

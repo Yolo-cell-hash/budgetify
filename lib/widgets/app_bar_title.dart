@@ -15,19 +15,17 @@ class AppBarTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
           padding: const EdgeInsets.all(5),
           decoration: BoxDecoration(
-            color: AppColors.gold.withValues(alpha: 0.14),
+            color: colors.brandAccent.withValues(alpha: 0.14),
             borderRadius: BorderRadius.circular(9),
-            border: Border.all(color: AppColors.gold.withValues(alpha: 0.22)),
+            border: Border.all(color: colors.brandAccent.withValues(alpha: 0.22)),
           ),
-          child: Icon(icon,
-              size: 16, color: isDark ? AppColors.gold : AppColors.goldDeep),
+          child: Icon(icon, size: 16, color: colors.brandAccent),
         ),
         const SizedBox(width: 10),
         Text(

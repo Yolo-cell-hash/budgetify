@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../l10n/l10n.dart';
 import '../models/transaction_model.dart';
+import '../providers/theme_provider.dart';
 import '../services/database_service.dart';
 import '../widgets/app_bar_title.dart';
 import '../widgets/category_donut.dart';
@@ -315,16 +316,14 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: isDark
-                  ? Color(0xFFA8843C).withAlpha(30)
-                  : Color(0xFFF5EFE3),
+              color: AppColors.of(context).brandAccent.withAlpha(isDark ? 30 : 38),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
               '${_transactions.length} transaction${_transactions.length == 1 ? '' : 's'}',
               style: TextStyle(
                 fontSize: 13,
-                color: Color(0xFFC8A75E),
+                color: AppColors.of(context).brandAccent,
                 fontWeight: FontWeight.w500,
               ),
             ),

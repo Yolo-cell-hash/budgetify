@@ -49,13 +49,14 @@ class SavingsRateBar extends StatelessWidget {
     final fmt =
         NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
 
-    final labelColor = onDark ? AppColors.gold : colors.textSecondary;
+    final hero = HeroStyle.of(context);
+    final labelColor = onDark ? hero.accent : colors.textSecondary;
     final subText =
         onDark ? Colors.white.withValues(alpha: 0.62) : colors.textSecondary;
     final track =
         onDark ? Colors.white.withValues(alpha: 0.12) : colors.border;
-    final pos = onDark ? AppColors.successDark : AppColors.successLight;
-    final neg = onDark ? AppColors.dangerDark : AppColors.dangerLight;
+    final pos = onDark ? hero.positive : AppColors.successLight;
+    final neg = onDark ? hero.negative : AppColors.dangerLight;
 
     final rate = stats.ratePercent;
     final rateColor =

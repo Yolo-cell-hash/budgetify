@@ -338,13 +338,14 @@ class _BudgetScreenState extends State<BudgetScreen>
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
                 color: isSelected
-                    ? Color(0xFFA8843C)
+                    ? AppColors.of(context).brandAccentDeep
                     : isDark
                         ? const Color(0xFF262931)
                         : Color(0xFFF6F6F3),
                 borderRadius: BorderRadius.circular(20),
                 border: isCurrent && !isSelected
-                    ? Border.all(color: Color(0xFFC8A75E), width: 1.5)
+                    ? Border.all(
+                        color: AppColors.of(context).brandAccent, width: 1.5)
                     : null,
               ),
               alignment: Alignment.center,
@@ -693,7 +694,7 @@ class _BudgetScreenState extends State<BudgetScreen>
         ? colors.danger
         : pct >= 0.9
         ? const Color(0xFFD79A3C)
-        : AppColors.gold;
+        : colors.brandAccent;
     final pillColor = remaining >= 0 ? colors.success : colors.danger;
 
     return Container(
@@ -874,7 +875,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                   ),
                 ).then((_) => _loadData()),
                 style: TextButton.styleFrom(
-                  foregroundColor: AppColors.goldDeep,
+                  foregroundColor: AppColors.of(context).brandAccent,
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   visualDensity: VisualDensity.compact,
                 ),
@@ -1029,12 +1030,12 @@ class _BudgetScreenState extends State<BudgetScreen>
                         LineChartBarData(
                           spots: spots,
                           isCurved: true,
-                          color: Color(0xFFA8843C),
+                          color: AppColors.of(context).brandAccent,
                           barWidth: 3,
                           dotData: const FlDotData(show: false),
                           belowBarData: BarAreaData(
                             show: true,
-                            color: Color(0xFFA8843C).withAlpha(40),
+                            color: AppColors.of(context).brandAccent.withAlpha(40),
                           ),
                         ),
                       ],
@@ -1445,7 +1446,7 @@ class _BudgetScreenState extends State<BudgetScreen>
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: isSelected
-              ? (isDark ? Color(0xFFA8843C) : Color(0xFFA8843C))
+              ? AppColors.of(context).brandAccentDeep
               : Colors.transparent,
           borderRadius: BorderRadius.circular(7),
         ),
@@ -1495,8 +1496,8 @@ class _BudgetScreenState extends State<BudgetScreen>
               BarChartRodData(
                 toY: e.value['total'],
                 color: isCurrentMonth
-                    ? Color(0xFFA8843C)
-                    : Color(0xFFA8843C).withAlpha(120),
+                    ? AppColors.of(context).brandAccent
+                    : AppColors.of(context).brandAccent.withAlpha(120),
                 width: 24,
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(6),
@@ -1542,7 +1543,7 @@ class _BudgetScreenState extends State<BudgetScreen>
             isCurved: true,
             curveSmoothness: 0.35,
             preventCurveOverShooting: true,
-            color: Color(0xFFA8843C),
+            color: AppColors.of(context).brandAccent,
             barWidth: 3,
             isStrokeCapRound: true,
             dotData: FlDotData(
@@ -1551,7 +1552,9 @@ class _BudgetScreenState extends State<BudgetScreen>
                 final isLast = index == _monthlySpending.length - 1;
                 return FlDotCirclePainter(
                   radius: isLast ? 5 : 3.5,
-                  color: isLast ? Color(0xFFA8843C) : Color(0xFFD8BC7E),
+                  color: isLast
+                      ? AppColors.of(context).brandAccentDeep
+                      : AppColors.of(context).brandAccent,
                   strokeWidth: isLast ? 2.5 : 1.5,
                   strokeColor: Colors.white,
                 );
@@ -1561,8 +1564,8 @@ class _BudgetScreenState extends State<BudgetScreen>
               show: true,
               gradient: LinearGradient(
                 colors: [
-                  Color(0xFFA8843C).withAlpha(80),
-                  Color(0xFFA8843C).withAlpha(10),
+                  AppColors.of(context).brandAccent.withAlpha(80),
+                  AppColors.of(context).brandAccent.withAlpha(10),
                 ],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
@@ -1657,9 +1660,11 @@ class _BudgetScreenState extends State<BudgetScreen>
               color: cardColor,
               borderRadius: BorderRadius.circular(12),
               border: isCurrentMonth
-                  ? Border.all(color: Color(0xFFA8843C), width: 2)
+                  ? Border.all(
+                      color: AppColors.of(context).brandAccentDeep, width: 2)
                   : isExpanded
-                  ? Border.all(color: Color(0xFFC8A75E), width: 1)
+                  ? Border.all(
+                      color: AppColors.of(context).brandAccent, width: 1)
                   : null,
             ),
             child: Row(
@@ -1672,7 +1677,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: Color(0xFFA8843C),
+                      color: AppColors.of(context).brandAccentDeep,
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
@@ -1870,7 +1875,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                     icon: const Icon(Icons.add, size: 18),
                     label: Text(context.l10n.add),
                     style: TextButton.styleFrom(
-                      foregroundColor: AppColors.goldDeep,
+                      foregroundColor: AppColors.of(context).brandAccent,
                       padding: const EdgeInsets.symmetric(horizontal: 8),
                       visualDensity: VisualDensity.compact,
                     ),
@@ -1916,14 +1921,14 @@ class _BudgetScreenState extends State<BudgetScreen>
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            AppColors.gold.withOpacity(0.16),
-            AppColors.gold.withOpacity(0.04),
+            colors.brandAccent.withOpacity(0.16),
+            colors.brandAccent.withOpacity(0.04),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.gold.withOpacity(0.45)),
+        border: Border.all(color: colors.brandAccent.withOpacity(0.45)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1933,7 +1938,7 @@ class _BudgetScreenState extends State<BudgetScreen>
             height: 38,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: AppColors.gold.withAlpha(40),
+              color: colors.brandAccent.withAlpha(40),
               borderRadius: BorderRadius.circular(11),
             ),
             child: Text(
@@ -2004,7 +2009,7 @@ class _BudgetScreenState extends State<BudgetScreen>
         ? colors.danger
         : pct >= 0.9
             ? const Color(0xFFD79A3C)
-            : AppColors.gold;
+            : colors.brandAccent;
 
     return PressableScale(
       onTap: () => _openCategoryInsights(b),
@@ -2202,11 +2207,11 @@ class _BudgetScreenState extends State<BudgetScreen>
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
                             color: isSel
-                                ? AppColors.gold
+                                ? colors.brandAccent
                                 : colors.cardAlt,
                             borderRadius: BorderRadius.circular(19),
                             border: Border.all(
-                              color: isSel ? AppColors.gold : colors.border,
+                              color: isSel ? colors.brandAccent : colors.border,
                             ),
                           ),
                           child: Text(

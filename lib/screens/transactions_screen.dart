@@ -565,7 +565,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   label: _customChipLabel,
                   isSelected: _datePreset == _DatePreset.custom,
                   onSelected: _pickCustomRange,
-                  color: const Color(0xFFA8843C),
+                  color: AppColors.of(context).brandAccent,
                   isDark: isDark,
                 ),
               ],
@@ -633,12 +633,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       selectedColor:
           color?.withOpacity(0.2) ??
           (isDark ? const Color(0xFF16181E) : Color(0xFFEFE6D2)),
-      checkmarkColor:
-          color ?? (isDark ? Color(0xFFD8BC7E) : Color(0xFFA8843C)),
+      checkmarkColor: color ?? AppColors.of(context).brandAccent,
       labelStyle: TextStyle(
         color: isSelected
-            ? (color ??
-                  (isDark ? Color(0xFFD8BC7E) : Color(0xFFA8843C)))
+            ? (color ?? AppColors.of(context).brandAccent)
             : (isDark ? Color(0xFF9A9DA6) : Color(0xFF4E525C)),
         fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
       ),

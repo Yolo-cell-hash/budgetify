@@ -149,7 +149,9 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
                           shape: BoxShape.circle,
                           gradient: LinearGradient(colors: accentOf(i)),
                           border: Border.all(
-                            color: _accent == i ? AppColors.gold : Colors.transparent,
+                            color: _accent == i
+                                ? AppColors.of(context).brandAccent
+                                : Colors.transparent,
                             width: 3,
                           ),
                         ),
@@ -189,17 +191,17 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
           padding: const EdgeInsets.symmetric(vertical: 11),
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: selected ? AppColors.gold.withValues(alpha: 0.16) : colors.cardAlt,
+            color: selected ? colors.brandAccent.withValues(alpha: 0.16) : colors.cardAlt,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: selected ? AppColors.gold : colors.border,
+              color: selected ? colors.brandAccent : colors.border,
             ),
           ),
           child: Text(
             label,
             style: TextStyle(
               fontWeight: FontWeight.w600,
-              color: selected ? AppColors.goldDeep : colors.textSecondary,
+              color: selected ? colors.brandAccent : colors.textSecondary,
             ),
           ),
         ),
@@ -215,7 +217,9 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           border: Border.all(
-            color: selected ? AppColors.gold : Colors.transparent,
+            color: selected
+                ? AppColors.of(context).brandAccent
+                : Colors.transparent,
             width: 2.5,
           ),
         ),

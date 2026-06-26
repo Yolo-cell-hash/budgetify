@@ -319,11 +319,11 @@ class _HoldingEditorSheetState extends State<_HoldingEditorSheet> {
                   Container(
                     padding: const EdgeInsets.all(9),
                     decoration: BoxDecoration(
-                      color: AppColors.gold.withValues(alpha: 0.14),
+                      color: colors.brandAccent.withValues(alpha: 0.14),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(Icons.account_balance_wallet_rounded,
-                        color: AppColors.gold, size: 22),
+                    child: Icon(Icons.account_balance_wallet_rounded,
+                        color: colors.brandAccent, size: 22),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -375,10 +375,10 @@ class _HoldingEditorSheetState extends State<_HoldingEditorSheet> {
                         padding: const EdgeInsets.symmetric(horizontal: 14),
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
-                          color: sel ? AppColors.gold : colors.cardAlt,
+                          color: sel ? colors.brandAccent : colors.cardAlt,
                           borderRadius: BorderRadius.circular(19),
                           border: Border.all(
-                            color: sel ? AppColors.gold : colors.border,
+                            color: sel ? colors.brandAccent : colors.border,
                           ),
                         ),
                         child: Text(
@@ -469,9 +469,9 @@ class _HoldingEditorSheetState extends State<_HoldingEditorSheet> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.gold.withValues(alpha: 0.08),
+        color: colors.brandAccent.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.gold.withValues(alpha: 0.30)),
+        border: Border.all(color: colors.brandAccent.withValues(alpha: 0.30)),
       ),
       child: Row(
         children: [
@@ -593,9 +593,9 @@ class _HoldingEditorSheetState extends State<_HoldingEditorSheet> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.gold.withValues(alpha: 0.08),
+        color: colors.brandAccent.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.gold.withValues(alpha: 0.30)),
+        border: Border.all(color: colors.brandAccent.withValues(alpha: 0.30)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -673,9 +673,9 @@ class _HoldingEditorSheetState extends State<_HoldingEditorSheet> {
           padding: const EdgeInsets.symmetric(vertical: 10),
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: selected ? AppColors.gold : colors.cardAlt,
+            color: selected ? colors.brandAccent : colors.cardAlt,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: selected ? AppColors.gold : colors.border),
+            border: Border.all(color: selected ? colors.brandAccent : colors.border),
           ),
           child: Text(
             label,

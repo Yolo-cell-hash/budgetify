@@ -94,9 +94,9 @@ class _UpcomingRecurringCardState extends State<UpcomingRecurringCard> {
                         style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
-                            color: AppColors.goldDeep)),
+                            color: colors.brandAccent)),
                     Icon(Icons.chevron_right_rounded,
-                        size: 18, color: AppColors.goldDeep),
+                        size: 18, color: colors.brandAccent),
                   ],
                 ),
                 const SizedBox(height: 12),

@@ -63,6 +63,18 @@ const List<StreakReward> kStreakRewards = [
     emblem: '🌸',
     swatch: [Color(0xFF9E756F), Color(0xFFD7C4BE)],
   ),
+  StreakReward(
+    id: 'theme_onyx_amber',
+    days: 14,
+    name: 'Onyx & Amber',
+    blurb:
+        'A vivid amber accent on a deep onyx canvas. Unlocked at a 14-day streak.',
+    kind: StreakRewardKind.theme,
+    themeVariant: AppThemeVariant.onyxAmber,
+    rarity: BadgeRarity.gold,
+    emblem: '⚡',
+    swatch: [Color(0xFFFF8C00), Color(0xFF202427)],
+  ),
 ];
 
 /// All rewards unlocked at [longestStreak], in road order.

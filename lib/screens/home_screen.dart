@@ -550,7 +550,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 Container(
                   padding: const EdgeInsets.all(9),
                   decoration: BoxDecoration(
-                    color: AppColors.gold.withValues(alpha: 0.16),
+                    color: hero.accent.withValues(alpha: 0.16),
                     borderRadius: BorderRadius.circular(11),
                   ),
                   child: const Text('🔔', style: TextStyle(fontSize: 18)),
@@ -686,7 +686,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Widget _buildBalanceCard({bool showHealthInline = false}) {
     final formatter = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
-    final colors = AppColors.of(context);
     final hero = HeroStyle.of(context);
 
     return Container(
@@ -774,13 +773,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             Container(
                               padding: const EdgeInsets.all(4),
                               decoration: BoxDecoration(
-                                color: colors.success.withOpacity(0.18),
+                                color: hero.positive.withOpacity(0.18),
                                 borderRadius: BorderRadius.circular(5),
                               ),
                               child: Icon(
                                 Icons.arrow_downward,
                                 size: 12,
-                                color: colors.success,
+                                color: hero.positive,
                               ),
                             ),
                             const SizedBox(width: 6),
@@ -834,13 +833,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             Container(
                               padding: const EdgeInsets.all(4),
                               decoration: BoxDecoration(
-                                color: colors.danger.withOpacity(0.18),
+                                color: hero.negative.withOpacity(0.18),
                                 borderRadius: BorderRadius.circular(5),
                               ),
                               child: Icon(
                                 Icons.arrow_upward,
                                 size: 12,
-                                color: colors.danger,
+                                color: hero.negative,
                               ),
                             ),
                           ],
@@ -893,8 +892,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         margin: const EdgeInsets.symmetric(horizontal: 16),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(18),
-          gradient: const LinearGradient(
-            colors: [AppColors.goldDeep, AppColors.gold, AppColors.goldDeep],
+          gradient: LinearGradient(
+            colors: [
+              AppColors.of(context).brandAccentDeep,
+              AppColors.of(context).brandAccent,
+              AppColors.of(context).brandAccentDeep,
+            ],
             begin: Alignment.centerLeft,
             end: Alignment.centerRight,
           ),
@@ -915,15 +918,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      AppColors.gold.withValues(alpha: 0.22),
-                      AppColors.gold.withValues(alpha: 0.08),
+                      hero.accent.withValues(alpha: 0.22),
+                      hero.accent.withValues(alpha: 0.08),
                     ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: AppColors.gold.withValues(alpha: 0.30),
+                    color: hero.accent.withValues(alpha: 0.30),
                   ),
                 ),
                 child: const Center(
@@ -1007,12 +1010,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: AppColors.gold.withValues(alpha: 0.14),
+                color: colors.brandAccent.withValues(alpha: 0.14),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Center(
+              child: Center(
                 child: Icon(Icons.call_split_rounded,
-                    color: AppColors.goldDeep, size: 22),
+                    color: colors.brandAccent, size: 22),
               ),
             ),
             const SizedBox(width: 14),
@@ -1067,7 +1070,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               icon: Icons.pending_actions_outlined,
               label: context.l10n.unclassified,
               value: _unclassifiedCount.toString(),
-              color: AppColors.goldDeep,
+              color: colors.brandAccent,
               onTap: () => _openTransactionsScreen(unclassifiedOnly: true),
             ),
           ),
@@ -1279,9 +1282,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final cashIconBg = isDark
         ? Colors.white.withAlpha(50)
         : Colors.white.withValues(alpha: 0.7);
-    final convChipBg = isDark
-        ? AppColors.gold.withOpacity(0.22)
-        : AppColors.goldDeep.withValues(alpha: 0.14);
+    final convChipBg =
+        AppColors.of(context).brandAccent.withOpacity(isDark ? 0.22 : 0.14);
 
     return PressableScale(
       onTap: () async {

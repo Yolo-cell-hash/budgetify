@@ -83,11 +83,11 @@ class _InsightsCardState extends State<InsightsCard> {
               Container(
                 padding: const EdgeInsets.all(7),
                 decoration: BoxDecoration(
-                  color: AppColors.gold.withOpacity(0.14),
+                  color: colors.brandAccent.withOpacity(0.14),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.insights_rounded,
-                    size: 18, color: AppColors.goldDeep),
+                child: Icon(Icons.insights_rounded,
+                    size: 18, color: colors.brandAccent),
               ),
               const SizedBox(width: 10),
               Text(
@@ -105,11 +105,11 @@ class _InsightsCardState extends State<InsightsCard> {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.goldDeep,
+                  color: colors.brandAccent,
                 ),
               ),
               Icon(Icons.chevron_right_rounded,
-                  size: 18, color: AppColors.goldDeep),
+                  size: 18, color: colors.brandAccent),
             ],
           ),
           const SizedBox(height: 14),

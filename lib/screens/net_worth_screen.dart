@@ -555,7 +555,7 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
           const SizedBox(height: 2),
           AnimatedProgressBar(
             value: progress.fraction ?? 0,
-            color: AppColors.gold,
+            color: colors.brandAccent,
             backgroundColor: colors.cardAlt,
           ),
           const SizedBox(height: 6),
@@ -593,9 +593,9 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
       padding: const EdgeInsets.all(12),
       margin: const EdgeInsets.only(bottom: 4),
       decoration: BoxDecoration(
-        color: AppColors.gold.withValues(alpha: 0.10),
+        color: colors.brandAccent.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.gold.withValues(alpha: 0.35)),
+        border: Border.all(color: colors.brandAccent.withValues(alpha: 0.35)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -674,7 +674,7 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
       color = colors.success;
     } else if (p.dueThisPeriod) {
       label = context.l10n.statusDue;
-      color = AppColors.gold;
+      color = colors.brandAccent;
     } else if (due.isAfter(today)) {
       final next = sip.nextDueOnOrAfter(today) ?? due;
       label = context.l10n.nextDue(next);
@@ -806,9 +806,9 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
     return Container(
       padding: const EdgeInsets.all(11),
       decoration: BoxDecoration(
-        color: AppColors.gold.withValues(alpha: 0.10),
+        color: colors.brandAccent.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(11),
-        border: Border.all(color: AppColors.gold.withValues(alpha: 0.30)),
+        border: Border.all(color: colors.brandAccent.withValues(alpha: 0.30)),
       ),
       child: Row(
         children: [

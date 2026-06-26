@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/transaction_model.dart';
+import '../providers/theme_provider.dart';
 import '../services/custom_tag_service.dart';
 
 /// Vector icons for the predefined categories — used instead of emoji in
@@ -64,7 +65,7 @@ class TransactionLeadingIcon extends StatelessWidget {
             );
     } else {
       // Monogram fallback for untagged transactions
-      color = const Color(0xFFC8A75E);
+      color = AppColors.of(context).brandAccent;
       final source = transaction.merchantName ?? transaction.sender;
       final letter = source.trim().isEmpty
           ? '?'

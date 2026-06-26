@@ -74,14 +74,14 @@ class _ExpenseChartWidgetState extends State<ExpenseChartWidget> {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColors.gold.withOpacity(0.12),
+                      color: AppColors.of(context).brandAccent.withOpacity(0.12),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
                       context.l10n.last7Days,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
-                        color: AppColors.goldDeep,
+                        color: AppColors.of(context).brandAccent,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -166,7 +166,9 @@ class _ExpenseChartWidgetState extends State<ExpenseChartWidget> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.goldDeep : Colors.transparent,
+          color: isSelected
+              ? AppColors.of(context).brandAccentDeep
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(7),
         ),
         child: Icon(
@@ -251,10 +253,13 @@ class _ExpenseChartWidgetState extends State<ExpenseChartWidget> {
                 ),
                 gradient: LinearGradient(
                   colors: isToday
-                      ? [AppColors.goldDeep, AppColors.gold]
+                      ? [
+                          AppColors.of(context).brandAccentDeep,
+                          AppColors.of(context).brandAccent,
+                        ]
                       : [
-                          AppColors.gold.withOpacity(0.45),
-                          AppColors.gold.withOpacity(0.25),
+                          AppColors.of(context).brandAccent.withOpacity(0.45),
+                          AppColors.of(context).brandAccent.withOpacity(0.25),
                         ],
                   begin: Alignment.bottomCenter,
                   end: Alignment.topCenter,
@@ -332,7 +337,7 @@ class _ExpenseChartWidgetState extends State<ExpenseChartWidget> {
             isCurved: true,
             curveSmoothness: 0.35,
             preventCurveOverShooting: true,
-            color: AppColors.gold,
+            color: AppColors.of(context).brandAccent,
             barWidth: 3,
             isStrokeCapRound: true,
             dotData: FlDotData(
@@ -341,7 +346,9 @@ class _ExpenseChartWidgetState extends State<ExpenseChartWidget> {
                 final isToday = index == dailyData.length - 1;
                 return FlDotCirclePainter(
                   radius: isToday ? 5 : 3.5,
-                  color: isToday ? AppColors.goldDeep : AppColors.gold,
+                  color: isToday
+                      ? AppColors.of(context).brandAccentDeep
+                      : AppColors.of(context).brandAccent,
                   strokeWidth: isToday ? 2.5 : 1.5,
                   strokeColor: Colors.white,
                 );
@@ -351,8 +358,8 @@ class _ExpenseChartWidgetState extends State<ExpenseChartWidget> {
               show: true,
               gradient: LinearGradient(
                 colors: [
-                  AppColors.gold.withOpacity(0.30),
-                  AppColors.gold.withOpacity(0.03),
+                  AppColors.of(context).brandAccent.withOpacity(0.30),
+                  AppColors.of(context).brandAccent.withOpacity(0.03),
                 ],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,

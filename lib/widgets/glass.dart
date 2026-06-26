@@ -70,7 +70,7 @@ class AmbientBackground extends StatelessWidget {
           right: -80,
           child: _GlowOrb(
             diameter: 320,
-            color: AppColors.gold.withOpacity(isDark ? 0.10 : 0.16),
+            color: colors.brandAccent.withOpacity(isDark ? 0.10 : 0.16),
           ),
         ),
         Positioned(

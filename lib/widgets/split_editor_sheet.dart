@@ -497,10 +497,10 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
         Container(
           padding: const EdgeInsets.all(9),
           decoration: BoxDecoration(
-            color: AppColors.gold.withValues(alpha: 0.14),
+            color: colors.brandAccent.withValues(alpha: 0.14),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Icon(icon, color: AppColors.gold, size: 22),
+          child: Icon(icon, color: colors.brandAccent, size: 22),
         ),
         const SizedBox(width: 14),
         Expanded(
@@ -527,9 +527,9 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
           duration: const Duration(milliseconds: 160),
           padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 6),
           decoration: BoxDecoration(
-            color: sel ? AppColors.gold : colors.cardAlt,
+            color: sel ? colors.brandAccent : colors.cardAlt,
             borderRadius: BorderRadius.circular(9),
-            border: Border.all(color: sel ? AppColors.gold : colors.border),
+            border: Border.all(color: sel ? colors.brandAccent : colors.border),
           ),
           child: Text(
             label,
@@ -561,9 +561,9 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
             duration: const Duration(milliseconds: 160),
             padding: const EdgeInsets.fromLTRB(7, 6, 14, 6),
             decoration: BoxDecoration(
-              color: sel ? AppColors.gold : colors.cardAlt,
+              color: sel ? colors.brandAccent : colors.cardAlt,
               borderRadius: BorderRadius.circular(30),
-              border: Border.all(color: sel ? AppColors.gold : colors.border),
+              border: Border.all(color: sel ? colors.brandAccent : colors.border),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -609,19 +609,19 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
           color: colors.cardAlt,
           borderRadius: BorderRadius.circular(30),
           border: Border.all(
-              color: AppColors.goldDeep.withValues(alpha: 0.4),
+              color: colors.brandAccent.withValues(alpha: 0.4),
               style: BorderStyle.solid),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.add_rounded, size: 16, color: AppColors.goldDeep),
+            Icon(Icons.add_rounded, size: 16, color: colors.brandAccent),
             const SizedBox(width: 5),
             Text(label,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: AppColors.goldDeep)),
+                    color: colors.brandAccent)),
           ],
         ),
       ),
@@ -646,10 +646,10 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
               height: 24,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: on ? AppColors.gold : Colors.transparent,
+                color: on ? colors.brandAccent : Colors.transparent,
                 borderRadius: BorderRadius.circular(7),
                 border: Border.all(
-                    color: on ? AppColors.gold : colors.textTertiary,
+                    color: on ? colors.brandAccent : colors.textTertiary,
                     width: 1.6),
               ),
               child: on
@@ -724,13 +724,13 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
         child: Row(
           children: [
             Icon(Icons.person_add_alt_1_rounded,
-                size: 19, color: AppColors.goldDeep),
+                size: 19, color: colors.brandAccent),
             const SizedBox(width: 9),
             Text(context.l10n.addPersonToSplit,
                 style: TextStyle(
                     fontSize: 13.5,
                     fontWeight: FontWeight.w600,
-                    color: AppColors.goldDeep)),
+                    color: colors.brandAccent)),
           ],
         ),
       ),
@@ -875,13 +875,13 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
       decoration: BoxDecoration(
-        color: AppColors.gold.withValues(alpha: 0.08),
+        color: colors.brandAccent.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.gold.withValues(alpha: 0.30)),
+        border: Border.all(color: colors.brandAccent.withValues(alpha: 0.30)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.link_rounded, size: 16, color: AppColors.goldDeep),
+          Icon(Icons.link_rounded, size: 16, color: colors.brandAccent),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
