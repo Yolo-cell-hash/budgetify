@@ -73,7 +73,7 @@ const List<StreakReward> kStreakRewards = [
     themeVariant: AppThemeVariant.onyxAmber,
     rarity: BadgeRarity.gold,
     emblem: '⚡',
-    swatch: [Color(0xFFFAD32E), Color(0xFF202427)],
+    swatch: [Color(0xFFFF8C00), Color(0xFF202427)],
   ),
 ];
 

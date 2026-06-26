@@ -822,7 +822,7 @@ class AppColors {
     text: Color(0xFFF1F3F5),
     textSecondary: Color(0xFF9BA3AD),
     textTertiary: Color(0xFF6B747E),
-    accent: Color(0xFFFAD32E), // vivid amber
+    accent: Color(0xFFFF8C00), // vivid orange
     success: successDark,
     danger: dangerDark,
   );
@@ -1014,7 +1014,7 @@ class HeroStyle {
   // hero with gold.
   static final HeroStyle _onyxAmber = HeroStyle(
     gradientColors: const [Color(0xFF2E343C), Color(0xFF1E2226)],
-    border: const Color(0xFFFAD32E).withValues(alpha: 0.35),
+    border: const Color(0xFFFF8C00).withValues(alpha: 0.35),
     shadow: [
       BoxShadow(
         color: Colors.black.withValues(alpha: 0.30),
@@ -1024,7 +1024,7 @@ class HeroStyle {
     ],
     foreground: Colors.white,
     mutedForeground: Colors.white.withValues(alpha: 0.62),
-    accent: const Color(0xFFFAD32E),
+    accent: const Color(0xFFFF8C00),
     innerFill: Colors.white.withValues(alpha: 0.06),
     innerBorder: Colors.white.withValues(alpha: 0.08),
     divider: Colors.white.withValues(alpha: 0.12),
