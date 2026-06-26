@@ -735,6 +735,14 @@ class AppColors {
   final Color textSecondary;
   final Color textTertiary;
   final Color accent;
+
+  /// Signature decorative accent for icons/labels/chart strokes on *normal*
+  /// surfaces (gold in light/dark, each reward theme's own hue otherwise).
+  /// [brandAccentDeep] is a deeper companion for gradients and solid fills
+  /// that carry white text. Replaces the old hardcoded `AppColors.gold`.
+  final Color brandAccent;
+  final Color brandAccentDeep;
+
   final Color success;
   final Color danger;
 
@@ -748,6 +756,8 @@ class AppColors {
     required this.textSecondary,
     required this.textTertiary,
     required this.accent,
+    required this.brandAccent,
+    required this.brandAccentDeep,
     required this.success,
     required this.danger,
   });
@@ -762,6 +772,8 @@ class AppColors {
     textSecondary: Color(0xFF6E727C),
     textTertiary: Color(0xFFA0A2A8),
     accent: inkPrimary,
+    brandAccent: goldDeep,
+    brandAccentDeep: Color(0xFF8A6B2E),
     success: successLight,
     danger: dangerLight,
   );
@@ -776,6 +788,8 @@ class AppColors {
     textSecondary: Color(0xFF9A9DA6),
     textTertiary: Color(0xFF6E7178),
     accent: gold,
+    brandAccent: gold,
+    brandAccentDeep: goldDeep,
     success: successDark,
     danger: dangerDark,
   );
@@ -792,6 +806,8 @@ class AppColors {
     textSecondary: Color(0xFF5E6470),
     textTertiary: Color(0xFF8C8472),
     accent: Color(0xFF70798A), // smoky blue
+    brandAccent: Color(0xFF70798A),
+    brandAccentDeep: Color(0xFF5C6675),
     success: successLight,
     danger: dangerLight,
   );
@@ -807,6 +823,8 @@ class AppColors {
     textSecondary: Color(0xFF6E5854),
     textTertiary: Color(0xFF9C857F),
     accent: Color(0xFF9E756F), // dusty mauve
+    brandAccent: Color(0xFF9E756F),
+    brandAccentDeep: Color(0xFF8A645E),
     success: successLight,
     danger: dangerLight,
   );
@@ -823,6 +841,8 @@ class AppColors {
     textSecondary: Color(0xFF9BA3AD),
     textTertiary: Color(0xFF6B747E),
     accent: Color(0xFFFF8C00), // vivid orange
+    brandAccent: Color(0xFFFF8C00),
+    brandAccentDeep: Color(0xFFE07B00),
     success: successDark,
     danger: dangerDark,
   );
@@ -893,6 +913,12 @@ class HeroStyle {
   /// Hairline divider colour.
   final Color divider;
 
+  /// Semantic income/positive and expense/negative colours tuned for *this*
+  /// hero surface, so green/red stay vivid on the coloured reward heroes
+  /// instead of falling back to the palette's dull light-surface variants.
+  final Color positive;
+  final Color negative;
+
   /// Whether the surface itself is dark (drives child widgets like the
   /// savings-rate bar that have their own on-dark styling).
   final bool onDark;
@@ -907,6 +933,8 @@ class HeroStyle {
     required this.innerFill,
     required this.innerBorder,
     required this.divider,
+    required this.positive,
+    required this.negative,
     required this.onDark,
   });
 
@@ -941,6 +969,8 @@ class HeroStyle {
     foreground: Colors.white,
     mutedForeground: Colors.white.withValues(alpha: 0.62),
     accent: AppColors.gold,
+    positive: AppColors.successDark,
+    negative: AppColors.dangerDark,
     innerFill: Colors.white.withValues(alpha: 0.06),
     innerBorder: Colors.white.withValues(alpha: 0.08),
     divider: Colors.white.withValues(alpha: 0.12),
@@ -962,6 +992,8 @@ class HeroStyle {
     foreground: AppColors.inkPrimary,
     mutedForeground: AppColors.inkPrimary.withValues(alpha: 0.62),
     accent: AppColors.goldDeep,
+    positive: AppColors.successLight,
+    negative: AppColors.dangerLight,
     innerFill: Colors.white.withValues(alpha: 0.55),
     innerBorder: AppColors.inkPrimary.withValues(alpha: 0.07),
     divider: AppColors.inkPrimary.withValues(alpha: 0.10),
@@ -983,6 +1015,8 @@ class HeroStyle {
     foreground: Colors.white,
     mutedForeground: Colors.white.withValues(alpha: 0.66),
     accent: const Color(0xFFEDDECB), // warm ivory accent on the blue
+    positive: const Color(0xFF3FD79E),
+    negative: const Color(0xFFFF6F78),
     innerFill: Colors.white.withValues(alpha: 0.10),
     innerBorder: Colors.white.withValues(alpha: 0.14),
     divider: Colors.white.withValues(alpha: 0.16),
@@ -1003,6 +1037,8 @@ class HeroStyle {
     foreground: Colors.white,
     mutedForeground: Colors.white.withValues(alpha: 0.66),
     accent: const Color(0xFFF0E2DD), // light seashell accent on the mauve
+    positive: const Color(0xFF3FD79E),
+    negative: const Color(0xFFFF6F78),
     innerFill: Colors.white.withValues(alpha: 0.10),
     innerBorder: Colors.white.withValues(alpha: 0.14),
     divider: Colors.white.withValues(alpha: 0.16),
@@ -1025,6 +1061,8 @@ class HeroStyle {
     foreground: Colors.white,
     mutedForeground: Colors.white.withValues(alpha: 0.62),
     accent: const Color(0xFFFF8C00),
+    positive: AppColors.successDark,
+    negative: AppColors.dangerDark,
     innerFill: Colors.white.withValues(alpha: 0.06),
     innerBorder: Colors.white.withValues(alpha: 0.08),
     divider: Colors.white.withValues(alpha: 0.12),

@@ -686,7 +686,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Widget _buildBalanceCard({bool showHealthInline = false}) {
     final formatter = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
-    final colors = AppColors.of(context);
     final hero = HeroStyle.of(context);
 
     return Container(
@@ -774,13 +773,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             Container(
                               padding: const EdgeInsets.all(4),
                               decoration: BoxDecoration(
-                                color: colors.success.withOpacity(0.18),
+                                color: hero.positive.withOpacity(0.18),
                                 borderRadius: BorderRadius.circular(5),
                               ),
                               child: Icon(
                                 Icons.arrow_downward,
                                 size: 12,
-                                color: colors.success,
+                                color: hero.positive,
                               ),
                             ),
                             const SizedBox(width: 6),
@@ -834,13 +833,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             Container(
                               padding: const EdgeInsets.all(4),
                               decoration: BoxDecoration(
-                                color: colors.danger.withOpacity(0.18),
+                                color: hero.negative.withOpacity(0.18),
                                 borderRadius: BorderRadius.circular(5),
                               ),
                               child: Icon(
                                 Icons.arrow_upward,
                                 size: 12,
-                                color: colors.danger,
+                                color: hero.negative,
                               ),
                             ),
                           ],
