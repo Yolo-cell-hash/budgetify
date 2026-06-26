@@ -687,15 +687,18 @@ class _BudgetScreenState extends State<BudgetScreen>
   Widget _buildProgressCard(bool isDark, NumberFormat fmt) {
     final pct = _budget!.amount > 0 ? _spent / _budget!.amount : 0.0;
     final remaining = _budget!.amount - _spent;
-    final colors = AppColors.of(context);
     final hero = HeroStyle.of(context);
-    // Gauge color: gold while healthy, amber near the limit, rose when over
+    // Gauge color: theme accent while healthy, amber near the limit, the hero's
+    // tuned red when over. Use the hero-tuned set (not the normal-surface
+    // palette) so the ring/pill stay legible on the coloured reward-theme
+    // heroes — on smoky-blue / mauve, plain brandAccent and danger are too
+    // close in hue to the hero and wash out.
     final color = pct >= 1
-        ? colors.danger
+        ? hero.negative
         : pct >= 0.9
         ? const Color(0xFFD79A3C)
-        : colors.brandAccent;
-    final pillColor = remaining >= 0 ? colors.success : colors.danger;
+        : hero.accent;
+    final pillColor = remaining >= 0 ? hero.positive : hero.negative;
 
     return Container(
       padding: const EdgeInsets.all(22),
