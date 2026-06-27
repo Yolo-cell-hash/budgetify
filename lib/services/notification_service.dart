@@ -245,13 +245,28 @@ class NotificationService {
     return hasTag ? '$amountStr $verb towards $cat' : '$amountStr $verb';
   }
 
+  /// Stable, collision-resistant notification id for a transaction alert.
+  ///
+  /// Derived from the dedup fingerprint (falling back to message + amount +
+  /// type) so two transactions detected in the *same second* land in distinct
+  /// slots. The previous `detectedAt ~/ 1000` id was second-resolution, so a
+  /// debit + its UPI confirmation (or two quick purchases) shared one slot and
+  /// the second silently replaced the first — a real cause of "missing"
+  /// alerts. The same transaction always maps to the same slot, so an
+  /// accidental re-show updates in place instead of duplicating.
+  @visibleForTesting
+  static int transactionNotificationId(TransactionModel t) {
+    final seed = t.fingerprint ?? '${t.message}|${t.amount}|${t.type.name}';
+    return seed.hashCode & 0x7fffffff;
+  }
+
   Future<void> showTransactionNotification(TransactionModel transaction) async {
     if (!_isInitialized) await initialize();
 
     final isCredit = transaction.type == TransactionType.credit;
 
     await _notifications.show(
-      transaction.detectedAt.millisecondsSinceEpoch ~/ 1000,
+      transactionNotificationId(transaction),
       isCredit ? '💰 Money Credited' : '💸 Money Debited',
       buildTransactionBody(transaction),
       const NotificationDetails(

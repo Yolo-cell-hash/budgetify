@@ -216,8 +216,15 @@ class BackgroundService {
       if (found.isNotEmpty) {
         final notificationService = NotificationService();
         await notificationService.initialize();
-        if (found.length == 1) {
-          await notificationService.showTransactionNotification(found.first);
+        // Notify per-transaction for a small batch so each alert carries its
+        // own amount + tag ("₹X debited towards Food & Dining"), matching the
+        // real-time path. Fall back to a single summary for larger catch-up
+        // scans so a long-offline gap never floods the notification shade.
+        const perTxnCap = 3;
+        if (found.length <= perTxnCap) {
+          for (final t in found) {
+            await notificationService.showTransactionNotification(t);
+          }
         } else {
           final total = found.fold(0.0, (sum, t) => sum + t.amount);
           await notificationService.showScanSummaryNotification(
