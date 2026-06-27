@@ -8,6 +8,8 @@ import 'sip_service.dart';
 import 'recurring_service.dart';
 import 'sms_service.dart';
 import 'widget_service.dart';
+import 'gamification_service.dart';
+import '../models/streak_reward.dart';
 
 /// Background service for scheduled SMS scanning.
 ///
@@ -39,6 +41,12 @@ class BackgroundService {
   static const String billEveningTaskName = 'bill_evening_check';
   static const String billEveningUniqueName = 'budget_tracker_bill_evening';
 
+  // Daily ~8 PM streak reminder: nudge if the user hasn't opened today and has
+  // an active streak about to lapse.
+  static const String streakReminderTaskName = 'streak_reminder_check';
+  static const String streakReminderUniqueName =
+      'budget_tracker_streak_reminder';
+
   static const int sipNoonHour = 12; // 12 PM
   static const int sipEveningHour = 20; // 8 PM
 
@@ -60,6 +68,7 @@ class BackgroundService {
     await _ensureWeeklyReminder();
     await _ensureSipPrompts();
     await _ensureBillPrompts();
+    await _ensureStreakReminder();
   }
 
   /// Register the daily SIP/RD "Investment Alert" prompts at ~12 PM and ~8 PM
@@ -108,6 +117,54 @@ class BackgroundService {
       constraints: Constraints(networkType: NetworkType.notRequired),
       existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
     );
+  }
+
+  /// Register the daily streak reminder at ~8 PM local.
+  static Future<void> _ensureStreakReminder() async {
+    await _registerDailyAt(
+        streakReminderUniqueName, streakReminderTaskName, sipEveningHour);
+  }
+
+  /// Daily ~8 PM check: if the user has an active streak but hasn't opened the
+  /// app today, nudge them so they don't lose it — flagging a reward that's
+  /// only a day or two away when one is close.
+  static Future<void> performStreakReminder() async {
+    try {
+      final svc = GamificationService();
+      final info = await svc.streakInfo();
+      if (info.current <= 0) return; // nothing to protect
+
+      final last = await svc.lastActiveDate();
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      if (last != null && DateTime(last.year, last.month, last.day) == today) {
+        return; // already opened today — streak is safe
+      }
+
+      // Closest still-locked reward and how far the best streak is from it.
+      String? nextName;
+      int? daysAway;
+      for (final r in kStreakRewards) {
+        if (!r.isUnlocked(info.longest)) {
+          final away = (r.days - info.longest).clamp(0, r.days);
+          if (away <= 2) {
+            nextName = r.name;
+            daysAway = away;
+          }
+          break;
+        }
+      }
+
+      final notif = NotificationService();
+      await notif.initialize();
+      await notif.showStreakReminder(
+        currentStreak: info.current,
+        nextRewardName: nextName,
+        daysToReward: daysAway,
+      );
+    } catch (_) {
+      // Background best-effort; never throw.
+    }
   }
 
   /// Check if auto-scan is enabled (default: on)
@@ -329,6 +386,8 @@ void callbackDispatcher() {
       await BackgroundService.performBillPromptCheck(evening: false);
     } else if (taskName == BackgroundService.billEveningTaskName) {
       await BackgroundService.performBillPromptCheck(evening: true);
+    } else if (taskName == BackgroundService.streakReminderTaskName) {
+      await BackgroundService.performStreakReminder();
     }
     return Future.value(true);
   });

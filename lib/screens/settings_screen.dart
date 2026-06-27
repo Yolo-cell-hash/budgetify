@@ -136,11 +136,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(10, 6, 10, 14),
-                  child: Row(
-                    children: [
-                      for (final v in AppThemeVariant.values)
-                        Expanded(child: _themeTile(v, themeProvider)),
-                    ],
+                  // Horizontal "slider": fixed-width tiles (sized as when there
+                  // were ~5 themes) that scroll, so 7+ themes never cram.
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
+                    child: Row(
+                      children: [
+                        for (final v in AppThemeVariant.values)
+                          SizedBox(
+                            width: 72,
+                            child: _themeTile(v, themeProvider),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
                 Divider(

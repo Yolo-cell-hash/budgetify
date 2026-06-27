@@ -124,6 +124,33 @@ void main() {
       expect(r.current, 1);
       expect(r.longest, 1);
     });
+    test('an armed freeze bridges a single missed day', () {
+      // Missed 6/19; opened 6/20 with a freeze armed → streak continues.
+      final r = GamificationService.advanceStreak(
+          last: DateTime(2026, 6, 18),
+          current: 5,
+          longest: 5,
+          today: today,
+          freezeArmed: true);
+      expect(r.current, 6);
+      expect(r.freezeUsed, isTrue);
+    });
+    test('a freeze does not cover a two-day gap', () {
+      final r = GamificationService.advanceStreak(
+          last: DateTime(2026, 6, 17),
+          current: 9,
+          longest: 9,
+          today: today,
+          freezeArmed: true);
+      expect(r.current, 1);
+      expect(r.freezeUsed, isFalse);
+    });
+    test('without a freeze, a missed day still resets', () {
+      final r = GamificationService.advanceStreak(
+          last: DateTime(2026, 6, 18), current: 5, longest: 5, today: today);
+      expect(r.current, 1);
+      expect(r.freezeUsed, isFalse);
+    });
   });
 
   group('Service persistence', () {

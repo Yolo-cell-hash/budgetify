@@ -1882,6 +1882,10 @@ class AppStrings {
         return _t('Soft Seashell & Dusty Mauve', 'सॉफ़्ट सीशेल और डस्टी मॉव', 'सॉफ्ट सीशेल व डस्टी मॉव');
       case 'theme_onyx_amber':
         return _t('Onyx & Amber', 'ओनिक्स और एम्बर', 'ओनिक्स व अंबर');
+      case 'theme_royal_indigo':
+        return _t('Royal Indigo', 'रॉयल इंडिगो', 'रॉयल इंडिगो');
+      case 'theme_midnight_indigo':
+        return _t('Midnight Indigo', 'मिडनाइट इंडिगो', 'मिडनाइट इंडिगो');
       default:
         return id;
     }
@@ -1905,6 +1909,18 @@ class AppStrings {
           'A vivid amber accent on a deep onyx canvas. Unlocked at a 14-day streak.',
           'गहरे ओनिक्स कैनवास पर चमकीला एम्बर रंग। 14-दिन की स्ट्रीक पर अनलॉक।',
           'गडद ओनिक्स कॅनव्हासवर ठळक अंबर रंग. 14-दिवसांच्या स्ट्रीकवर अनलॉक.',
+        );
+      case 'theme_royal_indigo':
+        return _t(
+          'A deep-indigo accent with an electric-cyan hero on a frosted-lavender canvas. Unlocked at a 30-day streak.',
+          'फ्रॉस्टेड-लैवेंडर कैनवास पर इलेक्ट्रिक-सायन हीरो के साथ गहरा इंडिगो रंग। 30-दिन की स्ट्रीक पर अनलॉक।',
+          'फ्रॉस्टेड-लॅव्हेंडर कॅनव्हासवर इलेक्ट्रिक-सायन हिरोसह गडद इंडिगो रंग. 30-दिवसांच्या स्ट्रीकवर अनलॉक.',
+        );
+      case 'theme_midnight_indigo':
+        return _t(
+          'An electric-cyan accent on a deep indigo-navy canvas — Royal Indigo after dark. Unlocked at a 45-day streak.',
+          'गहरे इंडिगो-नेवी कैनवास पर इलेक्ट्रिक-सायन रंग — रॉयल इंडिगो का रात्रि रूप। 45-दिन की स्ट्रीक पर अनलॉक।',
+          'गडद इंडिगो-नेव्ही कॅनव्हासवर इलेक्ट्रिक-सायन रंग — रॉयल इंडिगोचे रात्र रूप. 45-दिवसांच्या स्ट्रीकवर अनलॉक.',
         );
       default:
         return '';

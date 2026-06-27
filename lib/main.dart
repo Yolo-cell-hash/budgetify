@@ -9,6 +9,7 @@ import 'package:budget_tracker/services/app_lock_service.dart';
 import 'package:budget_tracker/services/notification_service.dart';
 import 'package:budget_tracker/services/background_service.dart';
 import 'package:budget_tracker/services/custom_tag_service.dart';
+import 'package:budget_tracker/services/gamification_service.dart';
 import 'package:budget_tracker/providers/theme_provider.dart';
 import 'package:budget_tracker/providers/app_preferences.dart';
 import 'package:budget_tracker/providers/locale_provider.dart';
@@ -104,6 +105,10 @@ class _AppLockGateState extends State<AppLockGate>
   bool _locked = false;
   DateTime? _pausedAt;
 
+  /// When the app last entered the foreground, for the time-in-app tally that
+  /// feeds the consistency heatmap and usage title.
+  DateTime? _fgSince = DateTime.now();
+
   @override
   void initState() {
     super.initState();
@@ -129,7 +134,16 @@ class _AppLockGateState extends State<AppLockGate>
   void didChangeAppLifecycleState(AppLifecycleState state) async {
     if (state == AppLifecycleState.paused) {
       _pausedAt = DateTime.now();
+      // Bank this foreground session's length for the consistency heatmap
+      // (capped so an app left open doesn't inflate the tally).
+      final since = _fgSince;
+      _fgSince = null;
+      if (since != null) {
+        final secs = DateTime.now().difference(since).inSeconds.clamp(0, 7200);
+        if (secs > 0) GamificationService().recordAppTime(secs.toInt());
+      }
     } else if (state == AppLifecycleState.resumed) {
+      _fgSince = DateTime.now();
       final pausedAt = _pausedAt;
       _pausedAt = null;
       if (_splashing || _locked || pausedAt == null) return;

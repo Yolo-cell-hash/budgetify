@@ -9,6 +9,36 @@ import '../models/transaction_model.dart';
 import 'database_service.dart';
 import 'savings_goal_service.dart';
 
+/// Playful "time in app this month" titles — a separate axis from the
+/// money-behaviour [GamiTitle]s. Each tier needs at least [minHours] of
+/// foreground time in the current calendar month. Rename/extend freely.
+class UsageTitle {
+  final double minHours;
+  final String id;
+  final String emoji;
+  final String name;
+  const UsageTitle(this.minHours, this.id, this.emoji, this.name);
+}
+
+/// Ascending by [UsageTitle.minHours].
+const List<UsageTitle> kUsageTitles = [
+  UsageTitle(0.5, 'usage_curious', '👀', 'Curious Browser'),
+  UsageTitle(1, 'usage_buddy', '🤝', 'Budget Buddy'),
+  UsageTitle(3, 'usage_maven', '💸', 'Money Maven'),
+  UsageTitle(6, 'usage_fanatic', '📊', 'Finance Fanatic'),
+  UsageTitle(12, 'usage_wizard', '🧙', 'Wealth Wizard'),
+];
+
+/// The highest usage title earned for [monthlyHours] of app time, or null when
+/// under the first tier.
+UsageTitle? usageTitleFor(double monthlyHours) {
+  UsageTitle? best;
+  for (final t in kUsageTitles) {
+    if (monthlyHours >= t.minHours) best = t;
+  }
+  return best;
+}
+
 /// The user's customizable profile for Gamified Budgets. Fully offline and
 /// included in encrypted backups.
 class GamiProfile {
@@ -123,51 +153,155 @@ class GamificationService {
   }
 
   // ── Streak (daily usage) ─────────────────────────────────────────────
+  /// One streak freeze is earned for every this-many days of streak.
+  static const int freezeEarnInterval = 5;
+
+  /// Most freezes a user can stockpile at once.
+  static const int maxFreezes = 5;
+
   /// Pure streak transition, exposed for testing. Returns the new
   /// (current, longest) given the last-active date and today (date-only).
-  static ({int current, int longest}) advanceStreak({
+  /// When [freezeArmed] is set and exactly one day was missed (a gap of 2), the
+  /// freeze bridges it — the streak continues instead of resetting — and
+  /// [freezeUsed] is returned true so the caller can consume the freeze.
+  static ({int current, int longest, bool freezeUsed}) advanceStreak({
     required DateTime? last,
     required int current,
     required int longest,
     required DateTime today,
+    bool freezeArmed = false,
   }) {
     final t = DateTime(today.year, today.month, today.day);
     if (last != null) {
       final l = DateTime(last.year, last.month, last.day);
-      if (l == t) return (current: current, longest: longest); // already counted
+      if (l == t) {
+        return (current: current, longest: longest, freezeUsed: false);
+      }
       final gap = t.difference(l).inDays;
-      final newCurrent = gap == 1 ? current + 1 : 1;
-      return (current: newCurrent, longest: newCurrent > longest ? newCurrent : longest);
+      final int newCurrent;
+      var freezeUsed = false;
+      if (gap == 1) {
+        newCurrent = current + 1;
+      } else if (gap == 2 && freezeArmed) {
+        newCurrent = current + 1; // armed freeze covers the single missed day
+        freezeUsed = true;
+      } else {
+        newCurrent = 1;
+      }
+      return (
+        current: newCurrent,
+        longest: newCurrent > longest ? newCurrent : longest,
+        freezeUsed: freezeUsed,
+      );
     }
-    return (current: 1, longest: longest < 1 ? 1 : longest);
+    return (current: 1, longest: longest < 1 ? 1 : longest, freezeUsed: false);
   }
 
   /// Record that the app was opened today and roll the streak forward. Safe to
-  /// call on every launch/resume; a no-op if today is already counted. Runs
-  /// regardless of whether the mode is enabled, so the streak is accurate if
-  /// the user turns it on later.
+  /// call on every launch/resume; a no-op if today is already counted. Earns a
+  /// freeze each time the streak lands on a multiple of [freezeEarnInterval],
+  /// and clears an armed freeze that just bridged a missed day.
   Future<void> recordActiveDay({DateTime? now}) async {
     final today = now ?? DateTime.now();
     final blob = await _read();
     final s = (blob['streak'] as Map?)?.cast<String, dynamic>() ?? {};
     final lastIso = s['last'] as String?;
     final last = lastIso == null ? null : DateTime.tryParse(lastIso);
-    final result = advanceStreak(
-      last: last,
-      current: (s['current'] as num?)?.toInt() ?? 0,
-      longest: (s['longest'] as num?)?.toInt() ?? 0,
-      today: today,
-    );
     final t = DateTime(today.year, today.month, today.day);
     if (last != null && DateTime(last.year, last.month, last.day) == t) {
       return; // nothing changed
     }
+
+    var freezes = (s['freezes'] as num?)?.toInt() ?? 0;
+    final armed = s['freezeArmed'] == true;
+    final prevCurrent = (s['current'] as num?)?.toInt() ?? 0;
+    final result = advanceStreak(
+      last: last,
+      current: prevCurrent,
+      longest: (s['longest'] as num?)?.toInt() ?? 0,
+      today: today,
+      freezeArmed: armed,
+    );
+
+    // The armed freeze (already moved out of `freezes` when armed) is spent.
+    final stillArmed = armed && !result.freezeUsed;
+    // Earn a freeze whenever the streak climbs onto a new multiple of N.
+    if (result.current > prevCurrent &&
+        result.current % freezeEarnInterval == 0) {
+      freezes = (freezes + 1).clamp(0, maxFreezes);
+    }
+
     blob['streak'] = {
       'last': t.toIso8601String(),
       'current': result.current,
       'longest': result.longest,
+      'freezes': freezes,
+      'freezeArmed': stillArmed,
     };
     await _write(blob);
+  }
+
+  /// Available (un-armed) streak freezes and whether one is currently armed.
+  Future<({int available, bool armed})> freezeInfo() async {
+    final blob = await _read();
+    final s = (blob['streak'] as Map?)?.cast<String, dynamic>() ?? {};
+    return (
+      available: (s['freezes'] as num?)?.toInt() ?? 0,
+      armed: s['freezeArmed'] == true,
+    );
+  }
+
+  /// Arm a freeze to protect the next missed day, moving it from the available
+  /// pool to "equipped". No-op (returns false) if none are available or one is
+  /// already armed.
+  Future<bool> armFreeze() async {
+    final blob = await _read();
+    final s = (blob['streak'] as Map?)?.cast<String, dynamic>() ?? {};
+    final freezes = (s['freezes'] as num?)?.toInt() ?? 0;
+    if (freezes <= 0 || s['freezeArmed'] == true) return false;
+    s['freezes'] = freezes - 1;
+    s['freezeArmed'] = true;
+    blob['streak'] = s;
+    await _write(blob);
+    return true;
+  }
+
+  // ── Time in app (consistency heatmap + usage title) ──────────────────
+  /// Add [seconds] of foreground time to today's tally. Called when the app is
+  /// backgrounded; cheap and a no-op for non-positive values.
+  Future<void> recordAppTime(int seconds, {DateTime? now}) async {
+    if (seconds <= 0) return;
+    final key = _dayKey(now ?? DateTime.now());
+    final blob = await _read();
+    final t = (blob['appTime'] as Map?)?.cast<String, dynamic>() ?? {};
+    t[key] = ((t[key] as num?)?.toInt() ?? 0) + seconds;
+    blob['appTime'] = t;
+    await _write(blob);
+  }
+
+  /// Foreground seconds per day (date-only → seconds), for the heatmap.
+  Future<Map<DateTime, int>> appTimeByDay() async {
+    final blob = await _read();
+    final t = (blob['appTime'] as Map?)?.cast<String, dynamic>() ?? {};
+    final out = <DateTime, int>{};
+    t.forEach((k, v) {
+      final d = DateTime.tryParse(k);
+      if (d != null) out[_dateOnly(d)] = (v as num).toInt();
+    });
+    return out;
+  }
+
+  /// Total foreground seconds in the current calendar month — drives the
+  /// usage title (see [usageTitleFor]).
+  Future<int> monthAppSeconds({DateTime? now}) async {
+    final mk = _monthKey(now ?? DateTime.now());
+    final blob = await _read();
+    final t = (blob['appTime'] as Map?)?.cast<String, dynamic>() ?? {};
+    var total = 0;
+    t.forEach((k, v) {
+      if (k.startsWith(mk)) total += (v as num).toInt();
+    });
+    return total;
   }
 
   /// Lightweight streak read (no database hit) for the theme picker and the
@@ -179,6 +313,15 @@ class GamificationService {
       current: (s['current'] as num?)?.toInt() ?? 0,
       longest: (s['longest'] as num?)?.toInt() ?? 0,
     );
+  }
+
+  /// The day the streak was last advanced (the user's last active day), or
+  /// null. Used by the streak reminder to tell if today is already covered.
+  Future<DateTime?> lastActiveDate() async {
+    final blob = await _read();
+    final s = (blob['streak'] as Map?)?.cast<String, dynamic>() ?? {};
+    final iso = s['last'] as String?;
+    return iso == null ? null : DateTime.tryParse(iso);
   }
 
   /// Streak-reward ids newly unlocked since the user last saw them, marking them

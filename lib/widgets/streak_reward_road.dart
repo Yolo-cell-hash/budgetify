@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../models/streak_reward.dart';
 import '../providers/theme_provider.dart';
 import 'badge_medallion.dart';
+import 'streak_flame.dart';
 
 /// The Streak Reward Road: a vertical timeline of streak milestones. Each node
 /// shows a tiered medallion (earned/locked), the reward, and — for unlocked
@@ -84,7 +85,7 @@ class _StreakHeader extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Text('🔥', style: TextStyle(fontSize: 26)),
+              StreakFlame(streak: currentStreak, size: 30),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(

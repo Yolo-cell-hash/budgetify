@@ -148,6 +148,15 @@ class NotificationService {
         ),
       );
 
+      await androidPlugin?.createNotificationChannel(
+        const AndroidNotificationChannel(
+          'streak_channel',
+          'Streak Reminders',
+          description: 'Daily nudges to keep your usage streak going',
+          importance: Importance.high,
+        ),
+      );
+
       _isInitialized = true;
     } catch (e, st) {
       debugPrint('NotificationService.initialize failed (continuing): $e\n$st');
@@ -578,6 +587,47 @@ class NotificationService {
         ),
       ),
       payload: 'bill:$planId:$periodKey',
+    );
+  }
+
+  /// Daily nudge (fired by the background streak-reminder task) to keep an
+  /// active streak alive, calling out a reward that's only 1–2 days away when
+  /// one is close. A fixed id so each evening's reminder replaces the last.
+  Future<void> showStreakReminder({
+    required int currentStreak,
+    String? nextRewardName,
+    int? daysToReward,
+  }) async {
+    if (!_isInitialized) await initialize();
+
+    final String title;
+    final String body;
+    if (nextRewardName != null && daysToReward != null) {
+      title = daysToReward <= 1
+          ? '🔥 1 day from unlocking $nextRewardName!'
+          : '🔥 $daysToReward days from $nextRewardName';
+      body =
+          'Open the app today to keep your $currentStreak-day streak going.';
+    } else {
+      title = '🔥 Keep your $currentStreak-day streak alive';
+      body = "Don't lose it — open the app today.";
+    }
+
+    await _notifications.show(
+      8000, // fixed slot: each evening's reminder replaces the previous one
+      title,
+      body,
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'streak_channel',
+          'Streak Reminders',
+          channelDescription: 'Daily nudges to keep your usage streak going',
+          importance: Importance.high,
+          priority: Priority.high,
+          showWhen: true,
+        ),
+      ),
+      payload: 'streak_reminder',
     );
   }
 

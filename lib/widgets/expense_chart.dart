@@ -5,6 +5,7 @@ import '../l10n/l10n.dart';
 import '../models/transaction_model.dart';
 import '../providers/theme_provider.dart';
 import '../screens/daily_analysis_screen.dart';
+import 'privacy_amount.dart';
 
 /// Chart display mode
 enum ChartMode { bar, line }
@@ -99,7 +100,7 @@ class _ExpenseChartWidgetState extends State<ExpenseChartWidget> {
             ),
           ),
           const SizedBox(height: 8),
-          Text(
+          PrivacyAmount(
             'Total: ₹${_getTotalExpenses().toStringAsFixed(0)}',
             style: TextStyle(
               fontSize: 24,
