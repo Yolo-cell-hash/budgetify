@@ -97,4 +97,44 @@ void main() {
       expect(body, '₹500.00 debited');
     });
   });
+
+  group('NotificationService.transactionNotificationId', () {
+    test('two transactions in the same second get distinct ids', () {
+      // Same detectedAt second, different amounts. The old `detectedAt ~/ 1000`
+      // id collided and one alert silently replaced the other; the seeded id
+      // must keep them in separate slots.
+      final a = NotificationService.transactionNotificationId(
+        txn(amount: 500, type: TransactionType.debit),
+      );
+      final b = NotificationService.transactionNotificationId(
+        txn(amount: 250, type: TransactionType.debit),
+      );
+      expect(a, isNot(b));
+    });
+
+    test('a debit and a credit of the same amount differ', () {
+      expect(
+        NotificationService.transactionNotificationId(
+            txn(amount: 500, type: TransactionType.debit)),
+        isNot(NotificationService.transactionNotificationId(
+            txn(amount: 500, type: TransactionType.credit))),
+      );
+    });
+
+    test('is stable for the same transaction (idempotent re-show)', () {
+      final t = txn(amount: 500, type: TransactionType.debit);
+      expect(
+        NotificationService.transactionNotificationId(t),
+        NotificationService.transactionNotificationId(t),
+      );
+    });
+
+    test('is always a positive 31-bit int (valid Android notification id)', () {
+      final id = NotificationService.transactionNotificationId(
+        txn(amount: 500, type: TransactionType.debit),
+      );
+      expect(id, greaterThanOrEqualTo(0));
+      expect(id, lessThanOrEqualTo(0x7fffffff));
+    });
+  });
 }
