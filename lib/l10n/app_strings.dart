@@ -1585,6 +1585,8 @@ class AppStrings {
   String get themeNameAmber => _t('Amber', 'एम्बर', 'अंबर');
   String get themeNameRoyalIndigo =>
       _t('Royal Indigo', 'रॉयल इंडिगो', 'रॉयल इंडिगो');
+  String get themeNameMidnightIndigo =>
+      _t('Midnight Indigo', 'मिडनाइट इंडिगो', 'मिडनाइट इंडिगो');
 
   // ── Onboarding ────────────────────────────────────────────────────────────
   String get onboardWelcomeTitle => _t('Welcome to\nBudget Tracker',

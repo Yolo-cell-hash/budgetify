@@ -12,6 +12,7 @@ enum AppThemeVariant {
   seashellMauve,
   onyxAmber,
   royalIndigo,
+  midnightIndigo,
 }
 
 /// Provider for managing the active app theme variant.
@@ -398,6 +399,18 @@ class AppTheme {
         hero: HeroStyle._royalIndigo,
       );
 
+  // ==== DARK-BRIGHTNESS STREAK REWARD THEME: "Midnight Indigo" (45-day) ====
+  // Royal Indigo's nocturne. The same palette tuned for the dark: a deep
+  // indigo-navy canvas with elevated navy cards, light cool ink, an electric-
+  // cyan interactive accent (dark navy ink rides on top) and a rich violet hero
+  // wearing the same concentric-ring aura.
+  static ThemeData get midnightIndigoTheme => _darkVariantTheme(
+        AppColors.midnightIndigo,
+        accent: AppColors.midnightIndigo.accent,
+        hero: HeroStyle._midnightIndigo,
+        onAccent: const Color(0xFF0D1430),
+      );
+
   /// The [ThemeData] for any [AppThemeVariant].
   static ThemeData of(AppThemeVariant v) => switch (v) {
         AppThemeVariant.light => lightTheme,
@@ -406,6 +419,7 @@ class AppTheme {
         AppThemeVariant.seashellMauve => seashellMauveTheme,
         AppThemeVariant.onyxAmber => onyxAmberTheme,
         AppThemeVariant.royalIndigo => royalIndigoTheme,
+        AppThemeVariant.midnightIndigo => midnightIndigoTheme,
       };
 
   /// Builds a light-brightness theme from a palette + a single [accent] colour
@@ -885,6 +899,25 @@ class AppColors {
     danger: dangerLight,
   );
 
+  // "Midnight Indigo" (dark-brightness, 45-day): the dark twin of Royal Indigo
+  // — a deep indigo-navy canvas, elevated navy cards, cool near-white ink, and
+  // an electric-cyan accent that pops on the dark. Same palette family.
+  static const midnightIndigo = AppColors._(
+    background: Color(0xFF0D1430), // deepest indigo-navy
+    surface: Color(0xFF152245),
+    card: Color(0xFF172A52), // elevated navy card
+    cardAlt: Color(0xFF1F3261),
+    border: Color(0xFF2A3E6E),
+    text: Color(0xFFE7EDFB), // cool near-white
+    textSecondary: Color(0xFF8C95D1), // periwinkle
+    textTertiary: Color(0xFF5E689A),
+    accent: Color(0xFF27C0F5), // electric cyan
+    brandAccent: Color(0xFF27C0F5),
+    brandAccentDeep: Color(0xFF1BA6E0),
+    success: successDark,
+    danger: dangerDark,
+  );
+
   /// The palette backing a given [AppThemeVariant].
   static AppColors forVariant(AppThemeVariant v) => switch (v) {
         AppThemeVariant.light => light,
@@ -893,6 +926,7 @@ class AppColors {
         AppThemeVariant.seashellMauve => seashellMauve,
         AppThemeVariant.onyxAmber => onyxAmber,
         AppThemeVariant.royalIndigo => royalIndigo,
+        AppThemeVariant.midnightIndigo => midnightIndigo,
       };
 
   static AppColors of(BuildContext context) {
@@ -1134,6 +1168,31 @@ class HeroStyle {
     innerFill: Colors.white.withValues(alpha: 0.10),
     innerBorder: Colors.white.withValues(alpha: 0.16),
     divider: Colors.white.withValues(alpha: 0.18),
+    onDark: true,
+    showAura: true,
+  );
+
+  // Midnight-indigo hero: a rich violet gradient lifted off the dark navy
+  // canvas, with an electric-cyan jewel accent and the ring aura — Royal
+  // Indigo's nocturne.
+  static final HeroStyle _midnightIndigo = HeroStyle(
+    gradientColors: const [Color(0xFF4A3FC9), Color(0xFF241874)],
+    border: const Color(0xFF27C0F5).withValues(alpha: 0.42),
+    shadow: [
+      BoxShadow(
+        color: Colors.black.withValues(alpha: 0.42),
+        blurRadius: 26,
+        offset: const Offset(0, 14),
+      ),
+    ],
+    foreground: Colors.white,
+    mutedForeground: Colors.white.withValues(alpha: 0.66),
+    accent: const Color(0xFF27C0F5), // electric-cyan jewel
+    positive: const Color(0xFF3FD79E),
+    negative: const Color(0xFFFF6F78),
+    innerFill: Colors.white.withValues(alpha: 0.08),
+    innerBorder: Colors.white.withValues(alpha: 0.12),
+    divider: Colors.white.withValues(alpha: 0.14),
     onDark: true,
     showAura: true,
   );
