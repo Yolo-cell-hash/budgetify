@@ -75,6 +75,19 @@ const List<StreakReward> kStreakRewards = [
     emblem: '⚡',
     swatch: [Color(0xFFFF8C00), Color(0xFF202427)],
   ),
+  StreakReward(
+    id: 'theme_royal_indigo',
+    days: 30,
+    name: 'Royal Indigo',
+    blurb:
+        'The crown jewel — a deep-indigo accent with an electric-cyan hero on a '
+        'frosted-lavender canvas. Unlocked at a 30-day streak.',
+    kind: StreakRewardKind.theme,
+    themeVariant: AppThemeVariant.royalIndigo,
+    rarity: BadgeRarity.platinum,
+    emblem: '👑',
+    swatch: [Color(0xFF4530B3), Color(0xFFDDEAF6)],
+  ),
 ];
 
 /// All rewards unlocked at [longestStreak], in road order.

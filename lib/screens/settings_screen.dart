@@ -690,6 +690,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         AppThemeVariant.smokyIvory => context.l10n.themeNameSmoky,
         AppThemeVariant.seashellMauve => context.l10n.themeNameSeashell,
         AppThemeVariant.onyxAmber => context.l10n.themeNameAmber,
+        AppThemeVariant.royalIndigo => context.l10n.themeNameRoyalIndigo,
       };
 
   /// Bottom sheet to pick the in-app language. Applies immediately and persists

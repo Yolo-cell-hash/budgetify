@@ -22,6 +22,7 @@ import '../widgets/app_toast.dart';
 import '../widgets/category_icon.dart';
 import '../widgets/financial_health_card.dart';
 import '../widgets/glass.dart';
+import '../widgets/hero_aura.dart';
 import '../widgets/insights_card.dart';
 import '../widgets/savings_summary.dart';
 import '../widgets/privacy_amount.dart';
@@ -690,16 +691,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(24),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         gradient: hero.gradient,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: hero.border),
         boxShadow: hero.shadow,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
+          if (hero.showAura) HeroAura(color: hero.accent),
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -875,6 +881,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             const SizedBox(height: 14),
             FinancialHealthInline(health: _health!, onDark: hero.onDark),
           ],
+              ],
+            ),
+          ),
         ],
       ),
     );
