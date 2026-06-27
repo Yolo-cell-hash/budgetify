@@ -1583,6 +1583,10 @@ class AppStrings {
   String get themeNameSmoky => _t('Smoky', 'स्मोकी', 'स्मोकी');
   String get themeNameSeashell => _t('Seashell', 'सीशेल', 'सीशेल');
   String get themeNameAmber => _t('Amber', 'एम्बर', 'अंबर');
+  String get themeNameRoyalIndigo =>
+      _t('Royal Indigo', 'रॉयल इंडिगो', 'रॉयल इंडिगो');
+  String get themeNameMidnightIndigo =>
+      _t('Midnight Indigo', 'मिडनाइट इंडिगो', 'मिडनाइट इंडिगो');
 
   // ── Onboarding ────────────────────────────────────────────────────────────
   String get onboardWelcomeTitle => _t('Welcome to\nBudget Tracker',
