@@ -85,6 +85,9 @@ class _ExportOptionsSheetState extends State<ExportOptionsSheet> {
                 const SizedBox(width: 8),
                 _formatChip(
                     ExportFormat.text, context.l10n.textFormat, Icons.notes, colors),
+                const SizedBox(width: 8),
+                _formatChip(ExportFormat.pdf, 'PDF',
+                    Icons.picture_as_pdf_outlined, colors),
               ],
             ),
             const SizedBox(height: 20),

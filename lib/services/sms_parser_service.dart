@@ -2331,6 +2331,30 @@ class SmsParserService {
     // BOM: "debited by Rs 500.00 on 30-05-26 by UPI Ref No 123456789012"
     // No merchant info available here, fall through
 
+    // --- Pattern 7: Bank of Maharashtra credit "...from {NAME} RRN:" ---
+    // BOM credits read: "A/c XX7763 credited with Rs. 453.00 on 01-Jul-26
+    // from Miss AISHWARYA RRN: 125560855601 -Bank of Maharashtra". The payer
+    // name sits between "from" and the RRN/ref/footer, and none of the
+    // patterns above catch it, so these credits fell through to the account
+    // number. Scoped to BOM credits (message names the bank AND says
+    // "credited") so the generic "from" wording in other banks — and BOM's
+    // own debits, which say "debited" — is left untouched.
+    final isBomCredit =
+        RegExp(r'bank\s+of\s+maharashtra', caseSensitive: false)
+                .hasMatch(message) &&
+            RegExp(r'\bcredited\b', caseSensitive: false).hasMatch(message);
+    if (isBomCredit) {
+      final fromName = RegExp(
+        r'\bfrom\s+([A-Za-z][A-Za-z. ]+?)'
+        r'(?:\s+RRN\b|\s+Ref(?:\s*No)?\b|\s+UTR\b|\s*[-.,]|\s+on\b|\n|$)',
+        caseSensitive: false,
+      ).firstMatch(message);
+      if (fromName != null) {
+        merchant = _cleanMerchant(fromName.group(1));
+        if (merchant != null) return merchant;
+      }
+    }
+
     // --- Fallback: Use account number as merchant identifier ---
     if (accountInfo != null && accountInfo.isNotEmpty) {
       return accountInfo;
