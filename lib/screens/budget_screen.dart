@@ -1181,8 +1181,10 @@ class _BudgetScreenState extends State<BudgetScreen>
               );
               final allCatTxns = await _db.getTransactionsByCategory(category);
               final filtered = allCatTxns.where((t) {
-                return t.detectedAt.isAfter(start.subtract(const Duration(days: 1))) &&
-                    t.detectedAt.isBefore(end.add(const Duration(days: 1)));
+                // Inclusive month window [start 00:00, end 23:59:59]; no ±1 day
+                // padding, which had leaked adjacent months' edge days in.
+                return !t.detectedAt.isBefore(start) &&
+                    !t.detectedAt.isAfter(end);
               }).toList();
 
               setState(() {
