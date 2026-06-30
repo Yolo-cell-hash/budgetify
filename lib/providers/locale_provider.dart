@@ -28,6 +28,7 @@ class LocaleProvider extends ChangeNotifier {
     _language = switch (saved) {
       'hi' => AppLanguage.hindi,
       'mr' => AppLanguage.marathi,
+      'bn' => AppLanguage.bengali,
       _ => AppLanguage.english,
     };
     _isInitialized = true;
