@@ -51,6 +51,15 @@ void main() {
     });
   });
 
+  group('PDF export', () {
+    test('produces a real PDF (starts with the %PDF header)', () async {
+      final bytes = await service.buildPdfForTest(txns);
+      expect(bytes.length, greaterThan(100));
+      // PDF magic number: "%PDF"
+      expect(bytes.sublist(0, 4), [0x25, 0x50, 0x44, 0x46]);
+    });
+  });
+
   group('ExportFilter', () {
     test('filters by type', () {
       const f = ExportFilter(types: {TransactionType.credit});

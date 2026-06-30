@@ -185,6 +185,21 @@ void main() {
       expect(txn.accountInfo, 'XX7763');
       expect(txn.merchantName, 'Santosh Anant G');
     });
+
+    test('"credited...from {NAME} RRN" credit extracts the payer, not the a/c',
+        () {
+      final txn = SmsParserService.parseTransaction(
+        'AX-MAHABK-S',
+        'A/c X7763 credited with Rs. 453.00 on 01-Jul-26 from Miss AISHWARYA '
+        'RRN: 125560855601 -Bank of Maharashtra',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 453.0);
+      expect(txn.type, TransactionType.credit);
+      expect(txn.accountInfo, 'XX7763');
+      expect(txn.merchantName, 'Miss Aishwarya');
+    });
   });
 
   group('Non-transaction rejection', () {

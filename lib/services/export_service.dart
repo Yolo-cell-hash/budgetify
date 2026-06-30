@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:excel/excel.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/material.dart' show DateTimeRange;
 import 'package:intl/intl.dart';
@@ -10,7 +12,7 @@ import 'database_service.dart';
 import 'sms_parser_service.dart';
 
 /// Output formats for an export.
-enum ExportFormat { excel, csv, text }
+enum ExportFormat { excel, csv, text, pdf }
 
 /// User-chosen filters applied before an export. Empty/null fields mean
 /// "no restriction on this dimension".
@@ -68,11 +70,13 @@ class ExportFilter {
   }
 }
 
-/// Service for exporting transaction data to Excel (.xlsx), CSV, and TXT.
+/// Service for exporting transaction data to Excel (.xlsx), CSV, TXT, and PDF.
 ///
 /// Excel output is a genuine .xlsx workbook (not CSV-with-an-xls-name, which
 /// some Excel installs reject as corrupt) with a styled header, numeric
-/// amount/date cells, and a summary sheet.
+/// amount/date cells, and a summary sheet. PDF is a paginated report with a
+/// summary block and per-month transaction tables, generated on device with
+/// no platform channels.
 class ExportService {
   final DatabaseService _db = DatabaseService();
 
@@ -108,6 +112,8 @@ class ExportService {
         return _writeBytes('csv', _buildCsvBytes(txns));
       case ExportFormat.text:
         return _writeString('txt', _buildTxt(txns));
+      case ExportFormat.pdf:
+        return _writeBytes('pdf', await _buildPdfBytes(txns));
     }
   }
 
@@ -120,6 +126,10 @@ class ExportService {
   @visibleForTesting
   List<int> buildCsvForTest(List<TransactionModel> txns) =>
       _buildCsvBytes(txns);
+
+  @visibleForTesting
+  Future<List<int>> buildPdfForTest(List<TransactionModel> txns) =>
+      _buildPdfBytes(txns);
 
   List<int> _buildWorkbook(List<TransactionModel> txns) {
     final excel = Excel.createExcel();
@@ -228,6 +238,114 @@ class ExportService {
 
     sheet.setColumnWidth(0, 24.0);
     sheet.setColumnWidth(1, 16.0);
+  }
+
+  // ── PDF ─────────────────────────────────────────────────────────────
+
+  /// A paginated report: a summary block (totals + expenses by category)
+  /// followed by a per-month transaction table. Uses the built-in Helvetica
+  /// font (ASCII), so amounts are prefixed "Rs." rather than the ₹ glyph.
+  Future<List<int>> _buildPdfBytes(List<TransactionModel> txns) async {
+    double income = 0, expenses = 0;
+    final byCategory = <String, double>{};
+    for (final t in txns) {
+      if (t.type == TransactionType.credit) {
+        income += t.amount;
+      } else {
+        expenses += t.amount;
+        final c = t.category ?? 'Uncategorized';
+        byCategory[c] = (byCategory[c] ?? 0) + t.amount;
+      }
+    }
+    final sortedCats = byCategory.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    const headerColor = PdfColor.fromInt(0xFF1B1E28);
+
+    pw.Widget summaryRow(String label, String value, {bool bold = false}) {
+      final style = pw.TextStyle(
+        fontSize: 10,
+        fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
+      );
+      return pw.Padding(
+        padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
+        child: pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [pw.Text(label, style: style), pw.Text(value, style: style)],
+        ),
+      );
+    }
+
+    final doc = pw.Document();
+    doc.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(28),
+        build: (context) => [
+          pw.Text('Budgetify Export',
+              style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
+          pw.SizedBox(height: 2),
+          pw.Text('Generated: ${_dateFmt.format(DateTime.now())}',
+              style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700)),
+          pw.SizedBox(height: 14),
+          pw.Text('Summary',
+              style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
+          pw.Divider(thickness: 0.5),
+          summaryRow('Total Transactions', '${txns.length}'),
+          summaryRow('Total Income', _rs(income)),
+          summaryRow('Total Expenses', _rs(expenses)),
+          summaryRow('Net', _rs(income - expenses), bold: true),
+          if (sortedCats.isNotEmpty) ...[
+            pw.SizedBox(height: 12),
+            pw.Text('Expenses by Category',
+                style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
+            pw.Divider(thickness: 0.5),
+            for (final e in sortedCats) summaryRow(e.key, _rs(e.value)),
+          ],
+          pw.SizedBox(height: 18),
+          for (final entry in _groupByMonth(txns).entries) ...[
+            pw.SizedBox(height: 10),
+            pw.Text(_monthYearFmt.format(entry.key),
+                style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 4),
+            pw.TableHelper.fromTextArray(
+              headerStyle: pw.TextStyle(
+                fontSize: 9,
+                fontWeight: pw.FontWeight.bold,
+                color: PdfColors.white,
+              ),
+              headerDecoration: const pw.BoxDecoration(color: headerColor),
+              headerAlignment: pw.Alignment.centerLeft,
+              cellStyle: const pw.TextStyle(fontSize: 9),
+              cellAlignments: const {4: pw.Alignment.centerRight},
+              columnWidths: const {
+                0: pw.FlexColumnWidth(2.2),
+                1: pw.FlexColumnWidth(1.5),
+                2: pw.FlexColumnWidth(2.4),
+                3: pw.FlexColumnWidth(3.0),
+                4: pw.FlexColumnWidth(2.0),
+              },
+              headers: const ['Date', 'Type', 'Category', 'Merchant', 'Amount'],
+              data: [
+                for (final t in entry.value)
+                  [
+                    _dateFmt.format(t.detectedAt),
+                    t.type == TransactionType.credit ? 'Credit' : 'Debit',
+                    t.category ?? '',
+                    t.merchantName ??
+                        (t.isManual
+                            ? 'Manual'
+                            : SmsParserService.normalizeSender(t.sender)),
+                    _currencyFmt.format(t.amount),
+                  ],
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+
+    return doc.save();
   }
 
   // ── CSV ─────────────────────────────────────────────────────────────

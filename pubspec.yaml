@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.20.0
+version: 1.20.1
 
 environment:
   sdk: ^3.9.0
@@ -73,6 +73,10 @@ dependencies:
   file_picker: ^11.0.2
   home_widget: ^0.9.3
   excel: ^4.0.6
+
+  # PDF export of transactions. Pure-Dart generation (no platform channels and
+  # no INTERNET permission), so the offline guarantee is preserved.
+  pdf: ^3.11.0
 
   # Share the monthly "Wrapped" card to WhatsApp / Instagram / etc. via the
   # system share sheet. Uses Android share intents + a FileProvider — it does
