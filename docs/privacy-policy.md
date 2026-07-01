@@ -121,8 +121,8 @@ If we update this policy, we will revise the "Effective date" above and publish 
 
 If you have any questions about this policy or Budgetify's privacy practices, contact:
 
-- **Developer:** [Your name / entity]
-- **Email:** [your-contact-email]
+- **Developer:** Jay Keer
+- **Email:** keerjar@gmail.com
 
 ---
 
