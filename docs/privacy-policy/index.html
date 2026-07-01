@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Budgetify — Privacy Policy</title>
+<meta name="description" content="Privacy Policy for Budgetify, an offline personal budgeting app by Jay Keer. No servers, no accounts, no internet permission — your financial data never leaves your phone.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>🪙</text></svg>">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap">
+    <a class="brand" href="../">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="3" y="6" width="18" height="13" rx="3" stroke="#c8a75e" stroke-width="2"/>
+        <path d="M3 10.5h18" stroke="#c8a75e" stroke-width="2"/>
+        <circle cx="16.5" cy="14.5" r="1.7" fill="#c8a75e"/>
+      </svg>
+      Budgetif<span class="mk">y</span>
+    </a>
+    <nav class="topnav">
+      <a href="../privacy-policy/">Privacy</a>
+      <a href="../data-deletion/">Delete data</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <p class="eyebrow">Budgetify</p>
+  <h1>Privacy Policy</h1>
+  <div class="divider"></div>
+  <p class="meta"><b>Effective date:</b> 1 July 2026<br>
+  <b>Applies to:</b> the Budgetify Android application ("Budgetify", "the app", "we", "us")</p>
+
+  <h2>The short version</h2>
+  <p class="lede">Budgetify is a personal budgeting app that runs <strong>entirely on your phone</strong>. It has <strong>no servers, no accounts, no advertising, and no analytics</strong> — and it does not even request permission to access the internet. Everything Budgetify learns about your money stays on your device, under your control.</p>
+  <p>We don't ask you to trust a promise. We designed the app so that betraying your privacy is <strong>technically impossible</strong>: with no internet access, the app has no way to send your financial data anywhere.</p>
+  <blockquote><p><strong>In one line:</strong> your money data never leaves your phone unless <em>you</em> choose to export or share it.</p></blockquote>
+
+  <h2><span class="num">1.</span>Privacy by architecture, not by policy</h2>
+  <p>Most apps ask you to trust a written promise not to misuse your data. Budgetify goes further. The app is built <strong>without the Android <code>INTERNET</code> permission</strong>. That is a hard, verifiable property of the software, not a marketing claim:</p>
+  <ul>
+    <li>The app cannot upload your transactions, messages, balances, or any other information — it has no network access to do so.</li>
+    <li>There is no backend service that receives your data, because there is no backend at all.</li>
+    <li>No login, no cloud sync, no user profile on our side. We never see your data, ever.</li>
+  </ul>
+  <p>This is the foundation of everything below.</p>
+
+  <h2><span class="num">2.</span>Information Budgetify works with</h2>
+  <p>All of the following is created and stored <strong>only on your device</strong>, in Budgetify's private storage. We, the developer, never receive any of it.</p>
+  <table>
+    <thead><tr><th>What</th><th>Why the app uses it</th></tr></thead>
+    <tbody>
+      <tr><td>Bank transaction SMS</td><td>To automatically detect your income and expenses (see Section 4).</td></tr>
+      <tr><td>Transactions you add manually</td><td>To track spending the app didn't detect automatically.</td></tr>
+      <tr><td>Tags / categories</td><td>To organise spending (e.g. Food &amp; Dining, Travel), including tags you create.</td></tr>
+      <tr><td>Budgets</td><td>Monthly and per-category limits you set, and progress toward them.</td></tr>
+      <tr><td>Savings goals &amp; contributions</td><td>To track progress toward personal goals.</td></tr>
+      <tr><td>Net-worth entries</td><td>Assets and liabilities you enter, and periodic snapshots, for net-worth tracking.</td></tr>
+      <tr><td>Splits &amp; personal ledger</td><td>To record shared expenses and who owes whom.</td></tr>
+      <tr><td>Recurring payments</td><td>Subscriptions, rent, EMIs and similar, plus reminders.</td></tr>
+      <tr><td>Streaks, achievements &amp; titles</td><td>To power the app's gamified, motivational features.</td></tr>
+      <tr><td>App preferences</td><td>Theme, language, scan frequency, app-lock and privacy settings.</td></tr>
+    </tbody>
+  </table>
+  <p>Budgetify does <strong>not</strong> collect your name, email, phone number, contacts, location, device advertising ID, or any other identifier for tracking. It has no reason to, and no way to send them anywhere.</p>
+
+  <h2><span class="num">3.</span>What we collect about you: nothing</h2>
+  <p>To be completely clear: <strong>the developer of Budgetify collects no personal data whatsoever.</strong> There is no server that could receive it. We cannot see your transactions, your balances, your habits, or even whether you use the app.</p>
+
+  <h2><span class="num">4.</span>How Budgetify handles your SMS messages</h2>
+  <p>Because bank alerts arrive by SMS, Budgetify can request the <code>READ_SMS</code> and <code>RECEIVE_SMS</code> permissions to detect transactions automatically. We treat this access with the seriousness it deserves:</p>
+  <ul>
+    <li><strong>Purpose limitation.</strong> SMS access is used for <strong>one purpose only</strong>: to identify bank/financial transaction messages and extract the amount, date, merchant/payee, and account so they can become entries in your ledger.</li>
+    <li><strong>On-device processing.</strong> Every message is read and parsed <strong>on your phone</strong>. The parsing logic runs locally; no message is ever sent off the device for analysis.</li>
+    <li><strong>Selective storage.</strong> Budgetify focuses on transactional messages from banks and payment services. The relevant message text is stored <strong>only</strong> in the app's private, on-device database so it can power features like re-tagging and duplicate detection.</li>
+    <li><strong>No transmission, ever.</strong> Message content is never uploaded, shared, or transmitted by the app. With no internet permission, it physically cannot be.</li>
+    <li><strong>Your choice.</strong> Automatic SMS tracking is a convenience you can decline. You may deny the SMS permission (or revoke it in Android Settings) and continue using Budgetify by entering transactions manually.</li>
+  </ul>
+
+  <h2><span class="num">5.</span>The permissions we request, and exactly why</h2>
+  <table>
+    <thead><tr><th>Permission</th><th>Why Budgetify uses it</th></tr></thead>
+    <tbody>
+      <tr><td><code>RECEIVE_SMS</code>, <code>READ_SMS</code></td><td>Detect bank transaction messages automatically (Section 4). Optional — you can use the app without it.</td></tr>
+      <tr><td><code>POST_NOTIFICATIONS</code></td><td>Show on-device alerts: new-transaction prompts, budget threshold warnings, and bill/reminder notices.</td></tr>
+      <tr><td><code>USE_BIOMETRIC</code></td><td>Let you lock the app behind your device's fingerprint/face unlock, if you enable it.</td></tr>
+    </tbody>
+  </table>
+  <p>When you export data or create a backup, the file is saved through Android's own system file picker, so Budgetify needs no permission to write to your device storage. (On Android 12 and older, that picker component carries a legacy read permission used only to let you choose a file — the app never browses, scans, or reads your other files.)</p>
+  <p>Budgetify does <strong>not</strong> request the <code>INTERNET</code> permission, "all files" access, location, camera, microphone, contacts, or advertising identifiers.</p>
+
+  <h2><span class="num">6.</span>How your data is stored and protected</h2>
+  <ul>
+    <li><strong>Local, private storage.</strong> Your data lives in a database inside Budgetify's private app storage on your device.</li>
+    <li><strong>Encrypted backups.</strong> When you create a backup, it is encrypted with <strong>AES-256</strong> using a passphrase that only you know. We never see the passphrase, and it is not stored or recoverable — if you lose it, the backup cannot be opened, by us or anyone else. You decide where the backup file is saved.</li>
+    <li><strong>App lock.</strong> You can optionally protect the app with your device's biometric lock.</li>
+    <li><strong>Privacy Mode.</strong> You can hide all amounts in the interface with a single toggle, so nothing sensitive is visible to someone glancing at your screen.</li>
+  </ul>
+
+  <h2><span class="num">7.</span>When data leaves your device — only when you send it</h2>
+  <p>Budgetify never moves your data on its own. Some features let <strong>you</strong> deliberately take your data out of the app, and it's important you understand them:</p>
+  <ul>
+    <li><strong>Exporting.</strong> You can export your transactions to Excel, CSV, PDF, or text. Android's system file picker asks where you want to save it (for example your Downloads folder or a cloud drive). From that point, the file is under your control, like any other file on your phone.</li>
+    <li><strong>Sharing.</strong> Features such as the Monthly Wrapped card, your gamified profile card, and exports can be shared through Android's standard share sheet. When you choose to share, you select the destination app (for example a messaging or social app), and the content is handed to that app. That destination is outside Budgetify's control and is governed by <em>its</em> privacy policy. By default, shareable summaries emphasise percentages rather than exact amounts, and sharing actual figures is an explicit, optional choice.</li>
+    <li><strong>Backups.</strong> An encrypted backup file goes wherever you choose to save it.</li>
+  </ul>
+  <p>In every case, the data leaves only because you asked it to, to a destination you picked.</p>
+
+  <h2><span class="num">8.</span>Third-party services</h2>
+  <p>Budgetify does <strong>not</strong> embed advertising networks, analytics SDKs, crash-tracking services, social-media trackers, or any other third-party component that collects or transmits your data. The app is self-contained.</p>
+
+  <h2><span class="num">9.</span>Payments and subscriptions</h2>
+  <p>Budgetify does not process payments itself and never sees your payment details. If Budgetify offers a paid subscription, the purchase is handled <strong>entirely by Google Play</strong>. The app receives only your entitlement status — whether a subscription is currently active — and never your card number, UPI ID, bank details, or billing address. Google's handling of a purchase is governed by <a href="https://policies.google.com/privacy" rel="noopener" target="_blank">Google's Privacy Policy</a>.</p>
+
+  <h2 id="data-retention-and-deletion"><span class="num">10.</span>Data retention and deletion</h2>
+  <p>Because your data is stored only on your device, <strong>you</strong> control its lifetime:</p>
+  <ul>
+    <li>Delete individual transactions or other records at any time within the app.</li>
+    <li>Clear the app's data from Android Settings to erase everything the app has stored.</li>
+    <li><strong>Uninstalling Budgetify removes its on-device database.</strong> Any export or backup files you created yourself remain wherever you saved them until you delete them.</li>
+  </ul>
+  <p>We hold nothing on our side, so there is nothing for us to delete or return. For step-by-step instructions, see <a href="../data-deletion/">How to delete your data</a>.</p>
+
+  <h2><span class="num">11.</span>Children's privacy</h2>
+  <p>Budgetify is a general-purpose personal-finance tool intended for a general audience and is not directed at children. Because the app collects no personal data and transmits nothing, it does not knowingly gather information from anyone, including children.</p>
+
+  <h2><span class="num">12.</span>Your rights and control</h2>
+  <p>Data-protection laws such as India's <strong>Digital Personal Data Protection Act, 2023</strong> and the EU <strong>General Data Protection Regulation (GDPR)</strong> grant rights to access, correct, delete, and port your personal data. Budgetify honours these rights by design: your data never leaves your device, so you already have complete, direct, and exclusive access to it — to view, edit, export, or delete at will — without needing to make a request to us. We hold no copy that could be subject to such a request.</p>
+
+  <h2><span class="num">13.</span>Changes to this policy</h2>
+  <p>If we update this policy, we will revise the "Effective date" above and publish the new version at this address. Because the app's core design — no internet access, no data collection — is fundamental to what Budgetify is, any change that would weaken these guarantees would be communicated clearly within the app before it takes effect.</p>
+
+  <h2><span class="num">14.</span>Contact</h2>
+  <p>If you have any questions about this policy or Budgetify's privacy practices, contact:</p>
+  <ul>
+    <li><strong>Developer:</strong> Jay Keer</li>
+    <li><strong>Email:</strong> <a href="mailto:keerjar@gmail.com">keerjar@gmail.com</a></li>
+  </ul>
+
+  <hr>
+  <p style="color:var(--ink-soft);font-style:italic">Budgetify is offline by design. Your financial life is yours alone — we built the app so it could never be any other way.</p>
+</main>
+
+<footer class="site">
+  <div class="wrap">
+    <div>© 2026 Budgetify · Jay Keer. Offline by design — your financial life is yours alone.</div>
+    <div class="fnav">
+      <a href="../">Home</a>
+      <a href="../privacy-policy/">Privacy Policy</a>
+      <a href="../data-deletion/">Delete data</a>
+      <a href="mailto:keerjar@gmail.com">Contact</a>
+    </div>
+  </div>
+</footer>
+</body>
+</html>
