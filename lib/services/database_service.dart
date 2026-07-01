@@ -34,7 +34,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 19,
+      version: 20,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -554,6 +554,17 @@ class DatabaseService {
       await db.execute(_createRecurringChargesTable);
       await db.execute(
         'CREATE INDEX IF NOT EXISTS idx_recurring_charges_plan ON recurring_charges(plan_id)',
+      );
+    }
+
+    if (oldVersion < 20) {
+      // A transaction auto-tagged from the curated merchant database used to
+      // keep is_classified = 0, so a recognised merchant (e.g. McDonald's →
+      // Food & Dining) still showed as "Unclassified". Those matches are
+      // confident, so promote every already-categorised row to classified.
+      await db.execute(
+        "UPDATE transactions SET is_classified = 1 "
+        "WHERE is_classified = 0 AND category IS NOT NULL AND category != ''",
       );
     }
   }
@@ -1440,6 +1451,45 @@ class DatabaseService {
       }
     }
     return applied;
+  }
+
+  /// Tag currently-unclassified transactions matching [merchant] + [type] with
+  /// [category], without creating a persistent rule. This is the "Apply to
+  /// this one" path used by the Axio import for merchants that aren't frequent
+  /// enough to earn an auto-tag rule.
+  ///
+  /// Crucially it only touches rows where `is_classified = 0`, so it can never
+  /// overwrite a tag the user already chose. Matching reuses
+  /// [TransactionRule.matches] so normalization stays identical to real rules.
+  /// Returns the number of transactions newly tagged.
+  Future<int> tagUntaggedByMerchant({
+    required String merchant,
+    required TransactionType type,
+    required String category,
+  }) async {
+    if (merchant.trim().isEmpty) return 0;
+    final probe = TransactionRule(
+      senderName: merchant,
+      transactionType: type,
+      category: category,
+    );
+
+    final db = await database;
+    final rows = await db.query('transactions', where: 'is_classified = 0');
+    var tagged = 0;
+    for (final row in rows) {
+      final txn = TransactionModel.fromMap(row);
+      if (probe.matches(txn.merchantName, txn.type)) {
+        await db.update(
+          'transactions',
+          {'category': category, 'is_classified': 1},
+          where: 'id = ?',
+          whereArgs: [txn.id],
+        );
+        tagged++;
+      }
+    }
+    return tagged;
   }
 
   /// Backfill merchant names for all existing transactions.

@@ -1,6 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:open_filex/open_filex.dart';
 import '../app_info.dart';
@@ -12,6 +15,7 @@ import '../providers/app_preferences.dart';
 import '../providers/locale_provider.dart';
 import '../services/app_events.dart';
 import '../services/app_lock_service.dart';
+import '../services/axio_import_service.dart';
 import '../services/backup_service.dart';
 import '../services/background_service.dart';
 import '../services/export_service.dart';
@@ -20,6 +24,7 @@ import '../widgets/app_bar_title.dart';
 import '../widgets/app_dialog.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/export_options_sheet.dart';
+import '../widgets/import_options_sheet.dart';
 import 'manage_tags_screen.dart';
 import 'streak_rewards_screen.dart';
 
@@ -33,6 +38,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final ExportService _exportService = ExportService();
+  final AxioImportService _importService = AxioImportService();
   final BackupService _backupService = BackupService();
   bool _autoScanEnabled = true;
   int _scanIntervalHours = BackgroundService.defaultIntervalHours;
@@ -531,9 +537,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const SizedBox(height: 24),
 
-          // Export Section
-          _buildSectionHeader(context.l10n.exportSection, isDark),
+          // Import & Export Section
+          _buildSectionHeader(context.l10n.importExportSection, isDark),
           const SizedBox(height: 8),
+          _buildSettingsCard(
+            isDark: isDark,
+            child: ListTile(
+              leading: Icon(Icons.download_outlined, color: Color(0xFF6C4CF1)),
+              title: Text(context.l10n.importData),
+              subtitle: Text(
+                context.l10n.importDataDesc,
+                style: TextStyle(
+                  color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
+                ),
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: _openImportSheet,
+            ),
+          ),
+          const SizedBox(height: 10),
           _buildSettingsCard(
             isDark: isDark,
             child: ListTile(
@@ -947,6 +969,119 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _showStyledSnackBar(
           icon: Icons.error_outline,
           message: context.l10nRead.restoreFailed('$e'),
+          color: const Color(0xFFD25A5F),
+        );
+      }
+    }
+  }
+
+  Future<void> _openImportSheet() async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final source = await showModalBottomSheet<ImportSource>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: isDark ? const Color(0xFF16181E) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => const ImportSourceSheet(),
+    );
+    if (source == null || !mounted) return;
+    // Only axio is supported today; the picker is built to grow.
+    await _runAxioImport();
+  }
+
+  Future<void> _runAxioImport() async {
+    // Let the user pick their axio CSV export.
+    FilePickerResult? picked;
+    try {
+      picked = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['csv'],
+        withData: true,
+      );
+    } catch (e) {
+      if (mounted) {
+        _showStyledSnackBar(
+          icon: Icons.error_outline,
+          message: context.l10nRead.importFailed('$e'),
+          color: const Color(0xFFD25A5F),
+        );
+      }
+      return;
+    }
+    final bytes = (picked == null || picked.files.isEmpty)
+        ? null
+        : picked.files.first.bytes;
+    if (bytes == null || !mounted) return;
+
+    // Read + parse (never inserts anything yet).
+    AxioImportPreview preview;
+    try {
+      final content = utf8.decode(bytes, allowMalformed: true);
+      preview = _importService.parsePreview(content);
+    } on FormatException {
+      if (mounted) {
+        _showStyledSnackBar(
+          icon: Icons.description_outlined,
+          message: context.l10nRead.importInvalidFile,
+          color: const Color(0xFFD79A3C),
+        );
+      }
+      return;
+    } catch (e) {
+      if (mounted) {
+        _showStyledSnackBar(
+          icon: Icons.error_outline,
+          message: context.l10nRead.importFailed('$e'),
+          color: const Color(0xFFD25A5F),
+        );
+      }
+      return;
+    }
+
+    if (!mounted) return;
+    if (preview.isEmpty) {
+      _showStyledSnackBar(
+        icon: Icons.info_outline,
+        message: context.l10nRead.importNoTags,
+        color: const Color(0xFFD79A3C),
+      );
+      return;
+    }
+
+    // Show exactly what will happen before touching the database.
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: isDark ? const Color(0xFF16181E) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => AxioImportPreviewSheet(preview: preview),
+    );
+    if (confirmed != true || !mounted) return;
+
+    _showProgressDialog(context.l10nRead.importing);
+    try {
+      final result = await _importService.apply(preview);
+      if (mounted) Navigator.pop(context); // dismiss progress
+      if (!mounted) return;
+      _showStyledSnackBar(
+        icon: Icons.check_circle,
+        message: context.l10nRead.importDone(
+          result.rulesCreated + result.rulesUpdated,
+          result.transactionsTagged,
+        ),
+        color: const Color(0xFF2AA76F),
+      );
+    } catch (e) {
+      if (mounted) Navigator.pop(context); // dismiss progress
+      if (mounted) {
+        _showStyledSnackBar(
+          icon: Icons.error_outline,
+          message: context.l10nRead.importFailed('$e'),
           color: const Color(0xFFD25A5F),
         );
       }

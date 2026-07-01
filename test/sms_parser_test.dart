@@ -302,6 +302,34 @@ void main() {
       expect(txn!.amount, 450.0);
       expect(txn.merchantName, 'Swiggy');
       expect(txn.category, 'Food & Dining');
+      // A curated-merchant hit is confident, so it is classified outright
+      // rather than dropped into the "Unclassified" queue.
+      expect(txn.isClassified, isTrue);
+    });
+  });
+
+  group('Auto-classification of recognised merchants', () {
+    test('predefined merchant is classified, not left unclassified', () {
+      final txn = SmsParserService.parseTransaction(
+        'HDFCBK',
+        'Sent Rs.240.00\nFrom HDFC Bank A/C *9463\nTo Swiggy\nOn 15/06/26',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.category, 'Food & Dining');
+      expect(txn.isClassified, isTrue);
+    });
+
+    test('unrecognised payee stays unclassified for the user to tag', () {
+      final txn = SmsParserService.parseTransaction(
+        'HDFCBK',
+        'Sent Rs.30.00\nFrom HDFC Bank A/C *9463\nTo James Francis '
+        'Chettiyar\nOn 01/06/26\nRef 612345678905',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.category, isNull);
+      expect(txn.isClassified, isFalse);
     });
   });
 
