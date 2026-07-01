@@ -362,6 +362,8 @@ class AppStrings {
   String get backupSection => _t('Backup', 'बैकअप', 'बॅकअप', 'ব্যাকআপ');
   String get dataSection => _t('Data', 'डेटा', 'डेटा', 'ডেটা');
   String get exportSection => _t('Export', 'एक्सपोर्ट', 'एक्सपोर्ट', 'এক্সপোর্ট');
+  String get importExportSection => _t('Import & Export', 'इंपोर्ट और एक्सपोर्ट',
+      'इंपोर्ट व एक्सपोर्ट', 'ইম্পোর্ট ও এক্সপোর্ট');
   String get privacySection => _t('Privacy', 'गोपनीयता', 'गोपनीयता', 'গোপনীয়তা');
   String get aboutSection => _t('About', 'परिचय', 'परिचय', 'পরিচিতি');
 
@@ -478,6 +480,108 @@ class AppStrings {
         'Excel, CSV, PDF या टेक्स्ट — तिथि, प्रकार, टैग या प्राप्तकर्ता से फ़िल्टर करें',
         'Excel, CSV, PDF किंवा मजकूर — तारीख, प्रकार, टॅग किंवा प्राप्तकर्त्यानुसार फिल्टर करा',
         'Excel, CSV, PDF বা টেক্সট — তারিখ, ধরন, ট্যাগ বা প্রাপকের ভিত্তিতে ফিল্টার করুন',
+      );
+
+  // ── Settings · Import from another app ────────────────────────────────────
+  String get importData =>
+      _t('Import Data', 'डेटा इंपोर्ट करें', 'डेटा इंपोर्ट करा', 'ডেটা ইম্পোর্ট করুন');
+  String get importDataDesc => _t(
+        'Bring your tags in from another app',
+        'किसी और ऐप से अपने टैग लाएँ',
+        'दुसऱ्या अ‍ॅपमधून तुमचे टॅग आणा',
+        'অন্য অ্যাপ থেকে আপনার ট্যাগ আনুন',
+      );
+  String get importFromTitle => _t(
+        'Import from another app',
+        'किसी अन्य ऐप से इंपोर्ट करें',
+        'दुसऱ्या अ‍ॅपमधून इंपोर्ट करा',
+        'অন্য অ্যাপ থেকে ইম্পোর্ট করুন',
+      );
+  String get importFromDesc => _t(
+        "We'll bring over how each merchant was tagged, so you don't have to "
+            'categorise everything again. Your transactions still come from '
+            'your own SMS.',
+        'हर मर्चेंट का टैग हम ले आएँगे, ताकि आपको सब कुछ दोबारा वर्गीकृत न करना '
+            'पड़े। आपके लेन-देन फिर भी आपके अपने SMS से ही आते हैं।',
+        'प्रत्येक विक्रेत्याचा टॅग आम्ही आणू, म्हणजे तुम्हाला सर्व काही पुन्हा '
+            'वर्गीकृत करावे लागणार नाही. तुमचे व्यवहार तरीही तुमच्याच SMS मधून येतात.',
+        'প্রতিটি মার্চেন্ট কীভাবে ট্যাগ করা ছিল তা আমরা নিয়ে আসব, যাতে আপনাকে '
+            'আবার সব শ্রেণিবদ্ধ করতে না হয়। আপনার লেনদেন তবুও আপনার নিজের SMS '
+            'থেকেই আসে।',
+      );
+  String get importSourceAxioDesc => _t(
+        'From an axio expense report (.csv)',
+        'axio खर्च रिपोर्ट (.csv) से',
+        'axio खर्च अहवाल (.csv) मधून',
+        'axio খরচ রিপোর্ট (.csv) থেকে',
+      );
+  String get importReviewTitle =>
+      _t('Review import', 'इंपोर्ट की समीक्षा', 'इंपोर्टचे पुनरावलोकन', 'ইম্পোর্ট পর্যালোচনা');
+  String importFoundMerchants(int count) => _t(
+        'Found $count tagged ${count == 1 ? 'merchant' : 'merchants'} in your axio export',
+        'आपके axio एक्सपोर्ट में $count टैग किए गए मर्चेंट मिले',
+        'तुमच्या axio एक्सपोर्टमध्ये $count टॅग केलेले विक्रेते सापडले',
+        'আপনার axio এক্সপোর্টে $count টি ট্যাগ করা মার্চেন্ট পাওয়া গেছে',
+      );
+  String importAutoRulesTitle(int count) => _t(
+        'Auto-tag rules · $count',
+        'ऑटो-टैग नियम · $count',
+        'ऑटो-टॅग नियम · $count',
+        'অটো-ট্যাগ নিয়ম · $count',
+      );
+  String get importAutoRulesDesc => _t(
+        'Seen often, so these are tagged everywhere — past and future.',
+        'अक्सर दिखते हैं, इसलिए इन्हें हर जगह टैग किया जाता है — पहले और आगे भी।',
+        'वारंवार दिसतात, म्हणून हे सर्वत्र टॅग होतात — मागील व पुढील दोन्ही.',
+        'প্রায়ই দেখা যায়, তাই এগুলো সর্বত্র ট্যাগ হয় — অতীত ও ভবিষ্যৎ উভয়ই।',
+      );
+  String importOneTimeTitle(int count) => _t(
+        'One-time tags · $count',
+        'एक-बार टैग · $count',
+        'एक-वेळ टॅग · $count',
+        'একবারের ট্যাগ · $count',
+      );
+  String get importOneTimeDesc => _t(
+        'Applied only to your matching transactions, no rule created.',
+        'केवल आपके मिलते-जुलते लेन-देन पर लागू, कोई नियम नहीं बनाया गया।',
+        'फक्त तुमच्या जुळणाऱ्या व्यवहारांना लागू, नियम तयार केला नाही.',
+        'শুধু আপনার মিলে যাওয়া লেনদেনে প্রয়োগ, কোনো নিয়ম তৈরি হয়নি।',
+      );
+  String importTimesSeen(int count) => _t(
+        '$count×',
+        '$count×',
+        '$count×',
+        '$count×',
+      );
+  String get importButton =>
+      _t('Import Tags', 'टैग इंपोर्ट करें', 'टॅग इंपोर्ट करा', 'ট্যাগ ইম্পোর্ট করুন');
+  String get importing =>
+      _t('Importing…', 'इंपोर्ट हो रहा है…', 'इंपोर्ट होत आहे…', 'ইম্পোর্ট হচ্ছে…');
+  String get importNoTags => _t(
+        'No tags found to import from this file.',
+        'इस फ़ाइल से इंपोर्ट करने के लिए कोई टैग नहीं मिला।',
+        'या फाइलमधून इंपोर्ट करण्यासाठी कोणतेही टॅग सापडले नाहीत.',
+        'এই ফাইল থেকে ইম্পোর্ট করার জন্য কোনো ট্যাগ পাওয়া যায়নি।',
+      );
+  String get importInvalidFile => _t(
+        "This doesn't look like an axio export. Pick the .csv you downloaded "
+            'from axio.',
+        'यह axio एक्सपोर्ट जैसा नहीं लगता। axio से डाउनलोड की गई .csv चुनें।',
+        'हे axio एक्सपोर्टसारखे दिसत नाही. axio वरून डाउनलोड केलेली .csv निवडा.',
+        'এটি axio এক্সপোর্টের মতো নয়। axio থেকে ডাউনলোড করা .csv বেছে নিন।',
+      );
+  String importDone(int rules, int txns) => _t(
+        'Imported $rules auto-tag ${rules == 1 ? 'rule' : 'rules'} and tagged '
+            '$txns ${txns == 1 ? 'transaction' : 'transactions'}.',
+        '$rules ऑटो-टैग नियम इंपोर्ट किए और $txns लेन-देन टैग किए।',
+        '$rules ऑटो-टॅग नियम इंपोर्ट केले आणि $txns व्यवहार टॅग केले.',
+        '$rules টি অটো-ট্যাগ নিয়ম ইম্পোর্ট এবং $txns টি লেনদেন ট্যাগ করা হয়েছে।',
+      );
+  String importFailed(String error) => _t(
+        'Import failed: $error',
+        'इंपोर्ट विफल: $error',
+        'इंपोर्ट अयशस्वी: $error',
+        'ইম্পোর্ট ব্যর্থ: $error',
       );
   String get dataPrivateTitle =>
       _t('Your Data is Private', 'आपका डेटा निजी है', 'तुमचा डेटा खाजगी आहे', 'আপনার ডেটা ব্যক্তিগত');

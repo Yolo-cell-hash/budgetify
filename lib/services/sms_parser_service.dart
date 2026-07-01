@@ -1865,6 +1865,11 @@ class SmsParserService {
       accountInfo: accountInfo,
       merchantName: merchantName,
       category: category,
+      // A hit against the curated merchant database (or a salary/refund
+      // keyword) is a confident match, so mark it classified instead of
+      // leaving it in the "Unclassified" queue for the user to confirm.
+      // Merchants we can't recognise stay unclassified as before.
+      isClassified: category != null,
     );
   }
 
