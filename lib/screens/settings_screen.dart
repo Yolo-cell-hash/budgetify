@@ -1,10 +1,10 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:open_filex/open_filex.dart';
 import '../app_info.dart';
 import '../l10n/app_strings.dart';
@@ -1104,53 +1104,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _runExport(ExportRequest request) async {
-    // Request storage permission
-    var status = await Permission.manageExternalStorage.status;
-    if (!status.isGranted) {
-      status = await Permission.manageExternalStorage.request();
-      if (!status.isGranted) {
-        final storageStatus = await Permission.storage.request();
-        if (!storageStatus.isGranted) {
-          if (mounted) {
-            _showStyledSnackBar(
-              icon: Icons.error_outline,
-              message: context.l10nRead.storagePermissionRequired,
-              color: const Color(0xFFD25A5F),
-            );
-          }
-          return;
-        }
-      }
-    }
-
-    if (!mounted) return;
     _showProgressDialog(context.l10nRead.exporting);
 
+    ExportBundle? bundle;
     try {
-      final path = await _exportService.export(
+      bundle = await _exportService.buildExport(
         format: request.format,
         filter: request.filter,
-      );
-
-      if (mounted) Navigator.pop(context); // dismiss loading
-      if (!mounted) return;
-
-      if (path == null) {
-        _showStyledSnackBar(
-          icon: Icons.filter_alt_off_outlined,
-          message: context.l10nRead.noTxnMatchFilters,
-          color: const Color(0xFFD79A3C),
-        );
-        return;
-      }
-
-      final fileName = path.split('/').last;
-      _showStyledSnackBar(
-        icon: Icons.check_circle,
-        message: context.l10nRead.savedToDownloads(fileName),
-        color: const Color(0xFF2AA76F),
-        actionLabel: context.l10nRead.open,
-        onAction: () => OpenFilex.open(path),
       );
     } catch (e) {
       if (mounted) Navigator.pop(context); // dismiss loading
@@ -1161,7 +1121,53 @@ class _SettingsScreenState extends State<SettingsScreen> {
           color: const Color(0xFFD25A5F),
         );
       }
+      return;
     }
+
+    if (mounted) Navigator.pop(context); // dismiss loading
+    if (!mounted) return;
+
+    if (bundle == null) {
+      _showStyledSnackBar(
+        icon: Icons.filter_alt_off_outlined,
+        message: context.l10nRead.noTxnMatchFilters,
+        color: const Color(0xFFD79A3C),
+      );
+      return;
+    }
+
+    // Save through Android's system file picker (SAF): the user chooses the
+    // destination — Downloads, Drive, etc. This needs no storage permission,
+    // mirroring how encrypted backups are saved.
+    String? path;
+    try {
+      path = await FilePicker.saveFile(
+        dialogTitle: context.l10nRead.exportData,
+        fileName: bundle.filename,
+        bytes: Uint8List.fromList(bundle.bytes),
+      );
+    } catch (e) {
+      if (mounted) {
+        _showStyledSnackBar(
+          icon: Icons.error_outline,
+          message: context.l10nRead.exportFailed('$e'),
+          color: const Color(0xFFD25A5F),
+        );
+      }
+      return;
+    }
+
+    if (path == null || !mounted) return; // user cancelled the save dialog
+
+    final savedPath = path;
+    final fileName = savedPath.split(RegExp(r'[\\/]')).last;
+    _showStyledSnackBar(
+      icon: Icons.check_circle,
+      message: context.l10nRead.exportSavedAs(fileName),
+      color: const Color(0xFF2AA76F),
+      actionLabel: context.l10nRead.open,
+      onAction: () => OpenFilex.open(savedPath),
+    );
   }
 
   /// Thin wrapper kept for the backup/restore/export call sites; delegates

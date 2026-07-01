@@ -1,12 +1,10 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:excel/excel.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/material.dart' show DateTimeRange;
 import 'package:intl/intl.dart';
-import 'package:path_provider/path_provider.dart';
 import '../models/transaction_model.dart';
 import 'database_service.dart';
 import 'sms_parser_service.dart';
@@ -70,6 +68,15 @@ class ExportFilter {
   }
 }
 
+/// A ready-to-save export: the file [bytes] and a suggested [filename].
+/// The caller decides where it lands (typically the system file picker), so
+/// the app needs no broad storage permission to produce one.
+class ExportBundle {
+  final List<int> bytes;
+  final String filename;
+  const ExportBundle(this.bytes, this.filename);
+}
+
 /// Service for exporting transaction data to Excel (.xlsx), CSV, TXT, and PDF.
 ///
 /// Excel output is a genuine .xlsx workbook (not CSV-with-an-xls-name, which
@@ -95,9 +102,11 @@ class ExportService {
 
   // ── Public API ──────────────────────────────────────────────────────
 
-  /// Export in [format] honoring [filter]. Returns the saved file path,
-  /// or null when the filter matched no transactions.
-  Future<String?> export({
+  /// Build an export in [format] honoring [filter]. Returns the file bytes and
+  /// a suggested filename, or null when the filter matched no transactions.
+  /// The caller saves or shares the bytes (e.g. through the system file
+  /// picker), so no storage permission is required.
+  Future<ExportBundle?> buildExport({
     required ExportFormat format,
     ExportFilter filter = const ExportFilter(),
   }) async {
@@ -105,15 +114,16 @@ class ExportService {
     final txns = all.where(filter.matches).toList();
     if (txns.isEmpty) return null;
 
+    final base = 'budgetify_export_${_fileDateFmt.format(DateTime.now())}';
     switch (format) {
       case ExportFormat.excel:
-        return _writeBytes('xlsx', _buildWorkbook(txns));
+        return ExportBundle(_buildWorkbook(txns), '$base.xlsx');
       case ExportFormat.csv:
-        return _writeBytes('csv', _buildCsvBytes(txns));
+        return ExportBundle(_buildCsvBytes(txns), '$base.csv');
       case ExportFormat.text:
-        return _writeString('txt', _buildTxt(txns));
+        return ExportBundle(utf8.encode(_buildTxt(txns)), '$base.txt');
       case ExportFormat.pdf:
-        return _writeBytes('pdf', await _buildPdfBytes(txns));
+        return ExportBundle(await _buildPdfBytes(txns), '$base.pdf');
     }
   }
 
@@ -487,28 +497,6 @@ class ExportService {
       text = '${text.substring(0, leftWidth - 3)}...';
     }
     return '${' ' * indent}${text.padRight(leftWidth)} $right';
-  }
-
-  Future<String> _writeBytes(String ext, List<int> bytes) async {
-    final dir = await _getExportDirectory();
-    final file = File('${dir.path}/budgetify_export_'
-        '${_fileDateFmt.format(DateTime.now())}.$ext');
-    await file.writeAsBytes(bytes, flush: true);
-    return file.path;
-  }
-
-  Future<String> _writeString(String ext, String content) async {
-    final dir = await _getExportDirectory();
-    final file = File('${dir.path}/budgetify_export_'
-        '${_fileDateFmt.format(DateTime.now())}.$ext');
-    await file.writeAsString(content, flush: true);
-    return file.path;
-  }
-
-  Future<Directory> _getExportDirectory() async {
-    final downloadsDir = Directory('/storage/emulated/0/Download');
-    if (await downloadsDir.exists()) return downloadsDir;
-    return await getApplicationDocumentsDirectory();
   }
 
   Map<DateTime, List<TransactionModel>> _groupByMonth(
