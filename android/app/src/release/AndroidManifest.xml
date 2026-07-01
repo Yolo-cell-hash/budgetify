@@ -1,0 +1,9 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!-- Release-only guarantee: the shipping app must never have network access.
+         Flutter injects INTERNET into DEBUG builds so hot reload / DevTools can
+         talk to the running app; this override strips it from RELEASE builds and,
+         just as importantly, stops any future dependency from silently adding
+         INTERNET to what users install. Debug builds are unaffected. -->
+    <uses-permission android:name="android.permission.INTERNET" tools:node="remove"/>
+</manifest>

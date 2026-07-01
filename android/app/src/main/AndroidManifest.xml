@@ -1,7 +1,19 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <!-- SMS Permissions for reading bank transaction messages -->
     <uses-permission android:name="android.permission.RECEIVE_SMS"/>
     <uses-permission android:name="android.permission.READ_SMS"/>
+
+    <!-- Privacy hardening: strip permissions that plugins pull in transitively
+         but the app never actually uses. `another_telephony` declares
+         ACCESS_COARSE_LOCATION; `open_filex` declares the READ_MEDIA_* group.
+         The app reads SMS and opens its own export files — it needs neither.
+         Removing them keeps the shipping manifest minimal and the "no tracking,
+         offline" guarantee literally true. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" tools:node="remove"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" tools:node="remove"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" tools:node="remove"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" tools:node="remove"/>
     
     <!-- Notification permission for Android 13+ -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
@@ -9,11 +21,13 @@
     <!-- Biometric app lock -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
     
-    <!-- Storage permissions for data export -->
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
-    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"/>
-    
+    <!-- Exports and encrypted backups are written through the Android system
+         file picker (Storage Access Framework), so the app needs no broad
+         storage permission. MANAGE_EXTERNAL_STORAGE ("All files access") is
+         pinned out so it can never reach the shipping app: Google Play heavily
+         restricts it and the app has no use for it. -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" tools:node="remove"/>
+
     <application
         android:label="Budgetify"
         android:name="${applicationName}"

@@ -664,6 +664,8 @@ class AppStrings {
   String get exporting => _t('Exporting…', 'एक्सपोर्ट हो रहा है…', 'एक्सपोर्ट होत आहे…', 'এক্সপোর্ট করা হচ্ছে…');
   String savedToDownloads(String file) => _t(
       'Saved to Downloads/$file', 'Downloads/$file में सहेजा गया', 'Downloads/$file मध्ये जतन केले', 'Downloads/$file-এ সেভ হয়েছে');
+  String exportSavedAs(String file) => _t(
+      'Saved $file', '$file सहेजा गया', '$file जतन केले', '$file সেভ হয়েছে');
   String exportFailed(String e) =>
       _t('Export failed: $e', 'एक्सपोर्ट विफल: $e', 'एक्सपोर्ट अयशस्वी: $e', 'এক্সপোর্ট ব্যর্থ: $e');
   String get storagePermissionRequired => _t(
