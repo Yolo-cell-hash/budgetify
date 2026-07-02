@@ -23,7 +23,18 @@ const String billSkipAction = 'bill_skip';
 /// (`res/drawable/ic_stat_notify.xml`); a vector is safe because the app's
 /// minSdk is 24. Bare name: the plugin resolves it via
 /// getResources().getIdentifier(name, "drawable", package).
+///
+/// Because this name exists only in Dart, the release-build resource shrinker
+/// can't see the reference and strips the drawable unless it is pinned in
+/// `android/app/src/main/res/raw/keep.xml`. Keep that file in sync with this
+/// constant — without it, notifications break in release builds only.
 const String _notificationIcon = 'ic_stat_notify';
+
+/// Fallback small icon if [_notificationIcon] can't be resolved in this build.
+/// The launcher icon is referenced by the manifest so it can never be shrunk
+/// away; it renders as a flat silhouette, but a wrong-looking icon beats
+/// losing every notification.
+const String _fallbackNotificationIcon = '@mipmap/ic_launcher';
 
 /// Background isolate handler for notification action buttons. Must be a
 /// top-level, vm:entry-point function. Used for the silent "No"/"Skip" paths;
@@ -97,15 +108,28 @@ class NotificationService {
     if (_isInitialized) return;
 
     try {
-      const androidSettings = AndroidInitializationSettings(_notificationIcon);
-      const initSettings = InitializationSettings(android: androidSettings);
-
-      await _notifications.initialize(
-        initSettings,
-        onDidReceiveNotificationResponse: _onNotificationTapped,
-        onDidReceiveBackgroundNotificationResponse:
-            notificationActionBackgroundHandler,
-      );
+      // The plugin's initialize rejects the whole call if the small icon
+      // can't be resolved, which would silently kill every notification. Try
+      // the dedicated status-bar glyph first, then fall back to the launcher
+      // icon so notifications keep working even if a build drops the glyph.
+      var initialized = false;
+      for (final icon in const [_notificationIcon, _fallbackNotificationIcon]) {
+        try {
+          await _notifications.initialize(
+            InitializationSettings(
+              android: AndroidInitializationSettings(icon),
+            ),
+            onDidReceiveNotificationResponse: _onNotificationTapped,
+            onDidReceiveBackgroundNotificationResponse:
+                notificationActionBackgroundHandler,
+          );
+          initialized = true;
+          break;
+        } catch (e) {
+          debugPrint('Notification init failed for icon "$icon": $e');
+        }
+      }
+      if (!initialized) return;
 
       final androidPlugin = _notifications
           .resolvePlatformSpecificImplementation<

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Resources pinned for the release-build resource shrinker.
+
+  The notification small icon is referenced only from Dart by name
+  (lib/services/notification_service.dart), and the shrinker cannot see into
+  Dart code, so without this keep rule it strips the drawable out of the
+  release bundle. flutter_local_notifications then fails to initialize and
+  every notification silently fails — in release builds only, because debug
+  builds don't shrink resources.
+-->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/ic_stat_notify" />
