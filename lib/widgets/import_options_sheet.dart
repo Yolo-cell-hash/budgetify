@@ -48,6 +48,15 @@ class ImportSourceSheet extends StatelessWidget {
           const SizedBox(height: 20),
           _SourceTile(
             colors: colors,
+            monogram: '₹',
+            monogramColor: const Color(0xFF1B7F5C),
+            title: context.l10n.importSourceStatementTitle,
+            subtitle: context.l10n.importSourceStatementDesc,
+            onTap: () => Navigator.pop(context, ImportSource.bankStatement),
+          ),
+          const SizedBox(height: 10),
+          _SourceTile(
+            colors: colors,
             monogram: 'a',
             monogramColor: const Color(0xFF6C4CF1),
             title: ImportSource.axio.displayName,
