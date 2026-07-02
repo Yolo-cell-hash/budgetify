@@ -277,12 +277,12 @@ class ExportService {
     const headerColor = PdfColor.fromInt(0xFF1B1E28);
     const brandGold = PdfColor.fromInt(0xFFC8A75E);
 
-    // The brand mark, rendered to PNG (gold on the icon's navy tile). Guarded
-    // so a rendering hiccup degrades the header to text-only rather than
-    // failing the whole export.
+    // The bundled brand logo (the real artwork, not a redrawn mark). Guarded
+    // so a load hiccup degrades the header to text-only rather than failing
+    // the whole export.
     pw.MemoryImage? logo;
     try {
-      logo = pw.MemoryImage(await renderBrandLogoPng());
+      logo = pw.MemoryImage(await loadBrandLogoBytes());
     } catch (_) {
       logo = null;
     }
@@ -333,7 +333,11 @@ class ExportService {
             crossAxisAlignment: pw.CrossAxisAlignment.center,
             children: [
               if (logo != null) ...[
-                pw.Image(logo, width: 34, height: 34),
+                pw.ClipRRect(
+                  horizontalRadius: 7.5,
+                  verticalRadius: 7.5,
+                  child: pw.Image(logo, width: 34, height: 34),
+                ),
                 pw.SizedBox(width: 10),
               ],
               pw.Column(

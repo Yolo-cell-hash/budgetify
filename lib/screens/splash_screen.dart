@@ -230,18 +230,16 @@ class _SplashScreenState extends State<SplashScreen>
                   ),
                 ),
               ),
-              // Inner ink disc carrying the brand mark
+              // Inner disc carrying the brand mark — the bundled logo
+              // artwork, circle-cropped inside a thin gold ring.
               Container(
                 width: 96,
                 height: 96,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: const Color(0xFF14161F),
                   border: Border.all(color: AppColors.gold.withOpacity(0.35)),
                 ),
-                child: const Center(
-                  child: BrandLogo(size: 54),
-                ),
+                child: const BrandLogo(size: 94, circular: true),
               ),
             ],
           ),
