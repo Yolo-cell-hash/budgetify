@@ -876,6 +876,20 @@ class DatabaseService {
     return maps.map((map) => TransactionModel.fromMap(map)).toList();
   }
 
+  /// When SMS tracking began on this device: the earliest transaction that
+  /// came from a bank SMS (not manual entry, not a statement import). Used by
+  /// the statement importer to tell backfill from overlap. Null when no SMS
+  /// transaction exists yet.
+  Future<DateTime?> earliestSmsTransactionDate() async {
+    final db = await database;
+    final result = await db.rawQuery(
+      "SELECT MIN(detected_at) AS earliest FROM transactions "
+      "WHERE is_manual = 0 AND sender NOT LIKE 'IMPORT-%'",
+    );
+    final value = result.first['earliest'] as int?;
+    return value == null ? null : DateTime.fromMillisecondsSinceEpoch(value);
+  }
+
   /// Get total amount by transaction type
   Future<double> getTotalByType(TransactionType type) async {
     final db = await database;

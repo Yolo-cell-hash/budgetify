@@ -486,28 +486,27 @@ class AppStrings {
   String get importData =>
       _t('Import Data', 'डेटा इंपोर्ट करें', 'डेटा इंपोर्ट करा', 'ডেটা ইম্পোর্ট করুন');
   String get importDataDesc => _t(
-        'Bring your tags in from another app',
-        'किसी और ऐप से अपने टैग लाएँ',
-        'दुसऱ्या अ‍ॅपमधून तुमचे टॅग आणा',
-        'অন্য অ্যাপ থেকে আপনার ট্যাগ আনুন',
+        'Bank statements, or tags from another app',
+        'बैंक स्टेटमेंट, या किसी और ऐप से अपने टैग',
+        'बँक स्टेटमेंट, किंवा दुसऱ्या अ‍ॅपमधून तुमचे टॅग',
+        'ব্যাংক স্টেটমেন্ট, বা অন্য অ্যাপ থেকে আপনার ট্যাগ',
       );
   String get importFromTitle => _t(
-        'Import from another app',
-        'किसी अन्य ऐप से इंपोर्ट करें',
-        'दुसऱ्या अ‍ॅपमधून इंपोर्ट करा',
-        'অন্য অ্যাপ থেকে ইম্পোর্ট করুন',
+        'Import your data',
+        'अपना डेटा इंपोर्ट करें',
+        'तुमचा डेटा इंपोर्ट करा',
+        'আপনার ডেটা ইম্পোর্ট করুন',
       );
   String get importFromDesc => _t(
-        "We'll bring over how each merchant was tagged, so you don't have to "
-            'categorise everything again. Your transactions still come from '
-            'your own SMS.',
-        'हर मर्चेंट का टैग हम ले आएँगे, ताकि आपको सब कुछ दोबारा वर्गीकृत न करना '
-            'पड़े। आपके लेन-देन फिर भी आपके अपने SMS से ही आते हैं।',
-        'प्रत्येक विक्रेत्याचा टॅग आम्ही आणू, म्हणजे तुम्हाला सर्व काही पुन्हा '
-            'वर्गीकृत करावे लागणार नाही. तुमचे व्यवहार तरीही तुमच्याच SMS मधून येतात.',
-        'প্রতিটি মার্চেন্ট কীভাবে ট্যাগ করা ছিল তা আমরা নিয়ে আসব, যাতে আপনাকে '
-            'আবার সব শ্রেণিবদ্ধ করতে না হয়। আপনার লেনদেন তবুও আপনার নিজের SMS '
-            'থেকেই আসে।',
+        'Bring your history in from a bank statement, or your tags from '
+            'another app. Everything is read on this device — nothing is '
+            'uploaded.',
+        'बैंक स्टेटमेंट से अपना इतिहास, या किसी और ऐप से अपने टैग लाएँ। '
+            'सब कुछ इसी डिवाइस पर पढ़ा जाता है — कुछ भी अपलोड नहीं होता।',
+        'बँक स्टेटमेंटमधून तुमचा इतिहास, किंवा दुसऱ्या अ‍ॅपमधून तुमचे टॅग आणा. '
+            'सर्व काही याच डिव्हाइसवर वाचले जाते — काहीही अपलोड होत नाही.',
+        'ব্যাংক স্টেটমেন্ট থেকে আপনার ইতিহাস, বা অন্য অ্যাপ থেকে আপনার ট্যাগ '
+            'আনুন। সবকিছু এই ডিভাইসেই পড়া হয় — কিছুই আপলোড হয় না।',
       );
   String get importSourceAxioDesc => _t(
         'From an axio expense report (.csv)',
@@ -582,6 +581,207 @@ class AppStrings {
         'इंपोर्ट विफल: $error',
         'इंपोर्ट अयशस्वी: $error',
         'ইম্পোর্ট ব্যর্থ: $error',
+      );
+
+  // ── Settings · Bank-statement import ──────────────────────────────────────
+  String get importSourceStatementTitle => _t(
+      'Bank statement', 'बैंक स्टेटमेंट', 'बँक स्टेटमेंट', 'ব্যাংক স্টেটমেন্ট');
+  String get importSourceStatementDesc => _t(
+        'CSV or Excel statement from any bank',
+        'किसी भी बैंक की CSV या Excel स्टेटमेंट से',
+        'कोणत्याही बँकेच्या CSV किंवा Excel स्टेटमेंटमधून',
+        'যেকোনো ব্যাংকের CSV বা Excel স্টেটমেন্ট থেকে',
+      );
+  String get stImportTitle => _t(
+        'Import bank statement',
+        'बैंक स्टेटमेंट इंपोर्ट करें',
+        'बँक स्टेटमेंट इंपोर्ट करा',
+        'ব্যাংক স্টেটমেন্ট ইম্পোর্ট করুন',
+      );
+  String get stStepMapTitle =>
+      _t('Match the columns', 'कॉलम मिलाएँ', 'कॉलम जुळवा', 'কলামগুলো মেলান');
+  String get stStepMapDesc => _t(
+        "We've guessed what each column means — fix anything that looks "
+            "wrong. Confirmed once, it's remembered for this bank.",
+        'हर कॉलम का मतलब हमने अनुमान से भरा है — जो गलत लगे उसे ठीक करें। '
+            'एक बार पुष्टि के बाद यह इस बैंक के लिए याद रहेगा।',
+        'प्रत्येक कॉलमचा अर्थ आम्ही अंदाजाने भरला आहे — चुकीचे वाटेल ते '
+            'दुरुस्त करा. एकदा निश्चित केल्यावर ते या बँकेसाठी लक्षात राहील.',
+        'প্রতিটি কলামের অর্থ আমরা অনুমান করেছি — ভুল মনে হলে ঠিক করুন। '
+            'একবার নিশ্চিত করলে এই ব্যাংকের জন্য মনে থাকবে।',
+      );
+  String get stSourceLabel =>
+      _t('Source name', 'स्रोत का नाम', 'स्रोताचे नाव', 'উৎসের নাম');
+  String get stSourceHint => _t(
+      'e.g. HDFC Savings', 'जैसे HDFC Savings', 'उदा. HDFC Savings', 'যেমন HDFC Savings');
+  String get stRoleDate => _t('Date', 'तारीख़', 'तारीख', 'তারিখ');
+  String get stRoleDescription =>
+      _t('Description', 'विवरण', 'तपशील', 'বিবরণ');
+  String get stRoleDebit => _t(
+      'Debit (money out)', 'डेबिट (पैसा गया)', 'डेबिट (पैसे गेले)', 'ডেবিট (টাকা গেছে)');
+  String get stRoleCredit => _t(
+      'Credit (money in)', 'क्रेडिट (पैसा आया)', 'क्रेडिट (पैसे आले)', 'ক্রেডিট (টাকা এসেছে)');
+  String get stRoleAmount => _t('Amount', 'राशि', 'रक्कम', 'পরিমাণ');
+  String get stRoleDrCr => _t(
+        'Debit/credit marker',
+        'डेबिट/क्रेडिट चिह्न',
+        'डेबिट/क्रेडिट खूण',
+        'ডেবিট/ক্রেডিট চিহ্ন',
+      );
+  String get stRoleRefNo =>
+      _t('Reference no.', 'संदर्भ सं.', 'संदर्भ क्र.', 'রেফারেন্স নং');
+  String get stRoleBalance => _t(
+        'Balance (not stored)',
+        'बैलेंस (सहेजा नहीं जाता)',
+        'बॅलन्स (जतन होत नाही)',
+        'ব্যালেন্স (সংরক্ষিত হয় না)',
+      );
+  String get stRoleIgnore => _t('Ignore', 'छोड़ें', 'वगळा', 'বাদ দিন');
+  String get stMappingIncomplete => _t(
+        'Pick a date column and at least one amount column to continue.',
+        'आगे बढ़ने के लिए एक तारीख़ कॉलम और कम से कम एक राशि कॉलम चुनें।',
+        'पुढे जाण्यासाठी एक तारीख कॉलम आणि किमान एक रक्कम कॉलम निवडा.',
+        'এগোতে একটি তারিখ কলাম এবং অন্তত একটি পরিমাণ কলাম বেছে নিন।',
+      );
+  String get stNoDateFormat => _t(
+        "Couldn't read the dates in this file — check which column is the "
+            'date.',
+        'इस फ़ाइल की तारीख़ें पढ़ी नहीं जा सकीं — देखें कि तारीख़ कौन-सा कॉलम है।',
+        'या फाइलमधील तारखा वाचता आल्या नाहीत — तारीख कोणता कॉलम आहे ते तपासा.',
+        'এই ফাইলের তারিখগুলো পড়া যায়নি — কোন কলামটি তারিখ তা দেখুন।',
+      );
+  String get stSampleTitle =>
+      _t('Preview', 'पूर्वावलोकन', 'पूर्वावलोकन', 'প্রিভিউ');
+  String get stContinue =>
+      _t('Continue', 'जारी रखें', 'पुढे चला', 'চালিয়ে যান');
+  String stReadyCount(int n) =>
+      _t('$n new', '$n नए', '$n नवीन', '$n টি নতুন');
+  String stDupCount(int n) => _t(
+        '$n possible duplicates',
+        '$n संभावित डुप्लिकेट',
+        '$n संभाव्य डुप्लिकेट',
+        '$n টি সম্ভাব্য ডুপ্লিকেট',
+      );
+  String stInvalidCount(int n) => _t(
+      '$n unreadable', '$n अपठनीय', '$n न वाचता येणारे', '$n টি অপাঠ্য');
+  String get stDateRangeTitle =>
+      _t('Import between', 'इस अवधि में', 'या कालावधीत', 'এই সময়ের মধ্যে');
+  String stSmsEraNote(String date) => _t(
+        'SMS tracking on this phone began $date. Statement rows after that '
+            'are usually already tracked, so they start unticked.',
+        'इस फ़ोन पर SMS ट्रैकिंग $date से शुरू हुई। उसके बाद की पंक्तियाँ '
+            'आमतौर पर पहले से दर्ज हैं, इसलिए वे बिना टिक के हैं।',
+        'या फोनवर SMS ट्रॅकिंग $date पासून सुरू झाले. त्यानंतरच्या ओळी सहसा '
+            'आधीच नोंदलेल्या असतात, म्हणून त्या टिक न करता आहेत.',
+        'এই ফোনে SMS ট্র্যাকিং $date থেকে শুরু হয়েছে। তার পরের সারিগুলো '
+            'সাধারণত আগে থেকেই আছে, তাই সেগুলো টিক ছাড়া আছে।',
+      );
+  String get stNewRowsTitle =>
+      _t('Will import', 'इंपोर्ट होंगे', 'इंपोर्ट होतील', 'ইম্পোর্ট হবে');
+  String stDebitsCredits(int d, int c) => _t(
+        '$d debits · $c credits',
+        '$d डेबिट · $c क्रेडिट',
+        '$d डेबिट · $c क्रेडिट',
+        '$d ডেবিট · $c ক্রেডিট',
+      );
+  String get stDuplicatesTitle => _t(
+      'Possible duplicates', 'संभावित डुप्लिकेट', 'संभाव्य डुप्लिकेट', 'সম্ভাব্য ডুপ্লিকেট');
+  String get stDuplicatesDesc => _t(
+        'These match the amount and date of transactions already on this '
+            'device — usually the SMS copy of the same spend. Tick any that '
+            'are genuinely new.',
+        'ये राशि और तारीख़ में इस डिवाइस पर पहले से मौजूद लेन-देन से मिलते हैं — '
+            'आमतौर पर उसी खर्च की SMS प्रति। जो वाकई नए हों उन्हें टिक करें।',
+        'हे रक्कम व तारखेत या डिव्हाइसवर आधीच असलेल्या व्यवहारांशी जुळतात — '
+            'सहसा त्याच खर्चाची SMS प्रत. खरोखर नवीन असतील ते टिक करा.',
+        'এগুলো পরিমাণ ও তারিখে এই ডিভাইসে আগে থেকে থাকা লেনদেনের সাথে মেলে — '
+            'সাধারণত একই খরচের SMS কপি। যেগুলো সত্যিই নতুন সেগুলোতে টিক দিন।',
+      );
+  String get stInvalidTitle => _t(
+      'Unreadable rows', 'अपठनीय पंक्तियाँ', 'न वाचता येणाऱ्या ओळी', 'অপাঠ্য সারি');
+  String get stInvalidDateReason => _t(
+        'No readable date',
+        'तारीख़ नहीं पढ़ी जा सकी',
+        'तारीख वाचता आली नाही',
+        'তারিখ পড়া যায়নি',
+      );
+  String get stInvalidAmountReason => _t(
+        'No readable amount',
+        'राशि नहीं पढ़ी जा सकी',
+        'रक्कम वाचता आली नाही',
+        'পরিমাণ পড়া যায়নি',
+      );
+  String stMoreRows(int n) =>
+      _t('…and $n more', '…और $n', '…आणखी $n', '…আরও $n টি');
+  String stImportButton(int n) => _t(
+        'Import $n ${n == 1 ? 'transaction' : 'transactions'}',
+        '$n लेन-देन इंपोर्ट करें',
+        '$n व्यवहार इंपोर्ट करा',
+        '$n টি লেনদেন ইম্পোর্ট করুন',
+      );
+  String get stResultTitle => _t(
+      'Import complete', 'इंपोर्ट पूरा हुआ', 'इंपोर्ट पूर्ण झाले', 'ইম্পোর্ট সম্পন্ন');
+  String stResultInserted(int n) => _t(
+        '$n ${n == 1 ? 'transaction' : 'transactions'} imported',
+        '$n लेन-देन इंपोर्ट हुए',
+        '$n व्यवहार इंपोर्ट झाले',
+        '$n টি লেনদেন ইম্পোর্ট হয়েছে',
+      );
+  String stResultSkipped(int n) => _t(
+        '$n already existed — skipped',
+        '$n पहले से मौजूद थे — छोड़े गए',
+        '$n आधीच होते — वगळले',
+        '$n টি আগে থেকেই ছিল — বাদ গেছে',
+      );
+  String stResultTagged(int n) => _t(
+        '$n auto-tagged by your rules',
+        '$n आपके नियमों से ऑटो-टैग हुए',
+        '$n तुमच्या नियमांनी ऑटो-टॅग झाले',
+        '$n টি আপনার নিয়মে অটো-ট্যাগ হয়েছে',
+      );
+  String get stDone => _t('Done', 'हो गया', 'झाले', 'সম্পন্ন');
+  String stImportedToast(int inserted, int tagged) => tagged > 0
+      ? _t(
+          'Imported $inserted ${inserted == 1 ? 'transaction' : 'transactions'} · $tagged auto-tagged',
+          '$inserted लेन-देन इंपोर्ट हुए · $tagged ऑटो-टैग',
+          '$inserted व्यवहार इंपोर्ट झाले · $tagged ऑटो-टॅग',
+          '$inserted টি লেনদেন ইম্পোর্ট · $tagged টি অটো-ট্যাগ',
+        )
+      : _t(
+          'Imported $inserted ${inserted == 1 ? 'transaction' : 'transactions'}',
+          '$inserted लेन-देन इंपोर्ट हुए',
+          '$inserted व्यवहार इंपोर्ट झाले',
+          '$inserted টি লেনদেন ইম্পোর্ট হয়েছে',
+        );
+  String get stPdfComingSoon => _t(
+        'PDF import is coming soon — download the CSV or Excel statement '
+            'from your bank instead.',
+        'PDF इंपोर्ट जल्द आ रहा है — फ़िलहाल बैंक से CSV या Excel स्टेटमेंट '
+            'डाउनलोड करें।',
+        'PDF इंपोर्ट लवकरच येत आहे — सध्या बँकेकडून CSV किंवा Excel स्टेटमेंट '
+            'डाउनलोड करा.',
+        'PDF ইম্পোর্ট শীঘ্রই আসছে — আপাতত ব্যাংক থেকে CSV বা Excel স্টেটমেন্ট '
+            'ডাউনলোড করুন।',
+      );
+  String get stXlsUnsupported => _t(
+        "Old Excel (.xls) files can't be read — export the statement as CSV "
+            'or .xlsx instead.',
+        'पुरानी Excel (.xls) फ़ाइलें नहीं पढ़ी जा सकतीं — स्टेटमेंट CSV या '
+            '.xlsx में एक्सपोर्ट करें।',
+        'जुन्या Excel (.xls) फाइली वाचता येत नाहीत — स्टेटमेंट CSV किंवा '
+            '.xlsx मध्ये एक्सपोर्ट करा.',
+        'পুরনো Excel (.xls) ফাইল পড়া যায় না — স্টেটমেন্ট CSV বা .xlsx '
+            'হিসেবে এক্সপোর্ট করুন।',
+      );
+  String get stNoTable => _t(
+        "Couldn't find a transaction table in this file. Export the "
+            'statement as CSV or Excel and try again.',
+        'इस फ़ाइल में लेन-देन की तालिका नहीं मिली। स्टेटमेंट CSV या Excel में '
+            'एक्सपोर्ट करके फिर कोशिश करें।',
+        'या फाइलमध्ये व्यवहारांची सारणी सापडली नाही. स्टेटमेंट CSV किंवा '
+            'Excel मध्ये एक्सपोर्ट करून पुन्हा प्रयत्न करा.',
+        'এই ফাইলে লেনদেনের টেবিল পাওয়া যায়নি। স্টেটমেন্ট CSV বা Excel '
+            'হিসেবে এক্সপোর্ট করে আবার চেষ্টা করুন।',
       );
   String get dataPrivateTitle =>
       _t('Your Data is Private', 'आपका डेटा निजी है', 'तुमचा डेटा खाजगी आहे', 'আপনার ডেটা ব্যক্তিগত');

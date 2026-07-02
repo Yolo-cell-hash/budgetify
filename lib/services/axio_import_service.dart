@@ -3,15 +3,17 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 import '../models/transaction_model.dart';
 import '../models/transaction_rule_model.dart';
 import 'app_events.dart';
+import 'csv_reader.dart';
 import 'database_service.dart';
 
-/// Import sources the app can bring tags in from. Kept as an enum so the
+/// Import sources the app can bring data in from. Kept as an enum so the
 /// picker can grow ("import based on apps") without reworking the flow.
-enum ImportSource { axio }
+enum ImportSource { axio, bankStatement }
 
 extension ImportSourceInfo on ImportSource {
   String get displayName => switch (this) {
     ImportSource.axio => 'axio',
+    ImportSource.bankStatement => 'Bank statement',
   };
 }
 
@@ -279,39 +281,12 @@ class AxioImportService {
 
   /// Split one CSV line into fields, honouring double-quoted values and
   /// escaped quotes (""). Axio wraps every field in quotes and comma-separates
-  /// them; amounts like "5,000" therefore stay intact.
+  /// them; amounts like "5,000" therefore stay intact. Delegates to the
+  /// [CsvReader] shared with the bank-statement importer.
   @visibleForTesting
   static List<String> parseCsvLine(String line) => _parseCsvLine(line);
 
-  static List<String> _parseCsvLine(String line) {
-    final fields = <String>[];
-    final buffer = StringBuffer();
-    var inQuotes = false;
-    for (var i = 0; i < line.length; i++) {
-      final char = line[i];
-      if (inQuotes) {
-        if (char == '"') {
-          if (i + 1 < line.length && line[i + 1] == '"') {
-            buffer.write('"');
-            i++; // skip the escaped quote
-          } else {
-            inQuotes = false;
-          }
-        } else {
-          buffer.write(char);
-        }
-      } else if (char == '"') {
-        inQuotes = true;
-      } else if (char == ',') {
-        fields.add(buffer.toString());
-        buffer.clear();
-      } else {
-        buffer.write(char);
-      }
-    }
-    fields.add(buffer.toString());
-    return fields;
-  }
+  static List<String> _parseCsvLine(String line) => CsvReader.parseLine(line);
 
   /// Trim a field and drop the leading apostrophe Excel/Axio use to force text
   /// (e.g. "'-", "'+9188…").

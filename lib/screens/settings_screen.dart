@@ -9,6 +9,7 @@ import 'package:open_filex/open_filex.dart';
 import '../app_info.dart';
 import '../l10n/app_strings.dart';
 import '../l10n/l10n.dart';
+import '../models/statement_import_models.dart';
 import '../models/streak_reward.dart';
 import '../providers/theme_provider.dart';
 import '../providers/app_preferences.dart';
@@ -20,12 +21,14 @@ import '../services/backup_service.dart';
 import '../services/background_service.dart';
 import '../services/export_service.dart';
 import '../services/gamification_service.dart';
+import '../services/statement_import_service.dart';
 import '../widgets/app_bar_title.dart';
 import '../widgets/app_dialog.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/export_options_sheet.dart';
 import '../widgets/import_options_sheet.dart';
 import 'manage_tags_screen.dart';
+import 'statement_import_screen.dart';
 import 'streak_rewards_screen.dart';
 
 /// Settings screen with theme toggle and auto-scan configuration
@@ -987,8 +990,103 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (_) => const ImportSourceSheet(),
     );
     if (source == null || !mounted) return;
-    // Only axio is supported today; the picker is built to grow.
-    await _runAxioImport();
+    switch (source) {
+      case ImportSource.axio:
+        await _runAxioImport();
+      case ImportSource.bankStatement:
+        await _runStatementImport();
+    }
+  }
+
+  /// Pick a bank-statement CSV/XLSX, decode it, and hand off to the mapping /
+  /// review flow. All errors surface as calm toasts; nothing is written until
+  /// the user confirms inside the screen.
+  Future<void> _runStatementImport() async {
+    FilePickerResult? picked;
+    try {
+      picked = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['csv', 'xlsx', 'xls', 'txt', 'tsv', 'pdf'],
+        withData: true,
+      );
+    } catch (e) {
+      if (mounted) {
+        _showStyledSnackBar(
+          icon: Icons.error_outline,
+          message: context.l10nRead.importFailed('$e'),
+          color: const Color(0xFFD25A5F),
+        );
+      }
+      return;
+    }
+    final file =
+        (picked == null || picked.files.isEmpty) ? null : picked.files.first;
+    final bytes = file?.bytes;
+    if (file == null || bytes == null || !mounted) return;
+
+    List<List<String>> grid;
+    try {
+      grid = StatementImportService.decodeBytes(bytes);
+    } on StatementFileException catch (e) {
+      final l10n = context.l10nRead;
+      _showStyledSnackBar(
+        icon: Icons.description_outlined,
+        message: switch (e.kind) {
+          StatementFileKind.pdf => l10n.stPdfComingSoon,
+          StatementFileKind.legacyXls => l10n.stXlsUnsupported,
+          StatementFileKind.unreadable => l10n.stNoTable,
+        },
+        color: const Color(0xFFD79A3C),
+      );
+      return;
+    } catch (e) {
+      if (mounted) {
+        _showStyledSnackBar(
+          icon: Icons.error_outline,
+          message: context.l10nRead.importFailed('$e'),
+          color: const Color(0xFFD25A5F),
+        );
+      }
+      return;
+    }
+
+    final detected = StatementImportService.detectHeader(grid);
+    if (detected == null) {
+      _showStyledSnackBar(
+        icon: Icons.table_rows_outlined,
+        message: context.l10nRead.stNoTable,
+        color: const Color(0xFFD79A3C),
+      );
+      return;
+    }
+
+    // "HDFC_statement-May.csv" → "HDFC statement May" as the suggested label.
+    var suggested = file.name
+        .replaceFirst(RegExp(r'\.[A-Za-z0-9]+$'), '')
+        .replaceAll(RegExp(r'[_\-.]+'), ' ')
+        .trim();
+    if (suggested.length > 24) suggested = suggested.substring(0, 24).trim();
+
+    final result = await Navigator.push<StatementImportResult>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => StatementImportScreen(
+          grid: grid,
+          headerRowIndex: detected.rowIndex,
+          initialMapping: detected.mapping,
+          suggestedLabel: suggested.isEmpty ? 'Statement' : suggested,
+        ),
+      ),
+    );
+    if (result == null || !mounted) return;
+    _showStyledSnackBar(
+      icon: Icons.check_circle,
+      message: context.l10nRead.stImportedToast(
+        result.inserted,
+        result.autoTagged,
+      ),
+      color: const Color(0xFF2AA76F),
+    );
   }
 
   Future<void> _runAxioImport() async {
