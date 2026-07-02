@@ -7,6 +7,7 @@ import '../l10n/app_strings.dart';
 import '../l10n/l10n.dart';
 import '../models/monthly_recap.dart';
 import '../providers/theme_provider.dart';
+import 'brand_logo.dart';
 
 /// The shareable "Wrapped" card — a fixed-size (360×640) luxury card rendered
 /// off the app's hero gradient, carrying only **percentages, counts and
@@ -140,16 +141,10 @@ class WrappedCard extends StatelessWidget {
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
-                          children: [
+                          children: const [
+                            BrandLogo(size: 13),
+                            SizedBox(width: 6),
                             Text(
-                              '✦',
-                              style: TextStyle(
-                                color: _gold,
-                                fontSize: 10,
-                              ),
-                            ),
-                            const SizedBox(width: 5),
-                            const Text(
                               'BUDGETIFY',
                               style: TextStyle(
                                 color: _gold,
