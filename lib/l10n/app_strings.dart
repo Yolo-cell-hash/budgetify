@@ -1175,6 +1175,7 @@ class AppStrings {
         'ব্যাংক SMS থেকে লেনদেন এখানে দেখা যাবে',
       );
   String get clearFilters => _t('Clear Filters', 'फ़िल्टर साफ़ करें', 'फिल्टर साफ करा', 'ফিল্টার সাফ করুন');
+  String get filtersTitle => _t('Filters', 'फ़िल्टर', 'फिल्टर', 'ফিল্টার');
   String lastNDays(int n) => _t('Last $n days', 'पिछले $n दिन', 'मागील $n दिवस', 'গত $n দিন');
   String get summaryWord => _t('Summary', 'सारांश', 'सारांश', 'সারসংক্ষেপ');
   String get txnDeletedToast => _t(

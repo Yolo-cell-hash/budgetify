@@ -291,6 +291,27 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       _startDate != null ||
       _searchQuery.trim().isNotEmpty;
 
+  /// Non-default filter dimensions (excluding search, which is visible in the
+  /// field itself) — drives the filter-button badge and the active-chips row.
+  int get _activeFilterCount =>
+      (_typeFilter != null ? 1 : 0) +
+      (_classFilter != _ClassFilter.all ? 1 : 0) +
+      (_datePreset != _DatePreset.all || _startDate != null ? 1 : 0) +
+      (_categoryFilter != null ? 1 : 0);
+
+  /// Label for the active date filter (preset name or the custom range).
+  String get _dateFilterLabel {
+    final l10n = context.l10nRead;
+    return switch (_datePreset) {
+      _DatePreset.all => l10n.filterAll,
+      _DatePreset.thisMonth => l10n.thisMonth,
+      _DatePreset.lastMonth => l10n.lastMonth,
+      _DatePreset.last7 => l10n.lastNDays(7),
+      _DatePreset.last30 => l10n.lastNDays(30),
+      _DatePreset.custom => _customChipLabel,
+    };
+  }
+
   Future<void> _deleteTransaction(TransactionModel transaction) async {
     if (transaction.id == null) return;
 
@@ -364,14 +385,12 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       ),
       body: Column(
         children: [
-          // Filter section
-          _buildFilterSection(isDark),
+          // Compact pinned chrome: one search row (with the filter-sheet
+          // button), plus a slim strip of removable chips only while filters
+          // are active — the list keeps the rest of the screen.
+          _buildHeader(isDark),
 
-          // Summary card
-          if (!_isLoading && _transactions.isNotEmpty)
-            _buildSummaryCard(isDark),
-
-          // Transactions list
+          // Transactions list (the month summary scrolls away with it)
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
@@ -380,13 +399,14 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 : RefreshIndicator(
                     onRefresh: _loadTransactions,
                     child: ListView.builder(
-                      padding: const EdgeInsets.only(top: 8, bottom: 80),
-                      itemCount: _transactions.length,
+                      padding: const EdgeInsets.only(top: 4, bottom: 80),
+                      itemCount: _transactions.length + 1,
                       itemBuilder: (context, index) {
-                        final transaction = _transactions[index];
+                        if (index == 0) return _buildSummaryStrip(isDark);
+                        final transaction = _transactions[index - 1];
                         return TransactionCard(
                           transaction: transaction,
-                          animateSwipeHint: index == 0 && _showSwipeHint,
+                          animateSwipeHint: index == 1 && _showSwipeHint,
                           onSwipeHintShown: _markSwipeHintShown,
                           onTap: () => _openTransactionDetail(transaction),
                           onDelete: () => _deleteTransaction(transaction),
@@ -400,199 +420,486 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     );
   }
 
-  Widget _buildFilterSection(bool isDark) {
+  /// The compact pinned chrome: a single search row beside the filter-sheet
+  /// button, plus (only while filters are active) one slim row of removable
+  /// chips. All other filter controls live in [_openFilterSheet], so the
+  /// transaction list keeps almost the whole screen.
+  Widget _buildHeader(bool isDark) {
     final colors = AppColors.of(context);
     return Container(
       color: isDark ? const Color(0xFF121318) : Colors.white,
       child: Column(
         children: [
-          // Search bar — matches payee/merchant, amount, or date
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: TextField(
-              controller: _searchController,
-              onChanged: (v) {
-                setState(() => _searchQuery = v);
-                _loadTransactions();
-              },
-              textInputAction: TextInputAction.search,
-              decoration: InputDecoration(
-                isDense: true,
-                hintText: context.l10n.searchTxnHint,
-                prefixIcon: const Icon(Icons.search, size: 20),
-                suffixIcon: _searchQuery.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.close, size: 18),
-                        onPressed: () {
-                          setState(() => _searchQuery = '');
-                          _searchController.clear();
-                          _loadTransactions();
-                        },
-                      )
-                    : null,
-                filled: true,
-                fillColor: colors.cardAlt,
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: colors.border),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: colors.border),
-                ),
-              ),
-            ),
-          ),
-          // Type filter row (All / Credits / Debits) — independent of status
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
             child: Row(
               children: [
-                _typeRowLabel(context.l10n.filterType, isDark),
+                // Search bar — matches payee/merchant, amount, or date
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: (v) {
+                      setState(() => _searchQuery = v);
+                      _loadTransactions();
+                    },
+                    textInputAction: TextInputAction.search,
+                    decoration: InputDecoration(
+                      isDense: true,
+                      hintText: context.l10n.searchTxnHint,
+                      prefixIcon: const Icon(Icons.search, size: 20),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.close, size: 18),
+                              onPressed: () {
+                                setState(() => _searchQuery = '');
+                                _searchController.clear();
+                                _loadTransactions();
+                              },
+                            )
+                          : null,
+                      filled: true,
+                      fillColor: colors.cardAlt,
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 12),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: colors.border),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: colors.border),
+                      ),
+                    ),
+                  ),
+                ),
                 const SizedBox(width: 10),
-                _buildFilterChip(
-                  label: context.l10n.filterAll,
-                  isSelected: _typeFilter == null,
-                  onSelected: () => _setType(null),
-                  isDark: isDark,
-                ),
-                const SizedBox(width: 8),
-                _buildFilterChip(
-                  label: context.l10n.credits,
-                  isSelected: _typeFilter == TransactionType.credit,
-                  onSelected: () => _setType(TransactionType.credit),
-                  color: const Color(0xFF2AA76F),
-                  isDark: isDark,
-                ),
-                const SizedBox(width: 8),
-                _buildFilterChip(
-                  label: context.l10n.debits,
-                  isSelected: _typeFilter == TransactionType.debit,
-                  onSelected: () => _setType(TransactionType.debit),
-                  color: const Color(0xFFD25A5F),
-                  isDark: isDark,
-                ),
+                _buildFilterButton(isDark),
               ],
             ),
           ),
-          // Status filter row (All / Classified / Unclassified) — combines
-          // with the type filter above
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-            child: Row(
-              children: [
-                _typeRowLabel(context.l10n.filterStatus, isDark),
-                const SizedBox(width: 10),
-                _buildFilterChip(
-                  label: context.l10n.filterAll,
-                  isSelected: _classFilter == _ClassFilter.all,
-                  onSelected: () => _setClass(_ClassFilter.all),
-                  isDark: isDark,
-                ),
-                const SizedBox(width: 8),
-                _buildFilterChip(
-                  label: context.l10n.classified,
-                  isSelected: _classFilter == _ClassFilter.classified,
-                  onSelected: () => _setClass(_ClassFilter.classified),
-                  color: const Color(0xFF4A6489),
-                  isDark: isDark,
-                ),
-                const SizedBox(width: 8),
-                _buildFilterChip(
-                  label: context.l10n.unclassified,
-                  isSelected: _classFilter == _ClassFilter.unclassified,
-                  onSelected: () => _setClass(_ClassFilter.unclassified),
-                  color: const Color(0xFFD79A3C),
-                  isDark: isDark,
-                ),
-              ],
-            ),
-          ),
-
-          // Date filter row (All / This month / Last month / Last 7 / Last 30
-          // / Custom range) — combines with every other filter.
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: Row(
-              children: [
-                _typeRowLabel(context.l10n.dateLabel, isDark),
-                const SizedBox(width: 10),
-                _buildFilterChip(
-                  label: context.l10n.filterAll,
-                  isSelected: _datePreset == _DatePreset.all,
-                  onSelected: () => _applyDatePreset(_DatePreset.all),
-                  isDark: isDark,
-                ),
-                const SizedBox(width: 8),
-                _buildFilterChip(
-                  label: context.l10n.thisMonth,
-                  isSelected: _datePreset == _DatePreset.thisMonth,
-                  onSelected: () => _applyDatePreset(_DatePreset.thisMonth),
-                  color: const Color(0xFF4A6489),
-                  isDark: isDark,
-                ),
-                const SizedBox(width: 8),
-                _buildFilterChip(
-                  label: context.l10n.lastMonth,
-                  isSelected: _datePreset == _DatePreset.lastMonth,
-                  onSelected: () => _applyDatePreset(_DatePreset.lastMonth),
-                  color: const Color(0xFF4A6489),
-                  isDark: isDark,
-                ),
-                const SizedBox(width: 8),
-                _buildFilterChip(
-                  label: context.l10n.lastNDays(7),
-                  isSelected: _datePreset == _DatePreset.last7,
-                  onSelected: () => _applyDatePreset(_DatePreset.last7),
-                  color: const Color(0xFF4A6489),
-                  isDark: isDark,
-                ),
-                const SizedBox(width: 8),
-                _buildFilterChip(
-                  label: context.l10n.lastNDays(30),
-                  isSelected: _datePreset == _DatePreset.last30,
-                  onSelected: () => _applyDatePreset(_DatePreset.last30),
-                  color: const Color(0xFF4A6489),
-                  isDark: isDark,
-                ),
-                const SizedBox(width: 8),
-                _buildFilterChip(
-                  label: _customChipLabel,
-                  isSelected: _datePreset == _DatePreset.custom,
-                  onSelected: _pickCustomRange,
-                  color: AppColors.of(context).brandAccent,
-                  isDark: isDark,
-                ),
-              ],
-            ),
-          ),
-
-          // Category filter
-          if (_categories.isNotEmpty)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: _buildDropdownFilter(
-                value: _categoryFilter,
-                hint: context.l10n.category,
-                items: _categories,
-                onChanged: (value) {
-                  setState(() => _categoryFilter = value);
-                  _loadTransactions();
-                },
-                isDark: isDark,
-              ),
-            ),
-
+          if (_activeFilterCount > 0) _buildActiveFiltersStrip(isDark),
           Divider(
             height: 1,
-            color: isDark ? Color(0xFF2E313A) : Color(0xFFE9E9E4),
+            color: isDark ? const Color(0xFF2E313A) : const Color(0xFFE9E9E4),
           ),
         ],
+      ),
+    );
+  }
+
+  /// The tune button beside the search field: opens the filter sheet and
+  /// carries a count badge while filters are active.
+  Widget _buildFilterButton(bool isDark) {
+    final colors = AppColors.of(context);
+    final accent = colors.brandAccent;
+    final active = _activeFilterCount;
+    return Material(
+      color: active > 0
+          ? accent.withOpacity(isDark ? 0.18 : 0.14)
+          : colors.cardAlt,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: _openFilterSheet,
+        child: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: active > 0 ? accent.withOpacity(0.55) : colors.border,
+            ),
+          ),
+          child: Tooltip(
+            message: context.l10n.filtersTitle,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Icon(
+                  Icons.tune,
+                  size: 20,
+                  color: active > 0
+                      ? accent
+                      : (isDark
+                          ? const Color(0xFF9A9DA6)
+                          : const Color(0xFF4E525C)),
+                ),
+                if (active > 0)
+                  Positioned(
+                    top: 5,
+                    right: 5,
+                    child: Container(
+                      width: 15,
+                      height: 15,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: accent,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text(
+                        '$active',
+                        style: const TextStyle(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w800,
+                          height: 1,
+                          color: Color(0xFF14161F),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// One slim horizontal row summarizing the active filters, each removable
+  /// in place. Hidden entirely when nothing is filtered.
+  Widget _buildActiveFiltersStrip(bool isDark) {
+    final l10n = context.l10n;
+    final chips = <Widget>[
+      if (_typeFilter != null)
+        _activeFilterChip(
+          label: _typeFilter == TransactionType.credit
+              ? l10n.credits
+              : l10n.debits,
+          color: _typeFilter == TransactionType.credit
+              ? const Color(0xFF2AA76F)
+              : const Color(0xFFD25A5F),
+          isDark: isDark,
+          onRemove: () => _setType(null),
+        ),
+      if (_classFilter != _ClassFilter.all)
+        _activeFilterChip(
+          label: _classFilter == _ClassFilter.classified
+              ? l10n.classified
+              : l10n.unclassified,
+          color: _classFilter == _ClassFilter.classified
+              ? const Color(0xFF4A6489)
+              : const Color(0xFFD79A3C),
+          isDark: isDark,
+          onRemove: () => _setClass(_ClassFilter.all),
+        ),
+      if (_datePreset != _DatePreset.all || _startDate != null)
+        _activeFilterChip(
+          label: _dateFilterLabel,
+          color: const Color(0xFF4A6489),
+          isDark: isDark,
+          onRemove: () => _applyDatePreset(_DatePreset.all),
+        ),
+      if (_categoryFilter != null)
+        _activeFilterChip(
+          label: l10n.categoryName(_categoryFilter!),
+          color: AppColors.of(context).brandAccent,
+          isDark: isDark,
+          onRemove: () {
+            setState(() => _categoryFilter = null);
+            _loadTransactions();
+          },
+        ),
+    ];
+    return SizedBox(
+      height: 38,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+        itemCount: chips.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (_, i) => chips[i],
+      ),
+    );
+  }
+
+  /// A removable pill for one active filter — tap anywhere on it to clear
+  /// that dimension.
+  Widget _activeFilterChip({
+    required String label,
+    required Color color,
+    required bool isDark,
+    required VoidCallback onRemove,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onRemove,
+      child: Container(
+        padding: const EdgeInsets.only(left: 12, right: 8),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: color.withOpacity(isDark ? 0.16 : 0.10),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withOpacity(0.45), width: 0.8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: color,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(Icons.close, size: 14, color: color),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Every filter control (Type, Status, Date, Category) as chip groups in a
+  /// premium bottom sheet. Selections apply immediately, so the list updates
+  /// live behind the sheet.
+  Future<void> _openFilterSheet() async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colors = AppColors.of(context);
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: isDark ? const Color(0xFF121318) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            // Mutate filter state on both the screen and the open sheet.
+            void apply(VoidCallback change) {
+              setState(change);
+              setSheetState(() {});
+              _loadTransactions();
+            }
+
+            final l10n = context.l10nRead;
+            return SafeArea(
+              top: false,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(sheetContext).size.height * 0.78,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      margin: const EdgeInsets.only(top: 10),
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? const Color(0xFF2E313A)
+                            : const Color(0xFFE9E9E4),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 6, 12, 0),
+                      child: Row(
+                        children: [
+                          Text(
+                            l10n.filtersTitle,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: isDark
+                                  ? Colors.white
+                                  : const Color(0xFF1B1E28),
+                            ),
+                          ),
+                          const Spacer(),
+                          TextButton(
+                            onPressed: () {
+                              _clearFilters();
+                              setSheetState(() {});
+                            },
+                            child: Text(l10n.clearFilters),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _sheetSection(l10n.filterType, isDark),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                _buildFilterChip(
+                                  label: l10n.filterAll,
+                                  isSelected: _typeFilter == null,
+                                  onSelected: () =>
+                                      apply(() => _typeFilter = null),
+                                  isDark: isDark,
+                                ),
+                                _buildFilterChip(
+                                  label: l10n.credits,
+                                  isSelected:
+                                      _typeFilter == TransactionType.credit,
+                                  onSelected: () => apply(() =>
+                                      _typeFilter = TransactionType.credit),
+                                  color: const Color(0xFF2AA76F),
+                                  isDark: isDark,
+                                ),
+                                _buildFilterChip(
+                                  label: l10n.debits,
+                                  isSelected:
+                                      _typeFilter == TransactionType.debit,
+                                  onSelected: () => apply(() =>
+                                      _typeFilter = TransactionType.debit),
+                                  color: const Color(0xFFD25A5F),
+                                  isDark: isDark,
+                                ),
+                              ],
+                            ),
+                            _sheetSection(l10n.filterStatus, isDark),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                _buildFilterChip(
+                                  label: l10n.filterAll,
+                                  isSelected: _classFilter == _ClassFilter.all,
+                                  onSelected: () => apply(
+                                      () => _classFilter = _ClassFilter.all),
+                                  isDark: isDark,
+                                ),
+                                _buildFilterChip(
+                                  label: l10n.classified,
+                                  isSelected:
+                                      _classFilter == _ClassFilter.classified,
+                                  onSelected: () => apply(() =>
+                                      _classFilter = _ClassFilter.classified),
+                                  color: const Color(0xFF4A6489),
+                                  isDark: isDark,
+                                ),
+                                _buildFilterChip(
+                                  label: l10n.unclassified,
+                                  isSelected:
+                                      _classFilter == _ClassFilter.unclassified,
+                                  onSelected: () => apply(() => _classFilter =
+                                      _ClassFilter.unclassified),
+                                  color: const Color(0xFFD79A3C),
+                                  isDark: isDark,
+                                ),
+                              ],
+                            ),
+                            _sheetSection(l10n.dateLabel, isDark),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                for (final (preset, label) in [
+                                  (_DatePreset.all, l10n.filterAll),
+                                  (_DatePreset.thisMonth, l10n.thisMonth),
+                                  (_DatePreset.lastMonth, l10n.lastMonth),
+                                  (_DatePreset.last7, l10n.lastNDays(7)),
+                                  (_DatePreset.last30, l10n.lastNDays(30)),
+                                ])
+                                  _buildFilterChip(
+                                    label: label,
+                                    isSelected: _datePreset == preset,
+                                    onSelected: () {
+                                      _applyDatePreset(preset);
+                                      setSheetState(() {});
+                                    },
+                                    color: preset == _DatePreset.all
+                                        ? null
+                                        : const Color(0xFF4A6489),
+                                    isDark: isDark,
+                                  ),
+                                _buildFilterChip(
+                                  label: _customChipLabel,
+                                  isSelected: _datePreset == _DatePreset.custom,
+                                  onSelected: () async {
+                                    await _pickCustomRange();
+                                    setSheetState(() {});
+                                  },
+                                  color: colors.brandAccent,
+                                  isDark: isDark,
+                                ),
+                              ],
+                            ),
+                            if (_categories.isNotEmpty) ...[
+                              _sheetSection(l10n.category, isDark),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  _buildFilterChip(
+                                    label: l10n.filterAll,
+                                    isSelected: _categoryFilter == null,
+                                    onSelected: () =>
+                                        apply(() => _categoryFilter = null),
+                                    isDark: isDark,
+                                  ),
+                                  for (final c in _categories)
+                                    _buildFilterChip(
+                                      label: l10n.categoryName(c),
+                                      isSelected: _categoryFilter == c,
+                                      onSelected: () =>
+                                          apply(() => _categoryFilter = c),
+                                      color: colors.brandAccent,
+                                      isDark: isDark,
+                                    ),
+                                ],
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 14),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: colors.brandAccent,
+                            foregroundColor: const Color(0xFF14161F),
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          onPressed: () => Navigator.pop(sheetContext),
+                          child: Text(
+                            l10n.commonDone,
+                            style: const TextStyle(
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /// Small grey group label inside the filter sheet.
+  Widget _sheetSection(String text, bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 14, bottom: 8),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.4,
+          color: isDark ? const Color(0xFF6E727C) : const Color(0xFF8A8D96),
+        ),
       ),
     );
   }
@@ -605,17 +912,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   void _setClass(_ClassFilter f) {
     setState(() => _classFilter = f);
     _loadTransactions();
-  }
-
-  Widget _typeRowLabel(String text, bool isDark) {
-    return Text(
-      text,
-      style: TextStyle(
-        fontSize: 12,
-        fontWeight: FontWeight.w600,
-        color: isDark ? const Color(0xFF6E727C) : const Color(0xFF8A8D96),
-      ),
-    );
   }
 
   Widget _buildFilterChip({
@@ -643,69 +939,63 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     );
   }
 
-  Widget _buildDropdownFilter({
-    required String? value,
-    required String hint,
-    required List<String> items,
-    required ValueChanged<String?> onChanged,
-    required bool isDark,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF16181E) : Color(0xFFF6F6F3),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: value,
-          hint: Text(
-            hint,
-            style: TextStyle(
-              color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
-            ),
-          ),
-          isExpanded: true,
-          icon: Icon(
-            Icons.keyboard_arrow_down,
-            color: isDark ? Color(0xFF9A9DA6) : Color(0xFF8A8D96),
-          ),
-          dropdownColor: isDark ? const Color(0xFF16181E) : Colors.white,
-          items: [
-            DropdownMenuItem<String>(
-              value: null,
-              child: Text(
-                context.l10n.allOfFilter(hint),
-                style: TextStyle(
-                  color: isDark ? Color(0xFF9A9DA6) : Color(0xFF6E727C),
+  /// Compact month summary. It renders as the first list item so it scrolls
+  /// away with the transactions instead of pinning above them.
+  Widget _buildSummaryStrip(bool isDark) {
+    final formatter = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
+    final monthName = context.l10n.monthName(DateTime.now().month);
+    final net = _monthlyCredits - _monthlyDebits;
+    final netUp = net >= 0;
+    final netColor =
+        netUp ? const Color(0xFF4A6489) : const Color(0xFFD79A3C);
+    final labelColor =
+        isDark ? const Color(0xFF8A8D96) : const Color(0xFF6E727C);
+
+    Widget cell(IconData icon, Color color, String label, String value) {
+      return Expanded(
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 13, color: color),
+                const SizedBox(width: 4),
+                Text(
+                  label,
+                  style: TextStyle(fontSize: 11, color: labelColor),
                 ),
-              ),
+              ],
             ),
-            ...items.map(
-              (item) => DropdownMenuItem(
-                value: item,
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
                 child: Text(
-                  context.l10n.categoryName(item),
+                  value,
                   style: TextStyle(
-                    color: isDark ? Colors.white : Colors.black87,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.bold,
+                    color: color,
                   ),
                 ),
               ),
             ),
           ],
-          onChanged: onChanged,
         ),
-      ),
-    );
-  }
+      );
+    }
 
-  Widget _buildSummaryCard(bool isDark) {
-    final formatter = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
-    final monthName = context.l10n.monthName(DateTime.now().month);
+    Widget divider() => Container(
+          width: 1,
+          height: 34,
+          color: isDark ? const Color(0xFF2E313A) : const Color(0xFFE9E9E4),
+        );
 
     return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF16181E) : Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -721,122 +1011,37 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       ),
       child: Column(
         children: [
-          // "This Month" label
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Text(
-              '$monthName ${context.l10n.summaryWord}',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
-              ),
+          Text(
+            '$monthName ${context.l10n.summaryWord}',
+            style: TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.6,
+              color: isDark ? const Color(0xFF6E727C) : const Color(0xFF8A8D96),
             ),
           ),
+          const SizedBox(height: 8),
           Row(
             children: [
-              Expanded(
-                child: Column(
-                  children: [
-                    Icon(
-                      Icons.arrow_downward,
-                      color: Color(0xFF178A5B),
-                      size: 20,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      context.l10n.commonIncome,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color:
-                            isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      formatter.format(_monthlyCredits),
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF178A5B),
-                      ),
-                    ),
-                  ],
-                ),
+              cell(
+                Icons.arrow_downward,
+                const Color(0xFF178A5B),
+                context.l10n.commonIncome,
+                formatter.format(_monthlyCredits),
               ),
-              Container(
-                width: 1,
-                height: 50,
-                color: isDark ? Color(0xFF2E313A) : Color(0xFFE9E9E4),
+              divider(),
+              cell(
+                Icons.arrow_upward,
+                const Color(0xFFC94A50),
+                context.l10n.commonExpenses,
+                formatter.format(_monthlyDebits),
               ),
-              Expanded(
-                child: Column(
-                  children: [
-                    Icon(
-                      Icons.arrow_upward,
-                      color: Color(0xFFC94A50),
-                      size: 20,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      context.l10n.commonExpenses,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color:
-                            isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      formatter.format(_monthlyDebits),
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFFC94A50),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                width: 1,
-                height: 50,
-                color: isDark ? Color(0xFF2E313A) : Color(0xFFE9E9E4),
-              ),
-              Expanded(
-                child: Column(
-                  children: [
-                    Icon(
-                      _monthlyCredits >= _monthlyDebits
-                          ? Icons.trending_up
-                          : Icons.trending_down,
-                      color: _monthlyCredits >= _monthlyDebits
-                          ? Color(0xFF4A6489)
-                          : Color(0xFFD79A3C),
-                      size: 20,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      context.l10n.netLabel,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color:
-                            isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      formatter.format(_monthlyCredits - _monthlyDebits),
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: _monthlyCredits >= _monthlyDebits
-                            ? Color(0xFF4A6489)
-                            : Color(0xFFD79A3C),
-                      ),
-                    ),
-                  ],
-                ),
+              divider(),
+              cell(
+                netUp ? Icons.trending_up : Icons.trending_down,
+                netColor,
+                context.l10n.netLabel,
+                formatter.format(net),
               ),
             ],
           ),
