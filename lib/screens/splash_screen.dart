@@ -3,10 +3,11 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../providers/theme_provider.dart';
+import '../widgets/brand_logo.dart';
 
-/// Premium animated splash. A gold monogram badge scales/fades in with a
-/// rotating shimmer ring, the wordmark rises beneath it, and a thin gold
-/// progress line fills before [onComplete] fires.
+/// Premium animated splash. The gold brand mark scales/fades in with a
+/// rotating shimmer ring, the wordmark and motto rise beneath it, and a thin
+/// gold progress line fills before [onComplete] fires.
 class SplashScreen extends StatefulWidget {
   final VoidCallback onComplete;
 
@@ -132,14 +133,28 @@ class _SplashScreenState extends State<SplashScreen>
                                   color: Colors.white,
                                 ),
                               ),
-                              const SizedBox(height: 6),
+                              const SizedBox(height: 8),
+                              // The brand motto, as two calm letterspaced
+                              // lines under the wordmark.
                               Text(
-                                'YOUR MONEY, BEAUTIFULLY TRACKED',
+                                'THE PRIVATE, OFFLINE BUDGET TRACKER',
+                                textAlign: TextAlign.center,
                                 style: TextStyle(
-                                  fontSize: 10.5,
-                                  letterSpacing: 2.0,
+                                  fontSize: 9.5,
+                                  letterSpacing: 1.8,
                                   fontWeight: FontWeight.w600,
                                   color: AppColors.gold.withOpacity(0.85),
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                'THAT DOES THE WORK FOR YOU',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 9.5,
+                                  letterSpacing: 1.8,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white.withOpacity(0.45),
                                 ),
                               ),
                             ],
@@ -215,7 +230,7 @@ class _SplashScreenState extends State<SplashScreen>
                   ),
                 ),
               ),
-              // Inner ink disc
+              // Inner ink disc carrying the brand mark
               Container(
                 width: 96,
                 height: 96,
@@ -225,11 +240,7 @@ class _SplashScreenState extends State<SplashScreen>
                   border: Border.all(color: AppColors.gold.withOpacity(0.35)),
                 ),
                 child: const Center(
-                  child: Icon(
-                    Icons.account_balance_wallet_rounded,
-                    color: AppColors.gold,
-                    size: 42,
-                  ),
+                  child: BrandLogo(size: 54),
                 ),
               ),
             ],

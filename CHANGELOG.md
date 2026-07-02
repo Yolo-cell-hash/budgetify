@@ -4,6 +4,32 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.22.0] — 2026-07-02
+
+### Added
+
+- **Brand identity everywhere it represents you.** The launcher icon's
+  wallet-and-sprout mark is now drawn in-app as crisp vector line art
+  (`lib/widgets/brand_logo.dart`) and carried, with the motto — *"The
+  private, offline budget tracker that does the work for you."* — across
+  every social and exportable surface:
+  - **Splash** — the gold brand mark replaces the generic wallet glyph in
+    the animated badge, with the motto under the wordmark.
+  - **Notifications** — the status-bar icon is now the brand silhouette
+    (wallet with clasp cut-out + sprout leaves), white-on-transparent as
+    Android requires.
+  - **PDF export** — a proper brand header (navy logo tile, wordmark,
+    motto, generated date over a gold rule) and a footer on every page
+    with the motto and page numbers. Excel and text exports carry the
+    motto line too.
+  - **Monthly Wrapped** — the shareable card's brand pill now shows the
+    real mark instead of a generic sparkle.
+  - **Gamified profile card** — footer upgraded to mark + wordmark +
+    motto, so shared profiles carry the identity.
+  - **Split summaries** — the WhatsApp one-liner is signed "tracked on
+    Budgetify, the private offline budget tracker".
+  All rendering stays on-device; nothing about the privacy model changes.
+
 ## [1.21.0] — 2026-07-02
 
 ### Added

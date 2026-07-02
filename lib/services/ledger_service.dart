@@ -290,15 +290,19 @@ class LedgerService {
   static final NumberFormat _inr =
       NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
 
-  /// A WhatsApp-friendly one-liner for the share sheet.
+  /// A WhatsApp-friendly one-liner for the share sheet, signed with the
+  /// brand line so shared summaries carry the app's identity.
+  static const String _signature =
+      '— tracked on Budgetify, the private offline budget tracker';
+
   String shareSummary(String person, double net) {
     if (net.abs() < personBalanceEps) {
-      return '$person and I are all settled up. ✅\n— tracked on Budgetify';
+      return '$person and I are all settled up. ✅\n$_signature';
     }
     if (net > 0) {
-      return '$person owes me ${_inr.format(net)}.\n— tracked on Budgetify';
+      return '$person owes me ${_inr.format(net)}.\n$_signature';
     }
-    return 'I owe $person ${_inr.format(net.abs())}.\n— tracked on Budgetify';
+    return 'I owe $person ${_inr.format(net.abs())}.\n$_signature';
   }
 }
 

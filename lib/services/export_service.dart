@@ -5,7 +5,9 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/material.dart' show DateTimeRange;
 import 'package:intl/intl.dart';
+import '../app_info.dart';
 import '../models/transaction_model.dart';
+import '../widgets/brand_logo.dart';
 import 'database_service.dart';
 import 'sms_parser_service.dart';
 
@@ -233,6 +235,8 @@ class ExportService {
     sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0))
       ..value = TextCellValue('Budgetify Summary')
       ..cellStyle = titleStyle;
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 1)).value =
+        TextCellValue(kAppMotto);
     row(2, 'Total Transactions', IntCellValue(txns.length));
     row(3, 'Total Income', DoubleCellValue(income));
     row(4, 'Total Expenses', DoubleCellValue(expenses));
@@ -271,6 +275,17 @@ class ExportService {
       ..sort((a, b) => b.value.compareTo(a.value));
 
     const headerColor = PdfColor.fromInt(0xFF1B1E28);
+    const brandGold = PdfColor.fromInt(0xFFC8A75E);
+
+    // The brand mark, rendered to PNG (gold on the icon's navy tile). Guarded
+    // so a rendering hiccup degrades the header to text-only rather than
+    // failing the whole export.
+    pw.MemoryImage? logo;
+    try {
+      logo = pw.MemoryImage(await renderBrandLogoPng());
+    } catch (_) {
+      logo = null;
+    }
 
     pw.Widget summaryRow(String label, String value, {bool bold = false}) {
       final style = pw.TextStyle(
@@ -291,12 +306,58 @@ class ExportService {
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(28),
+        // Brand footer on every page: motto on the left, page number right.
+        footer: (context) => pw.Container(
+          margin: const pw.EdgeInsets.only(top: 8),
+          padding: const pw.EdgeInsets.only(top: 5),
+          decoration: const pw.BoxDecoration(
+            border: pw.Border(
+              top: pw.BorderSide(color: brandGold, width: 0.6),
+            ),
+          ),
+          child: pw.Row(
+            children: [
+              pw.Text('Budgetify — $kAppMotto',
+                  style:
+                      const pw.TextStyle(fontSize: 7.5, color: PdfColors.grey600)),
+              pw.Spacer(),
+              pw.Text('Page ${context.pageNumber} of ${context.pagesCount}',
+                  style:
+                      const pw.TextStyle(fontSize: 7.5, color: PdfColors.grey600)),
+            ],
+          ),
+        ),
         build: (context) => [
-          pw.Text('Budgetify Export',
-              style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
-          pw.SizedBox(height: 2),
-          pw.Text('Generated: ${_dateFmt.format(DateTime.now())}',
-              style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700)),
+          // Brand header: mark + wordmark + motto, generated date on the right.
+          pw.Row(
+            crossAxisAlignment: pw.CrossAxisAlignment.center,
+            children: [
+              if (logo != null) ...[
+                pw.Image(logo, width: 34, height: 34),
+                pw.SizedBox(width: 10),
+              ],
+              pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text('Budgetify',
+                      style: pw.TextStyle(
+                          fontSize: 19,
+                          fontWeight: pw.FontWeight.bold,
+                          color: headerColor)),
+                  pw.SizedBox(height: 1),
+                  pw.Text(kAppMotto,
+                      style: const pw.TextStyle(
+                          fontSize: 8.5, color: PdfColors.grey700)),
+                ],
+              ),
+              pw.Spacer(),
+              pw.Text('Generated: ${_dateFmt.format(DateTime.now())}',
+                  style:
+                      const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
+            ],
+          ),
+          pw.SizedBox(height: 10),
+          pw.Container(height: 1.6, color: brandGold),
           pw.SizedBox(height: 14),
           pw.Text('Summary',
               style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
@@ -405,6 +466,7 @@ class ExportService {
     final buffer = StringBuffer();
     buffer.writeln('=' * _reportWidth);
     buffer.writeln('  BUDGETIFY EXPORT');
+    buffer.writeln('  $kAppMotto');
     buffer.writeln('  Generated: ${_dateFmt.format(DateTime.now())}');
     buffer.writeln('=' * _reportWidth);
     buffer.writeln();

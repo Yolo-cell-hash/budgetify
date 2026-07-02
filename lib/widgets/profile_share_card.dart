@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../app_info.dart';
 import '../l10n/app_strings.dart';
 import '../l10n/l10n.dart';
 import '../models/achievement.dart';
@@ -7,6 +8,7 @@ import '../providers/theme_provider.dart';
 import '../services/gamification_service.dart';
 import 'avatars.dart';
 import 'badge_medallion.dart';
+import 'brand_logo.dart';
 
 /// Max badges featured on the profile card.
 const int kMaxShowcase = 4;
@@ -129,11 +131,12 @@ class ProfileShareCard extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 20),
+          // Brand footer: the mark + wordmark, motto beneath.
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text('✨', style: TextStyle(fontSize: 13)),
-              const SizedBox(width: 6),
+              const BrandLogo(size: 15),
+              const SizedBox(width: 7),
               Text(
                 'Budgetify',
                 style: TextStyle(
@@ -141,6 +144,19 @@ class ProfileShareCard extends StatelessWidget {
                   color: Colors.white.withValues(alpha: 0.8)),
               ),
             ],
+          ),
+          const SizedBox(height: 4),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              kAppMotto,
+              maxLines: 1,
+              style: TextStyle(
+                fontSize: 8.5,
+                letterSpacing: 0.2,
+                color: Colors.white.withValues(alpha: 0.40),
+              ),
+            ),
           ),
         ],
       ),
