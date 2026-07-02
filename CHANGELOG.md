@@ -4,6 +4,34 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.21.0] — 2026-07-02
+
+### Added
+
+- **Import bank statements (CSV / Excel).** Settings → **Import Data** →
+  **Bank statement** brings in the history the SMS pipeline can't see —
+  months from before Budgetify was installed, an account whose alerts land on
+  another phone, or an export from another app. Works with any bank: the
+  importer finds the header row under the preamble junk, guesses what each
+  column means (HDFC/ICICI/SBI/Axis/Kotak spellings built in), understands
+  Indian formats (`1,23,456.78`, `dd-MM-yy`, month-name dates, `Dr`/`Cr`
+  markers, ₹/INR prefixes, trailing-minus and bracketed negatives), and asks
+  you to confirm the mapping — confirmed once, it's remembered for that bank.
+  - **No double counting.** Rows matching the amount and date (±1 day) of a
+    transaction already on the device — usually the SMS copy of the same
+    spend — are flagged as probable duplicates and excluded unless you tick
+    them back in, with a note showing when SMS tracking began. Re-importing
+    the same file is a no-op, and a deleted imported row stays deleted.
+  - **Lands organised.** Payees are extracted from statement narrations
+    (`UPI-SWIGGY LIMITED-…` → *Swiggy Limited*), the merchant-keyword table
+    auto-categorises what it recognises, and your saved auto-tag rules run
+    over the newcomers immediately.
+  - **Balances ignored by design.** The balance column is recognised so
+    detection works, but its values are never read or stored.
+  - Old `.xls` and PDF statements are politely declined with guidance (PDF
+    import is planned). Everything is parsed on-device from a file you pick —
+    no new permissions, still no INTERNET. Localised in EN/HI/MR/BN.
+
 ## [1.10.0] — 2026-06-25
 
 ### Added
