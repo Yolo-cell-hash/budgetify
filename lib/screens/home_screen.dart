@@ -30,6 +30,8 @@ import '../widgets/upcoming_recurring_card.dart';
 import '../widgets/motion.dart';
 import '../widgets/permission_request_card.dart';
 import '../widgets/expense_chart.dart';
+import '../widgets/spotlight.dart';
+import 'app_tour_screen.dart';
 import 'transactions_screen.dart';
 import 'add_transaction_screen.dart';
 import 'goals_screen.dart';
@@ -50,6 +52,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final SmsService _smsService = SmsService();
   final DatabaseService _dbService = DatabaseService();
   final NotificationService _notificationService = NotificationService();
+
+  // Anchors the Gamified Budgets spotlight to the Rewards avatar in the
+  // header.
+  final GlobalKey _rewardsAvatarKey = GlobalKey();
 
   bool _hasPermission = false;
   bool _isPermanentlyDenied = false;
@@ -82,11 +88,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // Runs regardless of whether the mode is enabled, so it's accurate if the
     // user turns it on later. Fire-and-forget.
     GamificationService().recordActiveDay();
+    // Settings requests a spotlight here right after Gamified Budgets is
+    // switched on (it also switches the shell back to this tab).
+    homeSpotlightRequest.addListener(_onSpotlightRequest);
+    // One-time app tour for first-time users. Pushed after the first frame,
+    // beneath the splash/lock overlays, so it's what greets the user once
+    // those finish.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowAppTour());
     _initialize();
   }
 
   @override
   void dispose() {
+    homeSpotlightRequest.removeListener(_onSpotlightRequest);
     appDataRevision.removeListener(_onExternalDataChange);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -94,6 +108,55 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   void _onExternalDataChange() {
     if (mounted) _loadData();
+  }
+
+  /// Show the app tour once on first launch. Marked seen only after it pops,
+  /// and always replayable from Settings → About.
+  Future<void> _maybeShowAppTour() async {
+    if (!mounted) return;
+    final prefs = context.read<AppPreferences>();
+    if (prefs.appTourSeen) return;
+    await Navigator.of(context).push(AppTourScreen.route());
+    await prefs.setAppTourSeen();
+  }
+
+  void _onSpotlightRequest() {
+    if (homeSpotlightRequest.value != 'rewards') return;
+    homeSpotlightRequest.value = null;
+    _spotlightRewards();
+  }
+
+  /// Waits for the Rewards avatar to be mounted and laid out (the header
+  /// rebuilds right after the toggle flips and the shell switches tabs),
+  /// scrolls it into view, then spotlights it.
+  Future<void> _spotlightRewards() async {
+    for (var attempt = 0; attempt < 10; attempt++) {
+      await Future.delayed(const Duration(milliseconds: 120));
+      if (!mounted) return;
+      final targetContext = _rewardsAvatarKey.currentContext;
+      final box = targetContext?.findRenderObject() as RenderBox?;
+      if (targetContext == null ||
+          box == null ||
+          !box.attached ||
+          !box.hasSize) {
+        continue;
+      }
+      await Scrollable.ensureVisible(
+        targetContext,
+        duration: const Duration(milliseconds: 260),
+        alignment: 0.1,
+      );
+      if (!mounted) return;
+      final l10n = context.l10nRead;
+      await showSpotlight(
+        context,
+        targetKey: _rewardsAvatarKey,
+        title: l10n.rewardsSpotlightTitle,
+        message: l10n.rewardsSpotlightBody,
+        buttonLabel: l10n.gotIt,
+      );
+      return;
+    }
   }
 
   @override
@@ -674,7 +737,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               // untouched.
               if (context.watch<AppPreferences>().gamifiedMode) ...[
                 const SizedBox(width: 4),
-                const HomeRewardsAvatar(),
+                KeyedSubtree(
+                  key: _rewardsAvatarKey,
+                  child: const HomeRewardsAvatar(),
+                ),
               ],
             ],
           ),

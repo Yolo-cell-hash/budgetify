@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../l10n/l10n.dart';
+import '../services/app_events.dart';
 import 'budget_screen.dart';
 import 'home_screen.dart';
 import 'net_worth_screen.dart';
@@ -25,6 +26,28 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   int _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Lets other screens send the user to a tab (e.g. Settings switching to
+    // Home right after Gamified Budgets is enabled, so the new entry point
+    // can be spotlighted there).
+    mainShellTabRequest.addListener(_onTabRequest);
+  }
+
+  @override
+  void dispose() {
+    mainShellTabRequest.removeListener(_onTabRequest);
+    super.dispose();
+  }
+
+  void _onTabRequest() {
+    final i = mainShellTabRequest.value;
+    if (i == null || !mounted) return;
+    mainShellTabRequest.value = null;
+    if (i >= 0 && i < _pages.length) _select(i);
+  }
 
   // Home is built immediately; the rest are created on first visit.
   late final List<Widget?> _pages = <Widget?>[
