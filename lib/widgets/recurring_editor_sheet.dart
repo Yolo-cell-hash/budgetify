@@ -127,6 +127,7 @@ class _RecurringEditorSheetState extends State<_RecurringEditorSheet> {
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final bottom = MediaQuery.of(context).viewInsets.bottom;
     final categories = ExpenseCategories.categories;
     if (!categories.contains(_category) && categories.isNotEmpty) {
@@ -249,6 +250,14 @@ class _RecurringEditorSheetState extends State<_RecurringEditorSheet> {
                   ChoiceChip(
                     label: Text(_cadenceLabel(c)),
                     selected: _cadence == c,
+                    // Selected fill is dark ink (light mode) / gold (dark
+                    // mode); give the label a contrasting colour so it stays
+                    // readable instead of dark-on-dark.
+                    labelStyle: TextStyle(
+                      color: _cadence == c
+                          ? (isDark ? const Color(0xFF15110A) : Colors.white)
+                          : colors.text,
+                    ),
                     onSelected: (_) => setState(() => _cadence = c),
                   ),
               ],
@@ -287,6 +296,13 @@ class _RecurringEditorSheetState extends State<_RecurringEditorSheet> {
                           ? context.l10n.remindOnDueDay
                           : context.l10n.remindLeadDays(d)),
                       selected: _leadDays == d,
+                      // Keep the selected label readable on the dark (light
+                      // mode) / gold (dark mode) fill.
+                      labelStyle: TextStyle(
+                        color: _leadDays == d
+                            ? (isDark ? const Color(0xFF15110A) : Colors.white)
+                            : colors.text,
+                      ),
                       onSelected: (_) => setState(() => _leadDays = d),
                     ),
                 ],
