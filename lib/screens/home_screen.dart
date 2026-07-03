@@ -169,52 +169,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           onButton: () => svc.advanceFrom(TutorialStep.goals),
           advanceIfMissing: true,
         );
-      case TutorialStep.budgetsTab:
-        TutorialTips.show(
-          context,
-          step: TutorialStep.budgetsTab,
-          anchor: TutorialAnchors.budgetsTab,
-          title: l10n.tutBudgetsTitle,
-          message: l10n.tutBudgetsBody,
-          shape: SpotlightShape.circle,
-          passthrough: false,
-          buttonLabel: l10n.tutNext,
-          onButton: () => svc.advanceFrom(TutorialStep.budgetsTab),
-          advanceIfMissing: true,
-        );
-      case TutorialStep.investTab:
-        TutorialTips.show(
-          context,
-          step: TutorialStep.investTab,
-          anchor: TutorialAnchors.investTab,
-          title: l10n.tutInvestTitle,
-          message: l10n.tutInvestBody,
-          shape: SpotlightShape.circle,
-          passthrough: false,
-          buttonLabel: l10n.tutNext,
-          onButton: () => svc.advanceFrom(TutorialStep.investTab),
-          advanceIfMissing: true,
-        );
-      case TutorialStep.powerUps:
-        TutorialTips.show(
-          context,
-          step: TutorialStep.powerUps,
-          anchor: TutorialAnchors.settingsTab,
-          title: l10n.tutPowerUpsTitle,
-          message: l10n.tutPowerUpsBody,
-          shape: SpotlightShape.circle,
-          passthrough: false,
-          buttonLabel: l10n.tutFinish,
-          onButton: () {
-            svc.advanceFrom(TutorialStep.powerUps);
-            showAppToast(
-              context,
-              message: context.l10nRead.tutDoneToast,
-              type: AppToastType.success,
-            );
-          },
-          advanceIfMissing: true,
-        );
+      // The "tap this tab" steps (Budgets → Recurring → Net Worth → Settings)
+      // are anchored on the bottom bar and shown by MainShell; each section
+      // then presents its own intro tip in place.
       default:
         break;
     }
@@ -366,9 +323,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       WidgetService.update();
 
       // A data refresh can satisfy the tour's current step (e.g. the first
-      // scanned transaction just arrived) — re-evaluate after this frame.
+      // scanned transaction just arrived, or the user just popped back from
+      // the tag flow) — re-broadcast so every tip owner re-evaluates.
       WidgetsBinding.instance
-          .addPostFrameCallback((_) => _maybeShowTutorialTip());
+          .addPostFrameCallback((_) => TutorialService.instance.poke());
     } catch (e) {
       debugPrint('Error loading data: $e');
     }

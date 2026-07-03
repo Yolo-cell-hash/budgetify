@@ -8,8 +8,10 @@ import '../models/merchant_summary.dart';
 import '../models/transaction_model.dart';
 import '../providers/app_preferences.dart';
 import '../providers/theme_provider.dart';
+import '../services/app_events.dart';
 import '../services/custom_tag_service.dart';
 import '../services/database_service.dart';
+import '../services/tutorial_service.dart';
 import '../widgets/app_bar_title.dart';
 import '../widgets/app_dialog.dart';
 import '../widgets/app_toast.dart';
@@ -80,6 +82,9 @@ class _BudgetScreenState extends State<BudgetScreen>
   String? _expandedCategory;
   List<TransactionModel> _expandedTransactions = [];
 
+  // Guided-tour anchor (the screen title) for this section's intro tip.
+  final GlobalKey _tutTitleKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -87,13 +92,44 @@ class _BudgetScreenState extends State<BudgetScreen>
     _overviewPageController = PageController();
     _generateAvailableMonths();
     _loadData();
+    TutorialService.instance.addListener(_onTutorialTick);
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _maybeShowTutorialTip());
   }
 
   @override
   void dispose() {
+    TutorialService.instance.removeListener(_onTutorialTick);
     _tabController.dispose();
     _overviewPageController.dispose();
     super.dispose();
+  }
+
+  void _onTutorialTick() {
+    if (mounted) _maybeShowTutorialTip();
+  }
+
+  /// Guided tour: explains this section once the user lands on it, then the
+  /// next tab's tip takes over.
+  void _maybeShowTutorialTip() {
+    if (!mounted) return;
+    if (mainShellTabIndex.value != 1) return;
+    if (!TutorialService.instance.isAt(TutorialStep.budgetsIntro)) return;
+    final route = ModalRoute.of(context);
+    if (route != null && !route.isCurrent) return;
+    final l10n = context.l10nRead;
+    TutorialTips.show(
+      context,
+      step: TutorialStep.budgetsIntro,
+      anchor: _tutTitleKey,
+      title: l10n.tutBudgetsIntroTitle,
+      message: l10n.tutBudgetsIntroBody,
+      passthrough: false,
+      buttonLabel: l10n.tutNext,
+      onButton: () =>
+          TutorialService.instance.advanceFrom(TutorialStep.budgetsIntro),
+      advanceIfMissing: true,
+    );
   }
 
   void _generateAvailableMonths() {
@@ -272,8 +308,11 @@ class _BudgetScreenState extends State<BudgetScreen>
 
     return Scaffold(
       appBar: AppBar(
-        title: AppBarTitle(context.l10n.budgetAndAnalytics,
-            icon: Icons.donut_small_rounded),
+        title: KeyedSubtree(
+          key: _tutTitleKey,
+          child: AppBarTitle(context.l10n.budgetAndAnalytics,
+              icon: Icons.donut_small_rounded),
+        ),
         actions: [
           IconButton(icon: const Icon(Icons.refresh), onPressed: _loadData),
         ],
