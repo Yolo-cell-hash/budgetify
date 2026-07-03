@@ -10,12 +10,18 @@ import 'package:budget_tracker/services/notification_service.dart';
 import 'package:budget_tracker/services/background_service.dart';
 import 'package:budget_tracker/services/custom_tag_service.dart';
 import 'package:budget_tracker/services/gamification_service.dart';
+import 'package:budget_tracker/services/entitlement_service.dart';
 import 'package:budget_tracker/providers/theme_provider.dart';
 import 'package:budget_tracker/providers/app_preferences.dart';
 import 'package:budget_tracker/providers/locale_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Record the trial anchor (first-use timestamp) as the very first thing, so
+  // it survives even if a later startup step fails. Silent: nothing reads it
+  // yet and no feature is gated on it.
+  await EntitlementService().initialize();
 
   // Initialize notification service
   await NotificationService().initialize();
