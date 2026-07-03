@@ -20,3 +20,8 @@ final ValueNotifier<int?> mainShellTabRequest = ValueNotifier<int?>(null);
 /// when Gamified Budgets is switched on). Home consumes and clears it.
 final ValueNotifier<String?> homeSpotlightRequest =
     ValueNotifier<String?>(null);
+
+/// The main shell's currently visible tab (0 = Home). Screens inside the
+/// shell's IndexedStack stay mounted while hidden, so tab-scoped UI (like the
+/// guided tour's tips) checks this before showing anything.
+final ValueNotifier<int> mainShellTabIndex = ValueNotifier<int>(0);

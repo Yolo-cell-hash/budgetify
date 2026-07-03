@@ -11,7 +11,6 @@ class AppPreferences extends ChangeNotifier {
   static const String _gamifiedModeKey = 'gamified_mode';
   static const String _dismissedBudgetSuggestionsKey =
       'dismissed_budget_suggestions';
-  static const String _appTourSeenKey = 'app_tour_seen_v1';
 
   bool _isOnboardingComplete = false;
   bool _isInitialized = false;
@@ -41,17 +40,12 @@ class AppPreferences extends ChangeNotifier {
   // unchanged — no nav or dashboard additions.
   bool _gamifiedMode = false;
 
-  // Whether the one-time app tour (first-launch guide) has been shown. It can
-  // always be replayed from Settings → About.
-  bool _appTourSeen = false;
-
   bool get isOnboardingComplete => _isOnboardingComplete;
   bool get isInitialized => _isInitialized;
   bool get privacyMode => _privacyMode;
   bool get aiPredictionMode => _aiPredictionMode;
   bool get financialHealthDetailed => _financialHealthDetailed;
   bool get gamifiedMode => _gamifiedMode;
-  bool get appTourSeen => _appTourSeen;
 
   /// Whether amounts should currently render hidden: privacy mode is on and
   /// the user hasn't tapped to reveal this session.
@@ -68,7 +62,6 @@ class AppPreferences extends ChangeNotifier {
     _financialHealthDetailed =
         prefs.getBool(_financialHealthDetailedKey) ?? false;
     _gamifiedMode = prefs.getBool(_gamifiedModeKey) ?? false;
-    _appTourSeen = prefs.getBool(_appTourSeenKey) ?? false;
     _dismissedBudgetSuggestions =
         (prefs.getStringList(_dismissedBudgetSuggestionsKey) ?? const [])
             .toSet();
@@ -131,15 +124,6 @@ class AppPreferences extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_gamifiedModeKey, enabled);
-  }
-
-  /// Mark the one-time app tour as seen so it doesn't auto-show again.
-  Future<void> setAppTourSeen() async {
-    if (_appTourSeen) return;
-    _appTourSeen = true;
-    notifyListeners();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_appTourSeenKey, true);
   }
 
   /// Mark onboarding as complete

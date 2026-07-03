@@ -9,6 +9,7 @@ import '../providers/theme_provider.dart';
 import '../services/database_service.dart';
 import '../services/custom_tag_service.dart';
 import '../services/ledger_service.dart';
+import '../services/tutorial_service.dart';
 import '../widgets/app_bar_title.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/recurring_editor_sheet.dart';
@@ -39,6 +40,10 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   // person settling a debt? Computed once on open for unclassified credits.
   SettlementSuggestion? _settleSuggestion;
 
+  // Guided-tour anchors: the category chips card and the Save button.
+  final GlobalKey _categoryKey = GlobalKey();
+  final GlobalKey _saveKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -46,6 +51,41 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     _selectedCategory = _transaction.category;
     _notesController.text = _transaction.notes ?? '';
     _maybeSuggestSettlement();
+    // Guided tour: opening any detail completes the "open it up" step; the
+    // in-screen tips (choose a tag → save it) take over from here.
+    TutorialService.instance.advanceFrom(TutorialStep.openTransaction);
+    TutorialService.instance.addListener(_onTutorialTick);
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _maybeShowTutorialTip());
+  }
+
+  void _onTutorialTick() {
+    if (mounted) _maybeShowTutorialTip();
+  }
+
+  /// The guided tour inside this screen: first point at the category chips
+  /// (the tap passes through), then — once a tag is picked — at Save.
+  void _maybeShowTutorialTip() {
+    if (!mounted) return;
+    final svc = TutorialService.instance;
+    final l10n = context.l10nRead;
+    if (svc.isAt(TutorialStep.chooseTag)) {
+      TutorialTips.show(
+        context,
+        step: TutorialStep.chooseTag,
+        anchor: _categoryKey,
+        title: l10n.tutChooseTagTitle,
+        message: l10n.tutChooseTagBody,
+      );
+    } else if (svc.isAt(TutorialStep.saveTag)) {
+      TutorialTips.show(
+        context,
+        step: TutorialStep.saveTag,
+        anchor: _saveKey,
+        title: l10n.tutSaveTagTitle,
+        message: l10n.tutSaveTagBody,
+      );
+    }
   }
 
   /// Check (once) whether an incoming, not-yet-settled credit matches an
@@ -61,6 +101,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
 
   @override
   void dispose() {
+    TutorialService.instance.removeListener(_onTutorialTick);
+    TutorialTips.dismissIfFor(TutorialStep.chooseTag);
+    TutorialTips.dismissIfFor(TutorialStep.saveTag);
     _notesController.dispose();
     super.dispose();
   }
@@ -108,6 +151,10 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
 
   Future<void> _saveClassification() async {
     if (_transaction.id == null) return;
+
+    // Guided tour: pressing Save completes its step; the apply-options sheet
+    // that follows carries the tour's explainer banner.
+    TutorialService.instance.advanceFrom(TutorialStep.saveTag);
 
     setState(() => _isSaving = true);
 
@@ -195,6 +242,40 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                 color: isDark ? Color(0xFF9A9DA6) : Color(0xFF6E727C),
               ),
             ),
+            // Guided tour: a one-time explainer for how far a tag can reach —
+            // the three options below each describe their own behavior.
+            if (TutorialService.instance.isAt(TutorialStep.applyOptions)) ...[
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.gold.withOpacity(isDark ? 0.12 : 0.10),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.gold.withOpacity(0.45)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.school_outlined,
+                      size: 18,
+                      color: AppColors.gold,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        context.l10nRead.tutApplyBody,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          height: 1.45,
+                          color: textColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 24),
             _buildOption(
               ctx,
@@ -230,6 +311,10 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
         ),
       ),
     );
+
+    // Guided tour: the options sheet has been seen (chosen or dismissed) —
+    // the remaining dashboard tips resume once the user is back on Home.
+    TutorialService.instance.advanceFrom(TutorialStep.applyOptions);
 
     if (result != null && mounted) {
       await _processBulkFlagging(result);
@@ -946,6 +1031,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
 
             // Category section
             Container(
+              key: _categoryKey, // guided-tour anchor
               margin: const EdgeInsets.symmetric(horizontal: 16),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -1000,6 +1086,12 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                             setState(() {
                               _selectedCategory = isSelected ? null : category;
                             });
+                            if (!isSelected) {
+                              // Guided tour: a tag was picked — point at
+                              // Save next.
+                              TutorialService.instance
+                                  .advanceFrom(TutorialStep.chooseTag);
+                            }
                           },
                           onLongPress: () =>
                               _showEmojiPickerForTag(category, isDark),
@@ -1145,6 +1237,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
             // Save button — also handles un-tagging when the user
             // deselects the current category
             Padding(
+              key: _saveKey, // guided-tour anchor
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: ElevatedButton(
                 onPressed: (_isSaving ||

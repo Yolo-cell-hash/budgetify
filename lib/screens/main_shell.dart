@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../l10n/l10n.dart';
 import '../services/app_events.dart';
+import '../services/tutorial_service.dart';
 import 'budget_screen.dart';
 import 'home_screen.dart';
 import 'net_worth_screen.dart';
@@ -27,6 +28,12 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _index = 0;
 
+  // Fades the tab body out and back in during programmatic switches (e.g.
+  // Settings sending the user Home after enabling Gamified Budgets), so the
+  // jump reads as a gentle hand-off instead of an instant swap. User taps on
+  // the bar stay instant, as expected.
+  bool _fading = false;
+
   @override
   void initState() {
     super.initState();
@@ -46,7 +53,7 @@ class _MainShellState extends State<MainShell> {
     final i = mainShellTabRequest.value;
     if (i == null || !mounted) return;
     mainShellTabRequest.value = null;
-    if (i >= 0 && i < _pages.length) _select(i);
+    if (i >= 0 && i < _pages.length) _softSelect(i);
   }
 
   // Home is built immediately; the rest are created on first visit.
@@ -74,21 +81,48 @@ class _MainShellState extends State<MainShell> {
   }
 
   void _select(int i) {
+    if (i == _index) return;
+    // Any live tutorial tip is anchored to the outgoing tab — drop it; the
+    // owning screen re-shows it when it becomes visible again.
+    TutorialTips.dismiss();
     setState(() {
       _index = i;
       _pages[i] ??= _build(i);
     });
+    mainShellTabIndex.value = i;
+    TutorialService.instance.poke();
+  }
+
+  /// Programmatic tab change with a soft cross-fade.
+  Future<void> _softSelect(int i) async {
+    if (i == _index || _fading) return;
+    TutorialTips.dismiss();
+    setState(() => _fading = true);
+    await Future.delayed(const Duration(milliseconds: 170));
+    if (!mounted) return;
+    setState(() {
+      _index = i;
+      _pages[i] ??= _build(i);
+      _fading = false;
+    });
+    mainShellTabIndex.value = i;
+    TutorialService.instance.poke();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _index,
-        children: [
-          for (var i = 0; i < _pages.length; i++)
-            _pages[i] ?? const SizedBox.shrink(),
-        ],
+      body: AnimatedOpacity(
+        opacity: _fading ? 0.0 : 1.0,
+        duration: Duration(milliseconds: _fading ? 160 : 320),
+        curve: _fading ? Curves.easeOut : Curves.easeIn,
+        child: IndexedStack(
+          index: _index,
+          children: [
+            for (var i = 0; i < _pages.length; i++)
+              _pages[i] ?? const SizedBox.shrink(),
+          ],
+        ),
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _index,
@@ -100,7 +134,12 @@ class _MainShellState extends State<MainShell> {
             label: context.l10n.navHome,
           ),
           BottomNavigationBarItem(
-            icon: const Icon(Icons.pie_chart_outline_rounded),
+            // KeyedSubtree anchors let the guided tour spotlight these tabs
+            // from the Home screen.
+            icon: KeyedSubtree(
+              key: TutorialAnchors.budgetsTab,
+              child: const Icon(Icons.pie_chart_outline_rounded),
+            ),
             activeIcon: const Icon(Icons.pie_chart_rounded),
             label: context.l10n.navBudgets,
           ),
@@ -110,12 +149,18 @@ class _MainShellState extends State<MainShell> {
             label: context.l10n.navRecurring,
           ),
           BottomNavigationBarItem(
-            icon: const Icon(Icons.account_balance_wallet_outlined),
+            icon: KeyedSubtree(
+              key: TutorialAnchors.investTab,
+              child: const Icon(Icons.account_balance_wallet_outlined),
+            ),
             activeIcon: const Icon(Icons.account_balance_wallet_rounded),
             label: context.l10n.navNetWorth,
           ),
           BottomNavigationBarItem(
-            icon: const Icon(Icons.settings_outlined),
+            icon: KeyedSubtree(
+              key: TutorialAnchors.settingsTab,
+              child: const Icon(Icons.settings_outlined),
+            ),
             activeIcon: const Icon(Icons.settings_rounded),
             label: context.l10n.navSettings,
           ),

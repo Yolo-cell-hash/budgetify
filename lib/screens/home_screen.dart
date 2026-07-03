@@ -30,8 +30,8 @@ import '../widgets/upcoming_recurring_card.dart';
 import '../widgets/motion.dart';
 import '../widgets/permission_request_card.dart';
 import '../widgets/expense_chart.dart';
+import '../services/tutorial_service.dart';
 import '../widgets/spotlight.dart';
-import 'app_tour_screen.dart';
 import 'transactions_screen.dart';
 import 'add_transaction_screen.dart';
 import 'goals_screen.dart';
@@ -56,6 +56,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   // Anchors the Gamified Budgets spotlight to the Rewards avatar in the
   // header.
   final GlobalKey _rewardsAvatarKey = GlobalKey();
+
+  // Guided-tour anchors on this dashboard.
+  final GlobalKey _firstRecentTxnKey = GlobalKey();
+  final GlobalKey _balanceCardKey = GlobalKey();
+  final GlobalKey _goalsCardKey = GlobalKey();
 
   bool _hasPermission = false;
   bool _isPermanentlyDenied = false;
@@ -91,15 +96,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // Settings requests a spotlight here right after Gamified Budgets is
     // switched on (it also switches the shell back to this tab).
     homeSpotlightRequest.addListener(_onSpotlightRequest);
-    // One-time app tour for first-time users. Pushed after the first frame,
-    // beneath the splash/lock overlays, so it's what greets the user once
-    // those finish.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowAppTour());
+    // Guided tour: load saved progress, then re-evaluate the current tip
+    // whenever the step moves or this tab becomes visible again.
+    TutorialService.instance.load();
+    TutorialService.instance.addListener(_onTutorialTick);
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _maybeShowTutorialTip());
     _initialize();
   }
 
   @override
   void dispose() {
+    TutorialService.instance.removeListener(_onTutorialTick);
     homeSpotlightRequest.removeListener(_onSpotlightRequest);
     appDataRevision.removeListener(_onExternalDataChange);
     WidgetsBinding.instance.removeObserver(this);
@@ -110,14 +118,106 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (mounted) _loadData();
   }
 
-  /// Show the app tour once on first launch. Marked seen only after it pops,
-  /// and always replayable from Settings → About.
-  Future<void> _maybeShowAppTour() async {
-    if (!mounted) return;
-    final prefs = context.read<AppPreferences>();
-    if (prefs.appTourSeen) return;
-    await Navigator.of(context).push(AppTourScreen.route());
-    await prefs.setAppTourSeen();
+  void _onTutorialTick() {
+    if (mounted) _maybeShowTutorialTip();
+  }
+
+  /// Drives the guided tour's Home-anchored steps. Tips only appear while
+  /// Home is the visible tab with no route pushed above it. Action steps pass
+  /// the tap through to the real control; info steps advance via their own
+  /// Next button.
+  void _maybeShowTutorialTip() {
+    if (!mounted || _isLoading) return;
+    if (mainShellTabIndex.value != 0) return;
+    final route = ModalRoute.of(context);
+    if (route != null && !route.isCurrent) return;
+    final l10n = context.l10nRead;
+    final svc = TutorialService.instance;
+    switch (svc.step) {
+      case TutorialStep.viewTransactions:
+        // Waits silently until the first scanned (or manual) transaction
+        // exists — the tour starts from something real.
+        if (_recentTransactions.isEmpty) return;
+        TutorialTips.show(
+          context,
+          step: TutorialStep.viewTransactions,
+          anchor: _firstRecentTxnKey,
+          title: l10n.tutViewTxnsTitle,
+          message: l10n.tutViewTxnsBody,
+        );
+      case TutorialStep.health:
+        TutorialTips.show(
+          context,
+          step: TutorialStep.health,
+          anchor: _balanceCardKey,
+          title: l10n.tutHealthTitle,
+          message: l10n.tutHealthBody,
+          passthrough: false,
+          buttonLabel: l10n.tutNext,
+          onButton: () => svc.advanceFrom(TutorialStep.health),
+          advanceIfMissing: true,
+        );
+      case TutorialStep.goals:
+        TutorialTips.show(
+          context,
+          step: TutorialStep.goals,
+          anchor: _goalsCardKey,
+          title: l10n.tutGoalsTitle,
+          message: l10n.tutGoalsBody,
+          passthrough: false,
+          buttonLabel: l10n.tutNext,
+          onButton: () => svc.advanceFrom(TutorialStep.goals),
+          advanceIfMissing: true,
+        );
+      case TutorialStep.budgetsTab:
+        TutorialTips.show(
+          context,
+          step: TutorialStep.budgetsTab,
+          anchor: TutorialAnchors.budgetsTab,
+          title: l10n.tutBudgetsTitle,
+          message: l10n.tutBudgetsBody,
+          shape: SpotlightShape.circle,
+          passthrough: false,
+          buttonLabel: l10n.tutNext,
+          onButton: () => svc.advanceFrom(TutorialStep.budgetsTab),
+          advanceIfMissing: true,
+        );
+      case TutorialStep.investTab:
+        TutorialTips.show(
+          context,
+          step: TutorialStep.investTab,
+          anchor: TutorialAnchors.investTab,
+          title: l10n.tutInvestTitle,
+          message: l10n.tutInvestBody,
+          shape: SpotlightShape.circle,
+          passthrough: false,
+          buttonLabel: l10n.tutNext,
+          onButton: () => svc.advanceFrom(TutorialStep.investTab),
+          advanceIfMissing: true,
+        );
+      case TutorialStep.powerUps:
+        TutorialTips.show(
+          context,
+          step: TutorialStep.powerUps,
+          anchor: TutorialAnchors.settingsTab,
+          title: l10n.tutPowerUpsTitle,
+          message: l10n.tutPowerUpsBody,
+          shape: SpotlightShape.circle,
+          passthrough: false,
+          buttonLabel: l10n.tutFinish,
+          onButton: () {
+            svc.advanceFrom(TutorialStep.powerUps);
+            showAppToast(
+              context,
+              message: context.l10nRead.tutDoneToast,
+              type: AppToastType.success,
+            );
+          },
+          advanceIfMissing: true,
+        );
+      default:
+        break;
+    }
   }
 
   void _onSpotlightRequest() {
@@ -264,6 +364,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
       // Keep the home-screen widget in sync
       WidgetService.update();
+
+      // A data refresh can satisfy the tour's current step (e.g. the first
+      // scanned transaction just arrived) — re-evaluate after this frame.
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _maybeShowTutorialTip());
     } catch (e) {
       debugPrint('Error loading data: $e');
     }
@@ -511,8 +616,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           const SizedBox(height: 4),
                           FadeSlideIn(
                             order: 1,
-                            child:
-                                _buildBalanceCard(showHealthInline: !detailed),
+                            child: KeyedSubtree(
+                              key: _balanceCardKey,
+                              child: _buildBalanceCard(
+                                  showHealthInline: !detailed),
+                            ),
                           ),
                           // Full Financial Health breakdown card — only in the
                           // detailed view; otherwise the compact score sits on
@@ -551,7 +659,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           const SizedBox(height: 12),
                           FadeSlideIn(order: 4, child: _buildCashSection()),
                           const SizedBox(height: 12),
-                          FadeSlideIn(order: 5, child: const HomeGoalsCard()),
+                          FadeSlideIn(
+                            order: 5,
+                            child: KeyedSubtree(
+                              key: _goalsCardKey,
+                              child: const HomeGoalsCard(),
+                            ),
+                          ),
                           const SizedBox(height: 12),
                           FadeSlideIn(
                               order: 5, child: const UpcomingRecurringCard()),
@@ -1279,6 +1393,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               return Column(
                 children: [
                   ListTile(
+                    // Tour anchor: the first row is what the "a transaction
+                    // just landed" tip points at.
+                    key: index == 0 ? _firstRecentTxnKey : null,
                     leading: TransactionLeadingIcon(
                       transaction: transaction,
                       size: 42,
