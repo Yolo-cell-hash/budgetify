@@ -7,6 +7,7 @@ import 'package:file_picker/file_picker.dart';
 
 import 'custom_tag_service.dart';
 import 'database_service.dart';
+import 'entitlement_service.dart';
 import 'gamification_service.dart';
 
 /// Result of a restore operation.
@@ -150,6 +151,9 @@ class BackupService {
     data['tag_settings'] = tagService.exportSettings();
     // Gamified Budgets: profile, avatar, streak, unlock dates (offline).
     data['gamification'] = await GamificationService().exportSettings();
+    // Trial anchor (first-use timestamp) so the free-window clock survives a
+    // reinstall + restore. Silent — never surfaced to the user.
+    data['entitlement'] = await EntitlementService().exportSettings();
 
     final payloadJson = jsonEncode({
       'magic': _magic,
@@ -210,6 +214,12 @@ class BackupService {
     // Restore Gamified Budgets profile + streak + unlock state.
     await GamificationService().importSettings(
       (data['gamification'] as Map?)?.cast<String, dynamic>(),
+    );
+
+    // Restore the trial anchor (earliest first-use wins; never extends the
+    // trial). Kept out of RestoreResult so nothing is surfaced to the user.
+    await EntitlementService().importSettings(
+      (data['entitlement'] as Map?)?.cast<String, dynamic>(),
     );
 
     // Now that classification rules are back, auto-tag any past
