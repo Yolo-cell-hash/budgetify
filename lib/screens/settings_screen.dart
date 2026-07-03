@@ -51,10 +51,73 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _loading = true;
   int _longestStreak = 0;
 
+  // Guided-tour anchors: the Intelligence and Appearance section headers.
+  final GlobalKey _tutIntelligenceKey = GlobalKey();
+  final GlobalKey _tutAppearanceKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
     _loadSettings();
+    TutorialService.instance.addListener(_onTutorialTick);
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _maybeShowTutorialTip());
+  }
+
+  @override
+  void dispose() {
+    TutorialService.instance.removeListener(_onTutorialTick);
+    super.dispose();
+  }
+
+  void _onTutorialTick() {
+    if (mounted) _maybeShowTutorialTip();
+  }
+
+  /// The tour's last two stops: the Intelligence power-ups, then the
+  /// personalisation section — finishing sends the user gently back Home.
+  void _maybeShowTutorialTip() {
+    if (!mounted) return;
+    if (mainShellTabIndex.value != 4) return;
+    final route = ModalRoute.of(context);
+    if (route != null && !route.isCurrent) return;
+    final svc = TutorialService.instance;
+    final l10n = context.l10nRead;
+    if (svc.isAt(TutorialStep.settingsIntro)) {
+      TutorialTips.show(
+        context,
+        step: TutorialStep.settingsIntro,
+        anchor: _tutIntelligenceKey,
+        title: l10n.tutSettingsIntroTitle,
+        message: l10n.tutSettingsIntroBody,
+        passthrough: false,
+        buttonLabel: l10n.tutNext,
+        onButton: () =>
+            TutorialService.instance.advanceFrom(TutorialStep.settingsIntro),
+        advanceIfMissing: true,
+      );
+    } else if (svc.isAt(TutorialStep.settingsMore)) {
+      TutorialTips.show(
+        context,
+        step: TutorialStep.settingsMore,
+        anchor: _tutAppearanceKey,
+        title: l10n.tutSettingsMoreTitle,
+        message: l10n.tutSettingsMoreBody,
+        passthrough: false,
+        buttonLabel: l10n.tutFinish,
+        onButton: () {
+          TutorialService.instance.advanceFrom(TutorialStep.settingsMore);
+          showAppToast(
+            context,
+            message: context.l10nRead.tutDoneToast,
+            type: AppToastType.success,
+          );
+          // Close the loop where it began — a soft cross-fade back Home.
+          mainShellTabRequest.value = 0;
+        },
+        advanceIfMissing: true,
+      );
+    }
   }
 
   Future<void> _loadSettings() async {
@@ -124,7 +187,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           // Appearance Section
-          _buildSectionHeader(context.l10n.appearance, isDark),
+          KeyedSubtree(
+            key: _tutAppearanceKey,
+            child: _buildSectionHeader(context.l10n.appearance, isDark),
+          ),
           const SizedBox(height: 8),
           _buildSettingsCard(
             isDark: isDark,
@@ -397,7 +463,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 24),
 
           // Intelligence Section
-          _buildSectionHeader(context.l10n.intelligenceSection, isDark),
+          KeyedSubtree(
+            key: _tutIntelligenceKey,
+            child:
+                _buildSectionHeader(context.l10n.intelligenceSection, isDark),
+          ),
           const SizedBox(height: 8),
           _buildSettingsCard(
             isDark: isDark,

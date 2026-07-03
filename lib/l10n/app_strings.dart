@@ -2062,6 +2062,14 @@ class AppStrings {
       _t('Midnight Indigo', 'मिडनाइट इंडिगो', 'मिडनाइट इंडिगो', 'মিডনাইট ইন্ডিগো');
 
   // ── Onboarding ────────────────────────────────────────────────────────────
+  String get chooseLanguageTitle => _t('Choose your language',
+      'अपनी भाषा चुनें', 'तुमची भाषा निवडा', 'আপনার ভাষা বেছে নিন');
+  String get chooseLanguageDesc => _t(
+        'Budgetify — and its guided tour — will use this language. You can change it anytime in Settings.',
+        'Budgetify और इसका गाइडेड टूर इसी भाषा में चलेंगे। इसे कभी भी सेटिंग्स में बदला जा सकता है।',
+        'Budgetify आणि त्याचा गाईडेड टूर याच भाषेत चालतील. हे केव्हाही सेटिंग्जमध्ये बदलता येते.',
+        'Budgetify আর তার গাইডেড ট্যুর এই ভাষাতেই চলবে। এটি যেকোনো সময় সেটিংসে বদলানো যায়।',
+      );
   String get onboardWelcomeTitle => _t('Welcome to\nBudget Tracker',
       'Budget Tracker में\nआपका स्वागत है', 'Budget Tracker मध्ये\nआपले स्वागत आहे', 'Budget Tracker-এ\nস্বাগতম');
   String get onboardWelcomeDesc => _t(
@@ -2804,29 +2812,67 @@ class AppStrings {
         'एखादे उद्दिष्ट ठेवा — सहल, फोन — हळूहळू भर घालत राहा आणि बरणी भरताना पाहा.',
         'একটা লক্ষ্য রাখুন — কোনো ভ্রমণ, কোনো ফোন — অল্প অল্প করে জমান আর জারটা ভরে উঠতে দেখুন।',
       );
+  String get tutTapTabBody => _t(
+        'Tap the highlighted tab below to open it.',
+        'नीचे हाइलाइट किए गए टैब पर टैप करके खोलें।',
+        'खाली हायलाइट केलेल्या टॅबवर टॅप करून उघडा.',
+        'নিচে হাইলাইট করা ট্যাবে ট্যাপ করে খুলুন।',
+      );
   String get tutBudgetsTitle => _t('Budgets live here',
       'बजट यहाँ रहते हैं', 'बजेट इथे असतात', 'বাজেট থাকে এখানে');
-  String get tutBudgetsBody => _t(
-        'Set monthly and per-category limits — Budgetify paces you and nudges before you overshoot.',
-        'मासिक और श्रेणी-वार सीमाएँ तय करें — Budgetify आपकी गति बनाए रखता है और सीमा पार होने से पहले आगाह करता है।',
-        'मासिक व श्रेणीनिहाय मर्यादा ठरवा — Budgetify तुमचा वेग सांभाळते आणि मर्यादा ओलांडण्यापूर्वी सुचवते.',
-        'মাসিক ও ক্যাটাগরি-ভিত্তিক সীমা ঠিক করুন — Budgetify আপনার গতি বজায় রাখে আর সীমা ছাড়ানোর আগে সতর্ক করে।',
+  String get tutBudgetsIntroTitle => _t(
+      'Pace your month', 'महीने की रफ़्तार', 'महिन्याची गती', 'মাসের গতি');
+  String get tutBudgetsIntroBody => _t(
+        'Set a monthly limit and per-category caps — Budgetify paces you and nudges before you overshoot. Swipe the overview to browse past months.',
+        'मासिक सीमा और श्रेणी-वार कैप तय करें — Budgetify आपकी गति बनाए रखता है और सीमा पार होने से पहले आगाह करता है। पिछले महीने देखने के लिए ओवरव्यू स्वाइप करें।',
+        'मासिक मर्यादा आणि श्रेणीनिहाय कॅप ठरवा — Budgetify तुमचा वेग सांभाळते आणि मर्यादा ओलांडण्यापूर्वी सुचवते. मागील महिने पाहण्यासाठी ओव्हरव्ह्यू स्वाइप करा.',
+        'মাসিক সীমা ও ক্যাটাগরি-ভিত্তিক ক্যাপ ঠিক করুন — Budgetify আপনার গতি বজায় রাখে আর সীমা ছাড়ানোর আগে সতর্ক করে। আগের মাস দেখতে ওভারভিউ সোয়াইপ করুন।',
+      );
+  String get tutRecurringTabTitle => _t('Next: Recurring', 'अगला: आवर्ती',
+      'पुढे: आवर्ती', 'এরপর: পুনরাবৃত্ত');
+  String get tutRecurringIntroTitle => _t(
+        'Never miss a due date',
+        'कोई देय तारीख न छूटे',
+        'कोणतीही देय तारीख चुकणार नाही',
+        'কোনো নির্ধারিত তারিখ মিস নয়',
+      );
+  String get tutRecurringIntroBody => _t(
+        'Track SIPs, rent, EMIs and subscriptions here — Budgetify reminds you when they fall due and logs them once paid.',
+        'SIP, किराया, EMI और सब्सक्रिप्शन यहाँ ट्रैक करें — देय होने पर Budgetify याद दिलाता है और भुगतान होते ही दर्ज करता है।',
+        'SIP, भाडे, EMI आणि सबस्क्रिप्शन येथे ट्रॅक करा — देय झाल्यावर Budgetify आठवण करून देते आणि भरल्यावर नोंदवते.',
+        'SIP, ভাড়া, EMI ও সাবস্ক্রিপশন এখানে ট্র্যাক করুন — নির্ধারিত হলে Budgetify মনে করিয়ে দেয় আর পরিশোধ হলে লিখে রাখে।',
       );
   String get tutInvestTitle => _t('Investments & net worth',
       'निवेश और नेट वर्थ', 'गुंतवणूक व नेट वर्थ', 'বিনিয়োগ ও নেট ওয়ার্থ');
-  String get tutInvestBody => _t(
+  String get tutInvestIntroTitle => _t(
+        'Your whole wealth picture',
+        'आपकी पूरी संपत्ति की तस्वीर',
+        'तुमच्या संपत्तीचे संपूर्ण चित्र',
+        'আপনার সম্পদের পূর্ণ চিত্র',
+      );
+  String get tutInvestIntroBody => _t(
         'Track FDs, mutual funds, gold, stocks and loans here — assets minus liabilities, fully offline.',
         'यहाँ FD, म्यूचुअल फ़ंड, सोना, शेयर और लोन ट्रैक करें — संपत्ति में से देनदारियाँ, पूरी तरह ऑफ़लाइन।',
         'येथे FD, म्युच्युअल फंड, सोने, शेअर्स व कर्जे ट्रॅक करा — मालमत्ता वजा देणी, पूर्णपणे ऑफलाइन.',
         'এখানে FD, মিউচুয়াল ফান্ড, সোনা, শেয়ার ও ঋণ ট্র্যাক করুন — সম্পদ বিয়োগ দায়, সম্পূর্ণ অফলাইনে।',
       );
-  String get tutPowerUpsTitle => _t('One last stop: Settings',
+  String get tutSettingsTabTitle => _t('One last stop: Settings',
       'आख़िरी पड़ाव: सेटिंग्स', 'शेवटचा थांबा: सेटिंग्ज', 'শেষ গন্তব্য: সেটিংস');
-  String get tutPowerUpsBody => _t(
-        "Flip on AI Insights for on-device spending forecasts, the detailed Financial Health view, app lock, encrypted backups — and Gamified Budgets to earn badges and streaks as you track. That's the tour!",
-        'AI इनसाइट्स ऑन करें (फ़ोन पर ही खर्च का पूर्वानुमान), विस्तृत फ़ाइनेंशियल हेल्थ, ऐप लॉक, एन्क्रिप्टेड बैकअप — और बैज व स्ट्रीक कमाने के लिए Gamified Budgets। बस, टूर पूरा!',
-        'AI इनसाइट्स सुरू करा (फोनवरच खर्चाचा अंदाज), सविस्तर फायनान्शिअल हेल्थ, अ‍ॅप लॉक, एन्क्रिप्टेड बॅकअप — आणि बॅज व स्ट्रीकसाठी Gamified Budgets. झाला टूर पूर्ण!',
-        'AI ইনসাইটস চালু করুন (ফোনেই খরচের পূর্বাভাস), বিস্তারিত ফাইন্যান্সিয়াল হেলথ, অ্যাপ লক, এনক্রিপ্টেড ব্যাকআপ — আর ব্যাজ ও স্ট্রিক অর্জনে Gamified Budgets। ব্যস, ট্যুর শেষ!',
+  String get tutSettingsIntroTitle => _t('Power-ups live here',
+      'पावर-अप यहाँ हैं', 'पॉवर-अप इथे आहेत', 'পাওয়ার-আপ এখানে');
+  String get tutSettingsIntroBody => _t(
+        'Flip on AI Insights for on-device spending forecasts, the detailed Financial Health view, or Gamified Budgets to earn badges and streaks as you track.',
+        'AI इनसाइट्स ऑन करें (फ़ोन पर ही खर्च का पूर्वानुमान), विस्तृत फ़ाइनेंशियल हेल्थ व्यू, या बैज और स्ट्रीक कमाने के लिए Gamified Budgets।',
+        'AI इनसाइट्स सुरू करा (फोनवरच खर्चाचा अंदाज), सविस्तर फायनान्शिअल हेल्थ व्ह्यू, किंवा बॅज व स्ट्रीकसाठी Gamified Budgets.',
+        'AI ইনসাইটস চালু করুন (ফোনেই খরচের পূর্বাভাস), বিস্তারিত ফাইন্যান্সিয়াল হেলথ ভিউ, বা ব্যাজ ও স্ট্রিক অর্জনে Gamified Budgets।',
+      );
+  String get tutSettingsMoreTitle => _t('Make it yours',
+      'इसे अपना बनाएँ', 'हे तुमचे करा', 'নিজের মতো সাজান');
+  String get tutSettingsMoreBody => _t(
+        "App lock, encrypted backups, privacy mode, streak-reward themes and your language all live here. That's the tour — enjoy Budgetify!",
+        'ऐप लॉक, एन्क्रिप्टेड बैकअप, प्राइवेसी मोड, स्ट्रीक-रिवॉर्ड थीम और आपकी भाषा — सब यहीं। बस, टूर पूरा — Budgetify का आनंद लें!',
+        'अ‍ॅप लॉक, एन्क्रिप्टेड बॅकअप, प्रायव्हसी मोड, स्ट्रीक-रिवॉर्ड थीम आणि तुमची भाषा — सारे इथेच. झाला टूर — Budgetify चा आनंद घ्या!',
+        'অ্যাপ লক, এনক্রিপ্টেড ব্যাকআপ, প্রাইভেসি মোড, স্ট্রিক-রিওয়ার্ড থিম আর আপনার ভাষা — সব এখানেই। ট্যুর শেষ — Budgetify উপভোগ করুন!',
       );
   String get tutDoneToast => _t(
         "Tour complete — you're all set!",

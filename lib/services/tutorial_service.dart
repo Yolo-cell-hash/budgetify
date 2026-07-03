@@ -12,12 +12,16 @@ import '../widgets/spotlight.dart';
 /// 2. The transactions list → "open this transaction"
 /// 3. The detail screen → "pick a tag", then "save it"
 /// 4. The apply-options sheet explains Apply to All / Existing / Only This One
-/// 5. Back on Home, info tips walk the Financial Health score, Savings Goals,
-///    the Budgets and Net Worth (investments) tabs, and the Settings
-///    power-ups (AI prediction mode, detailed health, Gamified Budgets).
+/// 5. Back on Home, info tips cover the Financial Health score and Savings
+///    Goals, then the tour walks INTO every section: the user taps each
+///    highlighted tab (Budgets → Recurring → Net Worth → Settings) and gets
+///    an in-place intro there, ending on the Settings power-ups and
+///    personalisation before returning Home.
 ///
 /// Progress persists across launches; every tip offers "Skip tour"; the tour
-/// can be replayed from Settings → About.
+/// can be replayed from Settings → About. All copy resolves through the
+/// active [AppStrings] table, so the tour runs in the language chosen during
+/// onboarding.
 enum TutorialStep {
   viewTransactions,
   openTransaction,
@@ -27,8 +31,14 @@ enum TutorialStep {
   health,
   goals,
   budgetsTab,
+  budgetsIntro,
+  recurringTab,
+  recurringIntro,
   investTab,
-  powerUps,
+  investIntro,
+  settingsTab,
+  settingsIntro,
+  settingsMore,
   done,
 }
 
@@ -36,7 +46,9 @@ class TutorialService extends ChangeNotifier {
   TutorialService._();
   static final TutorialService instance = TutorialService._();
 
-  static const String _stepKey = 'tutorial_step_v1';
+  // v2: the step list grew (per-section intros), so stored v1 indexes no
+  // longer line up — a fresh key simply restarts the tour once.
+  static const String _stepKey = 'tutorial_step_v2';
 
   TutorialStep _step = TutorialStep.done;
   bool _loaded = false;
@@ -105,6 +117,7 @@ class TutorialService extends ChangeNotifier {
 class TutorialAnchors {
   TutorialAnchors._();
   static final GlobalKey budgetsTab = GlobalKey();
+  static final GlobalKey recurringTab = GlobalKey();
   static final GlobalKey investTab = GlobalKey();
   static final GlobalKey settingsTab = GlobalKey();
 }

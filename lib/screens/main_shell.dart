@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../l10n/l10n.dart';
 import '../services/app_events.dart';
 import '../services/tutorial_service.dart';
+import '../widgets/spotlight.dart';
 import 'budget_screen.dart';
 import 'home_screen.dart';
 import 'net_worth_screen.dart';
@@ -41,12 +42,75 @@ class _MainShellState extends State<MainShell> {
     // Home right after Gamified Budgets is enabled, so the new entry point
     // can be spotlighted there).
     mainShellTabRequest.addListener(_onTabRequest);
+    // The tour's "tap this tab" tips are anchored on the bottom bar, which
+    // belongs to this shell — so the shell shows them whichever tab is open.
+    TutorialService.instance.addListener(_onTutorialTick);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowTabTip());
   }
 
   @override
   void dispose() {
+    TutorialService.instance.removeListener(_onTutorialTick);
     mainShellTabRequest.removeListener(_onTabRequest);
     super.dispose();
+  }
+
+  void _onTutorialTick() {
+    if (mounted) _maybeShowTabTip();
+  }
+
+  /// The tab a tour step points at (null for non-tab steps).
+  static int? _tabForStep(TutorialStep step) => switch (step) {
+        TutorialStep.budgetsTab => 1,
+        TutorialStep.recurringTab => 2,
+        TutorialStep.investTab => 3,
+        TutorialStep.settingsTab => 4,
+        _ => null,
+      };
+
+  /// Shows the "tap the highlighted tab" tour tips (the tap passes through to
+  /// the real bar). If the user is already sitting on the target tab, the
+  /// step auto-completes — tapping the active tab is a no-op, so waiting for
+  /// it would deadlock the tour.
+  void _maybeShowTabTip() {
+    if (!mounted) return;
+    final svc = TutorialService.instance;
+    final step = svc.step;
+    final target = _tabForStep(step);
+    if (target == null) return;
+    final route = ModalRoute.of(context);
+    if (route != null && !route.isCurrent) return;
+    if (_index == target) {
+      svc.advanceFrom(step);
+      return;
+    }
+    final l10n = context.l10nRead;
+    final (anchor, title) = switch (step) {
+      TutorialStep.budgetsTab => (
+          TutorialAnchors.budgetsTab,
+          l10n.tutBudgetsTitle,
+        ),
+      TutorialStep.recurringTab => (
+          TutorialAnchors.recurringTab,
+          l10n.tutRecurringTabTitle,
+        ),
+      TutorialStep.investTab => (
+          TutorialAnchors.investTab,
+          l10n.tutInvestTitle,
+        ),
+      _ => (
+          TutorialAnchors.settingsTab,
+          l10n.tutSettingsTabTitle,
+        ),
+    };
+    TutorialTips.show(
+      context,
+      step: step,
+      anchor: anchor,
+      title: title,
+      message: l10n.tutTapTabBody,
+      shape: SpotlightShape.circle,
+    );
   }
 
   void _onTabRequest() {
@@ -90,6 +154,7 @@ class _MainShellState extends State<MainShell> {
       _pages[i] ??= _build(i);
     });
     mainShellTabIndex.value = i;
+    _completeTabStep(i);
     TutorialService.instance.poke();
   }
 
@@ -106,7 +171,23 @@ class _MainShellState extends State<MainShell> {
       _fading = false;
     });
     mainShellTabIndex.value = i;
+    _completeTabStep(i);
     TutorialService.instance.poke();
+  }
+
+  /// Landing on a tab completes the tour step that asked for it.
+  void _completeTabStep(int i) {
+    final svc = TutorialService.instance;
+    switch (i) {
+      case 1:
+        svc.advanceFrom(TutorialStep.budgetsTab);
+      case 2:
+        svc.advanceFrom(TutorialStep.recurringTab);
+      case 3:
+        svc.advanceFrom(TutorialStep.investTab);
+      case 4:
+        svc.advanceFrom(TutorialStep.settingsTab);
+    }
   }
 
   @override
@@ -134,8 +215,7 @@ class _MainShellState extends State<MainShell> {
             label: context.l10n.navHome,
           ),
           BottomNavigationBarItem(
-            // KeyedSubtree anchors let the guided tour spotlight these tabs
-            // from the Home screen.
+            // KeyedSubtree anchors let the guided tour spotlight these tabs.
             icon: KeyedSubtree(
               key: TutorialAnchors.budgetsTab,
               child: const Icon(Icons.pie_chart_outline_rounded),
@@ -144,7 +224,10 @@ class _MainShellState extends State<MainShell> {
             label: context.l10n.navBudgets,
           ),
           BottomNavigationBarItem(
-            icon: const Icon(Icons.event_repeat_outlined),
+            icon: KeyedSubtree(
+              key: TutorialAnchors.recurringTab,
+              child: const Icon(Icons.event_repeat_outlined),
+            ),
             activeIcon: const Icon(Icons.event_repeat_rounded),
             label: context.l10n.navRecurring,
           ),

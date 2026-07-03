@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../l10n/app_strings.dart';
 import '../l10n/l10n.dart';
 import '../providers/app_preferences.dart';
+import '../providers/locale_provider.dart';
 import '../services/background_service.dart';
 import '../widgets/app_toast.dart';
 import 'main_shell.dart';
@@ -28,7 +30,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   void _nextPage() {
-    if (_currentPage < 1) {
+    if (_currentPage < 2) {
       _pageController.nextPage(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
@@ -87,7 +89,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           children: [
             // Progress indicator
             LinearProgressIndicator(
-              value: (_currentPage + 1) / 2,
+              value: (_currentPage + 1) / 3,
               backgroundColor: isDark
                   ? Color(0xFF2E313A)
                   : Color(0xFFE9E9E4),
@@ -103,10 +105,135 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 onPageChanged: (page) => setState(() => _currentPage = page),
                 physics: const NeverScrollableScrollPhysics(),
                 children: [
+                  _buildLanguagePage(isDark),
                   _buildWelcomePage(isDark),
                   _buildPermissionsPage(isDark),
                 ],
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// First step: pick the app language. The choice applies instantly (the
+  /// rest of onboarding — and the guided tour after it — re-render in it),
+  /// defaults to English, and can be changed later in Settings.
+  Widget _buildLanguagePage(bool isDark) {
+    final current = context.watch<LocaleProvider>().language;
+    return Padding(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Spacer(),
+          Icon(
+            Icons.translate_rounded,
+            size: 72,
+            color: Theme.of(context).primaryColor,
+          ),
+          const SizedBox(height: 24),
+          Text(
+            context.l10n.chooseLanguageTitle,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: isDark ? Colors.white : Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            context.l10n.chooseLanguageDesc,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 14,
+              color: isDark ? const Color(0xFF9A9DA6) : const Color(0xFF6E727C),
+            ),
+          ),
+          const SizedBox(height: 28),
+          for (final lang in AppLanguage.values) ...[
+            _languageOption(lang, current == lang, isDark),
+            const SizedBox(height: 10),
+          ],
+          const Spacer(),
+          SizedBox(
+            width: double.infinity,
+            height: 56,
+            child: ElevatedButton(
+              onPressed: _nextPage,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).primaryColor,
+                foregroundColor: Colors.white,
+              ),
+              child: Text(
+                context.l10n.commonContinue,
+                style: const TextStyle(fontSize: 18),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _languageOption(AppLanguage lang, bool selected, bool isDark) {
+    final accent = Theme.of(context).primaryColor;
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: () => context.read<LocaleProvider>().setLanguage(lang),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        decoration: BoxDecoration(
+          color: selected
+              ? accent.withOpacity(isDark ? 0.16 : 0.10)
+              : (isDark ? const Color(0xFF16181E) : Colors.white),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: selected
+                ? accent
+                : (isDark ? const Color(0xFF2E313A) : const Color(0xFFE9E9E4)),
+            width: selected ? 1.4 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    lang.nativeName,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                  if (lang != AppLanguage.english)
+                    Text(
+                      lang.englishName,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDark
+                            ? const Color(0xFF8A8D96)
+                            : const Color(0xFF6E727C),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Icon(
+              selected
+                  ? Icons.check_circle_rounded
+                  : Icons.radio_button_unchecked,
+              size: 22,
+              color: selected
+                  ? accent
+                  : (isDark ? const Color(0xFF4E525C) : const Color(0xFFD5D5CF)),
             ),
           ],
         ),

@@ -8,9 +8,11 @@ import '../models/holding.dart';
 import '../models/net_worth_projection.dart';
 import '../models/sip.dart';
 import '../providers/theme_provider.dart';
+import '../services/app_events.dart';
 import '../services/custom_tag_service.dart';
 import '../services/database_service.dart';
 import '../services/sip_service.dart';
+import '../services/tutorial_service.dart';
 import '../services/widget_service.dart';
 import '../widgets/app_bar_title.dart';
 import '../widgets/app_dialog.dart';
@@ -53,10 +55,49 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
   bool _loading = true;
   bool _reviewHandled = false;
 
+  // Guided-tour anchor (the screen title) for this section's intro tip.
+  final GlobalKey _tutTitleKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
     _load();
+    TutorialService.instance.addListener(_onTutorialTick);
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _maybeShowTutorialTip());
+  }
+
+  @override
+  void dispose() {
+    TutorialService.instance.removeListener(_onTutorialTick);
+    super.dispose();
+  }
+
+  void _onTutorialTick() {
+    if (mounted) _maybeShowTutorialTip();
+  }
+
+  /// Guided tour: explains this section once the user lands on it, then the
+  /// next tab's tip takes over.
+  void _maybeShowTutorialTip() {
+    if (!mounted) return;
+    if (mainShellTabIndex.value != 3) return;
+    if (!TutorialService.instance.isAt(TutorialStep.investIntro)) return;
+    final route = ModalRoute.of(context);
+    if (route != null && !route.isCurrent) return;
+    final l10n = context.l10nRead;
+    TutorialTips.show(
+      context,
+      step: TutorialStep.investIntro,
+      anchor: _tutTitleKey,
+      title: l10n.tutInvestIntroTitle,
+      message: l10n.tutInvestIntroBody,
+      passthrough: false,
+      buttonLabel: l10n.tutNext,
+      onButton: () =>
+          TutorialService.instance.advanceFrom(TutorialStep.investIntro),
+      advanceIfMissing: true,
+    );
   }
 
   Future<void> _load() async {
@@ -99,8 +140,11 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
     final colors = AppColors.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: AppBarTitle(context.l10n.navNetWorth,
-            icon: Icons.account_balance_wallet_rounded),
+        title: KeyedSubtree(
+          key: _tutTitleKey,
+          child: AppBarTitle(context.l10n.navNetWorth,
+              icon: Icons.account_balance_wallet_rounded),
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openEditor(),

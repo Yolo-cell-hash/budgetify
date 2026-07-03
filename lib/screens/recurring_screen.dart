@@ -10,6 +10,7 @@ import '../providers/theme_provider.dart';
 import '../services/app_events.dart';
 import '../services/database_service.dart';
 import '../services/recurring_service.dart';
+import '../services/tutorial_service.dart';
 import '../widgets/app_bar_title.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/privacy_amount.dart';
@@ -71,11 +72,44 @@ class _RecurringScreenState extends State<RecurringScreen> {
   static const String _dismissedKey = 'recurring_dismissed_suggestions_v1';
   Set<String> _dismissedSuggestions = {};
 
+  // Guided-tour anchor (the screen title) for this section's intro tip.
+  final GlobalKey _tutTitleKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
     appDataRevision.addListener(_load);
     _initAndLoad();
+    TutorialService.instance.addListener(_onTutorialTick);
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _maybeShowTutorialTip());
+  }
+
+  void _onTutorialTick() {
+    if (mounted) _maybeShowTutorialTip();
+  }
+
+  /// Guided tour: explains this section once the user lands on it, then the
+  /// next tab's tip takes over.
+  void _maybeShowTutorialTip() {
+    if (!mounted) return;
+    if (mainShellTabIndex.value != 2) return;
+    if (!TutorialService.instance.isAt(TutorialStep.recurringIntro)) return;
+    final route = ModalRoute.of(context);
+    if (route != null && !route.isCurrent) return;
+    final l10n = context.l10nRead;
+    TutorialTips.show(
+      context,
+      step: TutorialStep.recurringIntro,
+      anchor: _tutTitleKey,
+      title: l10n.tutRecurringIntroTitle,
+      message: l10n.tutRecurringIntroBody,
+      passthrough: false,
+      buttonLabel: l10n.tutNext,
+      onButton: () =>
+          TutorialService.instance.advanceFrom(TutorialStep.recurringIntro),
+      advanceIfMissing: true,
+    );
   }
 
   Future<void> _initAndLoad() async {
@@ -100,6 +134,7 @@ class _RecurringScreenState extends State<RecurringScreen> {
 
   @override
   void dispose() {
+    TutorialService.instance.removeListener(_onTutorialTick);
     appDataRevision.removeListener(_load);
     super.dispose();
   }
@@ -204,8 +239,11 @@ class _RecurringScreenState extends State<RecurringScreen> {
     return Scaffold(
       backgroundColor: colors.background,
       appBar: AppBar(
-        title: AppBarTitle(context.l10n.recurringPaymentsTitle,
-            icon: Icons.autorenew_rounded),
+        title: KeyedSubtree(
+          key: _tutTitleKey,
+          child: AppBarTitle(context.l10n.recurringPaymentsTitle,
+              icon: Icons.autorenew_rounded),
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _add(),
