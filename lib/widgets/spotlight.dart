@@ -205,7 +205,6 @@ class _SpotlightOverlayState extends State<_SpotlightOverlay>
   Widget build(BuildContext context) {
     final screen = MediaQuery.of(context).size;
     final hole = _hole;
-    final below = widget.target.center.dy < screen.height / 2;
 
     return FadeTransition(
       opacity: CurvedAnimation(parent: _fade, curve: Curves.easeOut),
@@ -231,7 +230,7 @@ class _SpotlightOverlayState extends State<_SpotlightOverlay>
               ),
             ),
             ..._barriers(hole, screen),
-            _card(screen, below),
+            _card(screen),
           ],
         ),
       ),
@@ -274,14 +273,28 @@ class _SpotlightOverlayState extends State<_SpotlightOverlay>
     ];
   }
 
-  Widget _card(Size screen, bool below) {
+  Widget _card(Size screen) {
     final hole = _hole;
     final hasActions = widget.buttonLabel != null || widget.skipLabel != null;
+    // Place the card in whichever band (above/below the hole) has room; when
+    // the hole swallows most of the screen, dock the card near the bottom so
+    // it never gets pushed off-screen.
+    final spaceAbove = hole.top;
+    final spaceBelow = screen.height - hole.bottom;
+    double? top;
+    double? bottom;
+    if (spaceBelow >= 150 && spaceBelow >= spaceAbove) {
+      top = hole.bottom + 18;
+    } else if (spaceAbove >= 150) {
+      bottom = (screen.height - hole.top) + 18;
+    } else {
+      bottom = 28;
+    }
     return Positioned(
       left: 20,
       right: 20,
-      top: below ? hole.bottom + 18 : null,
-      bottom: below ? null : (screen.height - hole.top) + 18,
+      top: top,
+      bottom: bottom,
       child: Align(
         alignment: widget.target.center.dx > screen.width / 2
             ? Alignment.centerRight

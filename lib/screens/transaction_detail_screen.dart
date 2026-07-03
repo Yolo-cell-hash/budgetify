@@ -312,8 +312,12 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
       ),
     );
 
-    // Guided tour: the options sheet has been seen (chosen or dismissed) —
-    // the remaining dashboard tips resume once the user is back on Home.
+    // Guided tour: the options sheet has been seen (chosen or dismissed).
+    // The tour continues on Home, so after the save settles we pop the whole
+    // way back there in one motion instead of stranding the user on the list.
+    final wasTourClassification =
+        TutorialService.instance.isAt(TutorialStep.applyOptions);
+    final navigator = Navigator.of(context);
     TutorialService.instance.advanceFrom(TutorialStep.applyOptions);
 
     if (result != null && mounted) {
@@ -322,6 +326,10 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
       // User dismissed the dialog — transaction was already saved above,
       // so pop with true to signal the calling screen to refresh.
       Navigator.pop(context, true);
+    }
+
+    if (wasTourClassification) {
+      navigator.popUntil((route) => route.isFirst);
     }
   }
 

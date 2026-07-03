@@ -51,8 +51,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _loading = true;
   int _longestStreak = 0;
 
-  // Guided-tour anchors: the Intelligence and Appearance section headers.
+  // Guided-tour anchors: the Intelligence, Backup and Appearance section
+  // headers.
   final GlobalKey _tutIntelligenceKey = GlobalKey();
+  final GlobalKey _tutBackupKey = GlobalKey();
   final GlobalKey _tutAppearanceKey = GlobalKey();
 
   @override
@@ -94,6 +96,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
         buttonLabel: l10n.tutNext,
         onButton: () =>
             TutorialService.instance.advanceFrom(TutorialStep.settingsIntro),
+        advanceIfMissing: true,
+      );
+    } else if (svc.isAt(TutorialStep.settingsData)) {
+      TutorialTips.show(
+        context,
+        step: TutorialStep.settingsData,
+        anchor: _tutBackupKey,
+        title: l10n.tutSettingsDataTitle,
+        message: l10n.tutSettingsDataBody,
+        passthrough: false,
+        buttonLabel: l10n.tutNext,
+        onButton: () =>
+            TutorialService.instance.advanceFrom(TutorialStep.settingsData),
         advanceIfMissing: true,
       );
     } else if (svc.isAt(TutorialStep.settingsMore)) {
@@ -486,8 +501,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
               value: context.watch<AppPreferences>().aiPredictionMode,
-              onChanged: (v) =>
-                  context.read<AppPreferences>().setAiPredictionMode(v),
+              onChanged: _onAiPredictionChanged,
             ),
           ),
 
@@ -509,9 +523,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
               value: context.watch<AppPreferences>().financialHealthDetailed,
-              onChanged: (v) => context
-                  .read<AppPreferences>()
-                  .setFinancialHealthDetailed(v),
+              onChanged: _onDetailedHealthChanged,
             ),
           ),
 
@@ -540,7 +552,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 24),
 
           // Backup Section
-          _buildSectionHeader(context.l10n.backupSection, isDark),
+          KeyedSubtree(
+            key: _tutBackupKey,
+            child: _buildSectionHeader(context.l10n.backupSection, isDark),
+          ),
           const SizedBox(height: 8),
           _buildSettingsCard(
             isDark: isDark,
@@ -723,6 +738,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await context.read<AppPreferences>().setGamifiedMode(enabled);
     if (!enabled) return;
     homeSpotlightRequest.value = 'rewards';
+    mainShellTabRequest.value = 0;
+  }
+
+  /// Same hand-off for AI Prediction Mode: cross-fade Home and spotlight the
+  /// Insights card that just appeared. Turning it off is silent.
+  Future<void> _onAiPredictionChanged(bool enabled) async {
+    await context.read<AppPreferences>().setAiPredictionMode(enabled);
+    if (!enabled) return;
+    homeSpotlightRequest.value = 'insights';
+    mainShellTabRequest.value = 0;
+  }
+
+  /// And for Detailed Financial Health: cross-fade Home and spotlight the
+  /// full breakdown card. Turning it off is silent.
+  Future<void> _onDetailedHealthChanged(bool enabled) async {
+    await context.read<AppPreferences>().setFinancialHealthDetailed(enabled);
+    if (!enabled) return;
+    homeSpotlightRequest.value = 'health';
     mainShellTabRequest.value = 0;
   }
 

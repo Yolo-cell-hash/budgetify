@@ -6,6 +6,7 @@ import '../l10n/l10n.dart';
 import '../models/recurring_payment.dart';
 import '../models/transaction_model.dart';
 import '../providers/theme_provider.dart';
+import '../services/tutorial_service.dart';
 
 /// Create or edit a recurring payment. Returns the built [RecurringPayment]
 /// (unsaved — the caller persists it), or null if cancelled.
@@ -161,6 +162,37 @@ class _RecurringEditorSheetState extends State<_RecurringEditorSheet> {
               style: TextStyle(
                   fontSize: 18, fontWeight: FontWeight.w700, color: colors.text),
             ),
+            // Guided tour: one-time explainer while the user is just looking
+            // around — closing the sheet unsaved moves the tour along.
+            if (TutorialService.instance.isAt(TutorialStep.recurringEditor)) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.gold.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.gold.withOpacity(0.45)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.school_outlined,
+                        size: 18, color: AppColors.gold),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        context.l10n.tutRecurringEditorBanner,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          height: 1.45,
+                          color: colors.text,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
             TextField(
               controller: _name,

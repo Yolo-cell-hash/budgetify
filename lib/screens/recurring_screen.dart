@@ -72,8 +72,9 @@ class _RecurringScreenState extends State<RecurringScreen> {
   static const String _dismissedKey = 'recurring_dismissed_suggestions_v1';
   Set<String> _dismissedSuggestions = {};
 
-  // Guided-tour anchor (the screen title) for this section's intro tip.
+  // Guided-tour anchors: the screen title and the Add button.
   final GlobalKey _tutTitleKey = GlobalKey();
+  final GlobalKey _tutFabKey = GlobalKey();
 
   @override
   void initState() {
@@ -89,27 +90,37 @@ class _RecurringScreenState extends State<RecurringScreen> {
     if (mounted) _maybeShowTutorialTip();
   }
 
-  /// Guided tour: explains this section once the user lands on it, then the
-  /// next tab's tip takes over.
+  /// Guided tour inside Recurring: the section intro, then a pass-through
+  /// tip on Add — the editor sheet carries the explainer and the user closes
+  /// it without saving.
   void _maybeShowTutorialTip() {
     if (!mounted) return;
     if (mainShellTabIndex.value != 2) return;
-    if (!TutorialService.instance.isAt(TutorialStep.recurringIntro)) return;
     final route = ModalRoute.of(context);
     if (route != null && !route.isCurrent) return;
+    final svc = TutorialService.instance;
     final l10n = context.l10nRead;
-    TutorialTips.show(
-      context,
-      step: TutorialStep.recurringIntro,
-      anchor: _tutTitleKey,
-      title: l10n.tutRecurringIntroTitle,
-      message: l10n.tutRecurringIntroBody,
-      passthrough: false,
-      buttonLabel: l10n.tutNext,
-      onButton: () =>
-          TutorialService.instance.advanceFrom(TutorialStep.recurringIntro),
-      advanceIfMissing: true,
-    );
+    if (svc.isAt(TutorialStep.recurringIntro)) {
+      TutorialTips.show(
+        context,
+        step: TutorialStep.recurringIntro,
+        anchor: _tutTitleKey,
+        title: l10n.tutRecurringIntroTitle,
+        message: l10n.tutRecurringIntroBody,
+        passthrough: false,
+        buttonLabel: l10n.tutNext,
+        onButton: () => svc.advanceFrom(TutorialStep.recurringIntro),
+        advanceIfMissing: true,
+      );
+    } else if (svc.isAt(TutorialStep.recurringAdd)) {
+      TutorialTips.show(
+        context,
+        step: TutorialStep.recurringAdd,
+        anchor: _tutFabKey,
+        title: l10n.tutRecurringAddTitle,
+        message: l10n.tutRecurringAddBody,
+      );
+    }
   }
 
   Future<void> _initAndLoad() async {
@@ -157,7 +168,11 @@ class _RecurringScreenState extends State<RecurringScreen> {
   }
 
   Future<void> _add({RecurringPayment? template}) async {
+    // Guided tour: tapping Add completes its step; the editor sheet carries
+    // the explainer banner and the tour resumes once the sheet closes.
+    TutorialService.instance.advanceFrom(TutorialStep.recurringAdd);
     final plan = await showRecurringEditor(context, template: template);
+    TutorialService.instance.advanceFrom(TutorialStep.recurringEditor);
     if (plan == null) return;
     await _db.insertRecurringPayment(plan);
     await _load();
@@ -245,10 +260,13 @@ class _RecurringScreenState extends State<RecurringScreen> {
               icon: Icons.autorenew_rounded),
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _add(),
-        icon: const Icon(Icons.add_rounded),
-        label: Text(context.l10n.addRecurring),
+      floatingActionButton: KeyedSubtree(
+        key: _tutFabKey, // guided-tour anchor
+        child: FloatingActionButton.extended(
+          onPressed: () => _add(),
+          icon: const Icon(Icons.add_rounded),
+          label: Text(context.l10n.addRecurring),
+        ),
       ),
       body: views == null
           ? const Center(child: CircularProgressIndicator())

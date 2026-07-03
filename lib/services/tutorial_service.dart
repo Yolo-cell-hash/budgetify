@@ -12,11 +12,19 @@ import '../widgets/spotlight.dart';
 /// 2. The transactions list → "open this transaction"
 /// 3. The detail screen → "pick a tag", then "save it"
 /// 4. The apply-options sheet explains Apply to All / Existing / Only This One
-/// 5. Back on Home, info tips cover the Financial Health score and Savings
-///    Goals, then the tour walks INTO every section: the user taps each
-///    highlighted tab (Budgets → Recurring → Net Worth → Settings) and gets
-///    an in-place intro there, ending on the Settings power-ups and
-///    personalisation before returning Home.
+/// 5. Classifying pops the user straight back to Home, where info tips cover
+///    the Financial Health score and Savings Goals; the tour then walks INTO
+///    every section — the user taps each highlighted tab and gets a guided
+///    chain in place:
+///    · Budgets: the Set-Budget button → the calendar heatmap → per-category
+///      caps → the Trends tab (the tour drives the tab bar itself)
+///    · Recurring: intro → tap Add to open the editor, which carries a
+///      one-time explainer (cadence, due date, reminders) → close unsaved
+///    · Net Worth: intro → tap Add → the holding editor explains asset types
+///      (FD = one-time; RD/SIP recur and remind on the entered date) and
+///      liabilities → close unsaved
+///    · Settings: the Intelligence power-ups → backup/import/export → the
+///      personalisation section, then Finish cross-fades back Home.
 ///
 /// Progress persists across launches; every tip offers "Skip tour"; the tour
 /// can be replayed from Settings → About. All copy resolves through the
@@ -32,12 +40,20 @@ enum TutorialStep {
   goals,
   budgetsTab,
   budgetsIntro,
+  budgetsHeatmap,
+  budgetsCategories,
+  budgetsTrends,
   recurringTab,
   recurringIntro,
+  recurringAdd,
+  recurringEditor,
   investTab,
   investIntro,
+  investAdd,
+  investEditor,
   settingsTab,
   settingsIntro,
+  settingsData,
   settingsMore,
   done,
 }
@@ -46,9 +62,9 @@ class TutorialService extends ChangeNotifier {
   TutorialService._();
   static final TutorialService instance = TutorialService._();
 
-  // v2: the step list grew (per-section intros), so stored v1 indexes no
-  // longer line up — a fresh key simply restarts the tour once.
-  static const String _stepKey = 'tutorial_step_v2';
+  // v3: the step list grew again (in-section chains), so stored v2 indexes
+  // no longer line up — a fresh key simply restarts the tour once.
+  static const String _stepKey = 'tutorial_step_v3';
 
   TutorialStep _step = TutorialStep.done;
   bool _loaded = false;
@@ -131,6 +147,11 @@ class TutorialTips {
   static TutorialStep? _shownFor;
   static bool _listening = false;
 
+  // Monotonic ticket: every new show()/dismiss() invalidates in-flight show
+  // attempts (they await scrolling/retries), so overlapping calls can't
+  // clobber each other's overlay — the latest request wins.
+  static int _seq = 0;
+
   static void _ensureListening() {
     if (_listening) return;
     _listening = true;
@@ -159,9 +180,10 @@ class TutorialTips {
     _ensureListening();
     final svc = TutorialService.instance;
     if (_shownFor == step && (_handle?.isShowing ?? false)) return;
+    final ticket = ++_seq;
 
     for (var attempt = 0; attempt < 8; attempt++) {
-      if (!context.mounted || !svc.isAt(step)) return;
+      if (ticket != _seq || !context.mounted || !svc.isAt(step)) return;
       final anchorContext = anchor.currentContext;
       if (anchorContext != null) {
         await Scrollable.ensureVisible(
@@ -169,7 +191,7 @@ class TutorialTips {
           duration: const Duration(milliseconds: 280),
           alignment: 0.3,
         );
-        if (!context.mounted || !svc.isAt(step)) return;
+        if (ticket != _seq || !context.mounted || !svc.isAt(step)) return;
         if (_shownFor == step && (_handle?.isShowing ?? false)) return;
         dismiss();
         final handle = showSpotlightTip(
@@ -196,6 +218,7 @@ class TutorialTips {
   }
 
   static void dismiss() {
+    _seq++; // cancel any in-flight show attempts
     _handle?.close();
     _handle = null;
     _shownFor = null;
