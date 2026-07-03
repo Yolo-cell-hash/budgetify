@@ -52,7 +52,7 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 20));
 
     final prefs = await SharedPreferences.getInstance();
-    expect(prefs.getInt('tutorial_step_v3'), TutorialStep.health.index);
+    expect(prefs.getInt('tutorial_step_v4'), TutorialStep.health.index);
   });
 
   test('inert before load — triggers do nothing', () {

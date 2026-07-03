@@ -40,8 +40,10 @@ enum TutorialStep {
   goals,
   budgetsTab,
   budgetsIntro,
+  budgetsSetBudget,
   budgetsHeatmap,
   budgetsCategories,
+  budgetsCategorySheet,
   budgetsTrends,
   recurringTab,
   recurringIntro,
@@ -52,7 +54,9 @@ enum TutorialStep {
   investAdd,
   investEditor,
   settingsTab,
-  settingsIntro,
+  settingsAi,
+  settingsHealth,
+  settingsGamified,
   settingsData,
   settingsMore,
   done,
@@ -62,9 +66,10 @@ class TutorialService extends ChangeNotifier {
   TutorialService._();
   static final TutorialService instance = TutorialService._();
 
-  // v3: the step list grew again (in-section chains), so stored v2 indexes
-  // no longer line up — a fresh key simply restarts the tour once.
-  static const String _stepKey = 'tutorial_step_v3';
+  // v4: the step list grew again (dialog walkthroughs, per-toggle Settings
+  // stops), so stored v3 indexes no longer line up — a fresh key simply
+  // restarts the tour once.
+  static const String _stepKey = 'tutorial_step_v4';
 
   TutorialStep _step = TutorialStep.done;
   bool _loaded = false;
@@ -157,7 +162,13 @@ class TutorialTips {
     _listening = true;
     TutorialService.instance.addListener(() {
       final shown = _shownFor;
-      if (shown != null && !TutorialService.instance.isAt(shown)) dismiss();
+      // Close a stale tip WITHOUT bumping the ticket: when a step advances,
+      // the new step's show() is usually already in flight (listeners fire in
+      // registration order) and must survive this cleanup — bumping here is
+      // what used to strand the tour between steps.
+      if (shown != null && !TutorialService.instance.isAt(shown)) {
+        _closeHandle();
+      }
     });
   }
 
@@ -176,6 +187,7 @@ class TutorialTips {
     String? buttonLabel,
     VoidCallback? onButton,
     bool advanceIfMissing = false,
+    VoidCallback? onMissing,
   }) async {
     _ensureListening();
     final svc = TutorialService.instance;
@@ -193,7 +205,7 @@ class TutorialTips {
         );
         if (ticket != _seq || !context.mounted || !svc.isAt(step)) return;
         if (_shownFor == step && (_handle?.isShowing ?? false)) return;
-        dismiss();
+        _closeHandle();
         final handle = showSpotlightTip(
           context,
           targetKey: anchor,
@@ -214,11 +226,24 @@ class TutorialTips {
       }
       await Future.delayed(const Duration(milliseconds: 150));
     }
-    if (advanceIfMissing) svc.advanceFrom(step);
+    // Anchor never appeared. [onMissing] lets multi-step chains skip past
+    // their dependent steps (e.g. a dialog walkthrough that can't open).
+    if (onMissing != null) {
+      onMissing();
+    } else if (advanceIfMissing) {
+      svc.advanceFrom(step);
+    }
   }
 
+  /// External cancellation (tab switch, screen dispose): closes the tip AND
+  /// invalidates in-flight show attempts.
   static void dismiss() {
-    _seq++; // cancel any in-flight show attempts
+    _seq++;
+    _closeHandle();
+  }
+
+  /// Close whatever tip is up without cancelling in-flight show attempts.
+  static void _closeHandle() {
     _handle?.close();
     _handle = null;
     _shownFor = null;
