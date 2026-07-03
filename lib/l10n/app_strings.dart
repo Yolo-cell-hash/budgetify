@@ -2823,10 +2823,16 @@ class AppStrings {
   String get tutBudgetsIntroTitle => _t('Set your monthly budget',
       'मासिक बजट सेट करें', 'मासिक बजेट सेट करा', 'মাসিক বাজেট ঠিক করুন');
   String get tutBudgetsIntroBody => _t(
-        "This button sets (or edits) the month's overall limit. Once set, a gauge appears on the Overview and paces your spending — Budgetify nudges you before you overshoot. Swipe the overview to browse past months.",
-        'यह बटन महीने की कुल सीमा तय करता (या बदलता) है। सेट होते ही ओवरव्यू पर एक गेज दिखता है जो आपकी रफ़्तार नापता है — सीमा पार होने से पहले Budgetify आगाह करता है। पिछले महीने देखने के लिए ओवरव्यू स्वाइप करें।',
-        'हे बटण महिन्याची एकूण मर्यादा ठरवते (किंवा बदलते). सेट होताच ओव्हरव्ह्यूवर एक गेज दिसते जे तुमची गती मोजते — मर्यादा ओलांडण्यापूर्वी Budgetify सुचवते. मागील महिने पाहण्यासाठी ओव्हरव्ह्यू स्वाइप करा.',
-        'এই বোতামটি মাসের মোট সীমা ঠিক করে (বা বদলায়)। সেট হলেই ওভারভিউতে একটি গেজ দেখা যায় যা আপনার গতি মাপে — সীমা ছাড়ানোর আগে Budgetify সতর্ক করে। আগের মাস দেখতে ওভারভিউ সোয়াইপ করুন।',
+        "This button sets (or edits) the month's overall limit — the Overview gauge then paces your spending against it. Tap the highlighted button to see how it works; nothing will be saved.",
+        'यह बटन महीने की कुल सीमा तय करता (या बदलता) है — फिर ओवरव्यू गेज उसी के मुकाबले आपकी रफ़्तार नापता है। यह कैसे काम करता है देखने के लिए हाइलाइट किए गए बटन पर टैप करें; कुछ सहेजा नहीं जाएगा।',
+        'हे बटण महिन्याची एकूण मर्यादा ठरवते (किंवा बदलते) — मग ओव्हरव्ह्यू गेज त्याच्या तुलनेत तुमची गती मोजते. हे कसे चालते ते पाहण्यासाठी हायलाइट केलेल्या बटणावर टॅप करा; काहीही जतन होणार नाही.',
+        'এই বোতামটি মাসের মোট সীমা ঠিক করে (বা বদলায়) — তারপর ওভারভিউ গেজ তার সাপেক্ষে আপনার গতি মাপে। কীভাবে কাজ করে দেখতে হাইলাইট করা বোতামে ট্যাপ করুন; কিছুই সেভ হবে না।',
+      );
+  String get tutBudgetDialogBanner => _t(
+        "Name the budget and enter the month's total amount — Save would start the Overview gauge pacing you against it, with a nudge before you overshoot. Just exploring — tap Cancel for now.",
+        'बजट का नाम रखें और महीने की कुल राशि भरें — Save करते ही ओवरव्यू गेज उसके मुकाबले आपकी रफ़्तार नापने लगता है, और सीमा पार होने से पहले आगाह करता है। अभी सिर्फ़ देख रहे हैं — फ़िलहाल Cancel दबाएँ।',
+        'बजेटला नाव द्या आणि महिन्याची एकूण रक्कम भरा — Save करताच ओव्हरव्ह्यू गेज त्याच्या तुलनेत तुमची गती मोजू लागते, आणि मर्यादा ओलांडण्यापूर्वी सुचवते. सध्या फक्त पाहत आहोत — आत्ता Cancel दाबा.',
+        'বাজেটের নাম দিন আর মাসের মোট পরিমাণ লিখুন — Save করলেই ওভারভিউ গেজ তার সাপেক্ষে আপনার গতি মাপতে শুরু করে, আর সীমা ছাড়ানোর আগে সতর্ক করে। এখন শুধু দেখছেন — আপাতত Cancel চাপুন।',
       );
   String get tutBudgetsHeatmapTitle => _t('The spending heatmap',
       'खर्च का हीटमैप', 'खर्चाचा हीटमॅप', 'খরচের হিটম্যাপ');
@@ -2839,10 +2845,16 @@ class AppStrings {
   String get tutBudgetsCategoriesTitle => _t('Category budgets',
       'श्रेणी बजट', 'श्रेणी बजेट', 'ক্যাটাগরি বাজেট');
   String get tutBudgetsCategoriesBody => _t(
-        'Give each category its own cap — food, travel, shopping. Set a limit here and its bar fills as the month progresses, with a nudge when you get close.',
-        'हर श्रेणी को उसकी अपनी सीमा दें — खाना, यात्रा, शॉपिंग। यहाँ सीमा तय करें और महीने के साथ उसकी पट्टी भरती जाती है; सीमा के पास पहुँचने पर आगाह किया जाता है।',
-        'प्रत्येक श्रेणीला तिची स्वतःची मर्यादा द्या — जेवण, प्रवास, खरेदी. येथे मर्यादा ठरवा आणि महिन्याबरोबर तिची पट्टी भरत जाते; मर्यादेजवळ पोहोचल्यावर सूचना मिळते.',
-        'প্রতিটি ক্যাটাগরিকে তার নিজের সীমা দিন — খাবার, ভ্রমণ, কেনাকাটা। এখানে সীমা ঠিক করুন, মাস এগোনোর সাথে তার বার ভরে ওঠে; সীমার কাছে পৌঁছালে সতর্কতা পাবেন।',
+        'Each category can carry its own cap — food, travel, shopping. Tap "Set budget" in the highlighted section to see how one is created; nothing will be saved.',
+        'हर श्रेणी की अपनी सीमा हो सकती है — खाना, यात्रा, शॉपिंग। कैसे बनती है देखने के लिए हाइलाइट किए गए हिस्से में "Set budget" पर टैप करें; कुछ सहेजा नहीं जाएगा।',
+        'प्रत्येक श्रेणीची स्वतःची मर्यादा असू शकते — जेवण, प्रवास, खरेदी. कशी तयार होते ते पाहण्यासाठी हायलाइट केलेल्या भागात "Set budget" वर टॅप करा; काहीही जतन होणार नाही.',
+        'প্রতিটি ক্যাটাগরির নিজস্ব সীমা থাকতে পারে — খাবার, ভ্রমণ, কেনাকাটা। কীভাবে তৈরি হয় দেখতে হাইলাইট করা অংশে "Set budget"-এ ট্যাপ করুন; কিছুই সেভ হবে না।',
+      );
+  String get tutCategoryBudgetBanner => _t(
+        'Pick the category below and give it a monthly cap — its bar on the Budgets tab then fills as the month progresses, with a nudge as you near the limit. Just exploring — tap Cancel for now.',
+        'नीचे श्रेणी चुनें और उसे मासिक सीमा दें — फिर Budgets टैब पर उसकी पट्टी महीने के साथ भरती जाती है, और सीमा के पास पहुँचने पर आगाह किया जाता है। अभी सिर्फ़ देख रहे हैं — फ़िलहाल Cancel दबाएँ।',
+        'खाली श्रेणी निवडा आणि तिला मासिक मर्यादा द्या — मग Budgets टॅबवर तिची पट्टी महिन्याबरोबर भरत जाते, आणि मर्यादेजवळ पोहोचल्यावर सूचना मिळते. सध्या फक्त पाहत आहोत — आत्ता Cancel दाबा.',
+        'নিচে ক্যাটাগরি বাছুন আর তাকে মাসিক সীমা দিন — তারপর Budgets ট্যাবে তার বার মাসের সাথে ভরে ওঠে, সীমার কাছে গেলে সতর্কতা পাবেন। এখন শুধু দেখছেন — আপাতত Cancel চাপুন।',
       );
   String get tutBudgetsTrendsTitle =>
       _t('Your trends', 'आपके ट्रेंड', 'तुमचे ट्रेंड', 'আপনার ট্রেন্ড');
@@ -2910,13 +2922,29 @@ class AppStrings {
       );
   String get tutSettingsTabTitle => _t('One last stop: Settings',
       'आख़िरी पड़ाव: सेटिंग्स', 'शेवटचा थांबा: सेटिंग्ज', 'শেষ গন্তব্য: সেটিংস');
-  String get tutSettingsIntroTitle => _t('Power-ups live here',
-      'पावर-अप यहाँ हैं', 'पॉवर-अप इथे आहेत', 'পাওয়ার-আপ এখানে');
-  String get tutSettingsIntroBody => _t(
-        'Three power-ups live here: AI Prediction Mode (an on-device spending forecast), Detailed Financial Health (the full score breakdown) and Gamified Budgets (badges, streaks, titles). Flip one on and Budgetify glides back Home to show you exactly what appeared.',
-        'यहाँ तीन पावर-अप हैं: AI Prediction Mode (फ़ोन पर ही खर्च का पूर्वानुमान), Detailed Financial Health (स्कोर का पूरा ब्रेकडाउन) और Gamified Budgets (बैज, स्ट्रीक, खिताब)। कोई भी ऑन करें और Budgetify होम पर ले जाकर दिखाता है कि क्या नया आया।',
-        'येथे तीन पॉवर-अप आहेत: AI Prediction Mode (फोनवरच खर्चाचा अंदाज), Detailed Financial Health (स्कोअरचे संपूर्ण ब्रेकडाउन) आणि Gamified Budgets (बॅज, स्ट्रीक, किताब). कोणतेही सुरू करा आणि Budgetify होमवर नेऊन नेमके काय आले ते दाखवते.',
-        'এখানে তিনটি পাওয়ার-আপ আছে: AI Prediction Mode (ফোনেই খরচের পূর্বাভাস), Detailed Financial Health (স্কোরের পূর্ণ ব্রেকডাউন) আর Gamified Budgets (ব্যাজ, স্ট্রিক, খেতাব)। যেকোনোটি চালু করুন — Budgetify হোমে নিয়ে গিয়ে দেখায় ঠিক কী এল।',
+  String get tutSettingsAiTitle => _t('AI Prediction Mode',
+      'AI प्रेडिक्शन मोड', 'AI प्रेडिक्शन मोड', 'AI প্রেডিকশন মোড');
+  String get tutSettingsAiBody => _t(
+        'A fully on-device forecast: your spending pace, the projected month-end total and which categories moved most — nothing ever leaves your phone. Turn it on any time and Budgetify slides Home to show you the new Insights card.',
+        'पूरी तरह फ़ोन पर चलने वाला पूर्वानुमान: आपकी खर्च की रफ़्तार, महीने के अंत का अनुमानित कुल और सबसे ज़्यादा बदली श्रेणियाँ — कुछ भी फ़ोन से बाहर नहीं जाता। कभी भी ऑन करें, Budgetify होम पर ले जाकर नया Insights कार्ड दिखाता है।',
+        'पूर्णपणे फोनवर चालणारा अंदाज: तुमची खर्चाची गती, महिनाअखेरीचा अंदाजित एकूण आणि सर्वांत जास्त बदललेल्या श्रेणी — काहीही फोनबाहेर जात नाही. केव्हाही सुरू करा, Budgetify होमवर नेऊन नवे Insights कार्ड दाखवते.',
+        'সম্পূর্ণ ফোনে চলা পূর্বাভাস: আপনার খরচের গতি, মাস-শেষের আনুমানিক মোট আর সবচেয়ে বেশি বদলানো ক্যাটাগরি — কিছুই ফোনের বাইরে যায় না। যেকোনো সময় চালু করুন, Budgetify হোমে নিয়ে গিয়ে নতুন Insights কার্ড দেখায়।',
+      );
+  String get tutSettingsHealthTitle => _t('Detailed Financial Health',
+      'विस्तृत फ़ाइनेंशियल हेल्थ', 'सविस्तर फायनान्शिअल हेल्थ', 'বিস্তারিত ফাইন্যান্সিয়াল হেলথ');
+  String get tutSettingsHealthBody => _t(
+        'Your 0–100 score blends savings rate, budget adherence, recurring load and net worth. This switch expands the compact score on the balance card into a full breakdown card — turn it on and Budgetify slides Home to reveal it.',
+        'आपका 0–100 स्कोर बचत दर, बजट पालन, आवर्ती खर्च और नेट वर्थ को मिलाकर बनता है। यह स्विच बैलेंस कार्ड के छोटे स्कोर को पूरे ब्रेकडाउन कार्ड में बदल देता है — ऑन करें, Budgetify होम पर ले जाकर दिखाता है।',
+        'तुमचा 0–100 स्कोअर बचत दर, बजेट पालन, आवर्ती खर्च आणि नेट वर्थ मिळून बनतो. हे स्विच बॅलन्स कार्डावरील छोट्या स्कोअरला संपूर्ण ब्रेकडाउन कार्डात बदलते — सुरू करा, Budgetify होमवर नेऊन दाखवते.',
+        'আপনার ০–১০০ স্কোর সঞ্চয়ের হার, বাজেট মানা, পুনরাবৃত্ত খরচ আর নেট ওয়ার্থ মিলিয়ে তৈরি। এই সুইচ ব্যালান্স কার্ডের ছোট স্কোরকে পূর্ণ ব্রেকডাউন কার্ডে বদলে দেয় — চালু করুন, Budgetify হোমে নিয়ে গিয়ে দেখায়।',
+      );
+  String get tutSettingsGamifiedTitle => _t('Gamified Budgets',
+      'गेमिफ़ाइड बजट', 'गेमिफाइड बजेट', 'গেমিফাইড বাজেট');
+  String get tutSettingsGamifiedBody => _t(
+        'Daily streaks, badge ladders, rare titles and a shareable profile — earned just by tracking, all offline. Enable it and your avatar appears top-right on Home; that avatar is the Rewards hub.',
+        'रोज़ की स्ट्रीक, बैज लैडर, दुर्लभ खिताब और शेयर करने लायक प्रोफ़ाइल — सिर्फ़ ट्रैक करते रहने से, पूरी तरह ऑफ़लाइन। ऑन करें और होम पर ऊपर-दाएँ आपका अवतार दिखेगा; वही अवतार Rewards हब है।',
+        'रोजची स्ट्रीक, बॅज शिड्या, दुर्मीळ किताब आणि शेअर करण्याजोगी प्रोफाइल — फक्त ट्रॅक करत राहिल्याने, पूर्णपणे ऑफलाइन. सुरू करा आणि होमवर वर-उजवीकडे तुमचा अवतार दिसेल; तोच अवतार Rewards हब आहे.',
+        'দৈনিক স্ট্রিক, ব্যাজ ল্যাডার, বিরল খেতাব আর শেয়ার-যোগ্য প্রোফাইল — শুধু ট্র্যাক করলেই, সম্পূর্ণ অফলাইনে। চালু করুন, হোমের ওপরে ডানদিকে আপনার অবতার দেখা যাবে; সেই অবতারই Rewards হাব।',
       );
   String get tutSettingsDataTitle => _t('Your data, your control',
       'आपका डेटा, आपका नियंत्रण', 'तुमचा डेटा, तुमचे नियंत्रण', 'আপনার ডেটা, আপনার নিয়ন্ত্রণ');

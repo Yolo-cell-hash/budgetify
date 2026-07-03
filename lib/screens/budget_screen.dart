@@ -113,9 +113,14 @@ class _BudgetScreenState extends State<BudgetScreen>
     if (mounted) _maybeShowTutorialTip();
   }
 
-  /// Guided tour inside Budgets: the Set-Budget button → the calendar
-  /// heatmap → per-category caps → the Trends chart. The tour drives the tab
-  /// bar itself, so each stop is on screen before its tip appears.
+  /// Guided tour inside Budgets — it drives the tab bar itself, so each stop
+  /// is on screen before its tip appears:
+  ///  1. pass-through on the Set-Budget button → the monthly-budget dialog
+  ///     opens with an explainer, closing it (unsaved) moves on
+  ///  2. the calendar heatmap (what the shades mean)
+  ///  3. pass-through on the category-budgets section → the per-category
+  ///     dialog opens with an explainer, closing it moves on
+  ///  4. the Trends chart.
   void _maybeShowTutorialTip() {
     if (!mounted) return;
     if (mainShellTabIndex.value != 1) return;
@@ -124,8 +129,8 @@ class _BudgetScreenState extends State<BudgetScreen>
     final svc = TutorialService.instance;
     final l10n = context.l10nRead;
 
-    void tip(TutorialStep step, int tabIndex, GlobalKey anchor, String title,
-        String message) {
+    void infoTip(TutorialStep step, int tabIndex, GlobalKey anchor,
+        String title, String message) {
       if (_tabController.index != tabIndex) {
         _tabController.animateTo(tabIndex);
       }
@@ -144,20 +149,64 @@ class _BudgetScreenState extends State<BudgetScreen>
 
     switch (svc.step) {
       case TutorialStep.budgetsIntro:
-        tip(TutorialStep.budgetsIntro, 0, _tutFabKey,
-            l10n.tutBudgetsIntroTitle, l10n.tutBudgetsIntroBody);
+        if (_tabController.index != 0) _tabController.animateTo(0);
+        // Pass-through: the user's own tap opens the real dialog, which
+        // carries the walkthrough banner.
+        TutorialTips.show(
+          context,
+          step: TutorialStep.budgetsIntro,
+          anchor: _tutFabKey,
+          title: l10n.tutBudgetsIntroTitle,
+          message: l10n.tutBudgetsIntroBody,
+        );
       case TutorialStep.budgetsHeatmap:
-        tip(TutorialStep.budgetsHeatmap, 1, _tutCalendarKey,
+        infoTip(TutorialStep.budgetsHeatmap, 1, _tutCalendarKey,
             l10n.tutBudgetsHeatmapTitle, l10n.tutBudgetsHeatmapBody);
       case TutorialStep.budgetsCategories:
-        tip(TutorialStep.budgetsCategories, 2, _tutCategoryBudgetsKey,
-            l10n.tutBudgetsCategoriesTitle, l10n.tutBudgetsCategoriesBody);
+        if (_tabController.index != 2) _tabController.animateTo(2);
+        TutorialTips.show(
+          context,
+          step: TutorialStep.budgetsCategories,
+          anchor: _tutCategoryBudgetsKey,
+          title: l10n.tutBudgetsCategoriesTitle,
+          message: l10n.tutBudgetsCategoriesBody,
+          // Section absent (no live-month data): skip its dialog step too.
+          onMissing: () => svc.advanceTo(TutorialStep.budgetsTrends),
+        );
       case TutorialStep.budgetsTrends:
-        tip(TutorialStep.budgetsTrends, 3, _tutTrendsKey,
+        infoTip(TutorialStep.budgetsTrends, 3, _tutTrendsKey,
             l10n.tutBudgetsTrendsTitle, l10n.tutBudgetsTrendsBody);
       default:
         break;
     }
+  }
+
+  /// Gold explainer strip shown inside dialogs while the guided tour is on
+  /// that step.
+  Widget _tourBanner(String text) {
+    final colors = AppColors.of(context);
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.gold.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.gold.withOpacity(0.45)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.school_outlined, size: 18, color: AppColors.gold),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style:
+                  TextStyle(fontSize: 12.5, height: 1.45, color: colors.text),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _generateAvailableMonths() {
@@ -2218,6 +2267,12 @@ class _BudgetScreenState extends State<BudgetScreen>
     final amountCtrl = TextEditingController();
     var saved = false;
 
+    // Guided tour: opening this dialog completes the categories step; the
+    // dialog carries the explainer, and closing it moves the tour to Trends.
+    // (Placed after the empty-guard above so an early return can't strand
+    // the tour on the dialog step.)
+    TutorialService.instance.advanceFrom(TutorialStep.budgetsCategories);
+
     await showAppDialog(
       context,
       builder: (ctx) => AppDialog(
@@ -2231,6 +2286,11 @@ class _BudgetScreenState extends State<BudgetScreen>
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (TutorialService.instance
+                    .isAt(TutorialStep.budgetsCategorySheet)) ...[
+                  _tourBanner(context.l10nRead.tutCategoryBudgetBanner),
+                  const SizedBox(height: 14),
+                ],
                 // Amount first so it (and the confirm button) is always in
                 // view above the keyboard, regardless of the category list.
                 TextField(
@@ -2341,6 +2401,8 @@ class _BudgetScreenState extends State<BudgetScreen>
       ),
     );
 
+    TutorialService.instance.advanceFrom(TutorialStep.budgetsCategorySheet);
+
     amountCtrl.dispose();
     if (saved) {
       await _loadData();
@@ -2356,6 +2418,9 @@ class _BudgetScreenState extends State<BudgetScreen>
   }
 
   Future<void> _showBudgetDialog() async {
+    // Guided tour: opening this dialog completes the FAB step; the dialog
+    // carries the explainer, and closing it moves the tour to the heatmap.
+    TutorialService.instance.advanceFrom(TutorialStep.budgetsIntro);
     final nameCtrl = TextEditingController(
       text: _budget?.name ?? context.l10nRead.defaultBudgetName,
     );
@@ -2373,6 +2438,11 @@ class _BudgetScreenState extends State<BudgetScreen>
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (TutorialService.instance
+                .isAt(TutorialStep.budgetsSetBudget)) ...[
+              _tourBanner(context.l10nRead.tutBudgetDialogBanner),
+              const SizedBox(height: 14),
+            ],
             TextField(
               controller: nameCtrl,
               textCapitalization: TextCapitalization.words,
@@ -2428,6 +2498,7 @@ class _BudgetScreenState extends State<BudgetScreen>
         ],
       ),
     );
+    TutorialService.instance.advanceFrom(TutorialStep.budgetsSetBudget);
   }
 }
 

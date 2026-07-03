@@ -51,9 +51,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _loading = true;
   int _longestStreak = 0;
 
-  // Guided-tour anchors: the Intelligence, Backup and Appearance section
-  // headers.
-  final GlobalKey _tutIntelligenceKey = GlobalKey();
+  // Guided-tour anchors: the three Intelligence power-up cards, the Backup
+  // section header and the Appearance section header.
+  final GlobalKey _tutAiKey = GlobalKey();
+  final GlobalKey _tutHealthDetailKey = GlobalKey();
+  final GlobalKey _tutGamifiedKey = GlobalKey();
   final GlobalKey _tutBackupKey = GlobalKey();
   final GlobalKey _tutAppearanceKey = GlobalKey();
 
@@ -85,17 +87,43 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (route != null && !route.isCurrent) return;
     final svc = TutorialService.instance;
     final l10n = context.l10nRead;
-    if (svc.isAt(TutorialStep.settingsIntro)) {
+    if (svc.isAt(TutorialStep.settingsAi)) {
       TutorialTips.show(
         context,
-        step: TutorialStep.settingsIntro,
-        anchor: _tutIntelligenceKey,
-        title: l10n.tutSettingsIntroTitle,
-        message: l10n.tutSettingsIntroBody,
+        step: TutorialStep.settingsAi,
+        anchor: _tutAiKey,
+        title: l10n.tutSettingsAiTitle,
+        message: l10n.tutSettingsAiBody,
         passthrough: false,
         buttonLabel: l10n.tutNext,
         onButton: () =>
-            TutorialService.instance.advanceFrom(TutorialStep.settingsIntro),
+            TutorialService.instance.advanceFrom(TutorialStep.settingsAi),
+        advanceIfMissing: true,
+      );
+    } else if (svc.isAt(TutorialStep.settingsHealth)) {
+      TutorialTips.show(
+        context,
+        step: TutorialStep.settingsHealth,
+        anchor: _tutHealthDetailKey,
+        title: l10n.tutSettingsHealthTitle,
+        message: l10n.tutSettingsHealthBody,
+        passthrough: false,
+        buttonLabel: l10n.tutNext,
+        onButton: () =>
+            TutorialService.instance.advanceFrom(TutorialStep.settingsHealth),
+        advanceIfMissing: true,
+      );
+    } else if (svc.isAt(TutorialStep.settingsGamified)) {
+      TutorialTips.show(
+        context,
+        step: TutorialStep.settingsGamified,
+        anchor: _tutGamifiedKey,
+        title: l10n.tutSettingsGamifiedTitle,
+        message: l10n.tutSettingsGamifiedBody,
+        passthrough: false,
+        buttonLabel: l10n.tutNext,
+        onButton: () => TutorialService.instance
+            .advanceFrom(TutorialStep.settingsGamified),
         advanceIfMissing: true,
       );
     } else if (svc.isAt(TutorialStep.settingsData)) {
@@ -478,13 +506,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 24),
 
           // Intelligence Section
-          KeyedSubtree(
-            key: _tutIntelligenceKey,
-            child:
-                _buildSectionHeader(context.l10n.intelligenceSection, isDark),
-          ),
+          _buildSectionHeader(context.l10n.intelligenceSection, isDark),
           const SizedBox(height: 8),
           _buildSettingsCard(
+            key: _tutAiKey, // guided-tour anchor
             isDark: isDark,
             child: SwitchListTile(
               secondary: Icon(
@@ -507,6 +532,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const SizedBox(height: 12),
           _buildSettingsCard(
+            key: _tutHealthDetailKey, // guided-tour anchor
             isDark: isDark,
             child: SwitchListTile(
               secondary: Icon(
@@ -529,6 +555,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const SizedBox(height: 12),
           _buildSettingsCard(
+            key: _tutGamifiedKey, // guided-tour anchor
             isDark: isDark,
             child: SwitchListTile(
               secondary: Icon(
@@ -952,8 +979,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildSettingsCard({required bool isDark, required Widget child}) {
+  Widget _buildSettingsCard(
+      {Key? key, required bool isDark, required Widget child}) {
     return Container(
+      key: key,
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF16181E) : Colors.white,
         borderRadius: BorderRadius.circular(12),
