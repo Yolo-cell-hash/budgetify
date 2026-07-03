@@ -62,6 +62,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final GlobalKey _balanceCardKey = GlobalKey();
   final GlobalKey _goalsCardKey = GlobalKey();
 
+  // Spotlight anchors for features enabled from Settings (the toggle sends
+  // the user here to see what appeared).
+  final GlobalKey _insightsCardKey = GlobalKey();
+  final GlobalKey _healthCardKey = GlobalKey();
+
   bool _hasPermission = false;
   bool _isPermanentlyDenied = false;
   bool _isLoading = true;
@@ -177,20 +182,50 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
+  /// Settings sends the user Home right after enabling a feature there
+  /// (Gamified Budgets, AI Prediction Mode, Detailed Financial Health) and
+  /// asks for a spotlight on the thing that just appeared.
   void _onSpotlightRequest() {
-    if (homeSpotlightRequest.value != 'rewards') return;
+    final request = homeSpotlightRequest.value;
+    if (request == null) return;
     homeSpotlightRequest.value = null;
-    _spotlightRewards();
+    final l10n = context.l10nRead;
+    switch (request) {
+      case 'rewards':
+        _spotlightHomeTarget(
+          _rewardsAvatarKey,
+          l10n.rewardsSpotlightTitle,
+          l10n.rewardsSpotlightBody,
+          shape: SpotlightShape.circle,
+        );
+      case 'insights':
+        _spotlightHomeTarget(
+          _insightsCardKey,
+          l10n.insightsSpotlightTitle,
+          l10n.insightsSpotlightBody,
+        );
+      case 'health':
+        _spotlightHomeTarget(
+          _healthCardKey,
+          l10n.healthSpotlightTitle,
+          l10n.healthSpotlightBody,
+        );
+    }
   }
 
-  /// Waits for the Rewards avatar to be mounted and laid out (the header
-  /// rebuilds right after the toggle flips and the shell switches tabs),
-  /// scrolls it into view, then spotlights it.
-  Future<void> _spotlightRewards() async {
+  /// Waits for the target to be mounted and laid out (the dashboard rebuilds
+  /// right after the toggle flips and the shell switches tabs), scrolls it
+  /// into view, then spotlights it.
+  Future<void> _spotlightHomeTarget(
+    GlobalKey targetKey,
+    String title,
+    String message, {
+    SpotlightShape shape = SpotlightShape.rrect,
+  }) async {
     for (var attempt = 0; attempt < 10; attempt++) {
       await Future.delayed(const Duration(milliseconds: 120));
       if (!mounted) return;
-      final targetContext = _rewardsAvatarKey.currentContext;
+      final targetContext = targetKey.currentContext;
       final box = targetContext?.findRenderObject() as RenderBox?;
       if (targetContext == null ||
           box == null ||
@@ -204,13 +239,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         alignment: 0.1,
       );
       if (!mounted) return;
-      final l10n = context.l10nRead;
       await showSpotlight(
         context,
-        targetKey: _rewardsAvatarKey,
-        title: l10n.rewardsSpotlightTitle,
-        message: l10n.rewardsSpotlightBody,
-        buttonLabel: l10n.gotIt,
+        targetKey: targetKey,
+        title: title,
+        message: message,
+        buttonLabel: context.l10nRead.gotIt,
+        shape: shape,
       );
       return;
     }
@@ -587,7 +622,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             const SizedBox(height: 12),
                             FadeSlideIn(
                               order: 2,
-                              child: FinancialHealthCard(health: _health!),
+                              child: KeyedSubtree(
+                                key: _healthCardKey,
+                                child:
+                                    FinancialHealthCard(health: _health!),
+                              ),
                             ),
                           ],
                           if (_dueSipCount > 0) ...[
@@ -602,8 +641,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             const SizedBox(height: 12),
                             FadeSlideIn(
                               order: 2,
-                              child: InsightsCard(
-                                reloadToken: _transactionCount,
+                              child: KeyedSubtree(
+                                key: _insightsCardKey,
+                                child: InsightsCard(
+                                  reloadToken: _transactionCount,
+                                ),
                               ),
                             ),
                           ],

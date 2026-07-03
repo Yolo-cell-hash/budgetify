@@ -55,8 +55,9 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
   bool _loading = true;
   bool _reviewHandled = false;
 
-  // Guided-tour anchor (the screen title) for this section's intro tip.
+  // Guided-tour anchors: the screen title and the Add button.
   final GlobalKey _tutTitleKey = GlobalKey();
+  final GlobalKey _tutFabKey = GlobalKey();
 
   @override
   void initState() {
@@ -77,27 +78,37 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
     if (mounted) _maybeShowTutorialTip();
   }
 
-  /// Guided tour: explains this section once the user lands on it, then the
-  /// next tab's tip takes over.
+  /// Guided tour inside Net Worth: the section intro, then a pass-through
+  /// tip on Add — the holding editor carries the explainer (FD vs RD, the
+  /// reminder date, liabilities) and the user cancels out without saving.
   void _maybeShowTutorialTip() {
     if (!mounted) return;
     if (mainShellTabIndex.value != 3) return;
-    if (!TutorialService.instance.isAt(TutorialStep.investIntro)) return;
     final route = ModalRoute.of(context);
     if (route != null && !route.isCurrent) return;
+    final svc = TutorialService.instance;
     final l10n = context.l10nRead;
-    TutorialTips.show(
-      context,
-      step: TutorialStep.investIntro,
-      anchor: _tutTitleKey,
-      title: l10n.tutInvestIntroTitle,
-      message: l10n.tutInvestIntroBody,
-      passthrough: false,
-      buttonLabel: l10n.tutNext,
-      onButton: () =>
-          TutorialService.instance.advanceFrom(TutorialStep.investIntro),
-      advanceIfMissing: true,
-    );
+    if (svc.isAt(TutorialStep.investIntro)) {
+      TutorialTips.show(
+        context,
+        step: TutorialStep.investIntro,
+        anchor: _tutTitleKey,
+        title: l10n.tutInvestIntroTitle,
+        message: l10n.tutInvestIntroBody,
+        passthrough: false,
+        buttonLabel: l10n.tutNext,
+        onButton: () => svc.advanceFrom(TutorialStep.investIntro),
+        advanceIfMissing: true,
+      );
+    } else if (svc.isAt(TutorialStep.investAdd)) {
+      TutorialTips.show(
+        context,
+        step: TutorialStep.investAdd,
+        anchor: _tutFabKey,
+        title: l10n.tutInvestAddTitle,
+        message: l10n.tutInvestAddBody,
+      );
+    }
   }
 
   Future<void> _load() async {
@@ -146,10 +157,13 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
               icon: Icons.account_balance_wallet_rounded),
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _openEditor(),
-        icon: const Icon(Icons.add),
-        label: Text(context.l10n.addLabel),
+      floatingActionButton: KeyedSubtree(
+        key: _tutFabKey, // guided-tour anchor
+        child: FloatingActionButton.extended(
+          onPressed: () => _openEditor(),
+          icon: const Icon(Icons.add),
+          label: Text(context.l10n.addLabel),
+        ),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -930,11 +944,15 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
   // ==================== ACTIONS ====================
 
   Future<void> _openEditor({Holding? existingHolding, Sip? existingSip}) async {
+    // Guided tour: tapping Add completes its step; the editor sheet carries
+    // the explainer banner and the tour resumes once the sheet closes.
+    TutorialService.instance.advanceFrom(TutorialStep.investAdd);
     final changed = await showHoldingEditor(
       context,
       existingHolding: existingHolding,
       existingSip: existingSip,
     );
+    TutorialService.instance.advanceFrom(TutorialStep.investEditor);
     if (changed) {
       await _load();
       if (mounted) {

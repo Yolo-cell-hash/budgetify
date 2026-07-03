@@ -82,8 +82,12 @@ class _BudgetScreenState extends State<BudgetScreen>
   String? _expandedCategory;
   List<TransactionModel> _expandedTransactions = [];
 
-  // Guided-tour anchor (the screen title) for this section's intro tip.
-  final GlobalKey _tutTitleKey = GlobalKey();
+  // Guided-tour anchors: the Set-Budget button, the calendar heatmap, the
+  // per-category budgets section and the Trends chart.
+  final GlobalKey _tutFabKey = GlobalKey();
+  final GlobalKey _tutCalendarKey = GlobalKey();
+  final GlobalKey _tutCategoryBudgetsKey = GlobalKey();
+  final GlobalKey _tutTrendsKey = GlobalKey();
 
   @override
   void initState() {
@@ -109,27 +113,51 @@ class _BudgetScreenState extends State<BudgetScreen>
     if (mounted) _maybeShowTutorialTip();
   }
 
-  /// Guided tour: explains this section once the user lands on it, then the
-  /// next tab's tip takes over.
+  /// Guided tour inside Budgets: the Set-Budget button → the calendar
+  /// heatmap → per-category caps → the Trends chart. The tour drives the tab
+  /// bar itself, so each stop is on screen before its tip appears.
   void _maybeShowTutorialTip() {
     if (!mounted) return;
     if (mainShellTabIndex.value != 1) return;
-    if (!TutorialService.instance.isAt(TutorialStep.budgetsIntro)) return;
     final route = ModalRoute.of(context);
     if (route != null && !route.isCurrent) return;
+    final svc = TutorialService.instance;
     final l10n = context.l10nRead;
-    TutorialTips.show(
-      context,
-      step: TutorialStep.budgetsIntro,
-      anchor: _tutTitleKey,
-      title: l10n.tutBudgetsIntroTitle,
-      message: l10n.tutBudgetsIntroBody,
-      passthrough: false,
-      buttonLabel: l10n.tutNext,
-      onButton: () =>
-          TutorialService.instance.advanceFrom(TutorialStep.budgetsIntro),
-      advanceIfMissing: true,
-    );
+
+    void tip(TutorialStep step, int tabIndex, GlobalKey anchor, String title,
+        String message) {
+      if (_tabController.index != tabIndex) {
+        _tabController.animateTo(tabIndex);
+      }
+      TutorialTips.show(
+        context,
+        step: step,
+        anchor: anchor,
+        title: title,
+        message: message,
+        passthrough: false,
+        buttonLabel: l10n.tutNext,
+        onButton: () => svc.advanceFrom(step),
+        advanceIfMissing: true,
+      );
+    }
+
+    switch (svc.step) {
+      case TutorialStep.budgetsIntro:
+        tip(TutorialStep.budgetsIntro, 0, _tutFabKey,
+            l10n.tutBudgetsIntroTitle, l10n.tutBudgetsIntroBody);
+      case TutorialStep.budgetsHeatmap:
+        tip(TutorialStep.budgetsHeatmap, 1, _tutCalendarKey,
+            l10n.tutBudgetsHeatmapTitle, l10n.tutBudgetsHeatmapBody);
+      case TutorialStep.budgetsCategories:
+        tip(TutorialStep.budgetsCategories, 2, _tutCategoryBudgetsKey,
+            l10n.tutBudgetsCategoriesTitle, l10n.tutBudgetsCategoriesBody);
+      case TutorialStep.budgetsTrends:
+        tip(TutorialStep.budgetsTrends, 3, _tutTrendsKey,
+            l10n.tutBudgetsTrendsTitle, l10n.tutBudgetsTrendsBody);
+      default:
+        break;
+    }
   }
 
   void _generateAvailableMonths() {
@@ -308,11 +336,8 @@ class _BudgetScreenState extends State<BudgetScreen>
 
     return Scaffold(
       appBar: AppBar(
-        title: KeyedSubtree(
-          key: _tutTitleKey,
-          child: AppBarTitle(context.l10n.budgetAndAnalytics,
-              icon: Icons.donut_small_rounded),
-        ),
+        title: AppBarTitle(context.l10n.budgetAndAnalytics,
+            icon: Icons.donut_small_rounded),
         actions: [
           IconButton(icon: const Icon(Icons.refresh), onPressed: _loadData),
         ],
@@ -327,10 +352,14 @@ class _BudgetScreenState extends State<BudgetScreen>
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showBudgetDialog,
-        icon: Icon(_budget == null ? Icons.add : Icons.edit),
-        label: Text(_budget == null ? context.l10n.setBudget : context.l10n.commonEdit),
+      floatingActionButton: KeyedSubtree(
+        key: _tutFabKey, // guided-tour anchor
+        child: FloatingActionButton.extended(
+          onPressed: _showBudgetDialog,
+          icon: Icon(_budget == null ? Icons.add : Icons.edit),
+          label: Text(
+              _budget == null ? context.l10n.setBudget : context.l10n.commonEdit),
+        ),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -339,7 +368,10 @@ class _BudgetScreenState extends State<BudgetScreen>
                 controller: _tabController,
                 children: [
                   _buildOverviewTab(isDark, fmt),
-                  const SpendingCalendar(),
+                  KeyedSubtree(
+                    key: _tutCalendarKey, // guided-tour anchor
+                    child: const SpendingCalendar(),
+                  ),
                   _buildCategoriesTab(isDark, fmt),
                   _buildTrendsTab(isDark, fmt),
                 ],
@@ -1112,7 +1144,10 @@ class _BudgetScreenState extends State<BudgetScreen>
             const SizedBox(height: 16),
             FadeSlideIn(
               order: 1,
-              child: _buildCategoryBudgetsSection(isDark, fmt),
+              child: KeyedSubtree(
+                key: _tutCategoryBudgetsKey, // guided-tour anchor
+                child: _buildCategoryBudgetsSection(isDark, fmt),
+              ),
             ),
           ],
           const SizedBox(height: 16),
@@ -1411,10 +1446,13 @@ class _BudgetScreenState extends State<BudgetScreen>
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        context.l10n.monthlySpendingTrend,
-                        style: const TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w600),
+                      KeyedSubtree(
+                        key: _tutTrendsKey, // guided-tour anchor
+                        child: Text(
+                          context.l10n.monthlySpendingTrend,
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w600),
+                        ),
                       ),
                       _buildTrendsChartToggle(isDark),
                     ],
