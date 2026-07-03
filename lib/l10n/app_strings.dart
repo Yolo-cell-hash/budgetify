@@ -2743,4 +2743,181 @@ class AppStrings {
       'Error loading transactions: $e', 'लेन-देन लोड करने में त्रुटि: $e', 'व्यवहार लोड करताना त्रुटी: $e', 'লেনদেন লোড করতে ত্রুটি: $e');
   String get enterAmountAboveZero =>
       _t('Enter an amount above ₹0', '₹0 से अधिक राशि दर्ज करें', '₹0 पेक्षा जास्त रक्कम प्रविष्ट करा', '₹0-এর বেশি পরিমাণ লিখুন');
+
+  // ── App tour (first-launch guide) & feature spotlights ────────────────────
+  String get tourSkip => _t('Skip', 'छोड़ें', 'वगळा', 'এড়িয়ে যান');
+  String get tourNext => _t('Next', 'आगे', 'पुढे', 'পরবর্তী');
+  String get tourStart =>
+      _t('Start exploring', 'शुरू करें', 'सुरुवात करा', 'শুরু করুন');
+
+  String get tour1Title => _t('Tracking that runs itself',
+      'ट्रैकिंग जो खुद चलती है', 'ट्रॅकिंग जे आपोआप चालते', 'ট্র্যাকিং যা নিজে থেকেই চলে');
+  String get tour1Lead => _t(
+        'Budgetify reads your bank SMS and logs every transaction for you — no typing, no spreadsheets.',
+        'Budgetify आपके बैंक SMS पढ़कर हर लेन-देन अपने आप दर्ज करता है — न टाइपिंग, न स्प्रेडशीट।',
+        'Budgetify तुमचे बँक SMS वाचून प्रत्येक व्यवहार आपोआप नोंदवते — टायपिंग नाही, स्प्रेडशीट नाही.',
+        'Budgetify আপনার ব্যাংক SMS পড়ে প্রতিটি লেনদেন নিজে থেকে লিখে রাখে — টাইপিং নেই, স্প্রেডশিট নেই।',
+      );
+  String get tour1PointAuto => _t(
+        'Bank SMS turn into transactions automatically',
+        'बैंक SMS अपने आप लेन-देन बन जाते हैं',
+        'बँक SMS आपोआप व्यवहारांमध्ये बदलतात',
+        'ব্যাংক SMS আপনা-আপনি লেনদেনে পরিণত হয়',
+      );
+  String get tour1PointPrivate => _t(
+        '100% offline — your data never leaves this phone',
+        '100% ऑफ़लाइन — आपका डेटा कभी फ़ोन से बाहर नहीं जाता',
+        '100% ऑफलाइन — तुमचा डेटा कधीही फोनबाहेर जात नाही',
+        '১০০% অফলাইন — আপনার ডেটা কখনও ফোনের বাইরে যায় না',
+      );
+  String get tour1PointManual => _t(
+        'Add cash spends or manual entries anytime',
+        'नकद खर्च या मैनुअल एंट्री कभी भी जोड़ें',
+        'रोख खर्च किंवा मॅन्युअल नोंदी कधीही जोडा',
+        'নগদ খরচ বা ম্যানুয়াল এন্ট্রি যেকোনো সময় যোগ করুন',
+      );
+
+  String get tour2Title => _t('Tag every rupee', 'हर रुपये को टैग करें',
+      'प्रत्येक रुपयाला टॅग करा', 'প্রতিটি টাকা ট্যাগ করুন');
+  String get tour2Lead => _t(
+        'Quick tags turn raw transactions into real insights.',
+        'झटपट टैग कच्चे लेन-देन को असली इनसाइट में बदल देते हैं।',
+        'झटपट टॅग्स कच्च्या व्यवहारांना खऱ्या इनसाइट्समध्ये बदलतात.',
+        'দ্রুত ট্যাগ কাঁচা লেনদেনকে সত্যিকারের ইনসাইটে বদলে দেয়।',
+      );
+  String get tour2PointTap => _t(
+        'Tap any transaction to set its category',
+        'श्रेणी चुनने के लिए किसी भी लेन-देन पर टैप करें',
+        'श्रेणी निवडण्यासाठी कोणत्याही व्यवहारावर टॅप करा',
+        'ক্যাটাগরি ঠিক করতে যেকোনো লেনদেনে ট্যাপ করুন',
+      );
+  String get tour2PointCustom => _t(
+        'Create your own tags — long-press one to pick its emoji',
+        'अपने टैग बनाएँ — इमोजी बदलने के लिए टैग को देर तक दबाएँ',
+        'स्वतःचे टॅग बनवा — इमोजी बदलण्यासाठी टॅग दाबून धरा',
+        'নিজের ট্যাগ বানান — ইমোজি বদলাতে ট্যাগ চেপে ধরুন',
+      );
+  String get tour2PointUnclassified => _t(
+        'Filter “Unclassified” to tidy everything up in seconds',
+        '“अवर्गीकृत” फ़िल्टर से सेकंडों में सब व्यवस्थित करें',
+        '“अवर्गीकृत” फिल्टरने काही सेकंदांत सारे आवरा',
+        '“অশ্রেণীবদ্ধ” ফিল্টার দিয়ে সেকেন্ডেই সব গুছিয়ে ফেলুন',
+      );
+
+  String get tour3Title => _t('Master your money', 'अपने पैसों पर पकड़',
+      'तुमच्या पैशांवर हुकूमत', 'আপনার টাকার ওপর দখল');
+  String get tour3Lead => _t(
+        'Budgets, recurring payments, goals and net worth — one calm dashboard.',
+        'बजट, आवर्ती भुगतान, लक्ष्य और नेट वर्थ — सब एक शांत डैशबोर्ड पर।',
+        'बजेट, आवर्ती देयके, उद्दिष्टे आणि नेट वर्थ — सारे एका शांत डॅशबोर्डवर.',
+        'বাজেট, পুনরাবৃত্ত পেমেন্ট, লক্ষ্য আর নেট ওয়ার্থ — সব এক শান্ত ড্যাশবোর্ডে।',
+      );
+  String get tour3PointBudgets => _t(
+        'Set monthly and per-category budgets',
+        'मासिक और श्रेणी-वार बजट सेट करें',
+        'मासिक आणि श्रेणीनिहाय बजेट ठेवा',
+        'মাসিক ও ক্যাটাগরি-ভিত্তিক বাজেট ঠিক করুন',
+      );
+  String get tour3PointRecurring => _t(
+        'Track SIPs, rent, EMIs and subscriptions',
+        'SIP, किराया, EMI और सब्सक्रिप्शन ट्रैक करें',
+        'SIP, भाडे, EMI आणि सबस्क्रिप्शन ट्रॅक करा',
+        'SIP, ভাড়া, EMI ও সাবস্ক্রিপশন ট্র্যাক করুন',
+      );
+  String get tour3PointGoals => _t(
+        'Save toward goals and watch the jar fill up',
+        'लक्ष्यों के लिए बचत करें और जार भरता देखें',
+        'उद्दिष्टांसाठी बचत करा आणि बरणी भरताना पाहा',
+        'লক্ষ্যের জন্য জমান আর জারটা ভরে উঠতে দেখুন',
+      );
+  String get tour3PointWrapped => _t(
+        'Get a shareable “Wrapped” for every month',
+        'हर महीने का शेयर करने लायक “Wrapped” पाएँ',
+        'दर महिन्याचे शेअर करण्याजोगे “Wrapped” मिळवा',
+        'প্রতি মাসের শেয়ার-যোগ্য “Wrapped” পান',
+      );
+
+  String get tour4Title => _t('Power-ups in Settings',
+      'सेटिंग्स में छिपे पावर-अप', 'सेटिंग्जमधले पॉवर-अप', 'সেটিংসে লুকোনো পাওয়ার-আপ');
+  String get tour4Lead => _t(
+        "Flip these on whenever you're ready:",
+        'जब मन करे, इन्हें ऑन करें:',
+        'तयार असाल तेव्हा हे सुरू करा:',
+        'যখন ইচ্ছা এগুলো চালু করুন:',
+      );
+  String get tour4PointInsights => _t(
+        'AI Insights — on-device spending forecast',
+        'AI इनसाइट्स — फ़ोन पर ही खर्च का पूर्वानुमान',
+        'AI इनसाइट्स — फोनवरच खर्चाचा अंदाज',
+        'AI ইনসাইটস — ফোনেই খরচের পূর্বাভাস',
+      );
+  String get tour4PointHealth => _t(
+        'Financial Health score with a full breakdown',
+        'पूरे ब्रेकडाउन के साथ फ़ाइनेंशियल हेल्थ स्कोर',
+        'सविस्तर ब्रेकडाउनसह फायनान्शिअल हेल्थ स्कोअर',
+        'পূর্ণ ব্রেকডাউন-সহ ফাইন্যান্সিয়াল হেলথ স্কোর',
+      );
+  String get tour4PointSecurity => _t(
+        'Biometric app lock and encrypted backups',
+        'बायोमेट्रिक ऐप लॉक और एन्क्रिप्टेड बैकअप',
+        'बायोमेट्रिक अ‍ॅप लॉक आणि एन्क्रिप्टेड बॅकअप',
+        'বায়োমেট্রিক অ্যাপ লক ও এনক্রিপ্টেড ব্যাকআপ',
+      );
+  String get tour4PointPrivacy => _t(
+        'Privacy mode blurs every amount',
+        'प्राइवेसी मोड हर राशि छिपा देता है',
+        'प्रायव्हसी मोड प्रत्येक रक्कम लपवतो',
+        'প্রাইভেসি মোড প্রতিটি অঙ্ক আড়াল করে',
+      );
+  String get tour4PointThemes => _t(
+        'Streak-reward themes and 4 languages',
+        'स्ट्रीक-रिवॉर्ड थीम और 4 भाषाएँ',
+        'स्ट्रीक-रिवॉर्ड थीम आणि 4 भाषा',
+        'স্ট্রিক-রিওয়ার্ড থিম আর ৪টি ভাষা',
+      );
+
+  String get tour5Title => _t('Make it a game', 'इसे खेल बना लें',
+      'याचा खेळ करून टाका', 'একে খেলা বানিয়ে ফেলুন');
+  String get tour5Lead => _t(
+        'Turn on Gamified Budgets in Settings and earn as you track.',
+        'सेटिंग्स में Gamified Budgets ऑन करें और ट्रैक करते-करते कमाएँ।',
+        'सेटिंग्जमध्ये Gamified Budgets सुरू करा आणि ट्रॅक करता करता कमवा.',
+        'সেটিংসে Gamified Budgets চালু করুন আর ট্র্যাক করতে করতে অর্জন করুন।',
+      );
+  String get tour5PointBadges => _t(
+        'Unlock badge ladders and rare titles',
+        'बैज लैडर और दुर्लभ टाइटल अनलॉक करें',
+        'बॅज शिड्या आणि दुर्मीळ किताब अनलॉक करा',
+        'ব্যাজ ল্যাডার ও বিরল টাইটেল আনলক করুন',
+      );
+  String get tour5PointStreak => _t(
+        'Keep your daily streak alive',
+        'रोज़ की स्ट्रीक बनाए रखें',
+        'रोजची स्ट्रीक टिकवून ठेवा',
+        'দৈনিক স্ট্রিক ধরে রাখুন',
+      );
+  String get tour5PointAvatar => _t(
+        "Your avatar sits top-right on Home — that's the Rewards hub",
+        'होम पर ऊपर-दाएँ आपका अवतार — वही Rewards हब है',
+        'होमवर वर-उजवीकडे तुमचा अवतार — तेच Rewards हब',
+        'হোমের ওপরে ডানদিকে আপনার অবতার — সেটাই Rewards হাব',
+      );
+
+  String get rewardsSpotlightTitle => _t('Your Rewards hub',
+      'आपका Rewards हब', 'तुमचे Rewards हब', 'আপনার Rewards হাব');
+  String get rewardsSpotlightBody => _t(
+        'Gamified Budgets is on! Tap your avatar here anytime to see streaks, badges, titles and your shareable profile.',
+        'Gamified Budgets ऑन है! स्ट्रीक, बैज, टाइटल और शेयर करने लायक प्रोफ़ाइल देखने के लिए यहाँ अपने अवतार पर टैप करें।',
+        'Gamified Budgets सुरू झाले! स्ट्रीक, बॅज, किताब आणि शेअर करण्याजोगी प्रोफाइल पाहण्यासाठी येथे तुमच्या अवतारावर टॅप करा.',
+        'Gamified Budgets চালু হয়েছে! স্ট্রিক, ব্যাজ, টাইটেল আর শেয়ার-যোগ্য প্রোফাইল দেখতে এখানে আপনার অবতারে ট্যাপ করুন।',
+      );
+
+  String get appTourTitle =>
+      _t('App tour', 'ऐप टूर', 'अ‍ॅप टूर', 'অ্যাপ ট্যুর');
+  String get appTourDesc => _t(
+        'Replay the quick guide to Budgetify',
+        'Budgetify की झटपट गाइड फिर देखें',
+        'Budgetify ची झटपट गाईड पुन्हा पाहा',
+        'Budgetify-এর ঝটপট গাইড আবার দেখুন',
+      );
 }

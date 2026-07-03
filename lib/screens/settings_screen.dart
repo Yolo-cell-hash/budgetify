@@ -27,6 +27,7 @@ import '../widgets/app_dialog.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/export_options_sheet.dart';
 import '../widgets/import_options_sheet.dart';
+import 'app_tour_screen.dart';
 import 'manage_tags_screen.dart';
 import 'statement_import_screen.dart';
 import 'streak_rewards_screen.dart';
@@ -462,8 +463,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
               value: context.watch<AppPreferences>().gamifiedMode,
-              onChanged: (v) =>
-                  context.read<AppPreferences>().setGamifiedMode(v),
+              onChanged: _onGamifiedChanged,
             ),
           ),
 
@@ -604,15 +604,53 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 8),
           _buildSettingsCard(
             isDark: isDark,
-            child: ListTile(
-              leading: const Icon(Icons.info_outline),
-              title: const Text('Budgetify'),
-              subtitle: Text(context.l10n.versionLabel(kAppVersion)),
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.info_outline),
+                  title: const Text('Budgetify'),
+                  subtitle: Text(context.l10n.versionLabel(kAppVersion)),
+                ),
+                Divider(
+                  height: 1,
+                  indent: 16,
+                  endIndent: 16,
+                  color: isDark
+                      ? const Color(0xFF2E313A)
+                      : const Color(0xFFE9E9E4),
+                ),
+                // Replay the first-launch walkthrough anytime.
+                ListTile(
+                  leading: const Icon(Icons.tour_outlined),
+                  title: Text(context.l10n.appTourTitle),
+                  subtitle: Text(
+                    context.l10n.appTourDesc,
+                    style: TextStyle(
+                      color: isDark
+                          ? const Color(0xFF8A8D96)
+                          : const Color(0xFF6E727C),
+                    ),
+                  ),
+                  trailing: const Icon(Icons.chevron_right, size: 20),
+                  onTap: () =>
+                      Navigator.of(context).push(AppTourScreen.route()),
+                ),
+              ],
             ),
           ),
         ],
       ),
     );
+  }
+
+  /// Enabling Gamified Budgets sends the user Home and spotlights the new
+  /// Rewards avatar there, so the feature's entry point is obvious right away.
+  /// Turning it off is silent.
+  Future<void> _onGamifiedChanged(bool enabled) async {
+    await context.read<AppPreferences>().setGamifiedMode(enabled);
+    if (!enabled) return;
+    homeSpotlightRequest.value = 'rewards';
+    mainShellTabRequest.value = 0;
   }
 
   /// One selectable theme swatch in the Appearance picker. Locked streak
