@@ -22,12 +22,12 @@ import '../services/background_service.dart';
 import '../services/export_service.dart';
 import '../services/gamification_service.dart';
 import '../services/statement_import_service.dart';
+import '../services/tutorial_service.dart';
 import '../widgets/app_bar_title.dart';
 import '../widgets/app_dialog.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/export_options_sheet.dart';
 import '../widgets/import_options_sheet.dart';
-import 'app_tour_screen.dart';
 import 'manage_tags_screen.dart';
 import 'statement_import_screen.dart';
 import 'streak_rewards_screen.dart';
@@ -619,7 +619,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ? const Color(0xFF2E313A)
                       : const Color(0xFFE9E9E4),
                 ),
-                // Replay the first-launch walkthrough anytime.
+                // Restart the guided tour anytime — its first tip picks the
+                // user up on the Home tab.
                 ListTile(
                   leading: const Icon(Icons.tour_outlined),
                   title: Text(context.l10n.appTourTitle),
@@ -632,8 +633,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                   trailing: const Icon(Icons.chevron_right, size: 20),
-                  onTap: () =>
-                      Navigator.of(context).push(AppTourScreen.route()),
+                  onTap: () {
+                    TutorialService.instance.restart();
+                    mainShellTabRequest.value = 0;
+                  },
                 ),
               ],
             ),

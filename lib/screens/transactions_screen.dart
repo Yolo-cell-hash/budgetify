@@ -5,6 +5,7 @@ import '../l10n/l10n.dart';
 import '../models/transaction_model.dart';
 import '../providers/theme_provider.dart';
 import '../services/database_service.dart';
+import '../services/tutorial_service.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/transaction_card.dart';
 import 'transaction_detail_screen.dart';
@@ -57,6 +58,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   static const String _swipeHintKey = 'swipe_to_delete_hint_shown_v1';
   bool _showSwipeHint = false;
 
+  // Tour anchor for the "open this transaction" tip.
+  final GlobalKey _firstCardKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -71,6 +75,33 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     _loadSwipeHintFlag();
     _loadFiltersData();
     _loadTransactions();
+    // Guided tour: reaching this list completes the "view your transactions"
+    // step; the next tip points at the first card below.
+    TutorialService.instance.advanceFrom(TutorialStep.viewTransactions);
+    TutorialService.instance.addListener(_onTutorialTick);
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _maybeShowTutorialTip());
+  }
+
+  void _onTutorialTick() {
+    if (mounted) _maybeShowTutorialTip();
+  }
+
+  /// Points the guided tour at the first transaction card, passing the tap
+  /// through so opening it is the real action that advances the tour.
+  void _maybeShowTutorialTip() {
+    if (!mounted || _isLoading || _transactions.isEmpty) return;
+    if (!TutorialService.instance.isAt(TutorialStep.openTransaction)) return;
+    final route = ModalRoute.of(context);
+    if (route != null && !route.isCurrent) return;
+    final l10n = context.l10nRead;
+    TutorialTips.show(
+      context,
+      step: TutorialStep.openTransaction,
+      anchor: _firstCardKey,
+      title: l10n.tutOpenTxnTitle,
+      message: l10n.tutOpenTxnBody,
+    );
   }
 
   Future<void> _loadSwipeHintFlag() async {
@@ -89,6 +120,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
   @override
   void dispose() {
+    TutorialService.instance.removeListener(_onTutorialTick);
+    TutorialTips.dismissIfFor(TutorialStep.openTransaction);
     _searchController.dispose();
     super.dispose();
   }
@@ -189,6 +222,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         _monthlyDebits = mDebits;
         _isLoading = false;
       });
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _maybeShowTutorialTip());
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
@@ -404,13 +439,22 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       itemBuilder: (context, index) {
                         if (index == 0) return _buildSummaryStrip(isDark);
                         final transaction = _transactions[index - 1];
-                        return TransactionCard(
+                        final card = TransactionCard(
                           transaction: transaction,
                           animateSwipeHint: index == 1 && _showSwipeHint,
                           onSwipeHintShown: _markSwipeHintShown,
                           onTap: () => _openTransactionDetail(transaction),
                           onDelete: () => _deleteTransaction(transaction),
                         );
+                        // Tour anchor: the first card is what the "open this
+                        // transaction" tip points at.
+                        if (index == 1) {
+                          return KeyedSubtree(
+                            key: _firstCardKey,
+                            child: card,
+                          );
+                        }
+                        return card;
                       },
                     ),
                   ),
