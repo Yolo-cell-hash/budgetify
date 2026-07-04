@@ -1,21 +1,23 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:budget_tracker/l10n/app_strings.dart';
 
-/// Guards the hand-rolled four-language string table. English is the default;
-/// Hindi, Marathi and Bengali must each resolve to their own text.
+/// Guards the hand-rolled five-language string table. English is the default;
+/// Hindi, Marathi, Bengali and Telugu must each resolve to their own text.
 void main() {
   final en = AppStrings(AppLanguage.english);
   final hi = AppStrings(AppLanguage.hindi);
   final mr = AppStrings(AppLanguage.marathi);
   final bn = AppStrings(AppLanguage.bengali);
+  final te = AppStrings(AppLanguage.telugu);
 
   group('AppLanguage metadata', () {
-    test('all four languages are registered', () {
+    test('all five languages are registered', () {
       expect(AppLanguage.values, [
         AppLanguage.english,
         AppLanguage.hindi,
         AppLanguage.marathi,
         AppLanguage.bengali,
+        AppLanguage.telugu,
       ]);
     });
 
@@ -24,6 +26,7 @@ void main() {
       expect(AppLanguage.hindi.code, 'hi');
       expect(AppLanguage.marathi.code, 'mr');
       expect(AppLanguage.bengali.code, 'bn');
+      expect(AppLanguage.telugu.code, 'te');
     });
 
     test('native + english names', () {
@@ -31,6 +34,8 @@ void main() {
       expect(AppLanguage.marathi.englishName, 'Marathi');
       expect(AppLanguage.bengali.nativeName, 'বাংলা');
       expect(AppLanguage.bengali.englishName, 'Bengali');
+      expect(AppLanguage.telugu.nativeName, 'తెలుగు');
+      expect(AppLanguage.telugu.englishName, 'Telugu');
     });
   });
 
@@ -103,6 +108,41 @@ void main() {
 
     test('tier badge labels translate unit words into Bengali', () {
       expect(bn.tierBadgeLabel('7-Day').contains('দিন'), isTrue);
+    });
+  });
+
+  group('Telugu resolves to its own text', () {
+    test('plain getters differ from the other languages', () {
+      // Budgets: Budgets / बजट / बजेट / বাজেট / బడ్జెట్లు
+      expect(te.navBudgets, 'బడ్జెట్లు');
+      expect(te.navBudgets, isNot(en.navBudgets));
+      expect(te.navBudgets, isNot(hi.navBudgets));
+      expect(te.navBudgets, isNot(mr.navBudgets));
+      expect(te.navBudgets, isNot(bn.navBudgets));
+    });
+
+    test('parameterised strings interpolate in Telugu', () {
+      final s = te.foundTransactions(3);
+      expect(s.contains('3'), isTrue);
+      expect(s, isNot(en.foundTransactions(3)));
+    });
+
+    test('switch-based display translators return Telugu', () {
+      expect(te.categoryName('Groceries'), 'కిరాణా');
+      expect(te.holdingCategoryName('Home Loan'), 'హోమ్ లోన్');
+      expect(te.achievementName('saver'), 'సూపర్ సేవర్');
+      expect(te.titleName('investor'), 'పెట్టుబడిదారు');
+      // Unknown keys pass through unchanged in every language.
+      expect(te.categoryName('My Custom Tag'), 'My Custom Tag');
+    });
+
+    test('date helpers use Telugu month/weekday data', () {
+      expect(te.monthName(1), 'జనవరి');
+      expect(te.monthName(7), 'జూలై');
+    });
+
+    test('tier badge labels translate unit words into Telugu', () {
+      expect(te.tierBadgeLabel('7-Day').contains('రోజు'), isTrue);
     });
   });
 }
