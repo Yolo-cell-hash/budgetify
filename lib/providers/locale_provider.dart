@@ -30,6 +30,7 @@ class LocaleProvider extends ChangeNotifier {
       'mr' => AppLanguage.marathi,
       'bn' => AppLanguage.bengali,
       'te' => AppLanguage.telugu,
+      'ta' => AppLanguage.tamil,
       _ => AppLanguage.english,
     };
     _isInitialized = true;
