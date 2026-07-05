@@ -1,23 +1,25 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:budget_tracker/l10n/app_strings.dart';
 
-/// Guards the hand-rolled five-language string table. English is the default;
-/// Hindi, Marathi, Bengali and Telugu must each resolve to their own text.
+/// Guards the hand-rolled six-language string table. English is the default;
+/// Hindi, Marathi, Bengali, Telugu and Tamil must each resolve to their own text.
 void main() {
   final en = AppStrings(AppLanguage.english);
   final hi = AppStrings(AppLanguage.hindi);
   final mr = AppStrings(AppLanguage.marathi);
   final bn = AppStrings(AppLanguage.bengali);
   final te = AppStrings(AppLanguage.telugu);
+  final ta = AppStrings(AppLanguage.tamil);
 
   group('AppLanguage metadata', () {
-    test('all five languages are registered', () {
+    test('all six languages are registered', () {
       expect(AppLanguage.values, [
         AppLanguage.english,
         AppLanguage.hindi,
         AppLanguage.marathi,
         AppLanguage.bengali,
         AppLanguage.telugu,
+        AppLanguage.tamil,
       ]);
     });
 
@@ -27,6 +29,7 @@ void main() {
       expect(AppLanguage.marathi.code, 'mr');
       expect(AppLanguage.bengali.code, 'bn');
       expect(AppLanguage.telugu.code, 'te');
+      expect(AppLanguage.tamil.code, 'ta');
     });
 
     test('native + english names', () {
@@ -36,6 +39,8 @@ void main() {
       expect(AppLanguage.bengali.englishName, 'Bengali');
       expect(AppLanguage.telugu.nativeName, 'తెలుగు');
       expect(AppLanguage.telugu.englishName, 'Telugu');
+      expect(AppLanguage.tamil.nativeName, 'தமிழ்');
+      expect(AppLanguage.tamil.englishName, 'Tamil');
     });
   });
 
@@ -143,6 +148,42 @@ void main() {
 
     test('tier badge labels translate unit words into Telugu', () {
       expect(te.tierBadgeLabel('7-Day').contains('రోజు'), isTrue);
+    });
+  });
+
+  group('Tamil resolves to its own text', () {
+    test('plain getters differ from the other languages', () {
+      // Budgets: Budgets / बजट / बजेट / বাজেট / బడ్జెట్లు / பட்ஜெட்டுகள்
+      expect(ta.navBudgets, 'பட்ஜெட்டுகள்');
+      expect(ta.navBudgets, isNot(en.navBudgets));
+      expect(ta.navBudgets, isNot(hi.navBudgets));
+      expect(ta.navBudgets, isNot(mr.navBudgets));
+      expect(ta.navBudgets, isNot(bn.navBudgets));
+      expect(ta.navBudgets, isNot(te.navBudgets));
+    });
+
+    test('parameterised strings interpolate in Tamil', () {
+      final s = ta.foundTransactions(3);
+      expect(s.contains('3'), isTrue);
+      expect(s, isNot(en.foundTransactions(3)));
+    });
+
+    test('switch-based display translators return Tamil', () {
+      expect(ta.categoryName('Groceries'), 'மளிகை');
+      expect(ta.holdingCategoryName('Home Loan'), 'வீட்டுக் கடன்');
+      expect(ta.achievementName('saver'), 'சூப்பர் சேவர்');
+      expect(ta.titleName('investor'), 'முதலீட்டாளர்');
+      // Unknown keys pass through unchanged in every language.
+      expect(ta.categoryName('My Custom Tag'), 'My Custom Tag');
+    });
+
+    test('date helpers use Tamil month/weekday data', () {
+      expect(ta.monthName(1), 'ஜனவரி');
+      expect(ta.monthName(7), 'ஜூலை');
+    });
+
+    test('tier badge labels translate unit words into Tamil', () {
+      expect(ta.tierBadgeLabel('7-Day').contains('நாள்'), isTrue);
     });
   });
 }
