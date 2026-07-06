@@ -202,6 +202,44 @@ void main() {
     });
   });
 
+  group('Kotak message formats', () {
+    test('Kotak "Sent ... to {VPA} on" debit — payee is the VPA, not the a/c',
+        () {
+      // Reported bug: this Kotak UPI debit was labelled with the account
+      // number (payee == account == XX9883), which broke per-merchant
+      // tagging. The counterparty "paytm.s21upj5@pty" must win instead.
+      final txn = SmsParserService.parseTransaction(
+        'AD-KOTAKB-S',
+        'Sent Rs.60.00 from Kotak Bank AC X9883 to paytm.s21upj5@pty on '
+        '27-06-26.UPI Ref 617835353944. Not you, https://kotak.com/KBANKT/Fraud',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 60.0);
+      expect(txn.type, TransactionType.debit);
+      expect(txn.accountInfo, 'XX9883');
+      expect(txn.merchantName, 'Paytm S21upj5');
+      // The whole point of the fix: payee must not collapse to the account.
+      expect(txn.merchantName, isNot('XX9883'));
+    });
+
+    test('Kotak "Received ... from {VPA} on" credit still names the payer', () {
+      // Regression guard: the incoming path already worked (@ybl is a known
+      // handle) and must stay untouched by the Kotak debit fix above.
+      final txn = SmsParserService.parseTransaction(
+        'JX-KOTAKB-S',
+        'Received Rs.1270.00 in your Kotak Bank AC X9883 from 9904393066@ybl '
+        'on 25-06-26.UPI Ref:666910375249.',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 1270.0);
+      expect(txn.type, TransactionType.credit);
+      expect(txn.accountInfo, 'XX9883');
+      expect(txn.merchantName, '9904393066');
+    });
+  });
+
   group('Non-transaction rejection', () {
     test('rejects OTP messages even when they mention an amount', () {
       final txn = SmsParserService.parseTransaction(
