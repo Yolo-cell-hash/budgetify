@@ -276,6 +276,58 @@ void main() {
     });
   });
 
+  group('HDFC message formats', () {
+    test('NEFT credit names the remitter, not the a/c', () {
+      // Reported bug: HDFC credits labelled payee == account == XX9463,
+      // breaking tagging. The NEFT remitter must win instead.
+      final txn = SmsParserService.parseTransaction(
+        'JM-HDFCBK-S',
+        'Update! INR 47,449.63 deposited in HDFC Bank A/c XX9463 on 06-JUN-26 '
+        'for NEFT Cr-ICIC0099999-GODREJ AND BOYCE MFG CO LTD-JAY RAJESH KEER-'
+        'INXXXXXXXXXX6697.Avl bal INR 67,371.03. Cheque deposits in A/C are '
+        'subject to clearing',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 47449.63); // not the 67,371.03 balance
+      expect(txn.type, TransactionType.credit);
+      expect(txn.accountInfo, 'XX9463');
+      expect(txn.merchantName, 'Godrej And Boyce Mfg Co Ltd');
+      expect(txn.merchantName, isNot('XX9463'));
+    });
+
+    test('IMPS credit names the remitter, not the a/c', () {
+      final txn = SmsParserService.parseTransaction(
+        'VM-HDFCBK-S',
+        'Received!\nINR 1.00 in HDFC Bank A/c xx9463\nOn 04-07-26\n'
+        'For IMPS -BUREAUIDIndia- 618502233593\nAvl bal INR 2,011.84',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 1.0);
+      expect(txn.type, TransactionType.credit);
+      expect(txn.accountInfo, 'XX9463');
+      expect(txn.merchantName, 'Bureauidindia');
+      expect(txn.merchantName, isNot('XX9463'));
+    });
+
+    test('UPI debit "To {NAME}" still names the payee (regression)', () {
+      // The credit fix above must not disturb the working debit path.
+      final txn = SmsParserService.parseTransaction(
+        'VD-HDFCBK-T',
+        'Sent Rs.10.00\nFrom HDFC Bank A/C *9463\nTo JAY RAJESH KEER\n'
+        'On 25/06/26\nRef 654283235747\nNot You?\n'
+        'Call 18002586161/SMS BLOCK UPI to 7308080808',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 10.0);
+      expect(txn.type, TransactionType.debit);
+      expect(txn.accountInfo, 'XX9463');
+      expect(txn.merchantName, 'Jay Rajesh Keer');
+    });
+  });
+
   group('Non-transaction rejection', () {
     test('rejects OTP messages even when they mention an amount', () {
       final txn = SmsParserService.parseTransaction(
