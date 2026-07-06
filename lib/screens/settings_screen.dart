@@ -226,7 +226,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         title: AppBarTitle(context.l10n.settingsTitle,
             icon: Icons.settings_rounded),
       ),
-      body: ListView(
+      body: SafeArea(child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           // Appearance Section
@@ -754,6 +754,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
         ],
+      ),
       ),
     );
   }

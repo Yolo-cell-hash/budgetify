@@ -52,6 +52,10 @@ class GlassCard extends StatelessWidget {
 /// Soft ambient glow blobs behind screen content. Very subtle — two
 /// out-of-focus gold/ink orbs that give glass surfaces depth without
 /// shouting. Wrap a screen body: `AmbientBackground(child: ...)`.
+///
+/// The decorative background and orbs stay full-bleed, but the [child]
+/// content is wrapped in a [SafeArea] so it never bleeds under the status
+/// bar, notch or gesture-navigation bar on edge-to-edge devices.
 class AmbientBackground extends StatelessWidget {
   final Widget child;
 
@@ -83,7 +87,8 @@ class AmbientBackground extends StatelessWidget {
                 : const Color(0xFF8FA9C7).withOpacity(0.18),
           ),
         ),
-        Positioned.fill(child: child),
+        // Keep the glow/background above full-bleed; only inset the content.
+        Positioned.fill(child: SafeArea(child: child)),
       ],
     );
   }

@@ -201,7 +201,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
         icon: const Icon(Icons.add_rounded),
         label: Text(context.l10n.newGoal),
       ),
-      body: goals == null
+      body: SafeArea(child: goals == null
           ? const Center(child: CircularProgressIndicator())
           : goals.isEmpty
               ? _empty(colors)
@@ -211,6 +211,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                   separatorBuilder: (_, __) => const SizedBox(height: 12),
                   itemBuilder: (_, i) => _goalCard(colors, goals[i]),
                 ),
+      ),
     );
   }
 

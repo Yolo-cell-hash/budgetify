@@ -80,7 +80,7 @@ class _StreakRewardsScreenState extends State<StreakRewardsScreen> {
           icon: Icons.local_fire_department_rounded,
         ),
       ),
-      body: streak == null
+      body: SafeArea(child: streak == null
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
@@ -105,6 +105,7 @@ class _StreakRewardsScreenState extends State<StreakRewardsScreen> {
                 ],
               ),
             ),
+      ),
     );
   }
 }

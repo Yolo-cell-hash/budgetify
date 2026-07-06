@@ -145,7 +145,7 @@ class _RecurringDetailScreenState extends State<RecurringDetailScreen> {
           ),
         ],
       ),
-      body: _loading || plan == null
+      body: SafeArea(child: _loading || plan == null
           ? const Center(child: CircularProgressIndicator())
           : ListView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
@@ -166,6 +166,7 @@ class _RecurringDetailScreenState extends State<RecurringDetailScreen> {
                   for (final c in _charges) _historyRow(colors, c),
               ],
             ),
+      ),
     );
   }
 

@@ -73,7 +73,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         title: AppBarTitle(context.l10n.addTransactionTitle,
             icon: Icons.add_card_rounded),
       ),
-      body: Form(
+      body: SafeArea(child: Form(
         key: _formKey,
         child: ListView(
           padding: const EdgeInsets.all(20),
@@ -233,6 +233,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

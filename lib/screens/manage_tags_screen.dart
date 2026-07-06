@@ -116,7 +116,7 @@ class _ManageTagsScreenState extends State<ManageTagsScreen> {
       appBar: AppBar(
         title: AppBarTitle(context.l10n.manageTags, icon: Icons.sell_rounded),
       ),
-      body: _loading
+      body: SafeArea(child: _loading
           ? const Center(child: CircularProgressIndicator())
           : ListView(
               padding: const EdgeInsets.all(16),
@@ -171,6 +171,7 @@ class _ManageTagsScreenState extends State<ManageTagsScreen> {
                 const SizedBox(height: 32),
               ],
             ),
+      ),
     );
   }
 

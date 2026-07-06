@@ -790,7 +790,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
         foregroundColor: textColor,
         elevation: 0,
       ),
-      body: SingleChildScrollView(
+      body: SafeArea(child: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -1293,6 +1293,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
             const SizedBox(height: 32),
           ],
         ),
+      ),
       ),
       ),
     );
