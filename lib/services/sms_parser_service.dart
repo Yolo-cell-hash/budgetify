@@ -2218,7 +2218,8 @@ class SmsParserService {
   ///
   /// Priority order:
   /// 1. ICICI Info: field — `Info: UPI-RefNo-MerchantName`
-  /// 1b. Kotak — `Sent ... to {PAYEE} on {date}` (VPA or name)
+  /// 1b. Kotak/IPPB — `... to {PAYEE} on {date}` (VPA or name)
+  /// 1c. IPPB credit — `from {PAYER} thru IPPB`
   /// 2. BOI/generic — `credited to {NAME} via UPI`
   /// 3. HDFC — `To {NAME}` (on same or next line)
   /// 4. Generic — `paid/sent/transferred/payment/trf to {NAME}` (BOM, SBI)
@@ -2240,22 +2241,22 @@ class SmsParserService {
       if (merchant != null) return merchant;
     }
 
-    // --- Pattern 1b: Kotak "Sent ... to {PAYEE} on {date}" ---
-    // Kotak's UPI debit alerts read:
-    //   "Sent Rs.60.00 from Kotak Bank AC X9883 to paytm.s21upj5@pty on
-    //    27-06-26. UPI Ref 617835353944. Not you, https://kotak.com/..."
-    // The counterparty sits between "to" and " on <date>". The generic
-    // "sent to {NAME}" rule (Pattern 4) misses it because "Sent" and "to"
-    // are split by the "from ... AC ..." clause, and the VPA handle (@pty)
-    // isn't in Pattern 5's recognised-handle list — so these debits fell
-    // through to the account-number fallback, leaving payee == account and
-    // breaking per-merchant tagging. Scoped to Kotak so no other bank moves.
-    // (Kotak credits read "... from {PAYER} on ..." with no "to {X} on", so
-    // they are left to Pattern 5 exactly as before.)
-    if (RegExp(r'\bKotak\b', caseSensitive: false).hasMatch(message)) {
-      final kotakTo = RegExp(r'\bto\s+(.+?)\s+on\b', caseSensitive: false)
+    // --- Pattern 1b: "... to {PAYEE} on {date}" debit (Kotak, IPPB) ---
+    // Kotak ("Sent Rs.60.00 from Kotak Bank AC X9883 to paytm.s21upj5@pty on
+    // 27-06-26. UPI Ref ...") and India Post Payments Bank ("A/C X4434 Debit
+    // Rs.20.00 for UPI to ramjeet on 29-06-26 Ref ...") both name the
+    // counterparty between "to" and " on <date>". The generic "sent to
+    // {NAME}" rule (Pattern 4) misses it because the verb is split from "to",
+    // and a global "to {X} on {date}" rule can't be used — other banks'
+    // credits say "credited to your a/c XX on <date>" (e.g. BOI), so it would
+    // capture the reader's own account. Scoped to these two banks, whose
+    // credits use "from ... on" / "from ... thru", never "to {X} on". So the
+    // payee no longer collapses to the account number (which broke tagging).
+    if (RegExp(r'\b(?:Kotak|IPPB)\b', caseSensitive: false)
+        .hasMatch(message)) {
+      final toOn = RegExp(r'\bto\s+(.+?)\s+on\b', caseSensitive: false)
           .firstMatch(message);
-      final candidate = kotakTo?.group(1)?.trim();
+      final candidate = toOn?.group(1)?.trim();
       if (candidate != null && candidate.length > 2) {
         // A UPI VPA ("paytm.s21upj5@pty") → render its handle-less local
         // part the same way Pattern 5 does ("name.tag" → "Name Tag").
@@ -2264,8 +2265,25 @@ class SmsParserService {
           final local = vpa.group(1)!.replaceAll(RegExp(r'[._]'), ' ').trim();
           if (local.isNotEmpty) return _titleCase(local);
         }
-        // Otherwise it's a plain name ("to JOHN DOE on ...").
+        // Otherwise it's a plain name ("to ramjeet on ...").
         merchant = _cleanMerchant(candidate);
+        if (merchant != null) return merchant;
+      }
+    }
+
+    // --- Pattern 1c: IPPB credit "from {PAYER} thru IPPB" ---
+    // India Post credits read "... received a payment of Rs.140.00 in a/c
+    // X4434 on <date> from padarthi santhosh ku thru IPPB. Info:
+    // UPI/CREDIT/946195505938". The payer sits between "from" and "thru".
+    // Pattern 1 can't help (the Info ref is UPI/CREDIT/<num>, not
+    // UPI/<num>/name), so these fell back to the account number. Scoped to
+    // IPPB; both "thru" and "through" are accepted.
+    if (RegExp(r'\bIPPB\b', caseSensitive: false).hasMatch(message)) {
+      final fromThru =
+          RegExp(r'\bfrom\s+(.+?)\s+thr(?:u|ough)\b', caseSensitive: false)
+              .firstMatch(message);
+      if (fromThru != null) {
+        merchant = _cleanMerchant(fromThru.group(1));
         if (merchant != null) return merchant;
       }
     }
