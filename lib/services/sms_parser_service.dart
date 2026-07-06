@@ -2218,6 +2218,7 @@ class SmsParserService {
   ///
   /// Priority order:
   /// 1. ICICI Info: field — `Info: UPI-RefNo-MerchantName`
+  /// 1b. Kotak — `Sent ... to {PAYEE} on {date}` (VPA or name)
   /// 2. BOI/generic — `credited to {NAME} via UPI`
   /// 3. HDFC — `To {NAME}` (on same or next line)
   /// 4. Generic — `paid/sent/transferred/payment/trf to {NAME}` (BOM, SBI)
@@ -2237,6 +2238,36 @@ class SmsParserService {
     if (infoMatch != null) {
       merchant = _cleanMerchant(infoMatch.group(1));
       if (merchant != null) return merchant;
+    }
+
+    // --- Pattern 1b: Kotak "Sent ... to {PAYEE} on {date}" ---
+    // Kotak's UPI debit alerts read:
+    //   "Sent Rs.60.00 from Kotak Bank AC X9883 to paytm.s21upj5@pty on
+    //    27-06-26. UPI Ref 617835353944. Not you, https://kotak.com/..."
+    // The counterparty sits between "to" and " on <date>". The generic
+    // "sent to {NAME}" rule (Pattern 4) misses it because "Sent" and "to"
+    // are split by the "from ... AC ..." clause, and the VPA handle (@pty)
+    // isn't in Pattern 5's recognised-handle list — so these debits fell
+    // through to the account-number fallback, leaving payee == account and
+    // breaking per-merchant tagging. Scoped to Kotak so no other bank moves.
+    // (Kotak credits read "... from {PAYER} on ..." with no "to {X} on", so
+    // they are left to Pattern 5 exactly as before.)
+    if (RegExp(r'\bKotak\b', caseSensitive: false).hasMatch(message)) {
+      final kotakTo = RegExp(r'\bto\s+(.+?)\s+on\b', caseSensitive: false)
+          .firstMatch(message);
+      final candidate = kotakTo?.group(1)?.trim();
+      if (candidate != null && candidate.length > 2) {
+        // A UPI VPA ("paytm.s21upj5@pty") → render its handle-less local
+        // part the same way Pattern 5 does ("name.tag" → "Name Tag").
+        final vpa = RegExp(r'^([\w.\-]+)@[\w.\-]+$').firstMatch(candidate);
+        if (vpa != null) {
+          final local = vpa.group(1)!.replaceAll(RegExp(r'[._]'), ' ').trim();
+          if (local.isNotEmpty) return _titleCase(local);
+        }
+        // Otherwise it's a plain name ("to JOHN DOE on ...").
+        merchant = _cleanMerchant(candidate);
+        if (merchant != null) return merchant;
+      }
     }
 
     // --- Pattern 2: BOI "credited to {NAME} via UPI" ---
