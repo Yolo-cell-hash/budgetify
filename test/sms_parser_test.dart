@@ -240,6 +240,42 @@ void main() {
     });
   });
 
+  group('IPPB (India Post Payments Bank) message formats', () {
+    test('debit "... to {NAME} on {date}" names the payee, not the a/c', () {
+      // The IPBMSG header is recognised, but the payee used to fall back to
+      // the account number (payee == account == XX4434), breaking tagging.
+      final txn = SmsParserService.parseTransaction(
+        'AD-IPBMSG-S',
+        'A/C X4434 Debit Rs.20.00 for UPI to ramjeet on 29-06-26 Ref '
+        '618047474196. Avl Bal Rs.969.65. If not you? SMS FREEZE "full a/c" '
+        'to 7669034700-IPPB',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 20.0); // not the 969.65 available balance
+      expect(txn.type, TransactionType.debit);
+      expect(txn.accountInfo, 'XX4434');
+      expect(txn.merchantName, 'Ramjeet');
+      expect(txn.merchantName, isNot('XX4434'));
+    });
+
+    test('credit "from {NAME} thru IPPB" names the payer, not the a/c', () {
+      final txn = SmsParserService.parseTransaction(
+        'JX-IPBMSG-S',
+        'You have received a payment of Rs. 140.00 in a/c X4434 on '
+        '28/09/2025 22:36 from padarthi santhosh ku thru IPPB. '
+        'Info: UPI/CREDIT/946195505938.-IPPB',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 140.0);
+      expect(txn.type, TransactionType.credit);
+      expect(txn.accountInfo, 'XX4434');
+      expect(txn.merchantName, 'Padarthi Santhosh Ku');
+      expect(txn.merchantName, isNot('XX4434'));
+    });
+  });
+
   group('Non-transaction rejection', () {
     test('rejects OTP messages even when they mention an amount', () {
       final txn = SmsParserService.parseTransaction(
