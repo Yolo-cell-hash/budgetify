@@ -143,7 +143,7 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
             ],
           ),
         ),
-        body: _loading || stats == null
+        body: SafeArea(child: _loading || stats == null
             ? const Center(child: CircularProgressIndicator())
             : TabBarView(
                 children: [
@@ -152,6 +152,7 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
                   _roadTab(stats),
                 ],
               ),
+        ),
       ),
     );
   }

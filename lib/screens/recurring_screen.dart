@@ -268,7 +268,7 @@ class _RecurringScreenState extends State<RecurringScreen> {
           label: Text(context.l10n.addRecurring),
         ),
       ),
-      body: views == null
+      body: SafeArea(child: views == null
           ? const Center(child: CircularProgressIndicator())
           : !hasAny
               ? _empty(colors)
@@ -297,6 +297,7 @@ class _RecurringScreenState extends State<RecurringScreen> {
                     ],
                   ],
                 ),
+      ),
     );
   }
 

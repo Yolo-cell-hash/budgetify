@@ -133,7 +133,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
           IconButton(onPressed: v == null ? null : _delete, icon: const Icon(Icons.delete_outline_rounded)),
         ],
       ),
-      body: v == null
+      body: SafeArea(child: v == null
           ? const Center(child: CircularProgressIndicator())
           : ListView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
@@ -172,6 +172,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                   ..._contributions.map((c) => _contributionRow(colors, c)),
               ],
             ),
+      ),
     );
   }
 

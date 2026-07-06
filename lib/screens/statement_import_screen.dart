@@ -181,11 +181,12 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
           icon: Icons.account_balance_rounded,
         ),
       ),
-      body: switch (_step) {
+      body: SafeArea(child: switch (_step) {
         0 => _buildMapStep(colors),
         1 => _buildReviewStep(colors),
         _ => _buildDoneStep(colors),
       },
+      ),
     );
   }
 

@@ -418,7 +418,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         icon: const Icon(Icons.add),
         label: Text(context.l10n.add),
       ),
-      body: Column(
+      body: SafeArea(child: Column(
         children: [
           // Compact pinned chrome: one search row (with the filter-sheet
           // button), plus a slim strip of removable chips only while filters
@@ -460,6 +460,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   ),
           ),
         ],
+      ),
       ),
     );
   }
