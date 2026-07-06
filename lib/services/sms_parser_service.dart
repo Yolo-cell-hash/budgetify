@@ -2220,6 +2220,7 @@ class SmsParserService {
   /// 1. ICICI Info: field — `Info: UPI-RefNo-MerchantName`
   /// 1b. Kotak/IPPB — `... to {PAYEE} on {date}` (VPA or name)
   /// 1c. IPPB credit — `from {PAYER} thru IPPB`
+  /// 1d. HDFC credit — `NEFT Cr-{IFSC}-{REMITTER}-...` / `IMPS -{REMITTER}- {ref}`
   /// 2. BOI/generic — `credited to {NAME} via UPI`
   /// 3. HDFC — `To {NAME}` (on same or next line)
   /// 4. Generic — `paid/sent/transferred/payment/trf to {NAME}` (BOM, SBI)
@@ -2284,6 +2285,36 @@ class SmsParserService {
               .firstMatch(message);
       if (fromThru != null) {
         merchant = _cleanMerchant(fromThru.group(1));
+        if (merchant != null) return merchant;
+      }
+    }
+
+    // --- Pattern 1d: HDFC NEFT/IMPS credit remitter ---
+    // HDFC credits name the remitter inside a dash-delimited narration that
+    // no other rule reads, so they fell back to the account number (payee ==
+    // account), breaking tagging:
+    //   NEFT: "... deposited in HDFC Bank A/c XX9463 ... for NEFT
+    //          Cr-ICIC0099999-GODREJ AND BOYCE MFG CO LTD-JAY RAJESH KEER-..."
+    //   IMPS: "Received! INR 1.00 in HDFC Bank A/c xx9463 ... For IMPS
+    //          -BUREAUIDIndia- 618502233593"
+    // NEFT puts the remitter 2nd (after the IFSC); IMPS puts it between the
+    // dashes before the numeric ref. HDFC debits ("Sent Rs.X ... To {NAME}")
+    // carry no such narration and stay with Pattern 3. Scoped to HDFC.
+    if (RegExp(r'\bHDFC\b', caseSensitive: false).hasMatch(message)) {
+      // NEFT: after "NEFT Cr-<IFSC>-", the remitter runs to the next dash.
+      final neft =
+          RegExp(r'NEFT\s+Cr-[A-Za-z0-9]+-([^-]+)-', caseSensitive: false)
+              .firstMatch(message);
+      if (neft != null) {
+        merchant = _cleanMerchant(neft.group(1));
+        if (merchant != null) return merchant;
+      }
+      // IMPS: "IMPS -<remitter>- <ref-digits>".
+      final imps =
+          RegExp(r'IMPS\s*-\s*([^-]+?)\s*-\s*\d', caseSensitive: false)
+              .firstMatch(message);
+      if (imps != null) {
+        merchant = _cleanMerchant(imps.group(1));
         if (merchant != null) return merchant;
       }
     }
