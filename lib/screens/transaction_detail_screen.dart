@@ -976,9 +976,13 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                     subtextColor,
                     textColor,
                   ),
+                  // For credits the counterparty is the person the money came
+                  // FROM — labelling them "Payee" read reversed (BoM report).
                   if (_transaction.merchantName != null)
                     _buildDetailRow(
-                      context.l10n.payeeLabel,
+                      isCredit
+                          ? context.l10n.payerLabel
+                          : context.l10n.payeeLabel,
                       _transaction.merchantName!,
                       subtextColor,
                       textColor,

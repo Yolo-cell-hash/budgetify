@@ -12,6 +12,7 @@ import '../providers/theme_provider.dart';
 import '../services/gamification_service.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/badge_medallion.dart';
+import '../widgets/mythic.dart';
 import '../widgets/profile_share_card.dart';
 
 /// A badge the user has earned, resolved for the showcase picker.
@@ -113,6 +114,8 @@ class _ProfileViewState extends State<ProfileView> {
               titles: widget.orderedTitles,
               showcased: widget.showcased,
               trophyCount: widget.trophyCount,
+              // Equipping the Master Budgeter crown transforms the card.
+              mythic: widget.primaryTitle?.id == kMasterTitleId,
             ),
           ),
         ),
@@ -200,23 +203,45 @@ class _ProfileViewState extends State<ProfileView> {
     );
   }
 
-  Widget _titleEmoji(AppColors colors, String emoji, bool earned, double size) =>
-      Container(
+  Widget _titleEmoji(AppColors colors, String emoji, bool earned, double size,
+      {bool master = false}) {
+    if (master && earned) {
+      // The crown's emblem: gilded violet orb with a soft golden halo.
+      return Container(
         width: size,
         height: size,
         alignment: Alignment.center,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: earned ? AppColors.gold.withValues(alpha: 0.16) : colors.cardAlt,
-          border: Border.all(
-              color: earned ? AppColors.gold.withValues(alpha: 0.5) : colors.border,
-              width: size > 50 ? 2 : 1),
+          gradient: const LinearGradient(
+              colors: [Color(0xFF3A2470), Color(0xFF1E1240)]),
+          border: Border.all(color: Mythic.gold, width: size > 50 ? 2 : 1.4),
+          boxShadow: [
+            BoxShadow(
+                color: Mythic.gold.withValues(alpha: 0.35),
+                blurRadius: size > 50 ? 18 : 10),
+          ],
         ),
-        child: Opacity(
-          opacity: earned ? 1 : 0.4,
-          child: Text(emoji, style: TextStyle(fontSize: size * 0.47)),
-        ),
+        child: Text(emoji, style: TextStyle(fontSize: size * 0.47)),
       );
+    }
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: earned ? AppColors.gold.withValues(alpha: 0.16) : colors.cardAlt,
+        border: Border.all(
+            color: earned ? AppColors.gold.withValues(alpha: 0.5) : colors.border,
+            width: size > 50 ? 2 : 1),
+      ),
+      child: Opacity(
+        opacity: earned ? 1 : 0.4,
+        child: Text(emoji, style: TextStyle(fontSize: size * 0.47)),
+      ),
+    );
+  }
 
   Widget _progressBar(AppColors colors, double fraction, bool earned,
       {double height = 6}) {
@@ -247,6 +272,7 @@ class _ProfileViewState extends State<ProfileView> {
   Widget _titleRow(AppColors colors, TitleProgress p) {
     final t = p.title;
     final earned = p.earned;
+    final master = t.id == kMasterTitleId;
     final primary = earned && t.id == widget.primaryTitle?.id;
     final shown = p.current > p.target ? p.target : p.current;
     return InkWell(
@@ -256,7 +282,7 @@ class _ProfileViewState extends State<ProfileView> {
         padding: const EdgeInsets.symmetric(vertical: 6),
         child: Row(
           children: [
-            _titleEmoji(colors, t.emoji, earned, 38),
+            _titleEmoji(colors, t.emoji, earned, 38, master: master),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -265,14 +291,25 @@ class _ProfileViewState extends State<ProfileView> {
                   Row(
                     children: [
                       Expanded(
-                        child: Text(
-                          context.l10n.titleName(t.id),
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: earned ? colors.text : colors.textSecondary,
-                          ),
-                        ),
+                        child: master && earned
+                            // The crown shimmers wherever it is displayed.
+                            ? AnimatedMythicText(
+                                context.l10n.titleName(t.id),
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              )
+                            : Text(
+                                context.l10n.titleName(t.id),
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: earned
+                                      ? colors.text
+                                      : colors.textSecondary,
+                                ),
+                              ),
                       ),
                       if (primary)
                         const Icon(Icons.star_rounded, size: 16, color: AppColors.goldDeep)
@@ -306,6 +343,7 @@ class _ProfileViewState extends State<ProfileView> {
     final colors = AppColors.of(context);
     final t = p.title;
     final earned = p.earned;
+    final master = t.id == kMasterTitleId;
     final primary = earned && t.id == widget.primaryTitle?.id;
     final shown = p.current > p.target ? p.target : p.current;
     showModalBottomSheet(
@@ -319,10 +357,15 @@ class _ProfileViewState extends State<ProfileView> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _titleEmoji(colors, t.emoji, earned, 72),
+            _titleEmoji(colors, t.emoji, earned, 72, master: master),
             const SizedBox(height: 14),
-            Text(context.l10nRead.titleName(t.id),
-                style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700, color: colors.text)),
+            if (master && earned)
+              AnimatedMythicText(context.l10nRead.titleName(t.id),
+                  style: const TextStyle(
+                      fontSize: 19, fontWeight: FontWeight.w800))
+            else
+              Text(context.l10nRead.titleName(t.id),
+                  style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700, color: colors.text)),
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),

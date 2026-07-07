@@ -96,6 +96,61 @@ void main() {
     test('there is no default/fallback title', () {
       expect(evaluateTitles(const GamiStats()), isEmpty);
     });
+
+    test('Master Budgeter targets every medal plus every other title', () {
+      final p = prog(const GamiStats(), 'masterbudgeter');
+      final totalBadges =
+          kAchievementGroups.fold<int>(0, (n, g) => n + g.tiers.length);
+      expect(p.target, totalBadges + kTitles.length - 1);
+      expect(p.current, 0);
+      expect(p.earned, isFalse);
+      expect(p.title.unit, 'unlocks');
+    });
+
+    // A stats snapshot that maxes out every ladder and every regular title.
+    GamiStats maxed({int goalsCompleted = 10}) {
+      final allMonth = MonthStat(categoryShare: const {
+        'Food & Dining': 1,
+        'Groceries': 1,
+        'Shopping': 1,
+        'Transportation': 1,
+        'Bills & Utilities': 1,
+        'Entertainment': 1,
+        'Health & Medical': 1,
+        'Travel': 1,
+        'Education': 1,
+        'Investments': 1,
+      }, savingsRate: 0.9);
+      return GamiStats(
+        currentStreak: 730,
+        longestStreak: 730,
+        totalTracked: 5000000,
+        txnCount: 8000,
+        monthsOfData: 48,
+        fullyTaggedMonths: 36,
+        monthsWithinBudget: 12,
+        monthsSavingsRate20: 12,
+        noSpendDays: 90,
+        distinctCategories: 9,
+        netWorth: 10000000,
+        debtFreeDays: 120,
+        goalsCompleted: goalsCompleted,
+        monthStats: List.generate(6, (_) => allMonth),
+      );
+    }
+
+    test('Master Budgeter unlocks only with the complete catalog', () {
+      final done = prog(maxed(), 'masterbudgeter');
+      expect(done.current, done.target);
+      expect(done.earned, isTrue);
+      expect(
+          evaluateTitles(maxed()).any((t) => t.id == kMasterTitleId), isTrue);
+
+      // One medal missing (9/10 goals) keeps the crown locked.
+      final nearly = prog(maxed(goalsCompleted: 9), 'masterbudgeter');
+      expect(nearly.current, nearly.target - 1);
+      expect(nearly.earned, isFalse);
+    });
   });
 
   group('Streak math (pure)', () {

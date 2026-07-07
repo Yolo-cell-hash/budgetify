@@ -14,21 +14,69 @@ class LockScreen extends StatefulWidget {
   State<LockScreen> createState() => _LockScreenState();
 }
 
-class _LockScreenState extends State<LockScreen> {
+class _LockScreenState extends State<LockScreen> with WidgetsBindingObserver {
   bool _authenticating = false;
+
+  /// Monotonic token per authentication attempt. A cancelled/hung attempt that
+  /// completes late is ignored when its token no longer matches, so it can't
+  /// flip the button state or race a newer prompt.
+  int _session = 0;
+
+  /// True while the app is genuinely backgrounded (paused/hidden) — as opposed
+  /// to merely losing focus to the biometric sheet itself (inactive).
+  bool _wentToBackground = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // Fire the prompt once the first frame is up
     WidgetsBinding.instance.addPostFrameCallback((_) => _tryUnlock());
   }
 
-  Future<void> _tryUnlock() async {
-    if (_authenticating) return;
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      _wentToBackground = true;
+    } else if (state == AppLifecycleState.resumed && _wentToBackground) {
+      // Swiping the app away (or switching apps) while the system sheet was
+      // up dismisses the sheet, and on some devices the pending
+      // authenticate() call never completes — which used to leave this
+      // screen stuck on "Waiting" with no way to bring the prompt back.
+      // Cancel whatever is left and prompt again now that we're visible.
+      _wentToBackground = false;
+      _repromptAfterResume();
+    }
+  }
+
+  Future<void> _repromptAfterResume() async {
+    // Give a result that was completing right as we resumed (e.g. the
+    // device-credential fallback on older Android) a moment to land before
+    // tearing the session down. If it unlocked, this screen is already gone.
+    await Future.delayed(const Duration(milliseconds: 500));
+    if (!mounted) return;
+    _tryUnlock(force: true);
+  }
+
+  /// Show the system prompt. With [force], any in-flight attempt is cancelled
+  /// first so a fresh prompt can always be brought up.
+  Future<void> _tryUnlock({bool force = false}) async {
+    if (_authenticating && !force) return;
+    final session = ++_session;
+    if (_authenticating) {
+      await AppLockService().cancelPendingAuth();
+      if (!mounted || session != _session) return;
+    }
     setState(() => _authenticating = true);
     final ok = await AppLockService().authenticate();
-    if (!mounted) return;
+    if (!mounted || session != _session) return;
     setState(() => _authenticating = false);
     if (ok) widget.onUnlocked();
   }
@@ -81,8 +129,11 @@ class _LockScreenState extends State<LockScreen> {
                   ),
                 ),
                 const SizedBox(height: 36),
+                // Always tappable: if an attempt is (or appears) in flight it
+                // is cancelled and re-issued, so a dismissed/hung prompt can
+                // never lock the user out of retrying.
                 ElevatedButton.icon(
-                  onPressed: _authenticating ? null : _tryUnlock,
+                  onPressed: () => _tryUnlock(force: true),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.gold,
                     foregroundColor: const Color(0xFF15110A),

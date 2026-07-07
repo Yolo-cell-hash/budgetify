@@ -45,4 +45,15 @@ class AppLockService {
       return false;
     }
   }
+
+  /// Cancel an in-flight [authenticate] call (Android; a no-op elsewhere).
+  /// The pending future then completes so the caller can show a fresh prompt
+  /// — the recovery path for a prompt the user swiped away.
+  Future<void> cancelPendingAuth() async {
+    try {
+      await _auth.stopAuthentication();
+    } on PlatformException {
+      // Nothing was in flight — fine.
+    }
+  }
 }

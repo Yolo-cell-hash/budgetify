@@ -35,12 +35,15 @@ const Color _eyeWhite = Color(0xFFF2F5F8);
 ///   .  transparent   X outline    C headwear  c headwear-shadow
 ///   H  hair          h hair-shadow  K skin     k skin-shadow
 ///   W  eye-white     I iris        J top       j top-shadow
+///   A  accent        a accent-shadow (glows, horns, trims — elite characters)
 class _Pal {
   final Color hair, hairD, cap, capD, jacket, jacketD, skin, skinD, iris;
+  final Color accent, accentD;
   const _Pal({
     required this.hair, required this.hairD, required this.cap, required this.capD,
     required this.jacket, required this.jacketD, required this.skin,
     required this.skinD, required this.iris,
+    this.accent = const Color(0xFFFFFFFF), this.accentD = const Color(0xFFB8B8B8),
   });
 }
 
@@ -213,10 +216,178 @@ final List<_Sprite> _sprites = [
   _Sprite(_stack(_afroHead),
       const _Pal(hair: Color(0xFF6B4423), hairD: Color(0xFF4A2E16), cap: Color(0xFF6B4423), capD: Color(0xFF4A2E16), jacket: Color(0xFF2D6CDF), jacketD: Color(0xFF1E4DA8), skin: _skinLight, skinD: _skinLightD, iris: Color(0xFF6B4A2E)),
       const [Color(0xFF4F8DF7), Color(0xFF2456C8)]),
+
+  // ── Elite characters (order must mirror kEliteAvatars) ──────────────────
+  // Shadow Blade: deep hood, shadowed face, cyan glow eyes, masked mouth.
+  _Sprite(const [
+    '................',
+    '....XXXXXXXX....',
+    '...XCCCCCCCCX...',
+    '..XCCCCCCCCCCX..',
+    '..XCCccccccCCX..',
+    '..XCcKKKKKKcCX..',
+    '..XCKAAKKAAKCX..',
+    '..XCKKKKKKKKCX..',
+    '..XCKJJJJJJKCX..',
+    '...XKJJJJJJKX...',
+    '.....XJJJJX.....',
+    '...XXJJJJJJXX...',
+    '..XJjJJJJJJjJX..',
+    '..XJaJJJJJJaJX..',
+    '..XXJJJJJJJJXX..',
+    '................',
+  ],
+      const _Pal(hair: Color(0xFF23262F), hairD: Color(0xFF15171D), cap: Color(0xFF2B2F3B), capD: Color(0xFF1B1E26), jacket: Color(0xFF1D2027), jacketD: Color(0xFF14161C), skin: Color(0xFF44506A), skinD: Color(0xFF303A50), iris: Color(0xFF4DE0FF), accent: Color(0xFF4DE0FF), accentD: Color(0xFF2596B8)),
+      const [Color(0xFF35B6E0), Color(0xFF16324A)]),
+  // Crimson Oni: horned war mask, bone-white face, burning eyes.
+  _Sprite(const [
+    '..A..........A..',
+    '..AA.XXXXXX.AA..',
+    '...XXCCCCCCXX...',
+    '..XCCCCCCCCCCX..',
+    '..XCcCCCCCCcCX..',
+    '..XCKKKKKKKKCX..',
+    '..XCKIIKKIIKCX..',
+    '..XCKKKKKKKKCX..',
+    '..XCKkKKKKkKCX..',
+    '...XKKKKKKKKX...',
+    '.....XKKKKX.....',
+    '...XXJJJJJJXX...',
+    '..XJjJJJJJJjJX..',
+    '..XJaJJJJJJaJX..',
+    '..XXJJJJJJJJXX..',
+    '................',
+  ],
+      const _Pal(hair: Color(0xFFB02832), hairD: Color(0xFF7E1820), cap: Color(0xFFB02832), capD: Color(0xFF7E1820), jacket: Color(0xFF2A2027), jacketD: Color(0xFF1C1519), skin: Color(0xFFF2E8D8), skinD: Color(0xFFD8C4A8), iris: Color(0xFFFF4632), accent: Color(0xFFF2C14E), accentD: Color(0xFFC09232)),
+      const [Color(0xFFFF5A4E), Color(0xFF7E1820)]),
+  // Cyber Ronin: gunmetal helm, teal visor band, respirator, lit armour seams.
+  _Sprite(const [
+    '................',
+    '....XXXXXXXX....',
+    '...XCCCCCCCCX...',
+    '..XCCCCCCCCCCX..',
+    '..XCcCCCCCCcCX..',
+    '..XAAAAAAAAAAX..',
+    '..XaAAaAAaAAaX..',
+    '..XCKKKKKKKKCX..',
+    '..XCKKJJJJKKCX..',
+    '...XKKJJJJKKX...',
+    '.....XJJJJX.....',
+    '...XXJJJJJJXX...',
+    '..XJjJJJJJJjJX..',
+    '..XJAJJJJJJAJX..',
+    '..XXJJJJJJJJXX..',
+    '................',
+  ],
+      const _Pal(hair: Color(0xFF6E7686), hairD: Color(0xFF4C5260), cap: Color(0xFF6E7686), capD: Color(0xFF4C5260), jacket: Color(0xFF262B36), jacketD: Color(0xFF191D25), skin: Color(0xFF9AA3B2), skinD: Color(0xFF7B8494), iris: Color(0xFF21E6C1), accent: Color(0xFF21E6C1), accentD: Color(0xFF139C82)),
+      const [Color(0xFF21E6C1), Color(0xFF17546E)]),
+  // Dragon Lord: crested drake helm, side horns, ember eyes, gilded scale.
+  _Sprite(const [
+    '.......AA.......',
+    '....XX.AA.XX....',
+    '...XCCXAAXCCX...',
+    '..XCCCCAACCCCX..',
+    '.AXCCCCCCCCCCXA.',
+    '.AXCcCCCCCCcCXA.',
+    '..XCKKKKKKKKCX..',
+    '..XCKIIKKIIKCX..',
+    '..XCKKKKKKKKCX..',
+    '..XCKkkKKkkKCX..',
+    '.....XKKKKX.....',
+    '...XXJJJJJJXX...',
+    '..XJaJJJJJJaJX..',
+    '..XJjaJJJJajJX..',
+    '..XXJJJJJJJJXX..',
+    '................',
+  ],
+      const _Pal(hair: Color(0xFF2F8757), hairD: Color(0xFF1F5E3C), cap: Color(0xFF2F8757), capD: Color(0xFF1F5E3C), jacket: Color(0xFF23402E), jacketD: Color(0xFF16291D), skin: Color(0xFF57B87A), skinD: Color(0xFF3B8A58), iris: Color(0xFFFFB300), accent: Color(0xFFF2C14E), accentD: Color(0xFFC09232)),
+      const [Color(0xFF3DD27E), Color(0xFF1F5E3C)]),
+  // Void Monarch: gold crown, void-pale face, blank glowing eyes, royal robe.
+  _Sprite(const [
+    '...A...A...A....',
+    '...AAAAAAAAA....',
+    '...XHHHHHHHHX...',
+    '..XHHHHHHHHHHX..',
+    '..XHKKKKKKKKHX..',
+    '..XHKWWKKWWKHX..',
+    '..XHKKKKKKKKHX..',
+    '..XHKKKkkKKKHX..',
+    '....XKKKKKKX....',
+    '.....XKKKKX.....',
+    '...XXJJJJJJXX...',
+    '..XJaJJJJJJaJX..',
+    '..XJJaJJJJaJJX..',
+    '..XJJJaaaaJJJX..',
+    '..XXJJJJJJJJXX..',
+    '................',
+  ],
+      const _Pal(hair: Color(0xFF2A2440), hairD: Color(0xFF1A1628), cap: Color(0xFF2A2440), capD: Color(0xFF1A1628), jacket: Color(0xFF3A2E6E), jacketD: Color(0xFF291F52), skin: Color(0xFFC9CBE8), skinD: Color(0xFFA6A8CC), iris: Color(0xFFFFFFFF), accent: Color(0xFFF2C14E), accentD: Color(0xFFC09232)),
+      const [Color(0xFF8F7BFF), Color(0xFF2A2050)]),
+  // Eternal Phoenix: living flame crest, ember eyes, molten plumage armour.
+  _Sprite(const [
+    '....A...A..A....',
+    '...AA..AA..AA...',
+    '...XAAAAAAAAX...',
+    '..XHAAHHHHAAHX..',
+    '..XHHHHHHHHHHX..',
+    '..XHKKKKKKKKHX..',
+    '..XHKIIKKIIKHX..',
+    '..XHKKKKKKKKHX..',
+    '..XHKKKkkKKKHX..',
+    '....XKKKKKKX....',
+    '.....XKKKKX.....',
+    '...XXJJJJJJXX...',
+    '..XJjJJJJJJjJX..',
+    '..XJaJJJJJJaJX..',
+    '..XXJJJJJJJJXX..',
+    '................',
+  ],
+      const _Pal(hair: Color(0xFFE85D20), hairD: Color(0xFFB03E12), cap: Color(0xFFE85D20), capD: Color(0xFFB03E12), jacket: Color(0xFF8C2B12), jacketD: Color(0xFF621D0B), skin: _skinMed, skinD: _skinMedD, iris: Color(0xFFFF8C00), accent: Color(0xFFFFB347), accentD: Color(0xFFFF6B35)),
+      const [Color(0xFFFFB347), Color(0xFFB03E12)]),
 ];
 
-/// Number of distinct pixel-character avatars offered.
+/// Number of distinct pixel-character avatars offered (free + elite).
 final int kPixelAvatarCount = _sprites.length;
+
+/// An elite pixel character: prestige art locked behind one of the hardest
+/// badges. [spriteIndex] is its slot in the shared sprite list (persisted in
+/// profiles — append-only), [badgeId] the badge that unlocks it.
+class EliteAvatar {
+  final String id;
+  final int spriteIndex;
+  final String badgeId;
+  const EliteAvatar({
+    required this.id,
+    required this.spriteIndex,
+    required this.badgeId,
+  });
+}
+
+/// The elite roster, in sprite order right after the free characters.
+const List<EliteAvatar> kEliteAvatars = [
+  EliteAvatar(id: 'shadowblade', spriteIndex: 12, badgeId: 'streak.6'),
+  EliteAvatar(id: 'crimsononi', spriteIndex: 13, badgeId: 'budget.3'),
+  EliteAvatar(id: 'cyberronin', spriteIndex: 14, badgeId: 'txn.6'),
+  EliteAvatar(id: 'dragonlord', spriteIndex: 15, badgeId: 'amount.6'),
+  EliteAvatar(id: 'voidmonarch', spriteIndex: 16, badgeId: 'networth.5'),
+  EliteAvatar(id: 'phoenix', spriteIndex: 17, badgeId: 'streak.8'),
+];
+
+/// Number of free (always available) pixel characters — elite sprites start
+/// at this index.
+final int kFreePixelAvatarCount = _sprites.length - kEliteAvatars.length;
+
+/// The elite character occupying [spriteIndex], or null for a free one.
+EliteAvatar? eliteAvatarAt(int spriteIndex) {
+  for (final e in kEliteAvatars) {
+    if (e.spriteIndex == spriteIndex) return e;
+  }
+  return null;
+}
+
+/// Test hook: raw glyph rows of sprite [i], for grid-integrity checks.
+@visibleForTesting
+List<String> debugSpriteRows(int i) => _sprites[i % _sprites.length].rows;
 
 /// Coordinating halo gradient for a pixel avatar (used on the profile card).
 List<Color> pixelHaloOf(int seed) => _sprites[seed % _sprites.length].halo;
@@ -314,6 +485,8 @@ class PixelAvatarPainter extends CustomPainter {
           'I' => pal.iris,
           'J' => pal.jacket,
           'j' => pal.jacketD,
+          'A' => pal.accent,
+          'a' => pal.accentD,
           _ => null,
         };
 

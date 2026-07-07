@@ -200,6 +200,23 @@ void main() {
       expect(txn.accountInfo, 'XX7763');
       expect(txn.merchantName, 'Miss Aishwarya');
     });
+
+    test('debit payee is never swapped with the account (tester report)', () {
+      // The counterparty must come from the "payment to {NAME}" clause and the
+      // account from "A/c X…" — never each other, whatever the name looks like.
+      final txn = SmsParserService.parseTransaction(
+        'VA-MAHABK-S',
+        'A/c X7763 debited by Rs. 5.05 for UPI payment to JAY RAJESH KEER '
+        'on 16-Jun-26. RRN: 616775941693 if not you, call 18002334526 '
+        '-Bank of Maharashtra',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 5.05);
+      expect(txn.type, TransactionType.debit);
+      expect(txn.accountInfo, 'XX7763');
+      expect(txn.merchantName, 'Jay Rajesh Keer');
+    });
   });
 
   group('Kotak message formats', () {
