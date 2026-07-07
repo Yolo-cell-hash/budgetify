@@ -164,8 +164,13 @@ Set<String> earnedBadgeIds(GamiStats stats) {
 
 // ─────────────────────────── Titles ───────────────────────────
 
-/// What a title measures.
-enum TitleKind { category, savings, nospend }
+/// What a title measures. [master] is the final-boss crown: it counts every
+/// badge in every ladder plus every other title.
+enum TitleKind { category, savings, nospend, master }
+
+/// Id of the "Master Budgeter" crown — earned only when every medal and every
+/// other title is unlocked. UI special-cases it for the mythic treatment.
+const String kMasterTitleId = 'masterbudgeter';
 
 /// An earnable title. Declarative data so progress is computed purely: meet
 /// [threshold] (a share of income) in [target] qualifying months, or reach
@@ -191,8 +196,13 @@ class GamiTitle {
     required this.target,
   });
 
-  /// 'months' for category/savings titles, 'days' for no-spend.
-  String get unit => kind == TitleKind.nospend ? 'days' : 'months';
+  /// 'months' for category/savings titles, 'days' for no-spend, 'unlocks'
+  /// for the master crown (badges + titles collected).
+  String get unit => switch (kind) {
+        TitleKind.nospend => 'days',
+        TitleKind.master => 'unlocks',
+        _ => 'months',
+      };
 }
 
 /// A title with how far the user is toward earning it.
@@ -207,22 +217,34 @@ class TitleProgress {
 }
 
 /// Progress toward every title — counts the qualifying months (or no-spend
-/// days) the user actually has, so the UI can show a "N / target" bar.
+/// days) the user actually has, so the UI can show a "N / target" bar. The
+/// master crown instead counts every earned badge and every earned regular
+/// title against the full catalog.
 List<TitleProgress> evaluateTitleProgress(GamiStats stats) {
   int monthsMeeting(bool Function(MonthStat) test) =>
       stats.monthStats.where(test).length;
+
+  int currentFor(GamiTitle t) => switch (t.kind) {
+        TitleKind.category => monthsMeeting(
+            (m) => (m.categoryShare[t.category] ?? 0) >= t.threshold),
+        TitleKind.savings => monthsMeeting((m) => m.savingsRate >= t.threshold),
+        TitleKind.nospend => stats.noSpendDays,
+        TitleKind.master => 0, // computed against the whole catalog below
+      };
+
+  final regular = [for (final t in kTitles) if (t.kind != TitleKind.master) t];
+  final earnedRegular =
+      regular.where((t) => currentFor(t) >= t.target).length;
+  final totalBadges =
+      kAchievementGroups.fold<int>(0, (n, g) => n + g.tiers.length);
+  final earnedBadges = earnedBadgeIds(stats).length;
+
   return [
     for (final t in kTitles)
-      TitleProgress(
-        t,
-        switch (t.kind) {
-          TitleKind.category => monthsMeeting(
-              (m) => (m.categoryShare[t.category] ?? 0) >= t.threshold),
-          TitleKind.savings => monthsMeeting((m) => m.savingsRate >= t.threshold),
-          TitleKind.nospend => stats.noSpendDays,
-        },
-        t.target,
-      ),
+      t.kind == TitleKind.master
+          ? TitleProgress(
+              t, earnedBadges + earnedRegular, totalBadges + regular.length)
+          : TitleProgress(t, currentFor(t), t.target),
   ];
 }
 
@@ -437,6 +459,9 @@ final List<GamiTitle> kTitles = [
   GamiTitle(id: 'moneymagnet', emoji: '💰', name: 'Money Magnet', kind: TitleKind.savings, threshold: 0.35, target: 6, blurb: 'Have 6 months with a savings rate of 35%+.'),
   GamiTitle(id: 'frugal', emoji: '🪙', name: 'Frugal Master', kind: TitleKind.savings, threshold: 0.60, target: 6, blurb: 'Have 6 months with a savings rate of 60%+.'),
   GamiTitle(id: 'broke', emoji: '😅', name: 'Broke Spender', kind: TitleKind.nospend, target: 90, blurb: 'Rack up 90 total no-spend days (they need not be in a row).'),
+  // The final boss. [target] is a placeholder — evaluateTitleProgress derives
+  // the real target from the catalog (every badge + every title above).
+  GamiTitle(id: kMasterTitleId, emoji: '👑', name: 'Master Budgeter', kind: TitleKind.master, target: 1, blurb: 'Unlock every medal and every other title to claim the final crown.'),
 ];
 
 /// Lookup a title by id (for the persisted "primary title" choice).

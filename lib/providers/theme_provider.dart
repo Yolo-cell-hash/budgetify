@@ -102,6 +102,10 @@ class AppTheme {
       extensions: [
         AppPalette(colors: AppColors.light, hero: HeroStyle._light),
       ],
+      // Legacy ThemeData.primaryColor does NOT follow colorScheme.primary —
+      // unset, Flutter defaults it to near-black in dark themes (invisible
+      // icons) and swatch-blue in light ones. Pin it to the variant accent.
+      primaryColor: AppColors.inkPrimary,
       colorScheme: const ColorScheme.light(
         primary: AppColors.inkPrimary,
         onPrimary: Colors.white,
@@ -234,6 +238,9 @@ class AppTheme {
       extensions: [
         AppPalette(colors: AppColors.dark, hero: HeroStyle._dark),
       ],
+      // See lightTheme: pin the legacy primaryColor, else it defaults to
+      // grey[900] and primaryColor-tinted icons vanish on the dark canvas.
+      primaryColor: AppColors.gold,
       colorScheme: const ColorScheme.dark(
         primary: AppColors.gold,
         onPrimary: Color(0xFF15110A),
@@ -435,6 +442,7 @@ class AppTheme {
       useMaterial3: true,
       brightness: Brightness.light,
       extensions: [AppPalette(colors: c, hero: hero)],
+      primaryColor: accent,
       colorScheme: ColorScheme.light(
         primary: accent,
         onPrimary: onAccent,
@@ -571,6 +579,7 @@ class AppTheme {
       useMaterial3: true,
       brightness: Brightness.dark,
       extensions: [AppPalette(colors: c, hero: hero)],
+      primaryColor: accent,
       colorScheme: ColorScheme.dark(
         primary: accent,
         onPrimary: onAccent,

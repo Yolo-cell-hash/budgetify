@@ -4,25 +4,36 @@ import '../l10n/l10n.dart';
 
 import '../providers/theme_provider.dart';
 import '../services/gamification_service.dart';
+import 'app_toast.dart';
 import 'avatars.dart';
 
 /// Edit the profile's avatar (emoji or procedural pixel) + accent + username.
-/// Returns the edited [GamiProfile], or null if cancelled.
+/// [unlockedBadgeIds] gates the elite pixel characters — locked ones are shown
+/// greyed with their unlock requirement. Returns the edited [GamiProfile], or
+/// null if cancelled.
 Future<GamiProfile?> showAvatarPicker(
   BuildContext context,
-  GamiProfile initial,
-) {
+  GamiProfile initial, {
+  Set<String> unlockedBadgeIds = const {},
+}) {
   return showModalBottomSheet<GamiProfile>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (_) => _AvatarPickerSheet(initial: initial),
+    builder: (_) => _AvatarPickerSheet(
+      initial: initial,
+      unlockedBadgeIds: unlockedBadgeIds,
+    ),
   );
 }
 
 class _AvatarPickerSheet extends StatefulWidget {
   final GamiProfile initial;
-  const _AvatarPickerSheet({required this.initial});
+  final Set<String> unlockedBadgeIds;
+  const _AvatarPickerSheet({
+    required this.initial,
+    required this.unlockedBadgeIds,
+  });
 
   @override
   State<_AvatarPickerSheet> createState() => _AvatarPickerSheetState();
@@ -40,6 +51,9 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
     _name.dispose();
     super.dispose();
   }
+
+  bool _eliteUnlocked(EliteAvatar e) =>
+      widget.unlockedBadgeIds.contains(e.badgeId);
 
   void _save() {
     Navigator.pop(
@@ -125,10 +139,35 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
               children: _kind == 'emoji'
                   ? [for (final e in kEmojiAvatars) _option(e, e == _value, kind: 'emoji', value: e)]
                   : [
-                      for (var i = 0; i < kPixelAvatarCount; i++)
+                      for (var i = 0; i < kFreePixelAvatarCount; i++)
                         _option('$i', '$i' == _value, kind: 'pixel', value: '$i')
                     ],
             ),
+            // Elite characters: prestige art gated behind the hardest badges.
+            if (_kind == 'pixel') ...[
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  _sectionLabel(colors, context.l10n.eliteAvatarsLabel),
+                  const SizedBox(width: 6),
+                  Icon(Icons.workspace_premium_rounded,
+                      size: 14, color: colors.brandAccent),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                context.l10n.eliteAvatarsDesc,
+                style: TextStyle(fontSize: 11.5, color: colors.textTertiary),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  for (final e in kEliteAvatars) _eliteOption(colors, e),
+                ],
+              ),
+            ],
             // Accent applies to emoji avatars only — pixel characters carry
             // their own colours.
             if (_kind == 'emoji') ...[
@@ -224,6 +263,81 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
           ),
         ),
         child: AvatarView(kind: kind, value: value, accent: _accent, size: 46, ring: false),
+      ),
+    );
+  }
+
+  /// An elite character tile: selectable once its badge is earned; locked ones
+  /// are dimmed with a lock and reveal their requirement on tap.
+  Widget _eliteOption(AppColors colors, EliteAvatar e) {
+    final unlocked = _eliteUnlocked(e);
+    final value = '${e.spriteIndex}';
+    final selected = _kind == 'pixel' && _value == value;
+    return GestureDetector(
+      onTap: () {
+        if (unlocked) {
+          setState(() => _value = value);
+        } else {
+          showAppToast(
+            context,
+            message: context.l10nRead.eliteAvatarLock(e.id),
+            type: AppToastType.info,
+          );
+        }
+      },
+      child: SizedBox(
+        width: 56,
+        child: Column(
+          children: [
+            Stack(
+              alignment: Alignment.bottomRight,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: selected ? colors.brandAccent : Colors.transparent,
+                      width: 2.5,
+                    ),
+                  ),
+                  child: Opacity(
+                    opacity: unlocked ? 1 : 0.35,
+                    child: AvatarView(
+                        kind: 'pixel',
+                        value: value,
+                        accent: _accent,
+                        size: 46,
+                        ring: false),
+                  ),
+                ),
+                if (!unlocked)
+                  Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: colors.cardAlt,
+                      border: Border.all(color: colors.border),
+                    ),
+                    child: Icon(Icons.lock_rounded,
+                        size: 11, color: colors.textSecondary),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              context.l10n.eliteAvatarName(e.id),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.w600,
+                color: unlocked ? colors.textSecondary : colors.textTertiary,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
