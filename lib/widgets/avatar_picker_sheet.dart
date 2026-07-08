@@ -4,36 +4,25 @@ import '../l10n/l10n.dart';
 
 import '../providers/theme_provider.dart';
 import '../services/gamification_service.dart';
-import 'app_toast.dart';
 import 'avatars.dart';
 
 /// Edit the profile's avatar (emoji or procedural pixel) + accent + username.
-/// [unlockedBadgeIds] gates the elite pixel characters — locked ones are shown
-/// greyed with their unlock requirement. Returns the edited [GamiProfile], or
-/// null if cancelled.
+/// Returns the edited [GamiProfile], or null if cancelled.
 Future<GamiProfile?> showAvatarPicker(
   BuildContext context,
-  GamiProfile initial, {
-  Set<String> unlockedBadgeIds = const {},
-}) {
+  GamiProfile initial,
+) {
   return showModalBottomSheet<GamiProfile>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (_) => _AvatarPickerSheet(
-      initial: initial,
-      unlockedBadgeIds: unlockedBadgeIds,
-    ),
+    builder: (_) => _AvatarPickerSheet(initial: initial),
   );
 }
 
 class _AvatarPickerSheet extends StatefulWidget {
   final GamiProfile initial;
-  final Set<String> unlockedBadgeIds;
-  const _AvatarPickerSheet({
-    required this.initial,
-    required this.unlockedBadgeIds,
-  });
+  const _AvatarPickerSheet({required this.initial});
 
   @override
   State<_AvatarPickerSheet> createState() => _AvatarPickerSheetState();
@@ -51,9 +40,6 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
     _name.dispose();
     super.dispose();
   }
-
-  bool _eliteUnlocked(EliteAvatar e) =>
-      widget.unlockedBadgeIds.contains(e.badgeId);
 
   void _save() {
     Navigator.pop(
@@ -143,7 +129,7 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
                         _option('$i', '$i' == _value, kind: 'pixel', value: '$i')
                     ],
             ),
-            // Elite characters: prestige art gated behind the hardest badges.
+            // Elite characters: the showpiece art, in its own category.
             if (_kind == 'pixel') ...[
               const SizedBox(height: 16),
               Row(
@@ -267,62 +253,31 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
     );
   }
 
-  /// An elite character tile: selectable once its badge is earned; locked ones
-  /// are dimmed with a lock and reveal their requirement on tap.
+  /// An elite character tile — always selectable, named under the art.
   Widget _eliteOption(AppColors colors, EliteAvatar e) {
-    final unlocked = _eliteUnlocked(e);
     final value = '${e.spriteIndex}';
     final selected = _kind == 'pixel' && _value == value;
     return GestureDetector(
-      onTap: () {
-        if (unlocked) {
-          setState(() => _value = value);
-        } else {
-          showAppToast(
-            context,
-            message: context.l10nRead.eliteAvatarLock(e.id),
-            type: AppToastType.info,
-          );
-        }
-      },
+      onTap: () => setState(() => _value = value),
       child: SizedBox(
         width: 56,
         child: Column(
           children: [
-            Stack(
-              alignment: Alignment.bottomRight,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(3),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: selected ? colors.brandAccent : Colors.transparent,
-                      width: 2.5,
-                    ),
-                  ),
-                  child: Opacity(
-                    opacity: unlocked ? 1 : 0.35,
-                    child: AvatarView(
-                        kind: 'pixel',
-                        value: value,
-                        accent: _accent,
-                        size: 46,
-                        ring: false),
-                  ),
+            Container(
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: selected ? colors.brandAccent : Colors.transparent,
+                  width: 2.5,
                 ),
-                if (!unlocked)
-                  Container(
-                    padding: const EdgeInsets.all(3),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: colors.cardAlt,
-                      border: Border.all(color: colors.border),
-                    ),
-                    child: Icon(Icons.lock_rounded,
-                        size: 11, color: colors.textSecondary),
-                  ),
-              ],
+              ),
+              child: AvatarView(
+                  kind: 'pixel',
+                  value: value,
+                  accent: _accent,
+                  size: 46,
+                  ring: false),
             ),
             const SizedBox(height: 4),
             Text(
@@ -333,7 +288,7 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
               style: TextStyle(
                 fontSize: 9,
                 fontWeight: FontWeight.w600,
-                color: unlocked ? colors.textSecondary : colors.textTertiary,
+                color: colors.textSecondary,
               ),
             ),
           ],

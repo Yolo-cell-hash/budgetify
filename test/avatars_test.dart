@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:budget_tracker/models/achievement.dart';
 import 'package:budget_tracker/widgets/avatars.dart';
 
 void main() {
@@ -30,20 +29,6 @@ void main() {
       for (var i = 0; i < kEliteAvatars.length; i++) {
         expect(kEliteAvatars[i].spriteIndex, kFreePixelAvatarCount + i,
             reason: kEliteAvatars[i].id);
-      }
-    });
-
-    test('every unlock badge id resolves in the achievement catalog', () {
-      for (final e in kEliteAvatars) {
-        final b = badgeById(e.badgeId);
-        expect(b, isNotNull, reason: '${e.id} → ${e.badgeId}');
-        // Elite art is prestige: gate only on the two rarest tiers.
-        expect(
-          b!.group.tiers[b.tierIndex].rarity.index >=
-              BadgeRarity.ruby.index - 1,
-          isTrue,
-          reason: '${e.id} should be gated behind a top-tier badge',
-        );
       }
     });
 

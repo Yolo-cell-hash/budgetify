@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -171,6 +172,16 @@ class _ProfileViewState extends State<ProfileView> {
                   ),
                 ),
         ),
+        // The mythic crown lives outside the regular gallery — a one-of-a-kind
+        // rarity slot with its own banner and animation.
+        if (_masterProgress != null) ...[
+          const SizedBox(height: 24),
+          _MythicTitleBanner(
+            progress: _masterProgress!,
+            isPrimary: widget.primaryTitle?.id == kMasterTitleId,
+            onTap: () => _showTitleSheet(_masterProgress!),
+          ),
+        ],
         const SizedBox(height: 24),
         _sectionHeader(colors, context.l10n.titlesLabel, ''),
         const SizedBox(height: 8),
@@ -179,11 +190,23 @@ class _ProfileViewState extends State<ProfileView> {
     );
   }
 
-  /// A gallery of every title — earned ones are colourful and tappable to set
-  /// your headline; locked ones are muted and show how to earn them. Mirrors
-  /// the Trophies tab so titles are just as visible.
+  /// Progress of the Master Budgeter crown (rendered apart from the gallery).
+  TitleProgress? get _masterProgress {
+    for (final p in widget.titleProgress) {
+      if (p.title.kind == TitleKind.master) return p;
+    }
+    return null;
+  }
+
+  /// A gallery of every regular title — earned ones are colourful and tappable
+  /// to set your headline; locked ones are muted and show how to earn them.
+  /// The Master Budgeter crown is NOT here: as the one mythic-rarity title it
+  /// gets its own banner above the gallery.
   Widget _titles(AppColors colors) {
-    final tp = widget.titleProgress;
+    final tp = [
+      for (final p in widget.titleProgress)
+        if (p.title.kind != TitleKind.master) p
+    ];
     final earnedCount = tp.where((p) => p.earned).length;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -366,6 +389,19 @@ class _ProfileViewState extends State<ProfileView> {
             else
               Text(context.l10nRead.titleName(t.id),
                   style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700, color: colors.text)),
+            if (master) ...[
+              const SizedBox(height: 5),
+              // The one mythic-rarity title wears its rarity tag everywhere.
+              Text(
+                '✦ ${context.l10nRead.mythicTag.toUpperCase()} ✦',
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 3,
+                  color: earned ? Mythic.ember : colors.textTertiary,
+                ),
+              ),
+            ],
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -471,6 +507,256 @@ class _ProfileViewState extends State<ProfileView> {
       ),
     );
     if (result != null) widget.onUpdateShowcase(result);
+  }
+}
+
+/// The Master Budgeter banner — the app's only mythic-rarity title, displayed
+/// apart from the regular title gallery like a mythic-rare drop: void-violet
+/// canvas, breathing gold/cyan border, a live aura of halo rings and orbiting
+/// sparks, and a shimmering crown name once earned. While locked it stays
+/// dark and aspirational — dimmed aura, lock badge, live progress bar.
+class _MythicTitleBanner extends StatefulWidget {
+  final TitleProgress progress;
+  final bool isPrimary;
+  final VoidCallback onTap;
+
+  const _MythicTitleBanner({
+    required this.progress,
+    required this.isPrimary,
+    required this.onTap,
+  });
+
+  @override
+  State<_MythicTitleBanner> createState() => _MythicTitleBannerState();
+}
+
+class _MythicTitleBannerState extends State<_MythicTitleBanner>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c =
+      AnimationController(vsync: this, duration: const Duration(seconds: 6))
+        ..repeat();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = widget.progress;
+    final earned = p.earned;
+    final shown = p.current > p.target ? p.target : p.current;
+
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (context, _) {
+        final t = _c.value;
+        final breath = (math.sin(t * 2 * math.pi) + 1) / 2;
+        return GestureDetector(
+          onTap: widget.onTap,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(22),
+              gradient: const LinearGradient(
+                colors: Mythic.cardGradient,
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              border: Border.all(
+                color: earned
+                    ? Mythic.borderAt(t)
+                    : Mythic.gold.withValues(alpha: 0.35),
+                width: 1.4,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Mythic.deepViolet.withValues(alpha: 0.45),
+                  blurRadius: 18,
+                  offset: const Offset(0, 6),
+                ),
+                if (earned)
+                  BoxShadow(
+                    color: Mythic.gold.withValues(alpha: 0.10 + breath * 0.12),
+                    blurRadius: 26,
+                  ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(22),
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: Opacity(
+                      opacity: earned ? 1 : 0.45,
+                      child: CustomPaint(
+                        painter: MythicAuraPainter(
+                          t: t,
+                          focus: const Alignment(-0.68, -1),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                    child: Row(
+                      children: [
+                        _crown(earned, breath),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      '✦ ${context.l10n.mythicTag.toUpperCase()} ✦',
+                                      style: const TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 3,
+                                        color: Mythic.cyan,
+                                      ),
+                                    ),
+                                  ),
+                                  if (widget.isPrimary)
+                                    const Icon(Icons.star_rounded,
+                                        size: 16, color: Mythic.gold)
+                                  else if (earned)
+                                    const Icon(Icons.check_circle_rounded,
+                                        size: 15, color: Mythic.cyan)
+                                  else
+                                    Icon(Icons.lock_rounded,
+                                        size: 14,
+                                        color:
+                                            Colors.white.withValues(alpha: 0.45)),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              if (earned)
+                                MythicShimmerText(
+                                  context.l10n.titleName(p.title.id),
+                                  t: t,
+                                  style: const TextStyle(
+                                    fontSize: 16.5,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.2,
+                                  ),
+                                )
+                              else
+                                Text(
+                                  context.l10n.titleName(p.title.id),
+                                  style: const TextStyle(
+                                    fontSize: 16.5,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.2,
+                                    color: Color(0xFFB9AEDB),
+                                  ),
+                                ),
+                              const SizedBox(height: 9),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(3),
+                                      child: Stack(
+                                        children: [
+                                          Container(
+                                            height: 6,
+                                            color: Colors.white
+                                                .withValues(alpha: 0.10),
+                                          ),
+                                          FractionallySizedBox(
+                                            widthFactor:
+                                                p.fraction.clamp(0.0, 1.0),
+                                            child: Container(
+                                              height: 6,
+                                              decoration: const BoxDecoration(
+                                                gradient: LinearGradient(
+                                                  colors: Mythic.crownGradient,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    '$shown/${p.target} ${context.l10n.gamiUnit(p.title.unit)}',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: Mythic.paleGold
+                                          .withValues(alpha: 0.85),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// The gilded crown orb — glowing when earned, padlocked while not.
+  Widget _crown(bool earned, double breath) {
+    const size = 54.0;
+    return Stack(
+      alignment: Alignment.bottomRight,
+      children: [
+        Container(
+          width: size,
+          height: size,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: const LinearGradient(
+                colors: [Color(0xFF3A2470), Color(0xFF1E1240)]),
+            border: Border.all(
+              color: earned
+                  ? Mythic.gold
+                  : Mythic.gold.withValues(alpha: 0.45),
+              width: 1.8,
+            ),
+            boxShadow: [
+              if (earned)
+                BoxShadow(
+                  color: Mythic.gold.withValues(alpha: 0.30 + breath * 0.25),
+                  blurRadius: 14 + breath * 6,
+                ),
+            ],
+          ),
+          child: Opacity(
+            opacity: earned ? 1 : 0.55,
+            child: Text(widget.progress.title.emoji,
+                style: const TextStyle(fontSize: 25)),
+          ),
+        ),
+        if (!earned)
+          Container(
+            padding: const EdgeInsets.all(3.5),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Mythic.abyss,
+              border: Border.all(color: Mythic.ember),
+            ),
+            child:
+                const Icon(Icons.lock_rounded, size: 10, color: Mythic.paleGold),
+          ),
+      ],
+    );
   }
 }
 
