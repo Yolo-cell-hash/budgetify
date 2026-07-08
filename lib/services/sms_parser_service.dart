@@ -2221,6 +2221,7 @@ class SmsParserService {
   /// 1b. Kotak/IPPB — `... to {PAYEE} on {date}` (VPA or name)
   /// 1c. IPPB credit — `from {PAYER} thru IPPB`
   /// 1d. HDFC credit — `NEFT Cr-{IFSC}-{REMITTER}-...` / `IMPS -{REMITTER}- {ref}`
+  /// 1e. Card spend — `Spent/spent ... at {MERCHANT}` (HDFC intl e-com, ICICI)
   /// 2. BOI/generic — `credited to {NAME} via UPI`
   /// 3. HDFC — `To {NAME}` (on same or next line)
   /// 4. Generic — `paid/sent/transferred/payment/trf to {NAME}` (BOM, SBI)
@@ -2316,6 +2317,34 @@ class SmsParserService {
       if (imps != null) {
         merchant = _cleanMerchant(imps.group(1));
         if (merchant != null) return merchant;
+      }
+    }
+
+    // --- Pattern 1e: card spend "Spent ... At {MERCHANT} On {date}" ---
+    // Card-rail spends put the merchant after "at", not after "to", so every
+    // rule below misses them and the payee collapsed to the card number:
+    //   HDFC intl e-com: "Spent Rs.289 From HDFC Bank Card x7531 At
+    //                     XSOLLA *POKEMON On 2026-07-08:00:40:19 Bal ..."
+    //   ICICI:           "INR 899.00 spent on ICICI Bank Card XX9012 on
+    //                     01-Jun-26 at SHOPPING STOP. Avl Lmt: ..."
+    // Requiring a spend verb before "at" keeps ATM withdrawals ("withdrawn
+    // at SBI ATM ...") and location footers out. The name ends at the next
+    // "on <date>", balance/limit fragment, "Not You", punctuation, or EOL.
+    if (RegExp(r'\b(?:spent|purchased?)\b', caseSensitive: false)
+        .hasMatch(message)) {
+      final atMerchant = RegExp(
+        r'\b(?:spent|purchased?)\b[\s\S]*?\bat\s+(.+?)'
+        r'(?:\s+on\b|\s+Avl\b|\s+Bal\b|\s+Not\s+You|\s*\.|,|\n|$)',
+        caseSensitive: false,
+      ).firstMatch(message);
+      if (atMerchant != null) {
+        final candidate = atMerchant.group(1)?.trim();
+        if (candidate != null &&
+            candidate.length > 2 &&
+            !RegExp(r'^\d+$').hasMatch(candidate)) {
+          merchant = _cleanMerchant(candidate);
+          if (merchant != null) return merchant;
+        }
       }
     }
 
@@ -2490,14 +2519,19 @@ class SmsParserService {
     return _titleCase(cleaned);
   }
 
-  /// Title-case a string: "MUMBAI METRO GHATKOPAR" → "Mumbai Metro Ghatkopar"
+  /// Title-case a string: "MUMBAI METRO GHATKOPAR" → "Mumbai Metro Ghatkopar".
+  /// The first LETTER of each word is capitalised even behind a symbol, so
+  /// card descriptors keep their shape: "XSOLLA *POKEMON" → "Xsolla *Pokemon".
   static String _titleCase(String input) {
     if (input.isEmpty) return input;
     return input
         .split(RegExp(r'\s+'))
         .map((word) {
-          if (word.isEmpty) return word;
-          return '${word[0].toUpperCase()}${word.substring(1).toLowerCase()}';
+          final i = word.indexOf(RegExp(r'[A-Za-z]'));
+          if (i < 0) return word;
+          return word.substring(0, i) +
+              word[i].toUpperCase() +
+              word.substring(i + 1).toLowerCase();
         })
         .join(' ');
   }

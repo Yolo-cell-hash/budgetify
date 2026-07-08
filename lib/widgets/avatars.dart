@@ -349,28 +349,27 @@ final List<_Sprite> _sprites = [
 /// Number of distinct pixel-character avatars offered (free + elite).
 final int kPixelAvatarCount = _sprites.length;
 
-/// An elite pixel character: prestige art locked behind one of the hardest
-/// badges. [spriteIndex] is its slot in the shared sprite list (persisted in
-/// profiles — append-only), [badgeId] the badge that unlocks it.
+/// An elite pixel character: prestige art shown in its own picker section.
+/// [spriteIndex] is its slot in the shared sprite list (persisted in
+/// profiles — append-only). All elite characters are unlocked for everyone;
+/// the category only marks out the showpiece art.
 class EliteAvatar {
   final String id;
   final int spriteIndex;
-  final String badgeId;
   const EliteAvatar({
     required this.id,
     required this.spriteIndex,
-    required this.badgeId,
   });
 }
 
 /// The elite roster, in sprite order right after the free characters.
 const List<EliteAvatar> kEliteAvatars = [
-  EliteAvatar(id: 'shadowblade', spriteIndex: 12, badgeId: 'streak.6'),
-  EliteAvatar(id: 'crimsononi', spriteIndex: 13, badgeId: 'budget.3'),
-  EliteAvatar(id: 'cyberronin', spriteIndex: 14, badgeId: 'txn.6'),
-  EliteAvatar(id: 'dragonlord', spriteIndex: 15, badgeId: 'amount.6'),
-  EliteAvatar(id: 'voidmonarch', spriteIndex: 16, badgeId: 'networth.5'),
-  EliteAvatar(id: 'phoenix', spriteIndex: 17, badgeId: 'streak.8'),
+  EliteAvatar(id: 'shadowblade', spriteIndex: 12),
+  EliteAvatar(id: 'crimsononi', spriteIndex: 13),
+  EliteAvatar(id: 'cyberronin', spriteIndex: 14),
+  EliteAvatar(id: 'dragonlord', spriteIndex: 15),
+  EliteAvatar(id: 'voidmonarch', spriteIndex: 16),
+  EliteAvatar(id: 'phoenix', spriteIndex: 17),
 ];
 
 /// Number of free (always available) pixel characters — elite sprites start

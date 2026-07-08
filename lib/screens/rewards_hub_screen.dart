@@ -215,13 +215,7 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
       showcased: showcased,
       allEarned: allEarned,
       onEdit: () async {
-        // Elite avatars stay unlocked once earned: union the live earned set
-        // with the persisted unlock stamps (which never regress).
-        final edited = await showAvatarPicker(
-          context,
-          _profile,
-          unlockedBadgeIds: {...earnedIds, ..._unlockDates.keys},
-        );
+        final edited = await showAvatarPicker(context, _profile);
         if (edited != null) await _save(edited);
       },
       onUpdateShowcase: (ids) =>

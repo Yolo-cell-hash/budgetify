@@ -343,6 +343,25 @@ void main() {
       expect(txn.accountInfo, 'XX9463');
       expect(txn.merchantName, 'Jay Rajesh Keer');
     });
+
+    test('intl e-com card spend "At {MERCHANT} On" names the merchant', () {
+      // Reported bug: the merchant sits after "At", which no rule read, so
+      // payee == account == XX7531. The card descriptor must win instead,
+      // keeping its "PROCESSOR *PRODUCT" shape.
+      final txn = SmsParserService.parseTransaction(
+        'AD-HDFCBK-S',
+        'Spent Rs.289 From HDFC Bank Card x7531 At XSOLLA *POKEMON On '
+        '2026-07-08:00:40:19 Bal Rs.110912.22 Not You? Call 18002586161/SMS '
+        'BLOCK DC  7531 to 7308080808',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 289.0); // not the 1,10,912.22 balance
+      expect(txn.type, TransactionType.debit);
+      expect(txn.accountInfo, 'XX7531');
+      expect(txn.merchantName, 'Xsolla *Pokemon');
+      expect(txn.merchantName, isNot('XX7531'));
+    });
   });
 
   group('Non-transaction rejection', () {
@@ -417,6 +436,7 @@ void main() {
       expect(txn, isNotNull);
       expect(txn!.amount, 899.0);
       expect(txn.type, TransactionType.debit);
+      expect(txn.merchantName, 'Shopping Stop');
     });
   });
 
@@ -540,6 +560,7 @@ void main() {
       expect(txn, isNotNull);
       expect(txn!.amount, 1250.0);
       expect(txn.type, TransactionType.debit);
+      expect(txn.merchantName, 'Amazon');
     });
 
     test('still keeps a genuine salary credit to a bank account', () {
