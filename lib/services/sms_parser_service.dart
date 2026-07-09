@@ -1959,12 +1959,18 @@ class SmsParserService {
       RegExp(r'BILL GENERATED'),
       RegExp(r'MINIMUM\s+(?:AMOUNT\s+)?DUE'),
       RegExp(r'\bMIN\.?\s+(?:AMT\.?\s+)?DUE\b'),
-      // Autopay/mandate reminders and promised credits — money that has not
-      // moved yet ("will be credited within 7 days" refund promises, "get
-      // Rs.X credited instantly" pitches). The real alert follows later.
-      RegExp(r'WILL\s+BE\s+DEBITED'),
-      RegExp(r'WILL\s+BE\s+CREDITED'),
-      RegExp(r'SHALL\s+BE\s+(?:DEBITED|CREDITED)'),
+      // Autopay/mandate/standing-instruction reminders and promised credits —
+      // money that has not moved yet ("will be credited within 7 days" refund
+      // promises, "get Rs.X credited instantly" pitches, Saraswat's
+      // "scheduled S.I. transaction ... will be executed on <date> ...
+      // maintain sufficient balance"). Reminder-speak never appears in a
+      // completed alert; the real debit/credit SMS follows and is the one
+      // that gets logged.
+      RegExp(
+        r'(?:WILL|SHALL)\s+BE\s+(?:DEBITED|CREDITED|EXECUTED|PROCESSED|DEDUCTED)',
+      ),
+      RegExp(r'MAINTAIN\s+(?:A\s+)?SUFFICIENT\s+BAL'),
+      RegExp(r'SCHEDULED\s+S\.?\s?I\.?\s'),
       RegExp(r'\bAUTOPAY\b'),
       RegExp(r'E-?MANDATE'),
       // UPI collect requests — money has not moved yet
@@ -2422,6 +2428,29 @@ class SmsParserService {
       }
     }
 
+    // --- Pattern 1f: ATM cash withdrawal → uniform payee "ATM" ---
+    // Cash withdrawals name a machine location, not a counterparty:
+    //   HDFC: "Withdrawn Rs.500 From HDFC Bank Card x7531 At BHANDUP BRANCH
+    //          On 2026-03-31:21:13:43 Bal Rs.16849.87 Not You? ..."
+    //   SBI:  "ATM WDL of Rs 2000 from A/c XX4321 at S1AW000123..."
+    // These used to fall through to the account-number fallback, so the
+    // payee collapsed to "XX7531" and one user tag/alias on that string
+    // spread to every unknown-payee message from the same card. A uniform
+    // "ATM" payee groups all cash withdrawals under one name (one tag rule
+    // covers them all); the location stays visible in the original SMS.
+    final upperForAtm = message.toUpperCase();
+    final isAtmWithdrawal =
+        // Explicit ATM mention alongside a withdrawal word…
+        (RegExp(r'\bATM\b').hasMatch(upperForAtm) &&
+                RegExp(r'\bWITHDRAWN?\b|\bWDL\b|\bWITHDRAWAL\b')
+                    .hasMatch(upperForAtm)) ||
+            // …or HDFC's card-at-location format, which never says "ATM".
+            RegExp(r'\bWITHDRAWN\b[\s\S]*\bCARD\b[\s\S]*\bAT\s')
+                .hasMatch(upperForAtm);
+    if (isAtmWithdrawal) {
+      return 'ATM';
+    }
+
     // --- Pattern 2: BOI "credited to {NAME} via UPI" ---
     // "debited...and credited to KIRTI PRAHALAD PANCHAL via UPI"
     final creditedToVia = RegExp(
@@ -2431,6 +2460,26 @@ class SmsParserService {
     if (creditedToVia != null) {
       merchant = _cleanMerchant(creditedToVia.group(1));
       if (merchant != null) return merchant;
+    }
+
+    // --- Pattern 2b: ICICI debit "; {PAYEE} credited" ---
+    // ICICI UPI debits name the recipient after a semicolon, with the verb
+    // AFTER the name: "ICICI Bank Acct XX197 debited for Rs 73.00 on
+    // 16-Jun-26; JAY RAJESH KEER credited. UPI:123834511400...". No rule
+    // reads a name-before-verb shape, so one of the most common formats in
+    // the wild collapsed to the account number — and any tag the user put
+    // on it spread to every other fallback payee from that account. Scoped
+    // to messages that carry a debit marker, so a genuine incoming credit
+    // never routes through it.
+    if (RegExp(r'\bdebited\b', caseSensitive: false).hasMatch(message)) {
+      final semicolonCredited = RegExp(
+        r'[;:]\s*([A-Za-z][A-Za-z .&\-]{2,}?)\s+credited\b',
+        caseSensitive: false,
+      ).firstMatch(message);
+      if (semicolonCredited != null) {
+        merchant = _cleanMerchant(semicolonCredited.group(1));
+        if (merchant != null) return merchant;
+      }
     }
 
     // --- Pattern 3: HDFC "To {NAME}" ---
@@ -2481,8 +2530,11 @@ class SmsParserService {
     // The name is the segment right after UPI/<digits>/, ending at the next
     // slash, stop, comma, or " on <date>". Requiring a letter-led run of
     // letters/spaces/dots keeps it from latching onto numeric refs or VPA codes.
+    // Axis narrations put a rail segment before the ref number
+    // ("UPI/P2M/519163817411/SHARMA STORES..."), so the digits may not
+    // directly follow "UPI/" — allow one optional P2M/P2A/CREDIT/DEBIT hop.
     final upiRefName = RegExp(
-      r'\bUPI[/-]\d+[/-]([A-Za-z][A-Za-z .]{2,}?)(?:[/-]|\.|,|\s+on\b|$)',
+      r'\bUPI[/-](?:P2[MA][/-]|CREDIT[/-]|DEBIT[/-])?\d+[/-]([A-Za-z][A-Za-z .]{2,}?)(?:[/-]|\.|,|\s+on\b|$)',
       caseSensitive: false,
     ).firstMatch(message);
     if (upiRefName != null) {
@@ -2539,6 +2591,34 @@ class SmsParserService {
       ).firstMatch(message);
       if (fromName != null) {
         merchant = _cleanMerchant(fromName.group(1));
+        if (merchant != null) return merchant;
+      }
+    }
+
+    // --- Pattern 8: generic credit "... from {PAYER}" ---
+    // Incoming credits across banks name the payer after "from" (ICICI:
+    // "credited with Rs 73.00 on 16-Jun-26 from JAY RAJESH KEER. UPI:...",
+    // SBI: "credited by transfer from RAMESH KUMAR"). The bank-scoped rules
+    // above (1c IPPB, 7 BOM) get first shot; this generic catch-all only
+    // runs for credit-verb messages so debit narrations like "Sent Rs.30
+    // From HDFC Bank A/C" can never route through it, and the capture must
+    // be letter-led and non-institutional (not the bank naming itself).
+    final isCreditWording =
+        RegExp(r'\bcredited\b|\breceived\b', caseSensitive: false)
+                .hasMatch(message) &&
+            !RegExp(r'\bdebited\b', caseSensitive: false).hasMatch(message);
+    if (isCreditWording) {
+      final fromPayer = RegExp(
+        r'\bfrom\s+([A-Za-z][A-Za-z .&\-]{2,}?)'
+        r'(?:\s+(?:on|thru|through|via|ref(?:no)?|rrn|utr|upi)\b|\s*[.,;\n]|$)',
+        caseSensitive: false,
+      ).firstMatch(message);
+      final candidate = fromPayer?.group(1)?.trim();
+      if (candidate != null &&
+          !RegExp(r'^(?:a/?c|account|your|the)\b', caseSensitive: false)
+              .hasMatch(candidate) &&
+          !RegExp(r'\bbank\b', caseSensitive: false).hasMatch(candidate)) {
+        merchant = _cleanMerchant(candidate);
         if (merchant != null) return merchant;
       }
     }

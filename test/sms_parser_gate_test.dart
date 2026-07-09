@@ -118,6 +118,35 @@ void main() {
             '10-Jul-26 towards your OTT autopay mandate.',
         expectParsed: false,
       ),
+      // Real user report (open-testing device, 2026-07): Saraswat standing-
+      // instruction reminder from the allowlisted SARBNK header was logged
+      // as a ₹1200 debit. Reminder-speak = money not moved yet.
+      const _GateCase(
+        name: 'Saraswat S.I. reminder "will be executed" is not a debit',
+        sender: 'JX-SARBNK-S',
+        message: 'Dear Customer, Your scheduled S.I. transaction for INR '
+            '1200 towards 0777 installment debit to account no. ending with '
+            '0777 will be executed on 10-07-2026. Please maintain sufficient '
+            'balance to avoid penal charges.- Saraswat Co-op Bank Ltd.',
+        expectParsed: false,
+      ),
+      const _GateCase(
+        name: 'NACH "will be processed" reminder is rejected',
+        sender: 'VM-HDFCBK-S',
+        message: 'Your NACH mandate of Rs.2,500.00 for MUTUAL FUND SIP will '
+            'be processed on 12-Jul-26 from A/c XX9463.',
+        expectParsed: false,
+      ),
+      // Real user report: a declined card transaction was sitting in the
+      // ledger as a ₹457.42 debit (logged by a pre-hardening app version).
+      const _GateCase(
+        name: 'declined card transaction is not a debit',
+        sender: 'AD-HDFCBK-S',
+        message: 'Transaction Declined!\nRs.457.42\nOn HDFC Bank Card 7531 '
+            'by Visa\nReason: Non-Compliant transaction.\nKindly use '
+            'Alternate mode.',
+        expectParsed: false,
+      ),
     ];
 
     for (final c in cases) {
@@ -183,6 +212,122 @@ void main() {
             DatabaseService.normalizePayeeKey('XX1235'),
         isFalse,
       );
+    });
+  });
+
+  group('payee extraction — common bank formats', () {
+    // Real user report: HDFC ATM withdrawals collapsed to the card number
+    // ("XX7531"); a rename/alias on that string then spread to every
+    // unknown-payee message from the same card. All cash withdrawals now
+    // share the uniform payee "ATM" so one tag rule covers them all.
+    test('HDFC ATM withdrawal (card at location) → payee "ATM"', () {
+      final txn = SmsParserService.parseTransaction(
+        'AD-HDFCBK-S',
+        'Withdrawn Rs.500 From HDFC Bank Card x7531 At BHANDUP BRANCH On '
+        '2026-03-31:21:13:43 Bal Rs.16849.87 Not You? '
+        'Call 18002586161/SMS BLOCK DC  7531 to 7308080808',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.type, TransactionType.debit);
+      expect(txn.amount, 500.0);
+      expect(txn.merchantName, 'ATM');
+    });
+
+    test('HDFC ATM withdrawal at an airport gate → still payee "ATM"', () {
+      final txn = SmsParserService.parseTransaction(
+        'JM-HDFCBK-S',
+        'Withdrawn Rs.5000 From HDFC Bank Card x7531 At T2 MUM DEP OUT '
+        'GATE2 On 2026-03-21:15:02:34 Bal Rs.30571.87 Not You? '
+        'Call 18002586161/SMS BLOCK DC  7531 to 7308080808',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 5000.0);
+      expect(txn.merchantName, 'ATM');
+    });
+
+    test('SBI "ATM WDL" → payee "ATM"', () {
+      final txn = SmsParserService.parseTransaction(
+        'BV-SBIUPI-S',
+        'ATM WDL of Rs 2,000 from A/c XX4321 on 05Jul26 at S1AW000123 '
+        'KANDIVALI. Avl Bal Rs 8,111.00.',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.type, TransactionType.debit);
+      expect(txn.amount, 2000.0);
+      expect(txn.merchantName, 'ATM');
+    });
+
+    test('card spend at a merchant is NOT collapsed to "ATM"', () {
+      final txn = SmsParserService.parseTransaction(
+        'VM-HDFCBK-S',
+        'Spent Rs.289 From HDFC Bank Card x7531 At XSOLLA *POKEMON On '
+        '2026-07-08:00:40:19 Bal Rs.10000.00 Not You? Call 18002586161',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.merchantName, isNot('ATM'));
+    });
+
+    test('ICICI debit "; PAYEE credited" names the recipient', () {
+      final txn = SmsParserService.parseTransaction(
+        'AD-ICICIT-S',
+        'ICICI Bank Acct XX197 debited for Rs 73.00 on 16-Jun-26; '
+        'JAY RAJESH KEER credited. UPI:123834511400. Call 18002662 for '
+        'dispute. SMS BLOCK 197 to 9215676766.',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.type, TransactionType.debit);
+      expect(txn.merchantName, 'Jay Rajesh Keer');
+    });
+
+    test('ICICI credit "from {PAYER}" names the payer', () {
+      final txn = SmsParserService.parseTransaction(
+        'AD-ICICIT-S',
+        'ICICI Bank Acct XX197 credited with Rs 73.00 on 16-Jun-26 from '
+        'JAY RAJESH KEER. UPI:123834511400. Call 18002662 for dispute.',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.type, TransactionType.credit);
+      expect(txn.merchantName, 'Jay Rajesh Keer');
+    });
+
+    test('Axis UPI/P2M narration names the merchant', () {
+      final txn = SmsParserService.parseTransaction(
+        'AX-AXISBK-S',
+        'INR 500.00 debited from A/c no. XX1234 on 05-07-26 12:32:11 '
+        'UPI/P2M/519163817411/SHARMA STORES/Not You? SMS BLOCK to 919951860002',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.type, TransactionType.debit);
+      expect(txn.merchantName, 'Sharma Stores');
+    });
+  });
+
+  group('account-fallback payees never become aliases', () {
+    test('detects the fallback shapes', () {
+      expect(DatabaseService.isAccountFallbackPayee('XX7531', 'XX7531'),
+          isTrue);
+      expect(DatabaseService.isAccountFallbackPayee('XX7531', null), isTrue);
+      expect(DatabaseService.isAccountFallbackPayee('xx7531', 'XX7531'),
+          isTrue);
+      expect(DatabaseService.isAccountFallbackPayee('**1234', null), isTrue);
+    });
+
+    test('real payee names are not treated as fallbacks', () {
+      expect(DatabaseService.isAccountFallbackPayee('ATM', 'XX7531'),
+          isFalse);
+      expect(DatabaseService.isAccountFallbackPayee('Sharma Kirana', 'XX7531'),
+          isFalse);
+      expect(
+          DatabaseService.isAccountFallbackPayee('JAY RAJESH KEER', null),
+          isFalse);
+      expect(DatabaseService.isAccountFallbackPayee(null, 'XX7531'), isFalse);
     });
   });
 }
