@@ -34,7 +34,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 20,
+      version: 21,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -154,6 +154,10 @@ class DatabaseService {
     await db.execute(
       'CREATE INDEX idx_recurring_charges_plan ON recurring_charges(plan_id)',
     );
+
+    // User-taught payee names ("paytm.s21upj5@pty" → "Sharma Kirana"),
+    // applied to every future SMS parse of the same raw payee.
+    await db.execute(_createPayeeAliasesTable);
   }
 
   static const String _createDeletedTransactionsTable = '''
@@ -317,6 +321,18 @@ class DatabaseService {
         transaction_id INTEGER,
         resolved_at INTEGER NOT NULL,
         UNIQUE(plan_id, period_key)
+      )
+    ''';
+
+  // raw_key is the normalized parser output (uppercased, whitespace
+  // collapsed); the UNIQUE constraint makes upserts idempotent.
+  static const String _createPayeeAliasesTable = '''
+      CREATE TABLE IF NOT EXISTS payee_aliases(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        raw_key TEXT NOT NULL UNIQUE,
+        display_name TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
       )
     ''';
 
@@ -566,6 +582,11 @@ class DatabaseService {
         "UPDATE transactions SET is_classified = 1 "
         "WHERE is_classified = 0 AND category IS NOT NULL AND category != ''",
       );
+    }
+
+    if (oldVersion < 21) {
+      // Payee aliases: user-taught names for raw parser output.
+      await db.execute(_createPayeeAliasesTable);
     }
   }
 
@@ -1604,6 +1625,124 @@ class DatabaseService {
     );
   }
 
+  // ==================== PAYEE ALIAS OPERATIONS ====================
+
+  /// Normalize a raw parsed payee into the alias lookup key. Case and runs
+  /// of whitespace are the only things banks vary for the same payee, so
+  /// this is deliberately lighter than rule normalization — "XX1234" and a
+  /// VPA-derived name must stay distinct keys.
+  static String normalizePayeeKey(String raw) =>
+      raw.trim().toUpperCase().replaceAll(RegExp(r'\s+'), ' ');
+
+  /// The user-taught display name for a raw parsed payee, or null when the
+  /// user has not renamed this payee.
+  Future<String?> resolvePayeeAlias(String? rawMerchant) async {
+    if (rawMerchant == null || rawMerchant.trim().isEmpty) return null;
+    final db = await database;
+    final rows = await db.query(
+      'payee_aliases',
+      columns: ['display_name'],
+      where: 'raw_key = ?',
+      whereArgs: [normalizePayeeKey(rawMerchant)],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    return rows.first['display_name'] as String?;
+  }
+
+  /// Return [transaction] with its merchant name replaced by the user's
+  /// alias when one exists. Called on every freshly parsed SMS transaction
+  /// before rule matching, so category rules see the corrected name.
+  Future<TransactionModel> applyPayeeAlias(TransactionModel transaction) async {
+    final alias = await resolvePayeeAlias(transaction.merchantName);
+    if (alias == null || alias == transaction.merchantName) return transaction;
+    return transaction.copyWith(merchantName: alias);
+  }
+
+  /// Rename the payee of an SMS-derived [transaction] to [newName]:
+  /// teaches an alias keyed on the raw parser output (so every future SMS
+  /// from this payee gets the new name), renames the transaction itself and
+  /// every other row still showing the old name verbatim, and re-points
+  /// category rules that were created for the old name. Rows the user
+  /// already renamed differently are left alone (exact-match only).
+  ///
+  /// Returns the number of transaction rows renamed.
+  Future<int> renamePayee({
+    required TransactionModel transaction,
+    required String newName,
+  }) async {
+    final trimmed = newName.trim();
+    final oldDisplay = transaction.merchantName;
+    if (trimmed.isEmpty || oldDisplay == null || oldDisplay.isEmpty) return 0;
+    if (trimmed == oldDisplay) return 0;
+
+    // The alias key must be what the parser will produce next time, not the
+    // possibly-already-aliased name on screen. Manual entries have no SMS
+    // template behind them, so they get no alias — just the rename below.
+    final rawKey = transaction.isManual
+        ? null
+        : SmsParserService.extractMerchantStatic(
+            transaction.message,
+            transaction.accountInfo,
+          );
+
+    final db = await database;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    var renamedRows = 0;
+
+    await db.transaction((txn) async {
+      if (rawKey != null && rawKey.trim().isNotEmpty) {
+        final key = normalizePayeeKey(rawKey);
+        final updated = await txn.update(
+          'payee_aliases',
+          {'display_name': trimmed, 'updated_at': now},
+          where: 'raw_key = ?',
+          whereArgs: [key],
+        );
+        if (updated == 0) {
+          await txn.insert('payee_aliases', {
+            'raw_key': key,
+            'display_name': trimmed,
+            'created_at': now,
+            'updated_at': now,
+          });
+        }
+      }
+
+      // Exact-match rename: rows still carrying the raw parser output or the
+      // name being replaced. IN (?, ?) tolerates rawKey == oldDisplay.
+      renamedRows = await txn.update(
+        'transactions',
+        {'merchant_name': trimmed},
+        where: 'merchant_name IN (?, ?)',
+        whereArgs: [oldDisplay, rawKey ?? oldDisplay],
+      );
+
+      // Keep the user's category rules firing: a rule created for exactly
+      // the old name must now match the new one. Broader patterns (e.g. a
+      // rule for "Paytm" matching many payees) are not touched.
+      final rules = await txn.query('transaction_rules');
+      String normalize(String s) =>
+          s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+      final targets = {normalize(oldDisplay), if (rawKey != null) normalize(rawKey)};
+      for (final rule in rules) {
+        final senderName = rule['sender_name'] as String?;
+        if (senderName == null) continue;
+        if (targets.contains(normalize(senderName))) {
+          await txn.update(
+            'transaction_rules',
+            {'sender_name': trimmed},
+            where: 'id = ?',
+            whereArgs: [rule['id']],
+          );
+        }
+      }
+    });
+
+    notifyAppDataChanged();
+    return renamedRows;
+  }
+
   /// Export every table as raw row maps, for encrypted backup.
   // ==================== HOLDINGS (NET WORTH) OPERATIONS ====================
 
@@ -2120,6 +2259,7 @@ class DatabaseService {
       'goal_contributions': await db.query('goal_contributions'),
       'recurring_payments': await db.query('recurring_payments'),
       'recurring_charges': await db.query('recurring_charges'),
+      'payee_aliases': await db.query('payee_aliases'),
     };
   }
 
@@ -2218,6 +2358,19 @@ class DatabaseService {
       if (exists.isNotEmpty) continue;
       await db.insert('transaction_rules', row);
       ruleCount++;
+    }
+
+    // Payee aliases: an alias already taught on this device wins over the
+    // backup (the local one is newer by construction), so only fill gaps.
+    for (final raw in (data['payee_aliases'] as List? ?? const [])) {
+      final row = Map<String, dynamic>.from(raw as Map);
+      row.remove('id');
+      if (row['raw_key'] == null || row['display_name'] == null) continue;
+      await db.insert(
+        'payee_aliases',
+        row,
+        conflictAlgorithm: ConflictAlgorithm.ignore,
+      );
     }
 
     for (final raw in (data['holdings'] as List? ?? const [])) {
