@@ -34,7 +34,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 21,
+      version: 22,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -587,6 +587,19 @@ class DatabaseService {
     if (oldVersion < 21) {
       // Payee aliases: user-taught names for raw parser output.
       await db.execute(_createPayeeAliasesTable);
+    }
+
+    if (oldVersion < 22) {
+      // v21 allowed aliases keyed on the account-number fallback ("XX7531"),
+      // which is the parser saying "payee unknown" — one rename then spread
+      // to every unknown-payee message from that account. Purge such keys;
+      // renamePayee no longer creates them.
+      // GLOB is full-string anchored; [X*] matches 'X' or a literal '*', the
+      // two mask shapes the account fallback produces ("XX7531", "**7531").
+      await db.execute(
+        "DELETE FROM payee_aliases "
+        "WHERE raw_key GLOB '[X*][X*][0-9][0-9][0-9][0-9]'",
+      );
     }
   }
 
@@ -1635,9 +1648,12 @@ class DatabaseService {
       raw.trim().toUpperCase().replaceAll(RegExp(r'\s+'), ' ');
 
   /// The user-taught display name for a raw parsed payee, or null when the
-  /// user has not renamed this payee.
+  /// user has not renamed this payee. Account-fallback payees ("XX7531")
+  /// never resolve: that string means "payee unknown", not an identity, so
+  /// an alias on it would spread one name across unrelated transactions.
   Future<String?> resolvePayeeAlias(String? rawMerchant) async {
     if (rawMerchant == null || rawMerchant.trim().isEmpty) return null;
+    if (isAccountFallbackPayee(rawMerchant, null)) return null;
     final db = await database;
     final rows = await db.query(
       'payee_aliases',
@@ -1659,12 +1675,31 @@ class DatabaseService {
     return transaction.copyWith(merchantName: alias);
   }
 
+  /// Whether an extracted payee is just the account-number fallback
+  /// ("XX7531") rather than a real counterparty. Such a string is the
+  /// parser saying "unknown", shared by every message from that account
+  /// whose template missed — an alias or bulk rename keyed on it would
+  /// spread one payee's name onto unrelated transactions (ATM withdrawals,
+  /// declined-txn artifacts, unmatched templates alike).
+  static bool isAccountFallbackPayee(String? payee, String? accountInfo) {
+    if (payee == null) return false;
+    final p = payee.trim().toUpperCase();
+    if (accountInfo != null && p == accountInfo.trim().toUpperCase()) {
+      return true;
+    }
+    return RegExp(r'^[X*]{2,}\d{4}$').hasMatch(p);
+  }
+
   /// Rename the payee of an SMS-derived [transaction] to [newName]:
   /// teaches an alias keyed on the raw parser output (so every future SMS
   /// from this payee gets the new name), renames the transaction itself and
   /// every other row still showing the old name verbatim, and re-points
   /// category rules that were created for the old name. Rows the user
   /// already renamed differently are left alone (exact-match only).
+  ///
+  /// When the payee is only the account-number fallback, the counterparty
+  /// identity is unknown — the rename applies to THIS transaction alone:
+  /// no alias, no bulk rename, no rule re-pointing.
   ///
   /// Returns the number of transaction rows renamed.
   Future<int> renamePayee({
@@ -1688,6 +1723,21 @@ class DatabaseService {
 
     final db = await database;
     final now = DateTime.now().millisecondsSinceEpoch;
+
+    // Account-fallback payee → identity unknown → rename only this row.
+    if (isAccountFallbackPayee(rawKey, transaction.accountInfo) ||
+        isAccountFallbackPayee(oldDisplay, transaction.accountInfo)) {
+      if (transaction.id == null) return 0;
+      final renamed = await db.update(
+        'transactions',
+        {'merchant_name': trimmed},
+        where: 'id = ?',
+        whereArgs: [transaction.id],
+      );
+      notifyAppDataChanged();
+      return renamed;
+    }
+
     var renamedRows = 0;
 
     await db.transaction((txn) async {

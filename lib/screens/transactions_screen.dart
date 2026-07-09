@@ -11,6 +11,40 @@ import '../widgets/transaction_card.dart';
 import 'transaction_detail_screen.dart';
 import 'add_transaction_screen.dart';
 
+/// Match a transaction against the search box's free-text query.
+///
+/// Text — payee, sender, category, formatted dates ("9 Jul 2026",
+/// "09/07/2026") — matches loosely by substring. A purely numeric query
+/// (optionally prefixed ₹/Rs/INR, with commas or paise) is an AMOUNT query
+/// and matches strictly: searching "50" finds ₹50.00 but never ₹500, ₹250
+/// or ₹1,150.50.
+///
+/// Top-level so the matching rules are unit-testable.
+bool transactionMatchesQuery(TransactionModel t, String rawQuery) {
+  final q = rawQuery.trim().toLowerCase();
+  if (q.isEmpty) return true;
+
+  // Amount query → strict equality (to the paisa).
+  final numericQuery = double.tryParse(
+    q.replaceFirst(RegExp(r'^(?:rs\.?|inr|₹)\s*'), '').replaceAll(',', ''),
+  );
+  if (numericQuery != null) {
+    return (t.amount - numericQuery).abs() < 0.005;
+  }
+
+  final haystack = StringBuffer()
+    ..write(t.merchantName ?? '')
+    ..write(' ')
+    ..write(t.sender)
+    ..write(' ')
+    ..write(t.category ?? '')
+    ..write(' ')
+    ..write(DateFormat('d MMM yyyy').format(t.detectedAt))
+    ..write(' ')
+    ..write(DateFormat('dd/MM/yyyy').format(t.detectedAt));
+  return haystack.toString().toLowerCase().contains(q);
+}
+
 /// Screen displaying all detected transactions with filtering
 class TransactionsScreen extends StatefulWidget {
   final bool initialUnclassifiedOnly;
@@ -126,33 +160,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     super.dispose();
   }
 
-  /// Match a transaction against the free-text query. A transaction matches
-  /// if the query appears in its merchant/payee/category, in its formatted
-  /// date, or — when the query is numeric — in its amount.
-  bool _matchesSearch(TransactionModel t) {
-    final q = _searchQuery.trim().toLowerCase();
-    if (q.isEmpty) return true;
-
-    final haystack = StringBuffer()
-      ..write(t.merchantName ?? '')
-      ..write(' ')
-      ..write(t.sender)
-      ..write(' ')
-      ..write(t.category ?? '')
-      ..write(' ')
-      ..write(DateFormat('d MMM yyyy').format(t.detectedAt))
-      ..write(' ')
-      ..write(DateFormat('dd/MM/yyyy').format(t.detectedAt));
-    if (haystack.toString().toLowerCase().contains(q)) return true;
-
-    // Numeric query → match against the amount (with and without paise)
-    final digits = q.replaceAll(RegExp(r'[^0-9.]'), '');
-    if (digits.isNotEmpty) {
-      if (t.amount.toStringAsFixed(2).contains(digits)) return true;
-      if (t.amount.toStringAsFixed(0).contains(digits)) return true;
-    }
-    return false;
-  }
+  bool _matchesSearch(TransactionModel t) =>
+      transactionMatchesQuery(t, _searchQuery);
 
   Future<void> _loadFiltersData() async {
     try {
