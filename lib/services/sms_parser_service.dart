@@ -1,5 +1,15 @@
 import '../models/transaction_model.dart';
 
+/// How much a sender header can be trusted to carry real bank alerts.
+///
+/// [allowlisted] senders match a known bank header in `_bankSenderPatterns`
+/// and keep the parser's full behavior. [headerFallback] senders only pass
+/// because the header contains "BANK" — that net also catches loan-shop and
+/// aggregator promos sent without the -P route suffix, so their messages
+/// must additionally carry structural transaction evidence (account number,
+/// reference number, or a numeric balance) before they are parsed.
+enum SenderTrust { none, headerFallback, allowlisted }
+
 /// Service for parsing bank SMS messages to extract transaction details
 class SmsParserService {
   // Common Indian bank sender patterns
@@ -1806,23 +1816,32 @@ class SmsParserService {
   /// There is deliberately no "looks like a DLT sender" fallback — that let
   /// any college/store/OTT sender through, and a scholarship or promo SMS
   /// mentioning an amount would be logged as a transaction.
-  static bool isBankSms(String sender) {
-    // Route suffix: -S (service) and -T (transactional) carry genuine bank
-    // alerts, -G carries government DBT credits. -P is promotional by
-    // regulation and never a real transaction — drop it outright, even from
-    // a real bank header.
-    if (routeSuffix(sender) == 'P') return false;
+  static bool isBankSms(String sender) =>
+      senderTrust(sender) != SenderTrust.none;
+
+  /// Classify how trustworthy a sender header is.
+  ///
+  /// Route suffix: -S (service) and -T (transactional) carry genuine bank
+  /// alerts, -G carries government DBT credits. -P is promotional by
+  /// regulation and never a real transaction — drop it outright, even from
+  /// a real bank header.
+  static SenderTrust senderTrust(String sender) {
+    if (routeSuffix(sender) == 'P') return SenderTrust.none;
 
     final upperSender = sender.toUpperCase();
     final coreHeader = normalizeSender(sender);
 
-    return _bankSenderPatterns.any(
-          (pattern) =>
-              coreHeader == pattern || upperSender.contains(pattern),
-        ) ||
-        // Full-name senders ("Bank of Maharashtra") and bank headers the
-        // list may miss — still subject to the -P rejection above.
-        upperSender.contains('BANK');
+    if (_bankSenderPatterns.any(
+      (pattern) => coreHeader == pattern || upperSender.contains(pattern),
+    )) {
+      return SenderTrust.allowlisted;
+    }
+    // Full-name senders ("Bank of Maharashtra") and bank headers the list
+    // may miss — still subject to the -P rejection above, and to the
+    // transaction-evidence requirement in parseTransaction, because this
+    // net also catches "BANKBAZAAR"-style promo headers.
+    if (upperSender.contains('BANK')) return SenderTrust.headerFallback;
+    return SenderTrust.none;
   }
 
   /// Parse an SMS message to extract transaction details
@@ -1832,12 +1851,21 @@ class SmsParserService {
     String message,
     DateTime receivedAt,
   ) {
-    if (!isBankSms(sender)) return null;
+    final trust = senderTrust(sender);
+    if (trust == SenderTrust.none) return null;
 
     final upperMessage = message.toUpperCase();
 
     // Skip non-transaction messages
     if (_isNonTransactionMessage(upperMessage)) return null;
+
+    // Headers that only matched the "contains BANK" net are where promo SMS
+    // without the -P suffix sneak in. A genuine alert names the account, a
+    // reference number, or a balance; a promo pitches with CTA copy instead.
+    if (trust == SenderTrust.headerFallback) {
+      if (!_hasTransactionEvidence(upperMessage)) return null;
+      if (_promoCtaRegex.hasMatch(upperMessage)) return null;
+    }
 
     // Determine transaction type
     final type = _getTransactionType(upperMessage);
@@ -1868,8 +1896,10 @@ class SmsParserService {
       // A hit against the curated merchant database (or a salary/refund
       // keyword) is a confident match, so mark it classified instead of
       // leaving it in the "Unclassified" queue for the user to confirm.
-      // Merchants we can't recognise stay unclassified as before.
-      isClassified: category != null,
+      // Merchants we can't recognise stay unclassified as before. Fallback-
+      // trust senders always land in the queue: the transaction is captured,
+      // but the user confirms it once instead of it being silently tagged.
+      isClassified: category != null && trust == SenderTrust.allowlisted,
     );
   }
 
@@ -1884,6 +1914,42 @@ class SmsParserService {
     r'\b(?:DEBITED|CREDITED|WITHDRAWN|DEPOSITED|SPENT|TRANSFERRED|TRF|(?:DEBIT|CREDIT)\s+(?:BY|OF|FOR|WITH))\b',
   );
 
+  /// Marketing calls-to-action that never appear in a completed-transaction
+  /// alert. Only enforced for [SenderTrust.headerFallback] senders — real
+  /// banks put "offer" words in footers of genuine alerts, but they don't
+  /// say "apply now" in a debit confirmation.
+  static final RegExp _promoCtaRegex = RegExp(
+    r'\bAPPLY\s+NOW\b|\bCLICK\s+(?:HERE|NOW)\b|T\s*&\s*C\b|\bTNC\b'
+    r'|\bCONGRATULATIONS?\b|\bWINNER\b|\bHURRY\b'
+    r'|\bLIMITED\s+(?:TIME|PERIOD)\b|\bPRE-?APPROVED\b',
+  );
+
+  /// Whether the message carries the structural markers of a real bank
+  /// alert: an account/card number, a numeric reference (Ref/RRN/UTR/txn
+  /// id), or a numeric balance/limit fragment. Promos pitch amounts too,
+  /// but they can't name the reader's account or quote a ref number, so
+  /// this separates "Rs.5,00,000 loan in minutes!" from "Rs.500 debited
+  /// from A/c XX1234 Refno 612345678901".
+  static bool _hasTransactionEvidence(String upperMessage) {
+    if (_extractAccountInfo(upperMessage) != null) return true;
+    // Numeric reference: "Refno 612345678901", "UPI Ref No. 1234567890",
+    // "RRN: 125560855601", "UTR 511913127854", "txn ID 843511".
+    if (RegExp(
+      r'\b(?:REF(?:ERENCE)?(?:\s*NO)?|REFNO|RRN|UTR|TXN(?:\s*(?:ID|NO))?|TRANSACTION\s*ID)\b[\s:.\-]*\d{6,}',
+    ).hasMatch(upperMessage)) {
+      return true;
+    }
+    // Numeric balance/limit: "Avl Bal Rs.12,345.67", "Bal: INR 5000",
+    // "Avl Lmt: Rs 55,000". The amount must follow, so promo prose that
+    // merely mentions the word "balance" doesn't count.
+    if (RegExp(
+      r'\b(?:(?:AVL|AVBL|AVAILABLE|CLR|TOTAL)\.?\s*)?(?:BAL(?:ANCE)?|LMT|LIMIT)\b\s*(?:IS|:|-)?\s*(?:RS\.?|INR|₹)?\s*[\d,]+',
+    ).hasMatch(upperMessage)) {
+      return true;
+    }
+    return false;
+  }
+
   /// Check if this is a non-transaction message (OTP, alerts, etc.)
   static bool _isNonTransactionMessage(String upperMessage) {
     // Hard rejects: these messages are never completed transactions, even
@@ -1893,8 +1959,12 @@ class SmsParserService {
       RegExp(r'BILL GENERATED'),
       RegExp(r'MINIMUM\s+(?:AMOUNT\s+)?DUE'),
       RegExp(r'\bMIN\.?\s+(?:AMT\.?\s+)?DUE\b'),
-      // Autopay/mandate reminders for future debits
-      RegExp(r'WILL BE DEBITED'),
+      // Autopay/mandate reminders and promised credits — money that has not
+      // moved yet ("will be credited within 7 days" refund promises, "get
+      // Rs.X credited instantly" pitches). The real alert follows later.
+      RegExp(r'WILL\s+BE\s+DEBITED'),
+      RegExp(r'WILL\s+BE\s+CREDITED'),
+      RegExp(r'SHALL\s+BE\s+(?:DEBITED|CREDITED)'),
       RegExp(r'\bAUTOPAY\b'),
       RegExp(r'E-?MANDATE'),
       // UPI collect requests — money has not moved yet
@@ -1947,10 +2017,14 @@ class SmsParserService {
       RegExp(r'\bDISCOUNT\b'),
       RegExp(r'DUE DATE'),
     ];
-    final hasTransactionVerb = _transactionVerbRegex.hasMatch(upperMessage);
-    if (!hasTransactionVerb &&
-        softRejectPatterns.any((p) => p.hasMatch(upperMessage))) {
-      return true;
+    if (softRejectPatterns.any((p) => p.hasMatch(upperMessage))) {
+      final hasTransactionVerb = _transactionVerbRegex.hasMatch(upperMessage);
+      if (!hasTransactionVerb) return true;
+      // A verb alone is forgeable: "Rs.500 cashback credited — offer ends
+      // soon!" reads like a transaction. A genuine alert that carries promo
+      // footer words also names the account, a ref number, or the balance,
+      // so require that evidence before letting the verb win.
+      if (!_hasTransactionEvidence(upperMessage)) return true;
     }
 
     return false;

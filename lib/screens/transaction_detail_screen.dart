@@ -978,12 +978,18 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                   ),
                   // The counterparty row is always labelled "Payee" — a
                   // credit/debit-dependent label read inconsistent in testing.
+                  // The pencil teaches a payee alias: SMS-derived names (VPAs,
+                  // account numbers) are often unrecognisable, so one rename
+                  // here fixes matching rows and every future SMS parse.
                   if (_transaction.merchantName != null)
                     _buildDetailRow(
                       context.l10n.payeeLabel,
                       _transaction.merchantName!,
                       subtextColor,
                       textColor,
+                      onEdit: _transaction.isManual
+                          ? null
+                          : () => _showRenamePayeeSheet(isDark),
                     ),
                   if (_transaction.accountInfo != null)
                     _buildDetailRow(
@@ -1601,12 +1607,148 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     );
   }
 
+  /// Bottom sheet to rename this transaction's payee. Beyond this row, the
+  /// rename teaches a persistent alias keyed on the raw parser output, so
+  /// matching transactions, category rules and every future SMS parse pick
+  /// up the corrected name.
+  Future<void> _showRenamePayeeSheet(bool isDark) async {
+    final controller =
+        TextEditingController(text: _transaction.merchantName ?? '');
+
+    final cardColor = isDark ? const Color(0xFF16181E) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subtextColor = isDark ? Color(0xFF9A9DA6) : Color(0xFF6E727C);
+    final inputBg = isDark ? const Color(0xFF262931) : Color(0xFFFAFAF8);
+
+    final newName = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: cardColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          left: 24,
+          right: 24,
+          top: 24,
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Color(0xFF9A9DA6),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              context.l10nRead.renamePayeeTitle,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: textColor,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              context.l10nRead.renamePayeeHelp,
+              style: TextStyle(color: subtextColor),
+            ),
+            const SizedBox(height: 20),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              style: TextStyle(color: textColor),
+              decoration: InputDecoration(
+                hintText: context.l10nRead.renamePayeeHint,
+                hintStyle: TextStyle(color: subtextColor),
+                filled: true,
+                fillColor: inputBg,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+              ),
+              onSubmitted: (value) => Navigator.pop(ctx, value),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, controller.text),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Color(0xFF4A6489),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 0,
+                ),
+                child: Text(
+                  context.l10nRead.commonSave,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    final trimmed = newName?.trim();
+    if (trimmed == null ||
+        trimmed.isEmpty ||
+        trimmed == _transaction.merchantName) {
+      return;
+    }
+
+    try {
+      final count = await _dbService.renamePayee(
+        transaction: _transaction,
+        newName: trimmed,
+      );
+      _changed = true;
+      if (_transaction.id != null) {
+        final fresh = await _dbService.getTransactionById(_transaction.id!);
+        if (fresh != null && mounted) setState(() => _transaction = fresh);
+      }
+      if (mounted) {
+        showAppToast(context,
+            message: context.l10nRead.payeeRenamed(count),
+            type: AppToastType.success);
+      }
+    } catch (e) {
+      if (mounted) {
+        showAppToast(context,
+            message: context.l10nRead.errorGeneric(e),
+            type: AppToastType.error);
+      }
+    }
+  }
+
   Widget _buildDetailRow(
     String label,
     String value,
     Color subtextColor,
-    Color textColor,
-  ) {
+    Color textColor, {
+    VoidCallback? onEdit,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
@@ -1629,6 +1771,15 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
               ),
             ),
           ),
+          if (onEdit != null)
+            InkWell(
+              onTap: onEdit,
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Icon(Icons.edit_outlined, size: 16, color: subtextColor),
+              ),
+            ),
         ],
       ),
     );
