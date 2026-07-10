@@ -1682,6 +1682,10 @@ class SmsParserService {
       'THEOBROMA', 'WENDYS', 'COSTA COFFEE', 'TIM HORTONS', 'TACO BELL',
       'BIKANERVALA', 'SOCIAL', 'SMOKE HOUSE', 'PIZZAEXPRESS', 'MOCHA',
       'BARISTA', 'BASKIN ROBBINS', 'NATURALS ICE CREAM', 'PARADISE BIRYANI',
+      // --- v1.28: dataset-validated + curated Indian chains ---
+      'REBEL FOODS', 'WOW MOMO', 'CHAI POINT', 'THIRD WAVE COFFEE',
+      'BLUE TOKAI', 'KEVENTERS', 'MOJO PIZZA', 'NAZEER', 'GIANIS',
+      'CHAI SUTTA BAR',
     ],
     'Groceries': [
       // --- Original ---
@@ -1692,6 +1696,9 @@ class SmsParserService {
       'RELIANCE SMART', 'SMARTBAZAAR', 'BB DAILY', 'COUNTRY DELIGHT',
       'FRESH TO HOME', 'MEATIGO', 'TATA NEU', 'ONDC', 'SAHAKARI BHANDAR',
       'FRESHTOHOME', 'TENDER CUTS',
+      // --- v1.28 ---
+      'OTIPY', 'STAR BAZAAR', 'RATNADEEP', 'VISHAL MEGA MART', 'DAILYNINJA',
+      'SUPRDAILY',
     ],
     'Shopping': [
       // --- Original ---
@@ -1703,6 +1710,9 @@ class SmsParserService {
       'BEWAKOOF', 'PURPLLE', 'SUGAR COSMETICS', 'MYGLAMM', 'CHUMBAK',
       'PEPPERFRY', 'URBAN LADDER', 'TITAN', 'TANISHQ', 'KALYAN JEWELLERS',
       'MALABAR', 'IKEA', 'VIJAY SALES',
+      // --- v1.28 ---
+      'SMYTTEN', 'ZUDIO', 'WROGN', 'CAMPUS SHOES', 'WOODLAND',
+      'BOAT LIFESTYLE', 'SNITCH', 'THE SOULED STORE',
     ],
     'Travel': [
       // --- Original ---
@@ -1725,6 +1735,8 @@ class SmsParserService {
       'BOOKING.COM', 'AGODA', 'EXPEDIA', 'OYO', 'FABHOTELS', 'TREEBO',
       'VISTARA', 'AKASA AIR', 'AIR ASIA', 'CONFIRMTKT', 'PAYTM TICKET',
       'TICKETNEW', 'MMT', 'QATAR AIRWAYS', 'EMIRATES',
+      // --- v1.28 ---
+      'HAPPYEASYGO', 'THOMAS COOK', 'TRIP FACTORY', 'CLUB MAHINDRA',
     ],
     'Transportation': [
       // --- Original ---
@@ -1743,6 +1755,9 @@ class SmsParserService {
       'AUDIBLE', 'KUKU FM', 'POCKET FM', 'STORYTEL', 'PAYTM INSIDER',
       'CINEPOLIS', 'CARNIVAL CINEMAS', 'EPIC GAMES', 'STEAM', 'PLAYSTATION',
       'XBOX', 'NINTENDO',
+      // --- v1.28 ---
+      'JIOHOTSTAR', 'LIONSGATE PLAY', 'SUN NXT', 'HOICHOI', 'ALTBALAJI',
+      'MX PLAYER', 'WYNK MUSIC',
     ],
     'Health & Medical': [
       // --- Original ---
@@ -1751,6 +1766,8 @@ class SmsParserService {
       'MEDPLUS', 'TRUEMEDS', 'APOLLO PHARMACY', 'THYROCARE', 'LAL PATHLABS',
       'SRL DIAGNOSTICS', 'METROPOLIS', 'HEALTHKART', 'MYPROTEIN', 'FITPASS',
       'CUREFIT', 'MAX HEALTHCARE', 'FORTIS', 'MEDANTA', 'MANIPAL',
+      // --- v1.28 ---
+      'WELLNESS FOREVER', 'ZENO HEALTH', 'MFINE', 'DAWAA DOST',
     ],
     'Bills & Utilities': [
       // --- Original ---
@@ -1785,6 +1802,20 @@ class SmsParserService {
       'PHYSICS WALLAH', 'SIMPLILEARN', 'TOPPR', 'ALLEN', 'AAKASH', 'FIITJEE',
       'CHEGG', 'SKILLSHARE', 'EDX', 'DUOLINGO', 'SCRIBD', 'UNACADEMY',
       'SCALER', 'GREAT LEARNING', 'TESTBOOK',
+      // --- v1.28 ---
+      'CUEMATH', 'WHITEHAT', 'PHYSICSWALLAH', 'CLASSPLUS',
+    ],
+    // Money moved into investments is not spending — this category is in
+    // ExpenseCategories.nonExpense, so a matched debit is excluded from
+    // spending totals automatically. Only unambiguous platform brands and
+    // strongly investment-specific phrases are listed; short/ambiguous
+    // tokens (SIP, PPF, NPS) are deliberately omitted to avoid mislabelling
+    // an ordinary spend as a non-expense via substring matching.
+    'Investments': [
+      'GROWW', 'ZERODHA', 'UPSTOX', 'KUVERA', 'INDMONEY', 'PAYTM MONEY',
+      'SMALLCASE', 'ANGEL ONE', '5PAISA', 'MOTILAL OSWAL', 'ICICIDIRECT',
+      'COINDCX', 'WAZIRX', 'COINSWITCH', 'ZEBPAY', 'MUTUAL FUND',
+      'FIXED DEPOSIT',
     ],
   };
 

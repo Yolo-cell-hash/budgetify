@@ -452,6 +452,8 @@ class AppStrings {
         'ఇంకా ఏమీ విస్మరించలేదు',
         'இன்னும் எதுவும் புறக்கணிக்கப்படவில்லை',
       );
+  String get fixThis =>
+      _t('Fix this', 'ठीक करें', 'दुरुस्त करा', 'ঠিক করুন', 'సరిచేయి', 'சரிசெய்');
   String get changeToCredit => _t(
         'Change to credit',
         'क्रेडिट में बदलें',
