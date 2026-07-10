@@ -77,6 +77,22 @@ void main() {
       expect(txn.parseSource, 'BOM · UPI credit');
     });
 
+    test('BOM UPI debit parses via the BOM template pack', () {
+      final txn = SmsParserService.parseTransaction(
+        'AD-MAHABK-S',
+        'A/c X7763 debited by Rs. 101.00 for UPI payment to aish872k okaxis '
+        'on 09-Jul-26. RRN: 619085826595 if not you, call 18002334526 '
+        '-Bank of Maharashtra',
+        now,
+      );
+      expect(txn, isNotNull);
+      // BOM strips the "@" from VPAs; the handle token must not be
+      // title-cased into a surname ("Aish872k Okaxis").
+      expect(txn!.merchantName, 'Aish872k');
+      expect(txn.parseSource, 'BOM · UPI transfer-out');
+      expect(txn.needsReview, isFalse);
+    });
+
     test('a bank without a pack rides the generic cascade', () {
       final txn = SmsParserService.parseTransaction(
         'BV-SBIUPI-S',

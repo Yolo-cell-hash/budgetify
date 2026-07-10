@@ -152,6 +152,19 @@ class BankTemplates {
         r'\bcredited\b[\s\S]*?\bfrom\s+([A-Za-z][A-Za-z. ]+?)'
         r'(?:\s+RRN\b|\s+Ref(?:\s*No)?\b|\s+UTR\b|\s*[-.,]|\s+on\b|\n|$)',
       ),
+      // "A/c X7763 debited by Rs. 101.00 for UPI payment to aish872k okaxis
+      // on 09-Jul-26. RRN: 619085826595 …" — counterparty between
+      // "UPI payment to" and the " on <date>" that always follows. Names
+      // real people ("SANTOSH ANANT G") and VPAs alike; BOM strips the "@"
+      // from VPAs ("aish872k okaxis"), which the nameIsVpa renderer
+      // recognises by the trailing UPI-handle token. The nameless shape
+      // ("debited … by UPI Ref No …") has no "payment to" and still rides
+      // the generic cascade.
+      BankTemplate(
+        'UPI transfer-out',
+        r'\bdebited\b[\s\S]*?\bUPI payment to\s+(.+?)\s+on\b',
+        nameIsVpa: true,
+      ),
     ],
   };
 }

@@ -2433,6 +2433,27 @@ class SmsParserService {
             }
             continue;
           }
+          // Some banks strip the "@" from VPAs in their SMS — BOM sends
+          // "aish872k okaxis" for aish872k@okaxis — leaving the UPI handle
+          // as a trailing word that name-cleaning would title-case into a
+          // fake surname ("Aish872k Okaxis"). When the last token is a
+          // known handle, render the local part alone. Only distinctive
+          // handle spellings qualify; bare words like "sbi"/"upi" stay out
+          // so real names are never truncated.
+          final mangled = RegExp(
+            r'^([\w.\-]+)\s+'
+            r'(?:ok(?:axis|icici|sbi|hdfc|hdfcbank|bizaxis)'
+            r'|ybl|ibl|axl|apl|paytm|pty)$',
+            caseSensitive: false,
+          ).firstMatch(candidate);
+          if (mangled != null) {
+            final local =
+                mangled.group(1)!.replaceAll(RegExp(r'[._]'), ' ').trim();
+            if (local.isNotEmpty) {
+              return MerchantExtraction(_titleCase(local), source, kind);
+            }
+            continue;
+          }
         }
         final cleaned = _cleanMerchant(candidate);
         if (cleaned != null) {
