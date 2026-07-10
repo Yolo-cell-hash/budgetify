@@ -1365,39 +1365,45 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     final l10n = context.l10n;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
-            child: _buildActionTile(
-              colors,
-              icon: Icons.call_split_rounded,
-              label: l10n.splitBadgeLabel,
-              onTap: _openSplit,
-              // An already-split debit reads as "on" — the headline carries the
-              // share amount, so the tile only needs the active accent state.
-              isActive: isSplit,
+      // IntrinsicHeight bounds the row's cross-axis so the tiles can share a
+      // height. Without it, CrossAxisAlignment.stretch resolves against the
+      // scroll view's unbounded height — an invalid constraint that breaks
+      // layout (and silently mangles the screen in a release build).
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: _buildActionTile(
+                colors,
+                icon: Icons.call_split_rounded,
+                label: l10n.splitBadgeLabel,
+                onTap: _openSplit,
+                // An already-split debit reads as "on" — the headline carries
+                // the share amount, so the tile only needs the active state.
+                isActive: isSplit,
+              ),
             ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: _buildActionTile(
-              colors,
-              icon: Icons.autorenew_rounded,
-              label: l10n.recurringTitle,
-              onTap: _trackAsRecurring,
+            const SizedBox(width: 10),
+            Expanded(
+              child: _buildActionTile(
+                colors,
+                icon: Icons.autorenew_rounded,
+                label: l10n.recurringTitle,
+                onTap: _trackAsRecurring,
+              ),
             ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: _buildActionTile(
-              colors,
-              icon: Icons.handshake_rounded,
-              label: l10n.settleUp,
-              onTap: () => _openSettlement(),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _buildActionTile(
+                colors,
+                icon: Icons.handshake_rounded,
+                label: l10n.settleUp,
+                onTap: () => _openSettlement(),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1417,7 +1423,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
           decoration: BoxDecoration(
             color: isActive
                 ? colors.accent.withValues(alpha: 0.10)
@@ -1431,8 +1437,19 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, color: colors.accent, size: 26),
+              // Accent chip behind the icon — the app's signature treatment,
+              // and what gives the tile a clear anchor on low-contrast dark
+              // surfaces where card and page background sit close together.
+              Container(
+                padding: const EdgeInsets.all(9),
+                decoration: BoxDecoration(
+                  color: colors.accent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: colors.accent, size: 22),
+              ),
               const SizedBox(height: 10),
               Text(
                 label,
