@@ -20,8 +20,10 @@ Future<void> backgroundMessageHandler(SmsMessage message) async {
 
   if (transaction != null) {
     // Swap in the user-taught payee name before rule matching, so category
-    // rules see the corrected name.
+    // rules see the corrected name. A recognised merchant behind the
+    // corrected name classifies immediately, without user input.
     transaction = await dbService.applyPayeeAlias(transaction);
+    transaction = SmsParserService.classifyFromMerchantName(transaction);
 
     // Compute fingerprint for deduplication
     transaction = transaction.withFingerprint();
@@ -216,8 +218,10 @@ class SmsService {
     );
 
     if (transaction != null) {
-      // Swap in the user-taught payee name before rule matching.
+      // Swap in the user-taught payee name before rule matching; a
+      // recognised merchant behind the corrected name classifies instantly.
       transaction = await _dbService.applyPayeeAlias(transaction);
+      transaction = SmsParserService.classifyFromMerchantName(transaction);
 
       // Compute fingerprint for deduplication
       transaction = transaction.withFingerprint();
@@ -297,8 +301,11 @@ class SmsService {
         );
 
         if (transaction != null) {
-          // Swap in the user-taught payee name before rule matching.
+          // Swap in the user-taught payee name before rule matching; a
+          // recognised merchant behind the corrected name classifies
+          // instantly.
           transaction = await _dbService.applyPayeeAlias(transaction);
+          transaction = SmsParserService.classifyFromMerchantName(transaction);
 
           // Compute fingerprint for deduplication
           transaction = transaction.withFingerprint();

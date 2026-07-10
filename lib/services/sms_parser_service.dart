@@ -1655,7 +1655,10 @@ class SmsParserService {
     'Food & Dining': [
       // --- Original ---
       'PLATOS', 'SWIGGY', 'ZOMATO', 'DOMINOS', 'TOING', 'MC DONALDS',
-      'MCDONALDS', 'KFC', 'STARBUCKS', 'BURGER KING', 'PIZZA HUT', 'SUBWAY',
+      // 'MCDONALD' also covers the apostrophe form "McDonald's", which the
+      // plain MCDONALDS keyword misses (the apostrophe splits the substring).
+      'MCDONALDS', 'MCDONALD', 'KFC', 'STARBUCKS', 'BURGER KING', 'PIZZA HUT',
+      'SUBWAY',
       'DUNKIN', 'CAFE COFFEE', 'CHAAYOS', 'HALDIRAM',
       // --- Appended ---
       'BARBEQUE NATION', 'BEHROUZ', 'FAASOS', 'OVEN STORY', 'EATCLUB',
@@ -1788,6 +1791,26 @@ class SmsParserService {
     return null;
   }
 
+  /// Classify a transaction from its (possibly user-aliased) merchant name.
+  ///
+  /// [detectCategory] runs against the raw SMS at parse time, so it misses
+  /// merchants hidden behind a cryptic VPA or narration until the payee
+  /// alias swaps in the user-taught name ("mcd-rzp@axl" → "McDonald's").
+  /// Called after DatabaseService.applyPayeeAlias so a recognised name is
+  /// auto-classified from the merchant database without user input.
+  static TransactionModel classifyFromMerchantName(
+    TransactionModel transaction,
+  ) {
+    if (transaction.category != null) return transaction;
+    final name = transaction.merchantName;
+    if (name == null || name.isEmpty) return transaction;
+    final category = detectCategory(name);
+    if (category == null) return transaction;
+    // The name only differs from the raw parse when the user taught it, so
+    // a curated-merchant hit on it is a confident match.
+    return transaction.copyWith(category: category, isClassified: true);
+  }
+
   /// Strip the DLT routing parts from a sender ID, leaving the stable
   /// bank header that `_bankSenderPatterns` actually lists.
   ///
@@ -1881,8 +1904,10 @@ class SmsParserService {
     // Extract merchant/payee name from SMS body
     final merchantName = _extractMerchant(message, accountInfo);
 
-    // Auto-detect category from merchant
-    final category = detectCategory(message);
+    // Auto-detect category from merchant. Bank service charges carry no
+    // merchant keyword, but their category is known by construction.
+    final category = detectCategory(message) ??
+        (merchantName == 'Bank Charges' ? 'Bills & Utilities' : null);
 
     return TransactionModel(
       amount: amount,
@@ -2621,6 +2646,31 @@ class SmsParserService {
         merchant = _cleanMerchant(candidate);
         if (merchant != null) return merchant;
       }
+    }
+
+    // --- Pattern 9: bank service charges → uniform payee "Bank Charges" ---
+    // Fee debits name no counterparty, only a charge narration — e.g. BOI's
+    // "Rs 23.60 Debited(TRF) SMSChrgsJAN-MAR26 GST 101 CUST in your Ac
+    // XX7848" — so the payee collapsed to the account number. The other
+    // party is the bank itself; a uniform "Bank Charges" payee groups every
+    // fee (SMS charges, AMC, penal charges) under one name. Runs last so a
+    // real counterparty extracted above always wins. "RECHARGE" can't match:
+    // \bCHARGES?\b is word-bounded and CHRG is not a substring of it.
+    if (RegExp(r'CHRG|\bCHARGES?\b').hasMatch(upperForAtm)) {
+      return 'Bank Charges';
+    }
+
+    // --- Pattern 10: nameless UPI transfer → uniform payee "UPI Transfer" ---
+    // Some alerts carry only the rail and a ref number, no counterparty at
+    // all — e.g. BOI's "Rs.800.00 Credited to your Ac XX7848 on 24-06-26 by
+    // UPI ref No.654169525627". These fell back to the account number, which
+    // reads like a payee bug in the UI ("Payee: XX7848"). "UPI Transfer"
+    // states what is actually known. Many distinct counterparties share this
+    // placeholder, so it must never learn an alias (see
+    // DatabaseService.isAccountFallbackPayee) — unlike "ATM", which really
+    // is a single counterparty (cash).
+    if (RegExp(r'\bUPI\b').hasMatch(upperForAtm)) {
+      return 'UPI Transfer';
     }
 
     // --- Fallback: Use account number as merchant identifier ---

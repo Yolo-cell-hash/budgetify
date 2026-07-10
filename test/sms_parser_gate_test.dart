@@ -319,7 +319,17 @@ void main() {
       expect(DatabaseService.isAccountFallbackPayee('**1234', null), isTrue);
     });
 
+    test('nameless-transfer placeholder is never an alias key', () {
+      // Distinct counterparties share "UPI Transfer", so a rename on one
+      // must stay per-row instead of teaching a spreading alias.
+      expect(DatabaseService.isAccountFallbackPayee('UPI Transfer', 'XX7848'),
+          isTrue);
+      expect(DatabaseService.isAccountFallbackPayee('UPI TRANSFER', null),
+          isTrue);
+    });
+
     test('real payee names are not treated as fallbacks', () {
+      // "ATM" stays aliasable: cash withdrawals share one real counterparty.
       expect(DatabaseService.isAccountFallbackPayee('ATM', 'XX7531'),
           isFalse);
       expect(DatabaseService.isAccountFallbackPayee('Sharma Kirana', 'XX7531'),

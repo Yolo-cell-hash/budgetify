@@ -34,7 +34,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 22,
+      version: 23,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -600,6 +600,52 @@ class DatabaseService {
         "DELETE FROM payee_aliases "
         "WHERE raw_key GLOB '[X*][X*][0-9][0-9][0-9][0-9]'",
       );
+    }
+
+    if (oldVersion < 23) {
+      // Payee patterns 9/10 gave uniform names ("Bank Charges",
+      // "UPI Transfer") to messages that used to collapse to the account
+      // number. Re-run extraction for rows still carrying a placeholder
+      // payee — and ONLY those, so a name the user typed over a fallback row
+      // is never clobbered (unlike the unconditional v8 backfill).
+      final rows = await db.query(
+        'transactions',
+        columns: [
+          'id',
+          'message',
+          'account_info',
+          'merchant_name',
+          'category',
+        ],
+      );
+      for (final row in rows) {
+        final current = row['merchant_name'] as String?;
+        final accountInfo = row['account_info'] as String?;
+        if (current != null && !isAccountFallbackPayee(current, accountInfo)) {
+          continue;
+        }
+        final message = row['message'] as String? ?? '';
+        if (message.isEmpty) continue; // manual entries have no SMS behind them
+        final fresh = SmsParserService.extractMerchantStatic(
+          message,
+          accountInfo,
+        );
+        if (fresh == null || fresh == current) continue;
+        final values = <String, Object?>{'merchant_name': fresh};
+        // Service-charge rows get their known category when still untagged.
+        final category = row['category'] as String?;
+        if (fresh == 'Bank Charges' &&
+            (category == null || category.isEmpty)) {
+          values['category'] = 'Bills & Utilities';
+          values['is_classified'] = 1;
+        }
+        await db.update(
+          'transactions',
+          values,
+          where: 'id = ?',
+          whereArgs: [row['id']],
+        );
+      }
     }
   }
 
@@ -1675,15 +1721,19 @@ class DatabaseService {
     return transaction.copyWith(merchantName: alias);
   }
 
-  /// Whether an extracted payee is just the account-number fallback
-  /// ("XX7531") rather than a real counterparty. Such a string is the
-  /// parser saying "unknown", shared by every message from that account
-  /// whose template missed — an alias or bulk rename keyed on it would
-  /// spread one payee's name onto unrelated transactions (ATM withdrawals,
-  /// declined-txn artifacts, unmatched templates alike).
+  /// Whether an extracted payee is a placeholder — the account-number
+  /// fallback ("XX7531") or the nameless-transfer token ("UPI Transfer") —
+  /// rather than a real counterparty. Such a string is the parser saying
+  /// "unknown", shared by many unrelated transactions — an alias or bulk
+  /// rename keyed on it would spread one payee's name onto all of them.
+  /// ("ATM" is NOT a placeholder: cash withdrawals genuinely share one
+  /// counterparty, so aliasing ATM → "Cash" is desirable.)
   static bool isAccountFallbackPayee(String? payee, String? accountInfo) {
     if (payee == null) return false;
     final p = payee.trim().toUpperCase();
+    // Nameless UPI alerts ("credited ... by UPI ref No.xxx") all share this
+    // token while coming from distinct people — renames stay per-row.
+    if (p == 'UPI TRANSFER') return true;
     if (accountInfo != null && p == accountInfo.trim().toUpperCase()) {
       return true;
     }
