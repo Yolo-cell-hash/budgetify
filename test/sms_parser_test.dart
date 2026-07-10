@@ -608,6 +608,60 @@ void main() {
     });
   });
 
+  group('Expanded merchant database (v1.28)', () {
+    test('a newly-added food chain auto-classifies', () {
+      final txn = SmsParserService.parseTransaction(
+        'BV-SBIUPI-S',
+        'Dear UPI user A/C X4321 debited by 240.0 on date 05Jul26 trf to '
+        'REBEL FOODS Refno 612345678321. -SBI',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.category, 'Food & Dining');
+      expect(txn.isClassified, isTrue);
+    });
+
+    test('an investment-platform debit is categorised Investments', () {
+      final txn = SmsParserService.parseTransaction(
+        'VM-HDFCBK-S',
+        'Sent Rs.5000.00\nFrom HDFC Bank A/C *9463\nTo GROWW\nOn 05/07/26\n'
+        'Ref 654283235799',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.type, TransactionType.debit);
+      expect(txn.category, 'Investments');
+      expect(txn.isClassified, isTrue);
+      // Investments is a non-expense category, so this debit is excluded
+      // from spending totals — a SIP/stock buy is not a "spend".
+      expect(ExpenseCategories.isExpenseCategory(txn.category), isFalse);
+    });
+
+    test('a mutual-fund SIP phrase maps to Investments', () {
+      final txn = SmsParserService.parseTransaction(
+        'AX-ICICIT-S',
+        'INR 2,000.00 debited from ICICI Bank Acct XX197 on 05-Jul-26 towards '
+        'MUTUAL FUND purchase. UPI:123834511777.',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.category, 'Investments');
+    });
+
+    test('ordinary spends are not swept into Investments by short tokens', () {
+      // "SIP"/"PPF"/"NPS" are deliberately NOT keywords: they appear inside
+      // ordinary words and would silently drop real spends from totals.
+      final txn = SmsParserService.parseTransaction(
+        'BV-SBIUPI-S',
+        'Dear UPI user A/C X4321 debited by 150.0 on date 05Jul26 trf to '
+        'GOSSIP CAFE Refno 612345678322. -SBI',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.category, isNot('Investments'));
+    });
+  });
+
   group('ICICI UPI "debited for ...; PAYEE credited" (debit, not credit)', () {
     // Regression: a real ICICI UPI outflow was being shown as a credit
     // because "<payee> credited" + the weak "CREDIT" keyword out-scored the

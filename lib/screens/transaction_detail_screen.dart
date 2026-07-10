@@ -16,6 +16,9 @@ import '../widgets/recurring_editor_sheet.dart';
 import '../widgets/settlement_sheet.dart';
 import '../widgets/split_transaction_sheet.dart';
 
+/// Parser corrections offered in the detail-screen overflow menu.
+enum _CorrectionAction { changeType, notATransaction }
+
 /// Screen for viewing and classifying a transaction
 class TransactionDetailScreen extends StatefulWidget {
   final TransactionModel transaction;
@@ -804,6 +807,12 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
         backgroundColor: cardColor,
         foregroundColor: textColor,
         elevation: 0,
+        // Parser corrections live in an overflow menu instead of body cards,
+        // so the primary actions (split/recurring/settlement) stay
+        // uncluttered. Manual entries have no SMS shape to correct.
+        actions: [
+          if (!_transaction.isManual) _buildCorrectionsMenu(colors, textColor),
+        ],
       ),
       body: SafeArea(child: SingleChildScrollView(
         child: Column(
@@ -1085,16 +1094,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
             // income/spend (shown for both directions; primary case is credits).
             _buildSettlementCard(colors, isSettlement),
             const SizedBox(height: 16),
-
-            // Parser corrections: flip the direction / not a transaction.
-            // Both teach the app this SMS shape, so the fix sticks for
-            // every future message of the same template.
-            if (!_transaction.isManual) ...[
-              _buildChangeTypeCard(colors),
-              const SizedBox(height: 16),
-              _buildNotATransactionCard(colors),
-              const SizedBox(height: 16),
-            ],
 
             // Category section
             Container(
@@ -1906,143 +1905,50 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     );
   }
 
-  /// "Change to credit/debit" card — fixes the direction and teaches the
-  /// correction for this SMS shape.
-  Widget _buildChangeTypeCard(AppColors colors) {
+  /// App-bar overflow menu holding the parser corrections (change direction,
+  /// not a transaction). Kept out of the body so the primary action cards
+  /// stay uncluttered; each item still teaches the app this SMS shape.
+  Widget _buildCorrectionsMenu(AppColors colors, Color iconColor) {
     final l10n = context.l10n;
     final toCredit = _transaction.type == TransactionType.debit;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: _flipType,
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: colors.card,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: colors.border),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: colors.accent.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(
-                    Icons.swap_vert_rounded,
-                    color: colors.accent,
-                    size: 22,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        toCredit ? l10n.changeToCredit : l10n.changeToDebit,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: colors.text,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        l10n.changeTypeTagline,
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          color: colors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  size: 20,
-                  color: colors.textTertiary,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// "Not a transaction" card — removes the false positive for good and
-  /// optionally mutes the message shape.
-  Widget _buildNotATransactionCard(AppColors colors) {
-    final l10n = context.l10n;
     const danger = Color(0xFFC0392B);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: _notATransaction,
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: colors.card,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: colors.border),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: danger.withValues(alpha: 0.10),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(
-                    Icons.playlist_remove_rounded,
-                    color: danger,
-                    size: 22,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        l10n.notATransaction,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: colors.text,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        l10n.notATransactionTagline,
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          color: colors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  size: 20,
-                  color: colors.textTertiary,
-                ),
-              ],
-            ),
+    return PopupMenuButton<_CorrectionAction>(
+      icon: Icon(Icons.more_vert_rounded, color: iconColor),
+      color: colors.card,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      tooltip: l10n.fixThis,
+      onSelected: (action) {
+        switch (action) {
+          case _CorrectionAction.changeType:
+            _flipType();
+          case _CorrectionAction.notATransaction:
+            _notATransaction();
+        }
+      },
+      itemBuilder: (ctx) => [
+        PopupMenuItem(
+          value: _CorrectionAction.changeType,
+          child: Row(
+            children: [
+              Icon(Icons.swap_vert_rounded, size: 20, color: colors.accent),
+              const SizedBox(width: 12),
+              Text(toCredit ? l10n.changeToCredit : l10n.changeToDebit),
+            ],
           ),
         ),
-      ),
+        PopupMenuItem(
+          value: _CorrectionAction.notATransaction,
+          child: Row(
+            children: [
+              const Icon(Icons.playlist_remove_rounded,
+                  size: 20, color: danger),
+              const SizedBox(width: 12),
+              Text(l10n.notATransaction,
+                  style: const TextStyle(color: danger)),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
