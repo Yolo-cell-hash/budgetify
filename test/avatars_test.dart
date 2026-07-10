@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import 'package:budget_tracker/providers/locale_provider.dart';
 import 'package:budget_tracker/services/gamification_service.dart';
+import 'package:budget_tracker/widgets/avatar_picker_sheet.dart';
 import 'package:budget_tracker/widgets/avatars.dart';
 import 'package:budget_tracker/widgets/profile_share_card.dart';
 import 'package:budget_tracker/widgets/royal_avatars.dart';
@@ -110,6 +111,47 @@ void main() {
       for (var i = 0; i < 12; i++) {
         await tester.pump(const Duration(milliseconds: 400));
       }
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('picker shows the whole royal court without layout errors',
+        (tester) async {
+      final royal = kRoyalAvatars.first;
+      await tester.pumpWidget(
+        ChangeNotifierProvider<LocaleProvider>(
+          create: (_) => LocaleProvider(),
+          child: MaterialApp(
+            home: Builder(
+              builder: (ctx) => Scaffold(
+                body: Center(
+                  child: ElevatedButton(
+                    onPressed: () => showAvatarPicker(
+                      ctx,
+                      GamiProfile(
+                        avatarKind: 'pixel',
+                        avatarValue: '${royal.spriteIndex}',
+                      ),
+                    ),
+                    child: const Text('open'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      // Every royal gets a named tile, plus the equipped one lives in the
+      // preview — all without overflow/constraint exceptions.
+      for (final r in kRoyalAvatars) {
+        // Names resolve through l10n; assert via the widget tree instead of
+        // hardcoding copy so wording changes don't break this test.
+        expect(find.byWidgetPredicate((w) => w is AnimatedRoyalAvatar && w.royal.id == r.id),
+            findsWidgets, reason: r.id);
+      }
+      await tester.pump(const Duration(milliseconds: 600));
       expect(tester.takeException(), isNull);
     });
 

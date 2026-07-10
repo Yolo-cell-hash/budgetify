@@ -177,13 +177,22 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
                 style: TextStyle(fontSize: 11.5, color: colors.textTertiary),
               ),
               const SizedBox(height: 12),
-              Row(
-                children: [
-                  for (final r in kRoyalAvatars) ...[
-                    _royalOption(colors, r),
-                    if (r != kRoyalAvatars.last) const SizedBox(width: 14),
-                  ],
-                ],
+              // Two showpiece tiles per row — the court is too large for one.
+              LayoutBuilder(
+                builder: (ctx, constraints) {
+                  final tileWidth = (constraints.maxWidth - 12) / 2;
+                  return Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      for (final r in kRoyalAvatars)
+                        SizedBox(
+                          width: tileWidth,
+                          child: _royalOption(colors, r),
+                        ),
+                    ],
+                  );
+                },
               ),
             ],
             // Accent applies to emoji avatars only — pixel characters carry
@@ -287,13 +296,13 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
 
   /// A royal character tile — a living avatar in a gilded aura ring with its
   /// court name beneath. Tiles stay calm (no spawn burst); the preview above
-  /// plays the flourish when one is equipped.
+  /// plays the flourish when one is equipped. Sized by the caller (two per
+  /// row in the ROYALTY grid).
   Widget _royalOption(AppColors colors, RoyalAvatar r) {
     final value = '${r.spriteIndex}';
     final selected = _kind == 'pixel' && _value == value;
     final accent = r.theme.accent;
-    return Expanded(
-      child: GestureDetector(
+    return GestureDetector(
         onTap: () => setState(() => _value = value),
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 10),
@@ -342,7 +351,6 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
             ],
           ),
         ),
-      ),
     );
   }
 
