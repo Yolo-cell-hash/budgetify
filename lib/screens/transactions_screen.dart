@@ -185,8 +185,15 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           _ClassFilter.all => null,
           _ClassFilter.classified => true,
           _ClassFilter.unclassified => false,
+          // Review flags are orthogonal to classification — fetch all and
+          // narrow client-side below.
+          _ClassFilter.needsReview => null,
         },
       );
+
+      if (_classFilter == _ClassFilter.needsReview) {
+        transactions = transactions.where((t) => t.needsReview).toList();
+      }
 
       // Apply date range filter client-side if set
       if (_startDate != null && _endDate != null) {
@@ -627,12 +634,16 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         ),
       if (_classFilter != _ClassFilter.all)
         _activeFilterChip(
-          label: _classFilter == _ClassFilter.classified
-              ? l10n.classified
-              : l10n.unclassified,
-          color: _classFilter == _ClassFilter.classified
-              ? const Color(0xFF4A6489)
-              : const Color(0xFFD79A3C),
+          label: switch (_classFilter) {
+            _ClassFilter.classified => l10n.classified,
+            _ClassFilter.needsReview => l10n.needsReviewFilter,
+            _ => l10n.unclassified,
+          },
+          color: switch (_classFilter) {
+            _ClassFilter.classified => const Color(0xFF4A6489),
+            _ClassFilter.needsReview => const Color(0xFFC05621),
+            _ => const Color(0xFFD79A3C),
+          },
           isDark: isDark,
           onRemove: () => _setClass(_ClassFilter.all),
         ),
@@ -839,6 +850,15 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                   onSelected: () => apply(() => _classFilter =
                                       _ClassFilter.unclassified),
                                   color: const Color(0xFFD79A3C),
+                                  isDark: isDark,
+                                ),
+                                _buildFilterChip(
+                                  label: l10n.needsReviewFilter,
+                                  isSelected:
+                                      _classFilter == _ClassFilter.needsReview,
+                                  onSelected: () => apply(() => _classFilter =
+                                      _ClassFilter.needsReview),
+                                  color: const Color(0xFFC05621),
                                   isDark: isDark,
                                 ),
                               ],
@@ -1150,7 +1170,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 }
 
 /// Classification-status filter, independent of the credit/debit type filter.
-enum _ClassFilter { all, classified, unclassified }
+enum _ClassFilter { all, classified, unclassified, needsReview }
 
 /// Quick date-range presets for the transactions filter (plus a custom range).
 enum _DatePreset { all, thisMonth, lastMonth, last7, last30, custom }

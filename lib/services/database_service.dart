@@ -34,7 +34,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 23,
+      version: 24,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -58,7 +58,9 @@ class DatabaseService {
         merchant_name TEXT,
         is_manual INTEGER NOT NULL DEFAULT 0,
         fingerprint TEXT,
-        split_share REAL
+        split_share REAL,
+        review_reasons TEXT,
+        parse_source TEXT
       )
     ''');
 
@@ -158,6 +160,11 @@ class DatabaseService {
     // User-taught payee names ("paytm.s21upj5@pty" → "Sharma Kirana"),
     // applied to every future SMS parse of the same raw payee.
     await db.execute(_createPayeeAliasesTable);
+
+    // User-taught parser corrections: muted message shapes ("not a
+    // transaction — ignore similar") and direction overrides.
+    await db.execute(_createMessageMutesTable);
+    await db.execute(_createParseOverridesTable);
   }
 
   static const String _createDeletedTransactionsTable = '''
@@ -333,6 +340,34 @@ class DatabaseService {
         display_name TEXT NOT NULL,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
+      )
+    ''';
+
+  // "Not a transaction — ignore similar messages": message shapes the user
+  // muted. signature = messageSignature(); sample keeps a copy of one real
+  // message for the management UI in Settings.
+  static const String _createMessageMutesTable = '''
+      CREATE TABLE IF NOT EXISTS message_mutes(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sender_core TEXT NOT NULL,
+        signature TEXT NOT NULL,
+        sample TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        UNIQUE(sender_core, signature)
+      )
+    ''';
+
+  // User-taught direction corrections ("this shape is a credit, not a
+  // debit"), keyed the same way as mutes and applied to every future parse
+  // of the same message shape.
+  static const String _createParseOverridesTable = '''
+      CREATE TABLE IF NOT EXISTS parse_overrides(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sender_core TEXT NOT NULL,
+        signature TEXT NOT NULL,
+        txn_type INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        UNIQUE(sender_core, signature)
       )
     ''';
 
@@ -646,6 +681,19 @@ class DatabaseService {
           whereArgs: [row['id']],
         );
       }
+    }
+
+    if (oldVersion < 24) {
+      // Review queue + parse provenance columns, and the user-taught parser
+      // correction tables (muted message shapes, direction overrides).
+      await db.execute(
+        'ALTER TABLE transactions ADD COLUMN review_reasons TEXT',
+      );
+      await db.execute(
+        'ALTER TABLE transactions ADD COLUMN parse_source TEXT',
+      );
+      await db.execute(_createMessageMutesTable);
+      await db.execute(_createParseOverridesTable);
     }
   }
 
@@ -1843,6 +1891,238 @@ class DatabaseService {
     return renamedRows;
   }
 
+  // ========== REVIEW QUEUE, MESSAGE MUTES & PARSE OVERRIDES ==========
+
+  /// One-tap "Looks right": clear the parser's review flags on a row.
+  Future<void> confirmTransactionReview(int id) async {
+    final db = await database;
+    await db.update(
+      'transactions',
+      {'review_reasons': null},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    notifyAppDataChanged();
+  }
+
+  /// Shape signature of an SMS: the template skeleton with every digit run
+  /// collapsed to '#' and whitespace normalised. Two instances of the same
+  /// bank/promo template (same wording, different amounts/dates/refs) share
+  /// a signature, so one mute or direction correction covers all future
+  /// instances of that template.
+  static String messageSignature(String message) {
+    var s = message.toUpperCase();
+    s = s.replaceAll(RegExp(r'\d+'), '#');
+    s = s.replaceAll(RegExp(r'\s+'), ' ').trim();
+    return s.length > 400 ? s.substring(0, 400) : s;
+  }
+
+  /// "Not a transaction — ignore similar": mute this message's shape from
+  /// this sender. Future messages with the same signature are dropped
+  /// before they are logged — no app update needed to kill a recurring
+  /// promo template.
+  Future<void> addMessageMute(String sender, String message) async {
+    final db = await database;
+    await db.insert(
+      'message_mutes',
+      {
+        'sender_core': SmsParserService.normalizeSender(sender),
+        'signature': messageSignature(message),
+        'sample': message.length > 200 ? message.substring(0, 200) : message,
+        'created_at': DateTime.now().millisecondsSinceEpoch,
+      },
+      conflictAlgorithm: ConflictAlgorithm.ignore,
+    );
+    notifyAppDataChanged();
+  }
+
+  /// Whether the user muted this message shape ("not a transaction").
+  Future<bool> isMessageMuted(String sender, String message) async {
+    final db = await database;
+    final rows = await db.query(
+      'message_mutes',
+      columns: ['id'],
+      where: 'sender_core = ? AND signature = ?',
+      whereArgs: [
+        SmsParserService.normalizeSender(sender),
+        messageSignature(message),
+      ],
+      limit: 1,
+    );
+    return rows.isNotEmpty;
+  }
+
+  /// All muted message shapes, newest first, for the Settings management UI.
+  Future<List<Map<String, Object?>>> listMessageMutes() async {
+    final db = await database;
+    return db.query('message_mutes', orderBy: 'created_at DESC');
+  }
+
+  Future<int> deleteMessageMute(int id) async {
+    final db = await database;
+    final n = await db.delete(
+      'message_mutes',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    notifyAppDataChanged();
+    return n;
+  }
+
+  /// Teach the parser that this message shape's direction is [correctType]:
+  /// flips the stored row, resolves the direction review flag, and
+  /// remembers the correction for every future message of the same shape.
+  Future<TransactionModel> flipTransactionType(
+    TransactionModel transaction,
+    TransactionType correctType,
+  ) async {
+    final db = await database;
+    final remaining = transaction.reviewReasonList
+        .where((r) => r != ReviewReasons.directionUncertain)
+        .toList();
+    final updated = transaction.copyWith(
+      type: correctType,
+      reviewReasons: remaining.join(','),
+    );
+    if (transaction.id != null) {
+      await db.update(
+        'transactions',
+        {
+          'type': correctType.index,
+          'review_reasons': remaining.isEmpty ? null : remaining.join(','),
+          // The fingerprint includes the type — recompute it so inbox
+          // rescans still dedupe against this row (manual entries have no
+          // SMS behind them and keep their null fingerprint).
+          if (!transaction.isManual && transaction.message.isNotEmpty)
+            'fingerprint': TransactionModel.computeFingerprint(
+              amount: transaction.amount,
+              type: correctType,
+              sender: transaction.sender,
+              message: transaction.message,
+              detectedAt: transaction.detectedAt,
+            ),
+        },
+        where: 'id = ?',
+        whereArgs: [transaction.id],
+      );
+    }
+    // Manual entries have no SMS template behind them — nothing to teach.
+    if (!transaction.isManual && transaction.message.isNotEmpty) {
+      await db.insert(
+        'parse_overrides',
+        {
+          'sender_core': SmsParserService.normalizeSender(transaction.sender),
+          'signature': messageSignature(transaction.message),
+          'txn_type': correctType.index,
+          'created_at': DateTime.now().millisecondsSinceEpoch,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
+    notifyAppDataChanged();
+    return updated;
+  }
+
+  /// Apply a user-taught direction correction to a freshly parsed
+  /// transaction, when one exists for this message shape. Must run before
+  /// the fingerprint is computed — the fingerprint includes the type.
+  Future<TransactionModel> applyTypeOverride(
+    TransactionModel transaction,
+  ) async {
+    final db = await database;
+    final rows = await db.query(
+      'parse_overrides',
+      columns: ['txn_type'],
+      where: 'sender_core = ? AND signature = ?',
+      whereArgs: [
+        SmsParserService.normalizeSender(transaction.sender),
+        messageSignature(transaction.message),
+      ],
+      limit: 1,
+    );
+    if (rows.isEmpty) return transaction;
+    final correct = TransactionType.values[rows.first['txn_type'] as int];
+    if (correct == transaction.type) return transaction;
+    // The user already taught the direction for this shape — the parser's
+    // direction doubt (if any) is resolved.
+    final remaining = transaction.reviewReasonList
+        .where((r) => r != ReviewReasons.directionUncertain)
+        .join(',');
+    return transaction.copyWith(type: correct, reviewReasons: remaining);
+  }
+
+  // ==================== SELF-TRANSFER PAIRING ====================
+
+  /// Whether [a] and [b] look like the two halves of one transfer between
+  /// the user's own accounts: opposite directions, the same amount, landing
+  /// within 15 minutes, and neither already excluded from totals.
+  static bool isTransferPairCandidate(TransactionModel a, TransactionModel b) {
+    if (a.id != null && b.id != null && a.id == b.id) return false;
+    if (a.type == b.type) return false;
+    if ((a.amount - b.amount).abs() > 0.005) return false;
+    if (a.detectedAt.difference(b.detectedAt).abs() >
+        const Duration(minutes: 15)) {
+      return false;
+    }
+    if (ExpenseCategories.nonExpense.contains(a.category) ||
+        ExpenseCategories.nonExpense.contains(b.category)) {
+      return false;
+    }
+    return true;
+  }
+
+  /// The other half of a same-amount, opposite-direction pair near [txn] in
+  /// time, or null. Powers the "looks like a self-transfer" suggestion on
+  /// the transaction detail screen.
+  Future<TransactionModel?> findTransferPair(TransactionModel txn) async {
+    if (txn.id == null) return null;
+    if (ExpenseCategories.nonExpense.contains(txn.category)) return null;
+    final db = await database;
+    final windowStart = txn.detectedAt
+        .subtract(const Duration(minutes: 15))
+        .millisecondsSinceEpoch;
+    final windowEnd = txn.detectedAt
+        .add(const Duration(minutes: 15))
+        .millisecondsSinceEpoch;
+    final rows = await db.query(
+      'transactions',
+      where: 'id != ? AND type = ? AND detected_at BETWEEN ? AND ? '
+          'AND amount BETWEEN ? AND ?',
+      whereArgs: [
+        txn.id,
+        txn.type == TransactionType.debit
+            ? TransactionType.credit.index
+            : TransactionType.debit.index,
+        windowStart,
+        windowEnd,
+        txn.amount - 0.005,
+        txn.amount + 0.005,
+      ],
+      orderBy: 'detected_at ASC',
+    );
+    for (final row in rows) {
+      final candidate = TransactionModel.fromMap(row);
+      if (isTransferPairCandidate(txn, candidate)) return candidate;
+    }
+    return null;
+  }
+
+  /// Mark both halves of a transfer pair as Self Transfer, excluding them
+  /// from income and spending totals.
+  Future<void> markTransferPair(TransactionModel a, TransactionModel b) async {
+    final db = await database;
+    for (final t in [a, b]) {
+      if (t.id == null) continue;
+      await db.update(
+        'transactions',
+        {'category': 'Self Transfer', 'is_classified': 1},
+        where: 'id = ?',
+        whereArgs: [t.id],
+      );
+    }
+    notifyAppDataChanged();
+  }
+
   /// Export every table as raw row maps, for encrypted backup.
   // ==================== HOLDINGS (NET WORTH) OPERATIONS ====================
 
@@ -2360,6 +2640,8 @@ class DatabaseService {
       'recurring_payments': await db.query('recurring_payments'),
       'recurring_charges': await db.query('recurring_charges'),
       'payee_aliases': await db.query('payee_aliases'),
+      'message_mutes': await db.query('message_mutes'),
+      'parse_overrides': await db.query('parse_overrides'),
     };
   }
 
@@ -2471,6 +2753,21 @@ class DatabaseService {
         row,
         conflictAlgorithm: ConflictAlgorithm.ignore,
       );
+    }
+
+    // Parser corrections (muted shapes, direction overrides): same
+    // gap-filling policy as aliases — local teaching wins over the backup.
+    for (final table in const ['message_mutes', 'parse_overrides']) {
+      for (final raw in (data[table] as List? ?? const [])) {
+        final row = Map<String, dynamic>.from(raw as Map);
+        row.remove('id');
+        if (row['sender_core'] == null || row['signature'] == null) continue;
+        await db.insert(
+          table,
+          row,
+          conflictAlgorithm: ConflictAlgorithm.ignore,
+        );
+      }
     }
 
     for (final raw in (data['holdings'] as List? ?? const [])) {

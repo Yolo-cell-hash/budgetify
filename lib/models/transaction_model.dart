@@ -23,6 +23,16 @@ class TransactionModel {
   /// for ordinary (unsplit) transactions.
   final double? splitShare;
 
+  /// Comma-separated [ReviewReasons] values naming everything the parser
+  /// had to guess for this message, or null/empty when the parse was clean.
+  /// Cleared when the user confirms the transaction ("Looks right").
+  final String? reviewReasons;
+
+  /// Which reader produced the payee (e.g. "HDFC · NEFT credit",
+  /// "general patterns", "account fallback") — fine print on the detail
+  /// screen, and the raw material for debugging user reports.
+  final String? parseSource;
+
   TransactionModel({
     this.id,
     required this.amount,
@@ -38,11 +48,45 @@ class TransactionModel {
     this.isManual = false,
     this.fingerprint,
     this.splitShare,
+    this.reviewReasons,
+    this.parseSource,
   });
 
   /// The amount that counts as the user's real spend: their split share when
   /// the transaction is split, otherwise the full [amount].
   double get effectiveAmount => splitShare ?? amount;
+
+  /// The parser's review flags as a list (empty when the parse was clean or
+  /// the user already confirmed the transaction).
+  List<String> get reviewReasonList =>
+      (reviewReasons == null || reviewReasons!.isEmpty)
+          ? const []
+          : reviewReasons!.split(',');
+
+  /// Whether this transaction is waiting for a one-tap user glance.
+  bool get needsReview => reviewReasonList.isNotEmpty;
+
+  /// Copy with the review flags cleared (copyWith can't null them out).
+  TransactionModel confirmedReview() {
+    return TransactionModel(
+      id: id,
+      amount: amount,
+      type: type,
+      sender: sender,
+      message: message,
+      detectedAt: detectedAt,
+      isClassified: isClassified,
+      category: category,
+      notes: notes,
+      accountInfo: accountInfo,
+      merchantName: merchantName,
+      isManual: isManual,
+      fingerprint: fingerprint,
+      splitShare: splitShare,
+      reviewReasons: null,
+      parseSource: parseSource,
+    );
+  }
 
   /// Compute a deterministic fingerprint for deduplication.
   /// Two SMS messages that represent the same real-world transaction will
@@ -123,6 +167,8 @@ class TransactionModel {
       isManual: (map['is_manual'] as int?) == 1,
       fingerprint: map['fingerprint'] as String?,
       splitShare: (map['split_share'] as num?)?.toDouble(),
+      reviewReasons: map['review_reasons'] as String?,
+      parseSource: map['parse_source'] as String?,
     );
   }
 
@@ -143,6 +189,8 @@ class TransactionModel {
       'is_manual': isManual ? 1 : 0,
       'fingerprint': fingerprint,
       'split_share': splitShare,
+      'review_reasons': reviewReasons,
+      'parse_source': parseSource,
     };
   }
 
@@ -163,6 +211,8 @@ class TransactionModel {
       isManual: isManual,
       fingerprint: fingerprint,
       splitShare: splitShare,
+      reviewReasons: reviewReasons,
+      parseSource: parseSource,
     );
   }
 
@@ -182,6 +232,8 @@ class TransactionModel {
     bool? isManual,
     String? fingerprint,
     double? splitShare,
+    String? reviewReasons,
+    String? parseSource,
   }) {
     return TransactionModel(
       id: id ?? this.id,
@@ -198,8 +250,37 @@ class TransactionModel {
       isManual: isManual ?? this.isManual,
       fingerprint: fingerprint ?? this.fingerprint,
       splitShare: splitShare ?? this.splitShare,
+      reviewReasons: reviewReasons ?? this.reviewReasons,
+      parseSource: parseSource ?? this.parseSource,
     );
   }
+}
+
+/// Machine-readable reasons a parsed transaction was flagged for a user
+/// glance. Stored comma-joined in [TransactionModel.reviewReasons]; the UI
+/// maps each to a one-line explanation.
+class ReviewReasons {
+  /// The sender only passed the "contains BANK" net, not the allowlist.
+  static const String unknownSender = 'unknown_sender';
+
+  /// No counterparty could be extracted (account-number fallback) — a
+  /// template miss.
+  static const String payeeUnknown = 'payee_unknown';
+
+  /// Debit-vs-credit was decided by weak keyword scoring or a tie-break,
+  /// not an explicit marker.
+  static const String directionUncertain = 'direction_uncertain';
+
+  /// The amount was picked among several currency figures rather than
+  /// anchored to the transaction verb.
+  static const String amountUncertain = 'amount_uncertain';
+
+  static const List<String> all = [
+    unknownSender,
+    payeeUnknown,
+    directionUncertain,
+    amountUncertain,
+  ];
 }
 
 /// Transaction type - credit or debit

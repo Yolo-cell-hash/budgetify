@@ -1,4 +1,5 @@
 import '../models/transaction_model.dart';
+import 'bank_templates.dart';
 
 /// How much a sender header can be trusted to carry real bank alerts.
 ///
@@ -9,6 +10,22 @@ import '../models/transaction_model.dart';
 /// must additionally carry structural transaction evidence (account number,
 /// reference number, or a numeric balance) before they are parsed.
 enum SenderTrust { none, headerFallback, allowlisted }
+
+/// Direction verdict plus whether it came from an explicit marker / one-sided
+/// strong keywords ([certain]) or from weak-keyword scoring and tie-breaks.
+class _TypeResolution {
+  final TransactionType? type;
+  final bool certain;
+  const _TypeResolution(this.type, this.certain);
+}
+
+/// Amount plus whether it is trustworthy: verb-anchored ("debited by 35.0")
+/// or the only currency-marked number left after balance stripping.
+class _AmountResolution {
+  final double? amount;
+  final bool certain;
+  const _AmountResolution(this.amount, this.certain);
+}
 
 /// Service for parsing bank SMS messages to extract transaction details
 class SmsParserService {
@@ -1891,23 +1908,39 @@ class SmsParserService {
     }
 
     // Determine transaction type
-    final type = _getTransactionType(upperMessage);
+    final typeRes = _resolveType(upperMessage);
+    final type = typeRes.type;
     if (type == null) return null;
 
     // Extract amount
-    final amount = _extractAmount(message);
+    final amountRes = _resolveAmount(message);
+    final amount = amountRes.amount;
     if (amount == null || amount <= 0) return null;
 
     // Extract account info
     final accountInfo = _extractAccountInfo(message);
 
-    // Extract merchant/payee name from SMS body
-    final merchantName = _extractMerchant(message, accountInfo);
+    // Extract merchant/payee name from SMS body: registered bank templates
+    // first, then the generic cascade, with provenance.
+    final extraction = extractMerchantDetailed(message, accountInfo);
+    final merchantName = extraction.name;
 
     // Auto-detect category from merchant. Bank service charges carry no
     // merchant keyword, but their category is known by construction.
     final category = detectCategory(message) ??
         (merchantName == 'Bank Charges' ? 'Bills & Utilities' : null);
+
+    // Everything the parser had to guess, as machine-readable reasons. The
+    // UI turns them into one-line explanations, the "Needs review" filter
+    // collects them, and one tap ("Looks right") clears them. A clean parse
+    // — known bank, template/named payee, explicit direction, unambiguous
+    // amount — carries none, so most transactions never surface.
+    final reviewReasons = <String>[
+      if (trust == SenderTrust.headerFallback) ReviewReasons.unknownSender,
+      if (!typeRes.certain) ReviewReasons.directionUncertain,
+      if (!amountRes.certain) ReviewReasons.amountUncertain,
+      if (extraction.payeeUnknown) ReviewReasons.payeeUnknown,
+    ];
 
     return TransactionModel(
       amount: amount,
@@ -1925,6 +1958,8 @@ class SmsParserService {
       // trust senders always land in the queue: the transaction is captured,
       // but the user confirms it once instead of it being silently tagged.
       isClassified: category != null && trust == SenderTrust.allowlisted,
+      parseSource: extraction.source,
+      reviewReasons: reviewReasons.isEmpty ? null : reviewReasons.join(','),
     );
   }
 
@@ -2061,8 +2096,12 @@ class SmsParserService {
     return false;
   }
 
-  /// Determine if it's a credit or debit transaction using weighted scoring
-  static TransactionType? _getTransactionType(String upperMessage) {
+  /// Determine if it's a credit or debit transaction using weighted scoring.
+  /// The verdict is [_TypeResolution.certain] when it comes from an explicit
+  /// account-debited/credited-from marker or one-sided strong keywords;
+  /// weak-keyword scoring and the tie-break are guesses the review queue
+  /// should surface.
+  static _TypeResolution _resolveType(String upperMessage) {
     // SPECIAL CASE: outgoing transfer / debit.
     // An explicit "your account was debited" marker is an unambiguous
     // outflow, so classify as DEBIT immediately — even when the same SMS
@@ -2080,7 +2119,7 @@ class SmsParserService {
         (upperMessage.contains('DEBITED') &&
             (upperMessage.contains('CREDITED TO') ||
                 upperMessage.contains('AND CREDITED')))) {
-      return TransactionType.debit;
+      return const _TypeResolution(TransactionType.debit, true);
     }
 
     // SPECIAL CASE: Money received pattern
@@ -2089,7 +2128,7 @@ class SmsParserService {
             upperMessage.contains('RECEIVED')) &&
         upperMessage.contains(' FROM ') &&
         !upperMessage.contains('DEBITED')) {
-      return TransactionType.credit;
+      return const _TypeResolution(TransactionType.credit, true);
     }
 
     // Strong indicators - these are definitive keywords
@@ -2171,10 +2210,10 @@ class SmsParserService {
 
     // If we have a clear winner from strong keywords, return immediately
     if (debitScore > 0 && creditScore == 0) {
-      return TransactionType.debit;
+      return const _TypeResolution(TransactionType.debit, true);
     }
     if (creditScore > 0 && debitScore == 0) {
-      return TransactionType.credit;
+      return const _TypeResolution(TransactionType.credit, true);
     }
 
     // Check weak keywords (weight: 2 points)
@@ -2202,29 +2241,30 @@ class SmsParserService {
       creditScore += 5;
     }
 
-    // Determine result based on scores
+    // Determine result based on scores — weak-keyword verdicts are guesses.
     if (debitScore > creditScore) {
-      return TransactionType.debit;
+      return const _TypeResolution(TransactionType.debit, false);
     } else if (creditScore > debitScore) {
-      return TransactionType.credit;
+      return const _TypeResolution(TransactionType.credit, false);
     }
 
     // If scores are equal and both > 0, favor debit (more common in banking SMS)
     if (debitScore > 0 && creditScore > 0) {
-      return TransactionType.debit;
+      return const _TypeResolution(TransactionType.debit, false);
     }
 
-    return null;
+    return const _TypeResolution(null, false);
   }
 
-  /// Extract amount from the message
-  static double? _extractAmount(String message) {
-    // Strip balance fragments ("Avl Bal Rs.12,345.67", "Bal: INR 5000") so
-    // the generic currency patterns below never pick up the account balance
-    // instead of the transaction amount.
+  /// Extract amount from the message with a confidence verdict.
+  static _AmountResolution _resolveAmount(String message) {
+    // Strip balance/limit fragments ("Avl Bal Rs.12,345.67", "Bal: INR
+    // 5000", "Avl Lmt: INR 45,000") so the generic currency patterns below
+    // never pick up the account balance or card limit instead of the
+    // transaction amount.
     final cleaned = message.replaceAll(
       RegExp(
-        r'(?:(?:AVL|AVBL|AVL?BL|AVAILABLE|TOTAL|CLR|CLEAR)\.?\s*)?BAL(?:ANCE)?\.?\s*(?:IS|:|-)?\s*(?:RS\.?|INR|₹)?\s*[\d,]+(?:\.\d+)?',
+        r'(?:(?:AVL|AVBL|AVL?BL|AVAILABLE|TOTAL|CLR|CLEAR)\.?\s*)?(?:BAL(?:ANCE)?|LMT|LIMIT)\.?\s*(?:IS|:|-)?\s*(?:RS\.?|INR|₹)?\s*[\d,]+(?:\.\d+)?',
         caseSensitive: false,
       ),
       ' ',
@@ -2253,19 +2293,29 @@ class SmsParserService {
       RegExp(r'(?:FOR|OF)\s+RS\.?\s*([\d,]+\.?\d*)', caseSensitive: false),
     ];
 
-    for (final pattern in patterns) {
-      final match = pattern.firstMatch(cleaned);
+    for (var i = 0; i < patterns.length; i++) {
+      final match = patterns[i].firstMatch(cleaned);
       if (match != null && match.group(1) != null) {
         // Remove commas and parse
         final amountStr = match.group(1)!.replaceAll(',', '');
         final amount = double.tryParse(amountStr);
         if (amount != null && amount > 0) {
-          return amount;
+          // Trustworthy when anchored to the transaction verb (pattern 0),
+          // or when it was the only currency-marked number left after the
+          // balance strip — otherwise the pick was positional luck and the
+          // review queue should surface it.
+          final certain = i == 0 ||
+              RegExp(
+                    r'(?:\bRS\.?|\bINR|₹|\bRUPEES?)\s*[\d,]+',
+                    caseSensitive: false,
+                  ).allMatches(cleaned).length <=
+                  1;
+          return _AmountResolution(amount, certain);
         }
       }
     }
 
-    return null;
+    return const _AmountResolution(null, false);
   }
 
   /// Extract account information (last 4 digits of account/card)
@@ -2312,118 +2362,93 @@ class SmsParserService {
 
   /// Public static method to extract merchant from a message.
   /// Used by DatabaseService during backfill operations.
+  ///
+  /// Routes through [extractMerchantDetailed] so alias keys are computed
+  /// byte-identically to parse time (bank templates included).
   static String? extractMerchantStatic(String message, String? accountInfo) {
-    return _extractMerchant(message, accountInfo);
+    return extractMerchantDetailed(message, accountInfo).name;
   }
 
-  /// Extract merchant/payee name from the SMS body.
+  /// Extract the merchant/payee with provenance.
   ///
-  /// Tries multiple bank-specific and generic patterns. Falls back to
-  /// the account number if no merchant name can be determined.
+  /// Registered bank templates ([BankTemplates.packs]) run first — highest
+  /// confidence, immune to cross-bank pattern collisions. Only when no
+  /// template matches does the generic cascade in [_extractMerchant] run,
+  /// and its output is graded so the review queue can surface guesses:
+  /// named generic extraction, curated placeholders (ATM / Bank Charges /
+  /// UPI Transfer), or the account-number fallback (a template miss).
+  static MerchantExtraction extractMerchantDetailed(
+    String message,
+    String? accountInfo,
+  ) {
+    for (final bank in BankTemplates.identifyBanks(message)) {
+      for (final template in BankTemplates.packs[bank]!) {
+        final match = template.pattern.firstMatch(message);
+        final candidate = match?.group(1)?.trim();
+        if (candidate == null || candidate.length <= 2) continue;
+        final source = '$bank · ${template.rail}';
+        final kind = template.verified
+            ? PayeeSource.bankTemplate
+            : PayeeSource.generic;
+        if (template.nameIsVpa) {
+          // A UPI VPA ("paytm.s21upj5@pty") → render its handle-less local
+          // part the same way the generic VPA pattern does.
+          final vpa = RegExp(r'^([\w.\-]+)@[\w.\-]+$').firstMatch(candidate);
+          if (vpa != null) {
+            final local =
+                vpa.group(1)!.replaceAll(RegExp(r'[._]'), ' ').trim();
+            if (local.isNotEmpty) {
+              return MerchantExtraction(_titleCase(local), source, kind);
+            }
+            continue;
+          }
+        }
+        final cleaned = _cleanMerchant(candidate);
+        if (cleaned != null) {
+          return MerchantExtraction(cleaned, source, kind);
+        }
+      }
+    }
+
+    final name = _extractMerchant(message, accountInfo);
+    if (name == null) {
+      return const MerchantExtraction(null, 'unmatched', PayeeSource.none);
+    }
+    if (name == 'ATM' || name == 'Bank Charges' || name == 'UPI Transfer') {
+      return MerchantExtraction(
+        name,
+        'recognised · ${name.toLowerCase()}',
+        PayeeSource.placeholder,
+      );
+    }
+    if (accountInfo != null && name == accountInfo) {
+      return MerchantExtraction(
+        name,
+        'account fallback',
+        PayeeSource.accountFallback,
+      );
+    }
+    return MerchantExtraction(name, 'general patterns', PayeeSource.generic);
+  }
+
+  /// Generic (cross-bank) merchant extraction cascade. Bank-specific shapes
+  /// live in [BankTemplates.packs] and are tried before this by
+  /// [extractMerchantDetailed]. Falls back to the account number if no
+  /// merchant name can be determined.
   ///
   /// Priority order:
-  /// 1. ICICI Info: field — `Info: UPI-RefNo-MerchantName`
-  /// 1b. Kotak/IPPB — `... to {PAYEE} on {date}` (VPA or name)
-  /// 1c. IPPB credit — `from {PAYER} thru IPPB`
-  /// 1d. HDFC credit — `NEFT Cr-{IFSC}-{REMITTER}-...` / `IMPS -{REMITTER}- {ref}`
   /// 1e. Card spend — `Spent/spent ... at {MERCHANT}` (HDFC intl e-com, ICICI)
+  /// 1f. ATM withdrawal — uniform payee "ATM"
   /// 2. BOI/generic — `credited to {NAME} via UPI`
   /// 3. HDFC — `To {NAME}` (on same or next line)
   /// 4. Generic — `paid/sent/transferred/payment/trf to {NAME}` (BOM, SBI)
+  /// 4b. Slash-delimited UPI ref — `UPI/P2M/{ref}/{NAME}` (Axis, Saraswat)
   /// 5. UPI VPA — `VPA {name}@bank` or `{name}@{bank}` → extract name
-  /// 6. Axis — `to VPA {name}@{bank}`
-  /// 7. Fallback — account number (A/cXX1234)
+  /// 8. Generic credit — `... from {PAYER}`
+  /// 9/10. Placeholders — "Bank Charges", "UPI Transfer"
+  /// Fallback — account number (A/cXX1234)
   static String? _extractMerchant(String message, String? accountInfo) {
     String? merchant;
-
-    // --- Pattern 1: ICICI "Info:" field ---
-    // "Info: UPI-123456789012-MerchantName"
-    // "Info: UPI/123456789012/MerchantName"
-    final infoMatch = RegExp(
-      r'Info:\s*UPI[-/]\d+[-/](.+?)(?:\.|$)',
-      caseSensitive: false,
-    ).firstMatch(message);
-    if (infoMatch != null) {
-      merchant = _cleanMerchant(infoMatch.group(1));
-      if (merchant != null) return merchant;
-    }
-
-    // --- Pattern 1b: "... to {PAYEE} on {date}" debit (Kotak, IPPB) ---
-    // Kotak ("Sent Rs.60.00 from Kotak Bank AC X9883 to paytm.s21upj5@pty on
-    // 27-06-26. UPI Ref ...") and India Post Payments Bank ("A/C X4434 Debit
-    // Rs.20.00 for UPI to ramjeet on 29-06-26 Ref ...") both name the
-    // counterparty between "to" and " on <date>". The generic "sent to
-    // {NAME}" rule (Pattern 4) misses it because the verb is split from "to",
-    // and a global "to {X} on {date}" rule can't be used — other banks'
-    // credits say "credited to your a/c XX on <date>" (e.g. BOI), so it would
-    // capture the reader's own account. Scoped to these two banks, whose
-    // credits use "from ... on" / "from ... thru", never "to {X} on". So the
-    // payee no longer collapses to the account number (which broke tagging).
-    if (RegExp(r'\b(?:Kotak|IPPB)\b', caseSensitive: false)
-        .hasMatch(message)) {
-      final toOn = RegExp(r'\bto\s+(.+?)\s+on\b', caseSensitive: false)
-          .firstMatch(message);
-      final candidate = toOn?.group(1)?.trim();
-      if (candidate != null && candidate.length > 2) {
-        // A UPI VPA ("paytm.s21upj5@pty") → render its handle-less local
-        // part the same way Pattern 5 does ("name.tag" → "Name Tag").
-        final vpa = RegExp(r'^([\w.\-]+)@[\w.\-]+$').firstMatch(candidate);
-        if (vpa != null) {
-          final local = vpa.group(1)!.replaceAll(RegExp(r'[._]'), ' ').trim();
-          if (local.isNotEmpty) return _titleCase(local);
-        }
-        // Otherwise it's a plain name ("to ramjeet on ...").
-        merchant = _cleanMerchant(candidate);
-        if (merchant != null) return merchant;
-      }
-    }
-
-    // --- Pattern 1c: IPPB credit "from {PAYER} thru IPPB" ---
-    // India Post credits read "... received a payment of Rs.140.00 in a/c
-    // X4434 on <date> from padarthi santhosh ku thru IPPB. Info:
-    // UPI/CREDIT/946195505938". The payer sits between "from" and "thru".
-    // Pattern 1 can't help (the Info ref is UPI/CREDIT/<num>, not
-    // UPI/<num>/name), so these fell back to the account number. Scoped to
-    // IPPB; both "thru" and "through" are accepted.
-    if (RegExp(r'\bIPPB\b', caseSensitive: false).hasMatch(message)) {
-      final fromThru =
-          RegExp(r'\bfrom\s+(.+?)\s+thr(?:u|ough)\b', caseSensitive: false)
-              .firstMatch(message);
-      if (fromThru != null) {
-        merchant = _cleanMerchant(fromThru.group(1));
-        if (merchant != null) return merchant;
-      }
-    }
-
-    // --- Pattern 1d: HDFC NEFT/IMPS credit remitter ---
-    // HDFC credits name the remitter inside a dash-delimited narration that
-    // no other rule reads, so they fell back to the account number (payee ==
-    // account), breaking tagging:
-    //   NEFT: "... deposited in HDFC Bank A/c XX9463 ... for NEFT
-    //          Cr-ICIC0099999-GODREJ AND BOYCE MFG CO LTD-JAY RAJESH KEER-..."
-    //   IMPS: "Received! INR 1.00 in HDFC Bank A/c xx9463 ... For IMPS
-    //          -BUREAUIDIndia- 618502233593"
-    // NEFT puts the remitter 2nd (after the IFSC); IMPS puts it between the
-    // dashes before the numeric ref. HDFC debits ("Sent Rs.X ... To {NAME}")
-    // carry no such narration and stay with Pattern 3. Scoped to HDFC.
-    if (RegExp(r'\bHDFC\b', caseSensitive: false).hasMatch(message)) {
-      // NEFT: after "NEFT Cr-<IFSC>-", the remitter runs to the next dash.
-      final neft =
-          RegExp(r'NEFT\s+Cr-[A-Za-z0-9]+-([^-]+)-', caseSensitive: false)
-              .firstMatch(message);
-      if (neft != null) {
-        merchant = _cleanMerchant(neft.group(1));
-        if (merchant != null) return merchant;
-      }
-      // IMPS: "IMPS -<remitter>- <ref-digits>".
-      final imps =
-          RegExp(r'IMPS\s*-\s*([^-]+?)\s*-\s*\d', caseSensitive: false)
-              .firstMatch(message);
-      if (imps != null) {
-        merchant = _cleanMerchant(imps.group(1));
-        if (merchant != null) return merchant;
-      }
-    }
 
     // --- Pattern 1e: card spend "Spent ... At {MERCHANT} On {date}" ---
     // Card-rail spends put the merchant after "at", not after "to", so every
@@ -2485,26 +2510,6 @@ class SmsParserService {
     if (creditedToVia != null) {
       merchant = _cleanMerchant(creditedToVia.group(1));
       if (merchant != null) return merchant;
-    }
-
-    // --- Pattern 2b: ICICI debit "; {PAYEE} credited" ---
-    // ICICI UPI debits name the recipient after a semicolon, with the verb
-    // AFTER the name: "ICICI Bank Acct XX197 debited for Rs 73.00 on
-    // 16-Jun-26; JAY RAJESH KEER credited. UPI:123834511400...". No rule
-    // reads a name-before-verb shape, so one of the most common formats in
-    // the wild collapsed to the account number — and any tag the user put
-    // on it spread to every other fallback payee from that account. Scoped
-    // to messages that carry a debit marker, so a genuine incoming credit
-    // never routes through it.
-    if (RegExp(r'\bdebited\b', caseSensitive: false).hasMatch(message)) {
-      final semicolonCredited = RegExp(
-        r'[;:]\s*([A-Za-z][A-Za-z .&\-]{2,}?)\s+credited\b',
-        caseSensitive: false,
-      ).firstMatch(message);
-      if (semicolonCredited != null) {
-        merchant = _cleanMerchant(semicolonCredited.group(1));
-        if (merchant != null) return merchant;
-      }
     }
 
     // --- Pattern 3: HDFC "To {NAME}" ---
@@ -2596,35 +2601,12 @@ class SmsParserService {
     // BOM: "debited by Rs 500.00 on 30-05-26 by UPI Ref No 123456789012"
     // No merchant info available here, fall through
 
-    // --- Pattern 7: Bank of Maharashtra credit "...from {NAME} RRN:" ---
-    // BOM credits read: "A/c XX7763 credited with Rs. 453.00 on 01-Jul-26
-    // from Miss AISHWARYA RRN: 125560855601 -Bank of Maharashtra". The payer
-    // name sits between "from" and the RRN/ref/footer, and none of the
-    // patterns above catch it, so these credits fell through to the account
-    // number. Scoped to BOM credits (message names the bank AND says
-    // "credited") so the generic "from" wording in other banks — and BOM's
-    // own debits, which say "debited" — is left untouched.
-    final isBomCredit =
-        RegExp(r'bank\s+of\s+maharashtra', caseSensitive: false)
-                .hasMatch(message) &&
-            RegExp(r'\bcredited\b', caseSensitive: false).hasMatch(message);
-    if (isBomCredit) {
-      final fromName = RegExp(
-        r'\bfrom\s+([A-Za-z][A-Za-z. ]+?)'
-        r'(?:\s+RRN\b|\s+Ref(?:\s*No)?\b|\s+UTR\b|\s*[-.,]|\s+on\b|\n|$)',
-        caseSensitive: false,
-      ).firstMatch(message);
-      if (fromName != null) {
-        merchant = _cleanMerchant(fromName.group(1));
-        if (merchant != null) return merchant;
-      }
-    }
-
     // --- Pattern 8: generic credit "... from {PAYER}" ---
     // Incoming credits across banks name the payer after "from" (ICICI:
     // "credited with Rs 73.00 on 16-Jun-26 from JAY RAJESH KEER. UPI:...",
-    // SBI: "credited by transfer from RAMESH KUMAR"). The bank-scoped rules
-    // above (1c IPPB, 7 BOM) get first shot; this generic catch-all only
+    // SBI: "credited by transfer from RAMESH KUMAR"). The bank template
+    // packs (IPPB "from…thru", BOM "credited…from…RRN") get first shot in
+    // extractMerchantDetailed; this generic catch-all only
     // runs for credit-verb messages so debit narrations like "Sent Rs.30
     // From HDFC Bank A/C" can never route through it, and the capture must
     // be letter-led and non-institutional (not the bank naming itself).

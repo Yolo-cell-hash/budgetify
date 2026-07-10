@@ -324,6 +324,44 @@ class _TransactionCardState extends State<TransactionCard>
                               ),
                             ),
                           ],
+                          // The parser guessed something in this message —
+                          // one tap on the detail screen confirms or fixes.
+                          if (widget.transaction.needsReview) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFDEDE3),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: const Color(0xFFF2C6A5),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.help_outline,
+                                    size: 10,
+                                    color: Color(0xFFC05621),
+                                  ),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    context.l10n.needsReviewBadge,
+                                    style: const TextStyle(
+                                      fontSize: 9,
+                                      color: Color(0xFFC05621),
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                       const SizedBox(height: 6),

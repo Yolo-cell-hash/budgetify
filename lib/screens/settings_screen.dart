@@ -22,6 +22,7 @@ import '../services/background_service.dart';
 import '../services/export_service.dart';
 import '../services/gamification_service.dart';
 import '../services/statement_import_service.dart';
+import '../services/database_service.dart';
 import '../services/tutorial_service.dart';
 import '../widgets/app_bar_title.dart';
 import '../widgets/app_dialog.dart';
@@ -649,6 +650,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
           ),
+          const SizedBox(height: 10),
+          // Message shapes the user told the parser to skip ("not a
+          // transaction — ignore similar"), with per-row un-mute.
+          _buildSettingsCard(
+            isDark: isDark,
+            child: ListTile(
+              leading:
+                  const Icon(Icons.notifications_off_outlined, color: Color(0xFFC0392B)),
+              title: Text(context.l10n.ignoredMessages),
+              subtitle: Text(
+                context.l10n.ignoredMessagesTagline,
+                style: TextStyle(
+                  color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
+                ),
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: _openIgnoredMessagesSheet,
+            ),
+          ),
 
           const SizedBox(height: 24),
 
@@ -1150,6 +1170,121 @@ class _SettingsScreenState extends State<SettingsScreen> {
         );
       }
     }
+  }
+
+  /// Bottom sheet listing message shapes the user muted via "Not a
+  /// transaction — ignore similar". Deleting a row un-mutes that shape.
+  Future<void> _openIgnoredMessagesSheet() async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark ? const Color(0xFF16181E) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subtextColor =
+        isDark ? const Color(0xFF9A9DA6) : const Color(0xFF6E727C);
+    final db = DatabaseService();
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: cardColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  ctx.l10n.ignoredMessages,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: textColor,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  ctx.l10n.ignoredMessagesTagline,
+                  style: TextStyle(fontSize: 13, color: subtextColor),
+                ),
+                const SizedBox(height: 12),
+                Flexible(
+                  child: FutureBuilder<List<Map<String, Object?>>>(
+                    future: db.listMessageMutes(),
+                    builder: (ctx, snapshot) {
+                      final mutes = snapshot.data ?? const [];
+                      if (snapshot.connectionState !=
+                          ConnectionState.done) {
+                        return const Padding(
+                          padding: EdgeInsets.all(24),
+                          child: Center(child: CircularProgressIndicator()),
+                        );
+                      }
+                      if (mutes.isEmpty) {
+                        return Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Center(
+                            child: Text(
+                              ctx.l10n.noIgnoredMessages,
+                              style: TextStyle(color: subtextColor),
+                            ),
+                          ),
+                        );
+                      }
+                      return ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: mutes.length,
+                        separatorBuilder: (_, __) => Divider(
+                          height: 1,
+                          color: isDark ? const Color(0xFF2A2D35) : null,
+                        ),
+                        itemBuilder: (ctx, i) {
+                          final mute = mutes[i];
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(
+                              mute['sender_core'] as String? ?? '',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: textColor,
+                              ),
+                            ),
+                            subtitle: Text(
+                              mute['sample'] as String? ?? '',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: subtextColor,
+                              ),
+                            ),
+                            trailing: IconButton(
+                              icon: const Icon(
+                                Icons.delete_outline,
+                                size: 20,
+                                color: Color(0xFFC0392B),
+                              ),
+                              onPressed: () async {
+                                await db
+                                    .deleteMessageMute(mute['id'] as int);
+                                setSheetState(() {});
+                              },
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _openImportSheet() async {
