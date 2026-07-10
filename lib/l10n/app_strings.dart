@@ -1680,6 +1680,16 @@ class AppStrings {
   String get detailsLabel => _t('Details', 'विवरण', 'तपशील', 'বিবরণ', 'వివరాలు', 'விவரங்கள்');
   String get fromLabel => _t('From', 'भेजने वाला', 'पाठवणारा', 'প্রেরক', 'నుండి', 'அனுப்புநர்');
   String get payeeLabel => _t('Payee', 'प्राप्तकर्ता', 'प्राप्तकर्ता', 'প্রাপক', 'చెల్లింపుదారు', 'பணம் பெறுநர்');
+  // Direction-explicit counterparty labels. English "Payee" is routinely
+  // misread as "the one who paid" (two independent tester reports), so the
+  // detail screen now states the direction outright. Debits show the
+  // recipient ("Paid to"); credits show the payer ("Received from") —
+  // worded to not collide with [fromLabel]'s "sender" nouns, which name the
+  // SMS sender on the row above.
+  String get paidToLabel =>
+      _t('Paid to', 'प्राप्तकर्ता', 'प्राप्तकर्ता', 'প্রাপক', 'స్వీకర్త', 'பெறுநர்');
+  String get receivedFromLabel => _t('Received from', 'भुगतानकर्ता',
+      'पैसे देणारा', 'অর্থ প্রেরক', 'చెల్లించినవారు', 'செலுத்தியவர்');
   String get renamePayeeTitle => _t('Rename payee', 'प्राप्तकर्ता का नाम बदलें',
       'प्राप्तकर्त्याचे नाव बदला', 'প্রাপকের নাম বদলান', 'చెల్లింపుదారు పేరు మార్చండి', 'பணம் பெறுநர் பெயரை மாற்றவும்');
   String get renamePayeeHint => _t('Enter a name you recognise',
