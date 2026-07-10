@@ -177,6 +177,161 @@ const Map<String, Color> _queenPalette = {
   'f': Color(0xFF2A2530),
 };
 
+// ── The Prince (heir): gold coronet over chestnut hair, gilded plate
+// armour, and a steel-tipped lance held upright in the left hand. The
+// waving right hand stays free. ─────────────────────────────────────────────
+const List<String> _princeRows = [
+  '.SS.............',
+  '.SS.............',
+  '.LL.............',
+  '.LL.XCCGCCGCCX..',
+  '.LL.XHHHHHHHHX..',
+  '.LL.XKKKKKKKKX..',
+  '.LL.XKWWKKWWKX..',
+  '.LL.XKIIKKIIKX..',
+  '.LL.XKKKKKKKKX..',
+  '.LL.XKKKkkKKKX..',
+  '.LL..XKKKKKKX...',
+  '.LL.XXAAAAAAXX..',
+  '.KKKXATAAAATAX..',
+  '.LL.XATAAAATAX..',
+  '.LL.XAaAGGAaAX..',
+  '.LL.XXaAAAAaXX..',
+];
+
+const Map<String, Color> _princePalette = {
+  'X': _outline,
+  'S': Color(0xFFD7DCE4), // steel lance tip
+  'L': Color(0xFFC09232), // gilded lance shaft
+  'C': _gold,
+  'c': _goldDeep,
+  'G': Color(0xFFE23B4E), // ruby
+  'H': Color(0xFF6B4423), // chestnut hair
+  'h': Color(0xFF4A2E16),
+  'K': Color(0xFFF2C9A0),
+  'k': Color(0xFFD9A87C),
+  'W': _eyeWhite,
+  'I': Color(0xFF3E7DC8),
+  'A': Color(0xFFD4A72C), // golden plate armour
+  'a': Color(0xFF9C7A16),
+  'T': Color(0xFFFFE9B0), // pale-gold trim
+};
+
+// ── The Dark Prince: iron coronet, black plate, ember eyes, and a studded
+// war club in the left hand. Same body plan as the Prince — the palette and
+// weapon tell the two brothers apart. ───────────────────────────────────────
+const List<String> _darkPrinceRows = [
+  'XMMMX...........',
+  'XMSMX...........',
+  'XMMMX...........',
+  '.LL.XCCGGCCCCX..',
+  '.LL.XHHHHHHHHX..',
+  '.LL.XKKKKKKKKX..',
+  '.LL.XKWWKKWWKX..',
+  '.LL.XKIIKKIIKX..',
+  '.LL.XKKKKKKKKX..',
+  '.LL.XKKKkkKKKX..',
+  '.LL..XKKKKKKX...',
+  '.LL.XXAAAAAAXX..',
+  '.KKKXATAAAATAX..',
+  '.LL.XATAAAATAX..',
+  '.LL.XAaAGGAaAX..',
+  '.LL.XXaAAAAaXX..',
+];
+
+const Map<String, Color> _darkPrincePalette = {
+  'X': _outline,
+  'M': Color(0xFF4E525C), // iron club head
+  'm': Color(0xFF33383F),
+  'S': Color(0xFF9AA3B2), // steel stud
+  'L': Color(0xFF3E2A1A), // dark-wood haft
+  'C': Color(0xFF3A3F4A), // iron coronet
+  'c': Color(0xFF26292F),
+  'G': Color(0xFFFF4632), // ember gem
+  'H': Color(0xFF1C1926), // black hair
+  'h': Color(0xFF101018),
+  'K': Color(0xFFE8D9C8), // pale skin
+  'k': Color(0xFFC4B29E),
+  'W': _eyeWhite,
+  'I': Color(0xFFFF4632), // ember iris
+  'A': Color(0xFF23262F), // black plate armour
+  'a': Color(0xFF121418),
+  'T': Color(0xFFB02838), // blood-red trim
+};
+
+// ── The Princess: tall blush-gem tiara, honey-gold hair framing the face,
+// pearl necklace on a rose gown. ────────────────────────────────────────────
+const List<String> _princessRows = [
+  '.......GG.......',
+  '......XGGX......',
+  '....C.XCCX.C....',
+  '...XCCCCCCCCX...',
+  '..XHHHHHHHHHHX..',
+  '..XHKKKKKKKKHX..',
+  '..XHKWWKKWWKHX..',
+  '..XHKIIKKIIKHX..',
+  '..XHKKKKKKKKHX..',
+  '..XHKKKkkKKKHX..',
+  '..XHhXKKKKXhHX..',
+  '...XhXKKKKXhX...',
+  '...XXRPPPPRXX...',
+  '..XRRRRGGRRRRX..',
+  '..XRTRRRRRRTRX..',
+  '..XXrRRRRRRrXX..',
+];
+
+const Map<String, Color> _princessPalette = {
+  'X': _outline,
+  'C': _gold,
+  'c': _goldDeep,
+  'G': Color(0xFFFF9EC8), // blush gem
+  'H': Color(0xFFE6C15A), // honey-gold hair
+  'h': Color(0xFFC09A38),
+  'K': Color(0xFFF2C9A0),
+  'k': Color(0xFFD9A87C),
+  'W': _eyeWhite,
+  'I': Color(0xFF5BA8D8),
+  'R': Color(0xFFD4547E), // rose gown
+  'r': Color(0xFFA83660),
+  'T': _gold,
+  'P': Color(0xFFF6F1E8), // pearls
+};
+
+// ── The Royal Medic: the court physician — white cap and coat, each
+// carrying the emerald cross of life, gold court trim, kind green eyes. ─────
+const List<String> _medicRows = [
+  '.....XFFFFX.....',
+  '....XFFEEFFX....',
+  '...XFFFEEFFFX...',
+  '..XHHFFFFFFHHX..',
+  '..XHKKKKKKKKHX..',
+  '..XHKWWKKWWKHX..',
+  '..XHKIIKKIIKHX..',
+  '..XHKKKKKKKKHX..',
+  '..XHKKKkkKKKHX..',
+  '...XXKKKKKKXX...',
+  '.....XKKKKX.....',
+  '...XXFFFFFFXX...',
+  '..XFTFFEEFFTFX..',
+  '..XFTFEEEEFTFX..',
+  '..XFTFFEEFFTFX..',
+  '..XXfFFFFFFfXX..',
+];
+
+const Map<String, Color> _medicPalette = {
+  'X': _outline,
+  'F': Color(0xFFF6F2EA), // white coat + cap
+  'f': Color(0xFFD8D2C4),
+  'E': Color(0xFF2BB985), // emerald cross of life
+  'H': Color(0xFF6E4A2A), // warm brown hair
+  'h': Color(0xFF4A2E16),
+  'K': Color(0xFFE8B98C),
+  'k': Color(0xFFCE9B6E),
+  'W': _eyeWhite,
+  'I': Color(0xFF2E8F6B), // green iris
+  'T': _gold,
+};
+
 // Waving hand overlays, shared by both royals (drawn in FRONT of the body —
 // nearer the viewer — so they simply paint over base cells). Two frames give
 // the up/down beat of the wave.
@@ -257,6 +412,91 @@ const List<RoyalAvatar> kRoyalAvatars = [
       accentSoft: Color(0xFFE8D9FF),
       backdrop: [Color(0xFF3E2470), Color(0xFF140A28)],
       halo: [Color(0xFFC9A2FF), Color(0xFF3E1C70)],
+    ),
+  ),
+  // The heir in radiant gold — his court is molten bronze.
+  RoyalAvatar(
+    id: 'prince',
+    spriteIndex: 20,
+    rows: _princeRows,
+    palette: _princePalette,
+    eyeRowWhites: 6,
+    eyeRowIris: 7,
+    eyesClosed: ['.LL.XKKKKKKKKX..', '.LL.XKkkKKkkKX..'],
+    eyesLeft: ['.LL.XKWWKKWWKX..', '.LL.XKIWKKIWKX..'],
+    eyesRight: ['.LL.XKWWKKWWKX..', '.LL.XKWIKKWIKX..'],
+    theme: RoyalTheme(
+      cardGradient: [Color(0xFF4A3808), Color(0xFF241B03), Color(0xFF0E0A01)],
+      ringColors: [_gold, Color(0xFFFFE9B0), Color(0xFFD4A72C), _gold],
+      accent: Color(0xFFFFC93C),
+      accentSoft: Color(0xFFFFE9B0),
+      backdrop: [Color(0xFF5E4A10), Color(0xFF1E1602)],
+      halo: [Color(0xFFFFC93C), Color(0xFF7A5E10)],
+    ),
+  ),
+  // The exiled brother — onyx court, ember-red menace.
+  RoyalAvatar(
+    id: 'darkprince',
+    spriteIndex: 21,
+    rows: _darkPrinceRows,
+    palette: _darkPrincePalette,
+    eyeRowWhites: 6,
+    eyeRowIris: 7,
+    eyesClosed: ['.LL.XKKKKKKKKX..', '.LL.XKkkKKkkKX..'],
+    eyesLeft: ['.LL.XKWWKKWWKX..', '.LL.XKIWKKIWKX..'],
+    eyesRight: ['.LL.XKWWKKWWKX..', '.LL.XKWIKKWIKX..'],
+    theme: RoyalTheme(
+      cardGradient: [Color(0xFF1E1E26), Color(0xFF101014), Color(0xFF050507)],
+      ringColors: [
+        Color(0xFFFF4632),
+        Color(0xFFFF9A8C),
+        Color(0xFF23262F),
+        Color(0xFFFF4632),
+      ],
+      accent: Color(0xFFFF4632),
+      accentSoft: Color(0xFFFF9A8C),
+      backdrop: [Color(0xFF2A2A34), Color(0xFF0A0A0E)],
+      halo: [Color(0xFFFF4632), Color(0xFF26060A)],
+    ),
+  ),
+  // Elegance itself — a blush-and-pearl court.
+  RoyalAvatar(
+    id: 'princess',
+    spriteIndex: 22,
+    rows: _princessRows,
+    palette: _princessPalette,
+    eyeRowWhites: 6,
+    eyeRowIris: 7,
+    eyesClosed: ['..XHKKKKKKKKHX..', '..XHKkkKKkkKHX..'],
+    eyesLeft: ['..XHKWWKKWWKHX..', '..XHKIWKKIWKHX..'],
+    eyesRight: ['..XHKWWKKWWKHX..', '..XHKWIKKWIKHX..'],
+    theme: RoyalTheme(
+      cardGradient: [Color(0xFF521431), Color(0xFF2E0A1D), Color(0xFF12040C)],
+      ringColors: [_gold, Color(0xFFFFD1E4), Color(0xFFD4547E), _gold],
+      accent: Color(0xFFFF9EC8),
+      accentSoft: Color(0xFFFFD1E4),
+      backdrop: [Color(0xFF6E1E3E), Color(0xFF240710)],
+      halo: [Color(0xFFFF9EC8), Color(0xFF6E1E3E)],
+    ),
+  ),
+  // The court physician — an emerald court of life.
+  RoyalAvatar(
+    id: 'royalmedic',
+    spriteIndex: 23,
+    rows: _medicRows,
+    palette: _medicPalette,
+    eyeRowWhites: 5,
+    eyeRowIris: 6,
+    eyesClosed: ['..XHKKKKKKKKHX..', '..XHKkkKKkkKHX..'],
+    eyesLeft: ['..XHKWWKKWWKHX..', '..XHKIWKKIWKHX..'],
+    eyesRight: ['..XHKWWKKWWKHX..', '..XHKWIKKWIKHX..'],
+    theme: RoyalTheme(
+      cardGradient: [Color(0xFF0E3A2C), Color(0xFF062318), Color(0xFF02110B)],
+      ringColors: [_gold, Color(0xFFB8F5E0), Color(0xFF2BB985), _gold],
+      accent: Color(0xFF3DD2A0),
+      accentSoft: Color(0xFFB8F5E0),
+      backdrop: [Color(0xFF14523E), Color(0xFF041E12)],
+      halo: [Color(0xFF3DD2A0), Color(0xFF0E3A2C)],
     ),
   ),
 ];
