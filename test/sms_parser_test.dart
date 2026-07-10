@@ -186,6 +186,25 @@ void main() {
       expect(txn.merchantName, 'Santosh Anant G');
     });
 
+    test('"UPI payment to {vpa}" with stripped "@" renders the local part '
+        '(open-testing report, 10-Jul-26)', () {
+      // BOM sends "aish872k okaxis" for aish872k@okaxis — the handle token
+      // must not become a fake surname, and account/payee must not swap.
+      final txn = SmsParserService.parseTransaction(
+        'AD-MAHABK-S',
+        'A/c X7763 debited by Rs. 101.00 for UPI payment to aish872k okaxis '
+        'on 09-Jul-26. RRN: 619085826595 if not you, call 18002334526 '
+        '-Bank of Maharashtra',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 101.0);
+      expect(txn.type, TransactionType.debit);
+      expect(txn.accountInfo, 'XX7763');
+      expect(txn.merchantName, 'Aish872k');
+      expect(txn.parseSource, 'BOM · UPI transfer-out');
+    });
+
     test('"credited...from {NAME} RRN" credit extracts the payer, not the a/c',
         () {
       final txn = SmsParserService.parseTransaction(
