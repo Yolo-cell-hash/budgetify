@@ -1014,14 +1014,21 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                     subtextColor,
                     textColor,
                   ),
-                  // The counterparty row is always labelled "Payee" — a
-                  // credit/debit-dependent label read inconsistent in testing.
+                  // Counterparty row. "Payee" kept being misread as "the one
+                  // who paid" (two independent tester reports — Jun/Jul '26
+                  // BOM), even when extraction was verifiably correct. So the
+                  // label states the direction outright: debits "Paid to",
+                  // credits "Received from" — same verb-phrase style both
+                  // ways, so it can't read inconsistent like the earlier
+                  // mixed noun/label attempt did.
                   // The pencil teaches a payee alias: SMS-derived names (VPAs,
                   // account numbers) are often unrecognisable, so one rename
                   // here fixes matching rows and every future SMS parse.
                   if (_transaction.merchantName != null)
                     _buildDetailRow(
-                      context.l10n.payeeLabel,
+                      isCredit
+                          ? context.l10n.receivedFromLabel
+                          : context.l10n.paidToLabel,
                       _transaction.merchantName!,
                       subtextColor,
                       textColor,
@@ -2072,7 +2079,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 80,
+            // Wide enough for the direction-explicit labels ("Received
+            // from") to sit on one line; the value column flexes.
+            width: 92,
             child: Text(
               label,
               style: TextStyle(fontSize: 13, color: subtextColor),
