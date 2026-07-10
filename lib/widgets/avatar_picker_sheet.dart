@@ -5,6 +5,7 @@ import '../l10n/l10n.dart';
 import '../providers/theme_provider.dart';
 import '../services/gamification_service.dart';
 import 'avatars.dart';
+import 'royal_avatars.dart';
 
 /// Edit the profile's avatar (emoji or procedural pixel) + accent + username.
 /// Returns the edited [GamiProfile], or null if cancelled.
@@ -82,8 +83,15 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
             ),
             const SizedBox(height: 18),
             Center(
+              // Keyed by the selection so equipping a royal replays its
+              // spawn flourish in the preview.
               child: AvatarView(
-                kind: _kind, value: _value, accent: _accent, size: 88),
+                key: ValueKey('$_kind/$_value'),
+                kind: _kind,
+                value: _value,
+                accent: _accent,
+                size: 88,
+              ),
             ),
             const SizedBox(height: 18),
             TextField(
@@ -151,6 +159,30 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
                 runSpacing: 12,
                 children: [
                   for (final e in kEliteAvatars) _eliteOption(colors, e),
+                ],
+              ),
+              // Royalty: the court above elite — living avatars with their
+              // own aura, backdrop and profile-card theme.
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  _sectionLabel(colors, context.l10n.royalAvatarsLabel),
+                  const SizedBox(width: 6),
+                  const Text('👑', style: TextStyle(fontSize: 12)),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                context.l10n.royalAvatarsDesc,
+                style: TextStyle(fontSize: 11.5, color: colors.textTertiary),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  for (final r in kRoyalAvatars) ...[
+                    _royalOption(colors, r),
+                    if (r != kRoyalAvatars.last) const SizedBox(width: 14),
+                  ],
                 ],
               ),
             ],
@@ -249,6 +281,67 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
           ),
         ),
         child: AvatarView(kind: kind, value: value, accent: _accent, size: 46, ring: false),
+      ),
+    );
+  }
+
+  /// A royal character tile — a living avatar in a gilded aura ring with its
+  /// court name beneath. Tiles stay calm (no spawn burst); the preview above
+  /// plays the flourish when one is equipped.
+  Widget _royalOption(AppColors colors, RoyalAvatar r) {
+    final value = '${r.spriteIndex}';
+    final selected = _kind == 'pixel' && _value == value;
+    final accent = r.theme.accent;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _value = value),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            gradient: LinearGradient(
+              colors: [
+                accent.withValues(alpha: selected ? 0.16 : 0.07),
+                Colors.transparent,
+              ],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+            border: Border.all(
+              color: selected ? accent : accent.withValues(alpha: 0.35),
+              width: selected ? 2 : 1,
+            ),
+            boxShadow: selected
+                ? [BoxShadow(color: accent.withValues(alpha: 0.30), blurRadius: 14)]
+                : null,
+          ),
+          child: Column(
+            children: [
+              ClipOval(
+                child: AvatarView(
+                  kind: 'pixel',
+                  value: value,
+                  accent: _accent,
+                  size: 62,
+                  ring: false,
+                  spawnRoyals: false,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                context.l10n.royalAvatarName(r.id),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.3,
+                  color: selected ? accent : colors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

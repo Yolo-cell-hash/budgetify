@@ -3189,6 +3189,29 @@ class AppStrings {
     }
   }
 
+  // ── Royal avatars (the court above Elite) ────────────────────────────────
+  String get royalAvatarsLabel =>
+      _t('ROYALTY', 'रॉयल्टी', 'रॉयल्टी', 'রয়্যালটি', 'రాయల్టీ', 'ராயல்டி');
+  String get royalAvatarsDesc => _t(
+        'Living avatars of the crown — they blink, wave, and bring their own court to your profile.',
+        'ताज के जीवंत अवतार — पलक झपकाते, हाथ हिलाते, और आपकी प्रोफ़ाइल पर अपना दरबार लाते हैं।',
+        'मुकुटाचे सजीव अवतार — डोळे मिचकावतात, हात हलवतात, आणि तुमच्या प्रोफाइलवर स्वतःचा दरबार आणतात.',
+        'মুকুটের জীবন্ত অবতার — চোখ পিটপিট করে, হাত নাড়ে, আর আপনার প্রোফাইলে নিজের দরবার নিয়ে আসে।',
+        'కిరీటపు సజీవ అవతారాలు — కళ్ళు ఆర్పుతాయి, చేయి ఊపుతాయి, మీ ప్రొఫైల్‌కు తమ ఆస్థానాన్ని తెస్తాయి.',
+        'கிரீடத்தின் உயிருள்ள அவதாரங்கள் — கண் சிமிட்டி, கை அசைத்து, உங்கள் சுயவிவரத்திற்கு தங்கள் அரசவையைக் கொண்டு வருகின்றன.',
+      );
+
+  String royalAvatarName(String id) {
+    switch (id) {
+      case 'sovereign':
+        return _t('The Sovereign', 'द सॉवरेन', 'द सॉव्हरिन', 'দ্য সভরেন', 'ద సావరిన్', 'தி சாவரின்');
+      case 'empress':
+        return _t('The Empress', 'द एम्प्रेस', 'द एम्प्रेस', 'দ্য এমপ্রেস', 'ద ఎంప్రెస్', 'தி எம்பிரஸ்');
+      default:
+        return id;
+    }
+  }
+
   String titleName(String id) {
     switch (id) {
       case 'foodie':
