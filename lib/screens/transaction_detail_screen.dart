@@ -39,6 +39,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   // Tier-3 proactive suggestion: does this incoming credit look like a known
   // person settling a debt? Computed once on open for unclassified credits.
   SettlementSuggestion? _settleSuggestion;
+  // The other half of a same-amount, opposite-direction pair landing within
+  // minutes — the "looks like a self-transfer" nudge. Computed once on open.
+  TransactionModel? _transferPair;
 
   // Guided-tour anchors: the category chips card and the Save button.
   final GlobalKey _categoryKey = GlobalKey();
@@ -51,6 +54,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     _selectedCategory = _transaction.category;
     _notesController.text = _transaction.notes ?? '';
     _maybeSuggestSettlement();
+    _maybeSuggestTransferPair();
     // Guided tour: opening any detail completes the "open it up" step; the
     // in-screen tips (choose a tag → save it) take over from here.
     TutorialService.instance.advanceFrom(TutorialStep.openTransaction);
@@ -96,6 +100,17 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     final s = await LedgerService().suggestSettlement(_transaction.amount);
     if (mounted && s.looksLikeSettlement) {
       setState(() => _settleSuggestion = s);
+    }
+  }
+
+  /// Check (once) whether a same-amount opposite entry landed within
+  /// minutes of this one — the two halves of one transfer between the
+  /// user's own accounts, which shouldn't count as income + spending.
+  Future<void> _maybeSuggestTransferPair() async {
+    if (_transaction.category == 'Self Transfer') return;
+    final pair = await _dbService.findTransferPair(_transaction);
+    if (mounted && pair != null) {
+      setState(() => _transferPair = pair);
     }
   }
 
@@ -950,6 +965,20 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
               const SizedBox(height: 16),
             ],
 
+            // The parser guessed something in this message — say exactly
+            // what, and offer a one-tap "looks right" to clear the flag.
+            if (_transaction.needsReview) ...[
+              _buildReviewBanner(colors),
+              const SizedBox(height: 16),
+            ],
+
+            // A same-amount opposite entry landed within minutes — probably
+            // one transfer between the user's own accounts.
+            if (_transferPair != null) ...[
+              _buildTransferPairSuggestion(colors),
+              const SizedBox(height: 16),
+            ],
+
             // Details section
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -1026,6 +1055,18 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                       ),
                     ),
                   ),
+                  // Which reader parsed this SMS ("HDFC · NEFT credit",
+                  // "general patterns") — trust + debugging fine print.
+                  if (_transaction.parseSource != null) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      '${context.l10n.readBy}: ${_transaction.parseSource}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: subtextColor.withValues(alpha: 0.8),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -1044,6 +1085,16 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
             // income/spend (shown for both directions; primary case is credits).
             _buildSettlementCard(colors, isSettlement),
             const SizedBox(height: 16),
+
+            // Parser corrections: flip the direction / not a transaction.
+            // Both teach the app this SMS shape, so the fix sticks for
+            // every future message of the same template.
+            if (!_transaction.isManual) ...[
+              _buildChangeTypeCard(colors),
+              const SizedBox(height: 16),
+              _buildNotATransactionCard(colors),
+              const SizedBox(height: 16),
+            ],
 
             // Category section
             Container(
@@ -1599,6 +1650,394 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                 const SizedBox(width: 8),
                 Icon(Icons.chevron_right_rounded,
                     size: 18, color: colors.accent),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Plain-language text for a parser review flag.
+  String _reviewReasonText(String reason) {
+    final l10n = context.l10n;
+    switch (reason) {
+      case ReviewReasons.unknownSender:
+        return l10n.reviewReasonUnknownSender;
+      case ReviewReasons.payeeUnknown:
+        return l10n.reviewReasonPayeeUnknown;
+      case ReviewReasons.directionUncertain:
+        return l10n.reviewReasonDirection;
+      case ReviewReasons.amountUncertain:
+        return l10n.reviewReasonAmount;
+      default:
+        return reason;
+    }
+  }
+
+  /// One tap says the parse is fine; the flag never comes back for this row.
+  Future<void> _confirmLooksRight() async {
+    if (_transaction.id == null) return;
+    await _dbService.confirmTransactionReview(_transaction.id!);
+    _changed = true;
+    if (mounted) {
+      setState(() => _transaction = _transaction.confirmedReview());
+    }
+  }
+
+  /// Flip debit↔credit; the correction is remembered for this SMS shape.
+  Future<void> _flipType() async {
+    final flipped = _transaction.type == TransactionType.debit
+        ? TransactionType.credit
+        : TransactionType.debit;
+    final updated =
+        await _dbService.flipTransactionType(_transaction, flipped);
+    _changed = true;
+    if (mounted) {
+      setState(() => _transaction = updated);
+    }
+  }
+
+  /// Remove a false positive: delete + tombstone, and optionally mute the
+  /// message shape so similar messages from this sender never log again.
+  Future<void> _notATransaction() async {
+    var muteSimilar = true;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: Text(ctx.l10n.notATransaction),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(ctx.l10n.notATransactionTagline),
+              const SizedBox(height: 12),
+              CheckboxListTile(
+                value: muteSimilar,
+                onChanged: (v) =>
+                    setDialogState(() => muteSimilar = v ?? false),
+                title: Text(
+                  ctx.l10n.ignoreSimilarMessages,
+                  style: const TextStyle(fontSize: 13),
+                ),
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                dense: true,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(ctx.l10n.commonCancel),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(ctx.l10n.notATransaction),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed != true || _transaction.id == null) return;
+    if (muteSimilar && !_transaction.isManual) {
+      await _dbService.addMessageMute(
+        _transaction.sender,
+        _transaction.message,
+      );
+    }
+    await _dbService.deleteTransaction(_transaction.id!);
+    if (!mounted) return;
+    showAppToast(
+      context,
+      message: context.l10nRead.entryRemoved,
+      type: AppToastType.info,
+    );
+    Navigator.pop(context, true);
+  }
+
+  /// Mark this transaction and its detected opposite half as Self Transfer.
+  Future<void> _markTransferPair() async {
+    final pair = _transferPair;
+    if (pair == null) return;
+    await _dbService.markTransferPair(_transaction, pair);
+    _changed = true;
+    if (_transaction.id != null) {
+      final fresh = await _dbService.getTransactionById(_transaction.id!);
+      if (fresh != null && mounted) {
+        setState(() {
+          _transaction = fresh;
+          _selectedCategory = fresh.category;
+          _transferPair = null; // resolved; hide the nudge
+        });
+      }
+    }
+  }
+
+  /// Amber banner naming exactly what the parser guessed, with a one-tap
+  /// "Looks right" that clears the flag.
+  Widget _buildReviewBanner(AppColors colors) {
+    final l10n = context.l10n;
+    const amber = Color(0xFFC05621);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: amber.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: amber.withValues(alpha: 0.30)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.help_outline, size: 18, color: amber),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    l10n.needsReviewTitle,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: colors.text,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ..._transaction.reviewReasonList.map(
+              (r) => Padding(
+                padding: const EdgeInsets.only(left: 26, bottom: 2),
+                child: Text(
+                  '•  ${_reviewReasonText(r)}',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    height: 1.3,
+                    color: colors.textSecondary,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: _confirmLooksRight,
+                icon: const Icon(Icons.check_rounded, size: 18),
+                label: Text(l10n.looksRight),
+                style: TextButton.styleFrom(foregroundColor: amber),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Nudge banner: a same-amount opposite entry landed within minutes —
+  /// mark both halves as Self Transfer with one tap.
+  Widget _buildTransferPairSuggestion(AppColors colors) {
+    final l10n = context.l10n;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: colors.accent.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: colors.accent.withValues(alpha: 0.30)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: colors.accent.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.swap_horiz_rounded,
+                    size: 18,
+                    color: colors.accent,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    l10n.selfTransferSuggestionTitle,
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                      color: colors.text,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              l10n.selfTransferSuggestionBody,
+              style: TextStyle(
+                fontSize: 12.5,
+                height: 1.3,
+                color: colors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: _markTransferPair,
+                icon: const Icon(Icons.done_all_rounded, size: 18),
+                label: Text(l10n.markBoth),
+                style: TextButton.styleFrom(foregroundColor: colors.accent),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// "Change to credit/debit" card — fixes the direction and teaches the
+  /// correction for this SMS shape.
+  Widget _buildChangeTypeCard(AppColors colors) {
+    final l10n = context.l10n;
+    final toCredit = _transaction.type == TransactionType.debit;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _flipType,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: colors.card,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: colors.border),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: colors.accent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.swap_vert_rounded,
+                    color: colors.accent,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        toCredit ? l10n.changeToCredit : l10n.changeToDebit,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: colors.text,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        l10n.changeTypeTagline,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 20,
+                  color: colors.textTertiary,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// "Not a transaction" card — removes the false positive for good and
+  /// optionally mutes the message shape.
+  Widget _buildNotATransactionCard(AppColors colors) {
+    final l10n = context.l10n;
+    const danger = Color(0xFFC0392B);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _notATransaction,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: colors.card,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: colors.border),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: danger.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.playlist_remove_rounded,
+                    color: danger,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l10n.notATransaction,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: colors.text,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        l10n.notATransactionTagline,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 20,
+                  color: colors.textTertiary,
+                ),
               ],
             ),
           ),

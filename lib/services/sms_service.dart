@@ -19,9 +19,23 @@ Future<void> backgroundMessageHandler(SmsMessage message) async {
   );
 
   if (transaction != null) {
+    // The user marked this message shape "not a transaction" — drop it.
+    if (await dbService.isMessageMuted(
+      message.address ?? 'Unknown',
+      message.body ?? '',
+    )) {
+      return;
+    }
+
     // Swap in the user-taught payee name before rule matching, so category
-    // rules see the corrected name.
+    // rules see the corrected name. A recognised merchant behind the
+    // corrected name classifies immediately, without user input.
     transaction = await dbService.applyPayeeAlias(transaction);
+    transaction = SmsParserService.classifyFromMerchantName(transaction);
+
+    // A user-taught direction for this message shape wins over the parse.
+    // Must precede the fingerprint: the fingerprint includes the type.
+    transaction = await dbService.applyTypeOverride(transaction);
 
     // Compute fingerprint for deduplication
     transaction = transaction.withFingerprint();
@@ -216,8 +230,22 @@ class SmsService {
     );
 
     if (transaction != null) {
-      // Swap in the user-taught payee name before rule matching.
+      // The user marked this message shape "not a transaction" — drop it.
+      if (await _dbService.isMessageMuted(
+        message.address ?? 'Unknown',
+        message.body ?? '',
+      )) {
+        return;
+      }
+
+      // Swap in the user-taught payee name before rule matching; a
+      // recognised merchant behind the corrected name classifies instantly.
       transaction = await _dbService.applyPayeeAlias(transaction);
+      transaction = SmsParserService.classifyFromMerchantName(transaction);
+
+      // A user-taught direction for this message shape wins over the parse.
+      // Must precede the fingerprint: the fingerprint includes the type.
+      transaction = await _dbService.applyTypeOverride(transaction);
 
       // Compute fingerprint for deduplication
       transaction = transaction.withFingerprint();
@@ -297,8 +325,23 @@ class SmsService {
         );
 
         if (transaction != null) {
-          // Swap in the user-taught payee name before rule matching.
+          // The user marked this message shape "not a transaction" — skip.
+          if (await _dbService.isMessageMuted(
+            message.address ?? 'Unknown',
+            message.body ?? '',
+          )) {
+            continue;
+          }
+
+          // Swap in the user-taught payee name before rule matching; a
+          // recognised merchant behind the corrected name classifies
+          // instantly.
           transaction = await _dbService.applyPayeeAlias(transaction);
+          transaction = SmsParserService.classifyFromMerchantName(transaction);
+
+          // A user-taught direction for this message shape wins over the
+          // parse. Must precede the fingerprint (it includes the type).
+          transaction = await _dbService.applyTypeOverride(transaction);
 
           // Compute fingerprint for deduplication
           transaction = transaction.withFingerprint();

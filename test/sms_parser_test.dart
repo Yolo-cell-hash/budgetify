@@ -364,6 +364,73 @@ void main() {
     });
   });
 
+  group('Bank of India message formats', () {
+    // Real user report (2026-07, screenshots): all four BOI alerts below were
+    // shown with the payee collapsed to the account number "XX7848".
+    test('service-charge debit (TRF narration) → payee "Bank Charges"', () {
+      final txn = SmsParserService.parseTransaction(
+        'VD-BOIIND-T',
+        'BOI -  Rs 23.60 Debited(TRF) SMSChrgsJAN-MAR26 GST 101 CUST in '
+        'your Ac XX7848 on 12-04-2026. .Avl BalRs 1807.20.',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 23.60); // not the 1807.20 balance
+      expect(txn.type, TransactionType.debit);
+      expect(txn.accountInfo, 'XX7848');
+      expect(txn.merchantName, 'Bank Charges');
+      // The counterparty is the bank itself, so the category is known
+      // by construction — classified without user input.
+      expect(txn.category, 'Bills & Utilities');
+      expect(txn.isClassified, isTrue);
+    });
+
+    test('nameless UPI credit → payee "UPI Transfer", not the account', () {
+      final txn = SmsParserService.parseTransaction(
+        'BP-BOIIND-S',
+        'BOI -  Rs.800.00 Credited to your Ac XX7848 on 24-06-26 by UPI '
+        'ref No.654169525627.Avl Bal 17871.44',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 800.0);
+      expect(txn.type, TransactionType.credit);
+      expect(txn.accountInfo, 'XX7848');
+      expect(txn.merchantName, 'UPI Transfer');
+      expect(txn.merchantName, isNot('XX7848'));
+    });
+
+    test('nameless UPI credit larger than the balance still parses right', () {
+      // Avl Bal (200.30) is SMALLER than the credit (113 would beat it only
+      // by position) — proves the balance is stripped structurally, not by
+      // picking the first/largest number.
+      final txn = SmsParserService.parseTransaction(
+        'JM-BOIIND-S',
+        'BOI -  Rs.113.00 Credited to your Ac XX7848 on 15-04-26 by UPI '
+        'ref No.610507611710.Avl Bal 200.30',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 113.0); // not the 200.30 balance
+      expect(txn.type, TransactionType.credit);
+      expect(txn.merchantName, 'UPI Transfer');
+    });
+
+    test('named BOI debit still extracts the real counterparty', () {
+      // Regression guard: the new uniform payees must not swallow BOI
+      // formats that DO name someone.
+      final txn = SmsParserService.parseTransaction(
+        'JM-BOIIND-S',
+        'Rs 500.00 debited from A/c XX7848 and credited to KIRTI PRAHALAD '
+        'PANCHAL via UPI Ref no 612345678905. -Bank of India',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.type, TransactionType.debit);
+      expect(txn.merchantName, 'Kirti Prahalad Panchal');
+    });
+  });
+
   group('Non-transaction rejection', () {
     test('rejects OTP messages even when they mention an amount', () {
       final txn = SmsParserService.parseTransaction(
@@ -494,6 +561,51 @@ void main() {
       expect(txn!.category, isNull);
       expect(txn.isClassified, isFalse);
     });
+
+    test("McDonald's card spend (apostrophe form) auto-classifies", () {
+      final txn = SmsParserService.parseTransaction(
+        'VM-HDFCBK-S',
+        "Spent Rs.450 From HDFC Bank Card x7531 At MCDONALD'S On "
+        '2026-07-01:12:10:00 Bal Rs.9000.00 Not You? Call 18002586161',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.merchantName, "Mcdonald's");
+      expect(txn.category, 'Food & Dining');
+      expect(txn.isClassified, isTrue);
+    });
+
+    test('IRCTC UPI debit auto-classifies as Travel', () {
+      final txn = SmsParserService.parseTransaction(
+        'BV-SBIUPI-S',
+        'Dear UPI user A/C X4321 debited by 620.0 on date 05Jul26 trf to '
+        'IRCTC UTS Refno 612345678999. If not u? call 1800111109. -SBI',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.merchantName, 'Irctc Uts');
+      expect(txn.category, 'Travel');
+      expect(txn.isClassified, isTrue);
+    });
+
+    test('alias-corrected payee classifies from the merchant database', () {
+      // At parse time the VPA reveals nothing, so the category is unknown.
+      final txn = SmsParserService.parseTransaction(
+        'AD-KOTAKB-S',
+        'Sent Rs.60.00 from Kotak Bank AC X9883 to paytm.s21upj5@pty on '
+        '27-06-26.UPI Ref 617835353944.',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.category, isNull);
+      // Once the payee alias swaps in a user-taught name, a curated-merchant
+      // hit on the NAME classifies with no further input (runs after
+      // applyPayeeAlias in the SMS pipeline).
+      final aliased = txn.copyWith(merchantName: 'Dominos Pizza');
+      final classified = SmsParserService.classifyFromMerchantName(aliased);
+      expect(classified.category, 'Food & Dining');
+      expect(classified.isClassified, isTrue);
+    });
   });
 
   group('ICICI UPI "debited for ...; PAYEE credited" (debit, not credit)', () {
@@ -592,10 +704,11 @@ void main() {
 
   // Some banks send credit alerts with no payee/"recipient" name at all — the
   // money came in via UPI ref, net banking, or a slash-delimited ref. These
-  // must still be recorded as transactions; the label falls back to the
-  // account number (or the embedded name when one is present).
+  // must still be recorded as transactions; UPI-rail ones get the
+  // "UPI Transfer" placeholder (which never learns an alias), the rest fall
+  // back to the account number (or the embedded name when one is present).
   group('Credits that omit the recipient name', () {
-    test('BOI "Credited to your Ac" with only a UPI ref — account fallback', () {
+    test('BOI "Credited to your Ac" with only a UPI ref → "UPI Transfer"', () {
       final txn = SmsParserService.parseTransaction(
         'JM-BOIIND-S',
         'Rs.150.00 Credited to your Ac XX0227 on 25-06-26 by UPI ref '
@@ -606,8 +719,9 @@ void main() {
       expect(txn!.amount, 150.0);
       expect(txn.type, TransactionType.credit);
       expect(txn.accountInfo, 'XX0227');
-      // No payer name in the body → labelled by the account it landed in.
-      expect(txn.merchantName, 'XX0227');
+      // No payer name in the body → the nameless-UPI placeholder, not the
+      // account number (which read like a payee bug in the UI).
+      expect(txn.merchantName, 'UPI Transfer');
     });
 
     test('Saraswat credit — last 4 of an unmasked a/c, payer name from UPI ref',
