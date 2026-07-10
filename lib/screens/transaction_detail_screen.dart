@@ -1082,18 +1082,18 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
 
             const SizedBox(height: 16),
 
-            // Split section — debits only, and not when this is a settlement.
+            // Quick actions — a single compact row instead of a tall stack of
+            // cards, so the category tags sit higher and need less scrolling to
+            // reach. Debits (that aren't already settlements) get all three
+            // actions; every other case has just "settle", which keeps its
+            // roomier descriptive card since there's no stacking to compress.
             if (!isCredit && !isSettlement) ...[
-              _buildSplitCard(colors, isSplit, formatter),
+              _buildQuickActions(colors, isSplit),
               const SizedBox(height: 16),
-              _buildTrackRecurringCard(colors),
+            ] else ...[
+              _buildSettlementCard(colors, isSettlement),
               const SizedBox(height: 16),
             ],
-
-            // Settlement section — a repayment that shouldn't count as
-            // income/spend (shown for both directions; primary case is credits).
-            _buildSettlementCard(colors, isSettlement),
-            const SizedBox(height: 16),
 
             // Category section
             Container(
@@ -1357,77 +1357,95 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     );
   }
 
-  /// "Split this transaction" entry (debits only). Shows the call-to-action
-  /// when unsplit, or the user's share of the total when already split. Themed
-  /// via [AppColors] so it adapts across all four app themes.
-  Widget _buildSplitCard(
-    AppColors colors,
-    bool isSplit,
-    NumberFormat formatter,
-  ) {
+  /// Compact horizontal action row for debit transactions: Split · Recurring ·
+  /// Settle, laid out as three equal tiles instead of a tall stack of cards.
+  /// This keeps the category tags high on the screen so they're reachable with
+  /// far less scrolling. Themed via [AppColors] so it adapts to every theme.
+  Widget _buildQuickActions(AppColors colors, bool isSplit) {
     final l10n = context.l10n;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: _openSplit,
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: colors.card,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: isSplit
-                    ? colors.accent.withValues(alpha: 0.35)
-                    : colors.border,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: _buildActionTile(
+              colors,
+              icon: Icons.call_split_rounded,
+              label: l10n.splitBadgeLabel,
+              onTap: _openSplit,
+              // An already-split debit reads as "on" — the headline carries the
+              // share amount, so the tile only needs the active accent state.
+              isActive: isSplit,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: _buildActionTile(
+              colors,
+              icon: Icons.autorenew_rounded,
+              label: l10n.recurringTitle,
+              onTap: _trackAsRecurring,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: _buildActionTile(
+              colors,
+              icon: Icons.handshake_rounded,
+              label: l10n.settleUp,
+              onTap: () => _openSettlement(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// One quick-action tile: an icon above a short label on a themed card
+  /// surface. [isActive] gives it an accent-tinted, accent-bordered treatment.
+  Widget _buildActionTile(
+    AppColors colors, {
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    bool isActive = false,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+          decoration: BoxDecoration(
+            color: isActive
+                ? colors.accent.withValues(alpha: 0.10)
+                : colors.card,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isActive
+                  ? colors.accent.withValues(alpha: 0.45)
+                  : colors.border,
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: colors.accent, size: 26),
+              const SizedBox(height: 10),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: colors.text,
+                ),
               ),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: colors.accent.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(Icons.call_split_rounded,
-                      color: colors.accent, size: 22),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        isSplit
-                            ? l10n.yourShareOfTotal(
-                                formatter.format(_transaction.effectiveAmount),
-                                formatter.format(_transaction.amount),
-                              )
-                            : l10n.splitThisTransaction,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: colors.text,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        isSplit ? l10n.editSplit : l10n.splitTagline,
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          color: colors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(Icons.chevron_right_rounded,
-                    size: 20, color: colors.textTertiary),
-              ],
-            ),
+            ],
           ),
         ),
       ),
@@ -1466,69 +1484,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
           message: context.l10nRead.recurringPaymentsTitle,
           type: AppToastType.success);
     }
-  }
-
-  /// "Track as recurring" entry (debits only) — turn a one-off spend into a
-  /// tracked subscription/bill. Themed via [AppColors] for all four themes.
-  Widget _buildTrackRecurringCard(AppColors colors) {
-    final l10n = context.l10n;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: _trackAsRecurring,
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: colors.card,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: colors.border),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: colors.accent.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(Icons.autorenew_rounded,
-                      color: colors.accent, size: 22),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        l10n.trackAsRecurring,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: colors.text,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        l10n.trackAsRecurringDesc,
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          color: colors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(Icons.chevron_right_rounded,
-                    size: 20, color: colors.textTertiary),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
   }
 
   /// "This is a settlement" entry. When already a settlement, shows the state
