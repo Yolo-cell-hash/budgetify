@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'royal_avatars.dart';
+
 /// Premium accent gradients used for emoji avatars and as the profile's theme.
 /// Index is persisted in the profile, so keep this list append-only.
 const List<List<Color>> kAvatarAccents = [
@@ -346,8 +348,10 @@ final List<_Sprite> _sprites = [
       const [Color(0xFFFFB347), Color(0xFFB03E12)]),
 ];
 
-/// Number of distinct pixel-character avatars offered (free + elite).
-final int kPixelAvatarCount = _sprites.length;
+/// Number of distinct pixel-character avatars offered (free + elite +
+/// royal). Royal characters live in royal_avatars.dart and occupy the sprite
+/// slots directly after the elite block (append-only, persisted).
+final int kPixelAvatarCount = _sprites.length + kRoyalAvatars.length;
 
 /// An elite pixel character: prestige art shown in its own picker section.
 /// [spriteIndex] is its slot in the shared sprite list (persisted in
@@ -386,10 +390,13 @@ EliteAvatar? eliteAvatarAt(int spriteIndex) {
 
 /// Test hook: raw glyph rows of sprite [i], for grid-integrity checks.
 @visibleForTesting
-List<String> debugSpriteRows(int i) => _sprites[i % _sprites.length].rows;
+List<String> debugSpriteRows(int i) =>
+    royalAvatarAt(i)?.rows ?? _sprites[i % _sprites.length].rows;
 
 /// Coordinating halo gradient for a pixel avatar (used on the profile card).
-List<Color> pixelHaloOf(int seed) => _sprites[seed % _sprites.length].halo;
+/// Royal characters carry their halo on their [RoyalTheme].
+List<Color> pixelHaloOf(int seed) =>
+    royalAvatarAt(seed)?.theme.halo ?? _sprites[seed % _sprites.length].halo;
 
 /// Renders a user's avatar from its persisted `{kind, value, accent}`. Used in
 /// the Home header, profile, share card and picker so they always match.
@@ -401,6 +408,14 @@ class AvatarView extends StatelessWidget {
   final double size;
   final bool ring;
 
+  /// Whether an equipped royal plays its spawn flourish when this view
+  /// mounts. Grids of small tiles pass false so a whole section doesn't
+  /// burst at once.
+  final bool spawnRoyals;
+
+  /// Set false where a live ticker is unwanted (share captures).
+  final bool animateRoyals;
+
   const AvatarView({
     super.key,
     required this.kind,
@@ -408,6 +423,8 @@ class AvatarView extends StatelessWidget {
     required this.accent,
     this.size = 48,
     this.ring = true,
+    this.spawnRoyals = true,
+    this.animateRoyals = true,
   });
 
   @override
@@ -417,7 +434,16 @@ class AvatarView extends StatelessWidget {
         : null;
 
     final Widget inner;
-    if (kind == 'pixel') {
+    final royal = kind == 'pixel' ? royalAvatarAt(int.tryParse(value) ?? 0) : null;
+    if (royal != null) {
+      // Royal characters are living avatars on their own velvet backdrop.
+      inner = AnimatedRoyalAvatar(
+        royal: royal,
+        size: size,
+        spawn: spawnRoyals,
+        animate: animateRoyals,
+      );
+    } else if (kind == 'pixel') {
       inner = DecoratedBox(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -465,6 +491,14 @@ class PixelAvatarPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    // Royal seeds: delegate to the royal painter's static frame (no
+    // backdrop — this painter's contract is a transparent background).
+    final royal = royalAvatarAt(seed);
+    if (royal != null) {
+      RoyalAvatarPainter(royal: royal, t: 0.05, backdrop: false)
+          .paint(canvas, size);
+      return;
+    }
     final sprite = _sprites[seed % _sprites.length];
     final pal = sprite.pal;
     final rows = sprite.rows;

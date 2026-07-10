@@ -12,6 +12,7 @@ import 'avatars.dart';
 import 'badge_medallion.dart';
 import 'brand_logo.dart';
 import 'mythic.dart';
+import 'royal_avatars.dart';
 
 /// Max badges featured on the profile card.
 const int kMaxShowcase = 4;
@@ -61,7 +62,15 @@ class _ProfileShareCardState extends State<ProfileShareCard>
     with SingleTickerProviderStateMixin {
   AnimationController? _c;
 
-  bool get _live => widget.animate && widget.mythic;
+  /// The equipped royal character, when the avatar is a royal pixel sprite.
+  /// Royals re-skin the whole card with their [RoyalTheme]; canvas
+  /// precedence is royal > mythic (the mythic crown keeps its shimmering
+  /// title treatment either way — the two compose).
+  RoyalAvatar? get _royal => widget.profile.avatarKind == 'pixel'
+      ? royalAvatarAt(int.tryParse(widget.profile.avatarValue) ?? 0)
+      : null;
+
+  bool get _live => widget.animate && (widget.mythic || _royal != null);
 
   @override
   void initState() {
@@ -108,6 +117,7 @@ class _ProfileShareCardState extends State<ProfileShareCard>
 
   Widget _card(BuildContext context, double t) {
     final mythic = widget.mythic;
+    final royal = _royal;
     final profile = widget.profile;
     final halo = profile.avatarKind == 'pixel'
         ? pixelHaloOf(int.tryParse(profile.avatarValue) ?? 0)
@@ -119,6 +129,8 @@ class _ProfileShareCardState extends State<ProfileShareCard>
     final extraTitles =
         widget.titles.length > 1 ? widget.titles.sublist(1) : const <GamiTitle>[];
     final breath = (math.sin(t * 2 * math.pi) + 1) / 2;
+    // The card's name glow: the royal's accent outranks the mythic gold.
+    final nameGlow = royal?.theme.accent ?? (mythic ? Mythic.gold : null);
 
     final content = Column(
       mainAxisSize: MainAxisSize.min,
@@ -136,10 +148,10 @@ class _ProfileShareCardState extends State<ProfileShareCard>
             fontWeight: FontWeight.w800,
             letterSpacing: -0.4,
             color: Colors.white,
-            shadows: mythic
+            shadows: nameGlow != null
                 ? [
                     Shadow(
-                      color: Mythic.gold.withValues(alpha: 0.35 + breath * 0.25),
+                      color: nameGlow.withValues(alpha: 0.35 + breath * 0.25),
                       blurRadius: 16,
                     ),
                   ]
@@ -206,39 +218,60 @@ class _ProfileShareCardState extends State<ProfileShareCard>
       width: 340,
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: mythic ? Mythic.cardGradient : AppColors.heroGradient,
+          // Canvas precedence: royal court > mythic void > hero.
+          colors: royal?.theme.cardGradient ??
+              (mythic ? Mythic.cardGradient : AppColors.heroGradient),
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(26),
         border: Border.all(
-          color: mythic
-              ? Mythic.borderAt(t)
-              : AppColors.gold.withValues(alpha: 0.4),
-          width: mythic ? 1.4 : 1,
+          color: royal?.theme.borderAt(t) ??
+              (mythic
+                  ? Mythic.borderAt(t)
+                  : AppColors.gold.withValues(alpha: 0.4)),
+          width: (mythic || royal != null) ? 1.4 : 1,
         ),
-        boxShadow: mythic
+        boxShadow: royal != null
             ? [
                 BoxShadow(
-                    color: Mythic.deepViolet.withValues(alpha: 0.55),
+                    color: Colors.black.withValues(alpha: 0.5),
                     blurRadius: 34,
                     offset: const Offset(0, 16)),
                 BoxShadow(
-                    color: Mythic.gold.withValues(alpha: 0.08 + breath * 0.10),
+                    color: royal.theme.accent
+                        .withValues(alpha: 0.08 + breath * 0.12),
                     blurRadius: 30),
               ]
-            : [
-                BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.3),
-                    blurRadius: 28,
-                    offset: const Offset(0, 14)),
-              ],
+            : mythic
+                ? [
+                    BoxShadow(
+                        color: Mythic.deepViolet.withValues(alpha: 0.55),
+                        blurRadius: 34,
+                        offset: const Offset(0, 16)),
+                    BoxShadow(
+                        color:
+                            Mythic.gold.withValues(alpha: 0.08 + breath * 0.10),
+                        blurRadius: 30),
+                  ]
+                : [
+                    BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.3),
+                        blurRadius: 28,
+                        offset: const Offset(0, 14)),
+                  ],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(26),
         child: Stack(
           children: [
-            if (mythic)
+            if (royal != null)
+              Positioned.fill(
+                child: CustomPaint(
+                  painter: RoyalAuraPainter(theme: royal.theme, t: t),
+                ),
+              )
+            else if (mythic)
               Positioned.fill(
                 child: CustomPaint(painter: MythicAuraPainter(t: t)),
               ),
@@ -255,7 +288,8 @@ class _ProfileShareCardState extends State<ProfileShareCard>
   /// Tiny letter-spaced masthead between two hairlines.
   Widget _eyebrow(BuildContext context, bool mythic) {
     final label = context.l10n.profileCardEyebrow.toUpperCase();
-    final color = mythic ? Mythic.cyan : AppColors.gold;
+    final color =
+        _royal?.theme.accentSoft ?? (mythic ? Mythic.cyan : AppColors.gold);
     return Row(
       children: [
         Expanded(child: _hairline(color)),
@@ -286,12 +320,18 @@ class _ProfileShareCardState extends State<ProfileShareCard>
         ),
       );
 
-  /// Avatar in a double ring: a coordinating (mythic: slowly revolving
-  /// gold/starlight) gradient ring, a dark gap, then the avatar itself.
+  /// Avatar in a double ring: a coordinating (mythic/royal: slowly
+  /// revolving) gradient ring, a dark gap, then the avatar itself. An
+  /// equipped royal supplies its own ring colours and glow — and already
+  /// wears a crown, so the mythic crown emoji stays off.
   Widget _avatarBlock(List<Color> halo, double t, bool mythic) {
-    final ringColors = mythic
-        ? const [Mythic.gold, Mythic.cyan, Mythic.deepViolet, Mythic.gold]
-        : halo;
+    final royal = _royal;
+    final ringColors = royal?.theme.ringColors ??
+        (mythic
+            ? const [Mythic.gold, Mythic.cyan, Mythic.deepViolet, Mythic.gold]
+            : halo);
+    final glow = royal?.theme.accent ?? (mythic ? Mythic.gold : halo.first);
+    final revolving = mythic || royal != null;
     final ring = Container(
       width: 100,
       height: 100,
@@ -300,7 +340,7 @@ class _ProfileShareCardState extends State<ProfileShareCard>
         gradient: SweepGradient(colors: [...ringColors, ringColors.first]),
         boxShadow: [
           BoxShadow(
-            color: (mythic ? Mythic.gold : halo.first).withValues(alpha: 0.45),
+            color: glow.withValues(alpha: 0.45),
             blurRadius: 24,
           ),
         ],
@@ -312,7 +352,7 @@ class _ProfileShareCardState extends State<ProfileShareCard>
       child: Stack(
         alignment: Alignment.center,
         children: [
-          if (mythic)
+          if (revolving)
             Transform.rotate(angle: t * 2 * math.pi, child: ring)
           else
             ring,
@@ -330,8 +370,9 @@ class _ProfileShareCardState extends State<ProfileShareCard>
             accent: widget.profile.avatarAccent,
             size: 84,
             ring: false,
+            animateRoyals: widget.animate,
           ),
-          if (mythic)
+          if (mythic && royal == null)
             const Positioned(
               top: 0,
               child: Text('👑', style: TextStyle(fontSize: 16)),
@@ -447,7 +488,7 @@ class _ProfileShareCardState extends State<ProfileShareCard>
   }
 
   Widget _sectionRule(String label, bool mythic) {
-    final color = mythic ? Mythic.gold : AppColors.gold;
+    final color = _royal?.theme.accent ?? AppColors.gold;
     return Row(
       children: [
         Expanded(child: _hairline(color)),
@@ -469,15 +510,17 @@ class _ProfileShareCardState extends State<ProfileShareCard>
   }
 
   Widget _statsStrip(AppStrings l10n, bool mythic) {
+    final royalAccent = _royal?.theme.accent;
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: mythic ? 0.07 : 0.05),
+        color: Colors.white.withValues(alpha: (mythic || royalAccent != null) ? 0.07 : 0.05),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: mythic
-              ? Mythic.gold.withValues(alpha: 0.25)
-              : Colors.white.withValues(alpha: 0.08),
+          color: royalAccent?.withValues(alpha: 0.30) ??
+              (mythic
+                  ? Mythic.gold.withValues(alpha: 0.25)
+                  : Colors.white.withValues(alpha: 0.08)),
         ),
       ),
       child: Row(
