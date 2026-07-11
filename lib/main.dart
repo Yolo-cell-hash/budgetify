@@ -15,7 +15,7 @@ import 'package:budget_tracker/providers/theme_provider.dart';
 import 'package:budget_tracker/providers/app_preferences.dart';
 import 'package:budget_tracker/providers/locale_provider.dart';
 import 'package:budget_tracker/widgets/royal_avatars.dart'
-    show courtHeroStyleFor;
+    show courtHeroTrimFor;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -44,15 +44,16 @@ void main() async {
   await appPreferences.initialize();
   await localeProvider.initialize();
 
-  // An equipped ROYALTY avatar carries its court onto every hero surface
-  // (Home balance card, SIP alert, insight heroes). Sync the override from
-  // the saved profile now, and again on every avatar save. (After a backup
-  // restore the override refreshes on next launch.)
+  // An equipped ROYALTY avatar puts a signature TRIM (accent, border, glow)
+  // on the hero surfaces of its home primary theme — Sovereign/Empress in
+  // light, the rest of the court in dark; reward themes stay untouched.
+  // Sync from the saved profile now, and again on every avatar save.
+  // (After a backup restore the trim refreshes on next launch.)
   final profile = await GamificationService().loadProfile();
-  themeProvider.setHeroOverride(
-      courtHeroStyleFor(profile.avatarKind, profile.avatarValue));
+  themeProvider.setHeroTrim(
+      courtHeroTrimFor(profile.avatarKind, profile.avatarValue));
   GamificationService.onProfileSaved = (p) => themeProvider
-      .setHeroOverride(courtHeroStyleFor(p.avatarKind, p.avatarValue));
+      .setHeroTrim(courtHeroTrimFor(p.avatarKind, p.avatarValue));
 
   runApp(
     MultiProvider(

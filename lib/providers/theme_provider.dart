@@ -23,32 +23,38 @@ class ThemeProvider extends ChangeNotifier {
   AppThemeVariant _variant = AppThemeVariant.light;
   bool _isInitialized = false;
 
-  /// When set, replaces the active variant's [HeroStyle] on every surface
-  /// that resolves `HeroStyle.of` — how an equipped ROYALTY avatar carries
-  /// its court across the whole app (Home hero card, SIP alert, insight
-  /// heroes) instead of living only on the profile page. Synced from the
-  /// gamification profile at startup and on every avatar save.
-  HeroStyle? _heroOverride;
+  /// When set, may restyle the active variant's [HeroStyle] on every
+  /// surface that resolves `HeroStyle.of` — how an equipped ROYALTY avatar
+  /// puts its signature on the Home hero card / SIP alert beyond the
+  /// profile page. The trim decides per variant (returning null to leave
+  /// the theme untouched), so it re-evaluates when the user switches
+  /// themes: royals dress only their home primary theme, never the reward
+  /// themes. Synced from the gamification profile at startup and on every
+  /// avatar save.
+  HeroTrim? _heroTrim;
 
   AppThemeVariant get variant => _variant;
   bool get isInitialized => _isInitialized;
-  HeroStyle? get heroOverride => _heroOverride;
+  HeroTrim? get heroTrim => _heroTrim;
 
-  void setHeroOverride(HeroStyle? style) {
-    _heroOverride = style;
+  void setHeroTrim(HeroTrim? trim) {
+    _heroTrim = trim;
     notifyListeners();
   }
 
   /// The [ThemeData] for the active variant (carries its own brightness),
-  /// with the royal hero override injected when one is equipped.
+  /// with the royal hero trim applied when the equipped royal dresses this
+  /// variant.
   ThemeData get activeTheme {
     final base = AppTheme.of(_variant);
-    final override = _heroOverride;
-    if (override == null) return base;
+    final trim = _heroTrim;
+    if (trim == null) return base;
     final palette = base.extension<AppPalette>();
     if (palette == null) return base;
+    final trimmed = trim(_variant, palette.hero);
+    if (trimmed == null) return base;
     return base.copyWith(
-      extensions: [AppPalette(colors: palette.colors, hero: override)],
+      extensions: [AppPalette(colors: palette.colors, hero: trimmed)],
     );
   }
 
@@ -986,6 +992,12 @@ class AppPalette extends ThemeExtension<AppPalette> {
   AppPalette lerp(ThemeExtension<AppPalette>? other, double t) =>
       (other is AppPalette && t >= 0.5) ? other : this;
 }
+
+/// A per-variant restyling hook for the hero surface. Given the active
+/// variant and its own [HeroStyle], returns a restyled hero — or null to
+/// leave the variant untouched. Used by ThemeProvider to let an equipped
+/// ROYALTY avatar trim the hero of its home primary theme only.
+typedef HeroTrim = HeroStyle? Function(AppThemeVariant variant, HeroStyle base);
 
 /// Premium "hero card" treatment that adapts to the active theme.
 ///

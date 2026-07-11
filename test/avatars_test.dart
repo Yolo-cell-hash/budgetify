@@ -107,27 +107,81 @@ void main() {
       expect(royalAvatarAt(0), isNull);
     });
 
-    test('equipping a royal overrides the hero style app-wide', () {
-      final royal = kRoyalAvatars.first;
-      final provider = ThemeProvider();
+    test('the founding pair dresses light, the rest of the court dark', () {
+      for (final r in kRoyalAvatars) {
+        final expected = (r.id == 'sovereign' || r.id == 'empress')
+            ? Brightness.light
+            : Brightness.dark;
+        expect(r.theme.homeBrightness, expected, reason: r.id);
+      }
+    });
 
-      // Non-royal (and legacy emoji) avatars leave the theme untouched.
-      expect(courtHeroStyleFor('pixel', '0'), isNull);
-      expect(courtHeroStyleFor('emoji', '🦊'), isNull);
+    test('a royal trims only its home primary theme, and never a reward one',
+        () {
+      // Non-royal (and legacy emoji) avatars produce no trim at all.
+      expect(courtHeroTrimFor('pixel', '0'), isNull);
+      expect(courtHeroTrimFor('emoji', '🦊'), isNull);
 
-      final court = courtHeroStyleFor('pixel', '${royal.spriteIndex}');
-      expect(court, isNotNull);
-      expect(court!.gradientColors, royal.theme.cardGradient);
+      final lightRoyal =
+          kRoyalAvatars.firstWhere((r) => r.id == 'sovereign');
+      final darkRoyal = kRoyalAvatars.firstWhere((r) => r.id == 'darkprince');
 
-      provider.setHeroOverride(court);
-      final palette = provider.activeTheme.extension<AppPalette>();
-      expect(palette!.hero, same(court));
+      final lightHero =
+          AppTheme.of(AppThemeVariant.light).extension<AppPalette>()!.hero;
+      final darkHero =
+          AppTheme.of(AppThemeVariant.dark).extension<AppPalette>()!.hero;
+
+      final lightTrim =
+          courtHeroTrimFor('pixel', '${lightRoyal.spriteIndex}')!;
+      final darkTrim = courtHeroTrimFor('pixel', '${darkRoyal.spriteIndex}')!;
+
+      // Sovereign dresses light: the canvas is PRESERVED (trim, not
+      // takeover) and only the accent details take his deep crimson.
+      final trimmedLight = lightTrim(AppThemeVariant.light, lightHero);
+      expect(trimmedLight, isNotNull);
+      expect(trimmedLight!.gradientColors, lightHero.gradientColors);
+      expect(trimmedLight.foreground, lightHero.foreground);
+      expect(trimmedLight.accent, lightRoyal.theme.accentDeep);
+      // ...and he leaves the dark and reward themes alone.
+      expect(lightTrim(AppThemeVariant.dark, darkHero), isNull);
+      expect(lightTrim(AppThemeVariant.royalIndigo, lightHero), isNull);
+
+      // The Dark Prince dresses dark with his bright ember accent...
+      final trimmedDark = darkTrim(AppThemeVariant.dark, darkHero);
+      expect(trimmedDark, isNotNull);
+      expect(trimmedDark!.gradientColors, darkHero.gradientColors);
+      expect(trimmedDark.accent, darkRoyal.theme.accent);
+      // ...and leaves light and reward themes alone.
+      expect(darkTrim(AppThemeVariant.light, lightHero), isNull);
+      expect(darkTrim(AppThemeVariant.midnightIndigo, darkHero), isNull);
+    });
+
+    test('ThemeProvider applies and clears the trim on the active theme', () {
+      final provider = ThemeProvider(); // defaults to the light variant
+      final sovereign =
+          kRoyalAvatars.firstWhere((r) => r.id == 'sovereign');
+      final baseHero = AppTheme.of(AppThemeVariant.light)
+          .extension<AppPalette>()!
+          .hero;
+
+      provider.setHeroTrim(
+          courtHeroTrimFor('pixel', '${sovereign.spriteIndex}'));
+      final palette = provider.activeTheme.extension<AppPalette>()!;
+      expect(palette.hero.accent, sovereign.theme.accentDeep);
+      expect(palette.hero.gradientColors, baseHero.gradientColors);
       // AppColors stay the variant's own — only the hero surface changes.
       expect(palette.colors, AppColors.light);
 
-      provider.setHeroOverride(null);
-      expect(provider.activeTheme.extension<AppPalette>()!.hero,
-          isNot(same(court)));
+      // A dark-court royal leaves the light theme entirely untouched.
+      final medic = kRoyalAvatars.firstWhere((r) => r.id == 'royalmedic');
+      provider.setHeroTrim(
+          courtHeroTrimFor('pixel', '${medic.spriteIndex}'));
+      expect(provider.activeTheme.extension<AppPalette>()!.hero.accent,
+          baseHero.accent);
+
+      provider.setHeroTrim(null);
+      expect(provider.activeTheme.extension<AppPalette>()!.hero.accent,
+          baseHero.accent);
     });
 
     test('every animation frame stays on the base grid', () {
