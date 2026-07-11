@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 
 import 'royal_avatars.dart';
 
-/// Premium accent gradients used for emoji avatars and as the profile's theme.
-/// Index is persisted in the profile, so keep this list append-only.
+/// Premium accent gradients. Originally the emoji-avatar accent palette;
+/// emoji avatars are retired, but savings-goal jars still colour themselves
+/// from this list by persisted index — so it stays append-only.
 const List<List<Color>> kAvatarAccents = [
   [Color(0xFFE6C15A), Color(0xFFB8902F)], // champagne gold
   [Color(0xFF4F8DF7), Color(0xFF2456C8)], // ocean
@@ -15,14 +16,22 @@ const List<List<Color>> kAvatarAccents = [
   [Color(0xFF3A4055), Color(0xFF1B1E28)], // ink
 ];
 
-/// Curated emoji avatars (append-only).
-const List<String> kEmojiAvatars = [
+List<Color> accentOf(int index) =>
+    kAvatarAccents[index % kAvatarAccents.length];
+
+/// The retired emoji roster, kept ONLY to migrate old profiles: a stored
+/// emoji avatar maps deterministically onto a free pixel character, so every
+/// legacy user keeps a stable face after the emoji style was removed.
+const List<String> _legacyEmojiAvatars = [
   '🦊', '🐼', '🦁', '🐯', '🐶', '🐱', '🦉', '🐧',
   '🐢', '🐝', '🦄', '🐙', '🚀', '🌟', '🔥', '👑',
 ];
 
-List<Color> accentOf(int index) =>
-    kAvatarAccents[index % kAvatarAccents.length];
+/// The free pixel seed a legacy emoji avatar migrates to.
+int legacyEmojiSeed(String emojiValue) {
+  final i = _legacyEmojiAvatars.indexOf(emojiValue);
+  return i < 0 ? 0 : i % 12;
+}
 
 // ── Pixel character avatars ────────────────────────────────────────────────
 // Distinct hand-authored chibi characters (different hair / headwear / gender,
@@ -348,10 +357,141 @@ final List<_Sprite> _sprites = [
       const [Color(0xFFFFB347), Color(0xFFB03E12)]),
 ];
 
+// ── Extra free characters (added when emoji avatars were retired) ──────────
+// Persisted sprite indices are append-only, and the royal block already owns
+// the slots right after the elites — so these newcomers take the NEXT block
+// (global seeds 24+), resolved by [_extraFreeStart]. The picker composes the
+// free grid from [kFreePixelSeeds], so the two free blocks read as one.
+
+// Saffron turban (masc) — a rounded wrap with a top knot.
+const List<String> _turbanHead = [
+  '......XCCX......',
+  '....XCCCCCCX....',
+  '...XCCCCCCCCX...',
+  '..XCCcCCCCcCCX..',
+  '..XCCCCCCCCCCX..',
+];
+
+// Wavy side-part (masc) — the fringe falls to one side.
+const List<String> _sidePartHead = [
+  '....XXXXXXXX....',
+  '...XHHHHHHHHX...',
+  '..XHHHHHHHHHHX..',
+  '..XHhhHHHHhhHX..',
+  '..XHKKKKKKHHHX..',
+];
+
+// Hijab (fem) — the fabric wraps the head and frames the face to the
+// shoulders (the _longHair silhouette, in cloth).
+const List<String> _hijab = [
+  '....XXXXXXXX....',
+  '...XCCCCCCCCX...',
+  '..XCCCCCCCCCCX..',
+  '..XCCCCCCCCCCX..',
+  '..XCCCCCCCCCCX..',
+  '..CXKKKKKKKKXC..',
+  '..CXKWWKKWWKXC..',
+  '..CXKIIKKIIKXC..',
+  '..CXKKKKKKKKXC..',
+  '..CXKKKkkKKKXC..',
+  '..CXKKKKKKKKXC..',
+  '..CcXKKKKXcC....',
+  '...XXJJJJJJXX...',
+  '..XJjJJJJJJjJX..',
+  '..XJjJJJJJJjJX..',
+  '..XXJJJJJJJJXX..',
+];
+
+// Side braid (fem) — bun up top, a plait falling past the shoulder.
+const List<String> _braid = [
+  '.....XHHX.......',
+  '....XXXXXXXX....',
+  '...XHHHHHHHHX...',
+  '..XHHHHHHHHHHX..',
+  '..XHKKKKKKKKHX..',
+  '...XKKKKKKKKXH..',
+  '...XKWWKKWWKXH..',
+  '...XKIIKKIIKXh..',
+  '...XKKKKKKKKXH..',
+  '...XKKKkkKKKXh..',
+  '....XKKKKKKXH...',
+  '.....XKKKKX..H..',
+  '...XXJJJJJJXX...',
+  '..XJjJJJJJJjJX..',
+  '..XJjJJJJJJjJX..',
+  '..XXJJJJJJJJXX..',
+];
+
+// Round spectacles (unisex) — accent-coloured frames with a bridge.
+const List<String> _glasses = [
+  '....XXXXXXXX....',
+  '...XHHHHHHHHX...',
+  '..XHHHHHHHHHHX..',
+  '..XHhhhhhhhhHX..',
+  '..XHKKKKKKKKHX..',
+  '...XKKKKKKKKX...',
+  '...XAWWAAWWAX...',
+  '...XAIIAAIIAX...',
+  '...XKKKKKKKKX...',
+  '...XKKKkkKKKX...',
+  '....XKKKKKKX....',
+  '.....XKKKKX.....',
+  '...XXJJJJJJXX...',
+  '..XJjJJJJJJjJX..',
+  '..XJjJJJJJJjJX..',
+  '..XXJJJJJJJJXX..',
+];
+
+final List<_Sprite> _extraFreeSprites = [
+  // Saffron turban, teal kurta.
+  _Sprite(_stack(_turbanHead),
+      const _Pal(hair: Color(0xFF2E2A33), hairD: Color(0xFF1C1A20), cap: Color(0xFFE8862E), capD: Color(0xFFB5641C), jacket: Color(0xFF2BB9A0), jacketD: Color(0xFF1C8A78), skin: _skinMed, skinD: _skinMedD, iris: Color(0xFF3A2E28)),
+      const [Color(0xFFF09A4A), Color(0xFFB5641C)]),
+  // Teal hijab, warm sand top.
+  _Sprite(_hijab,
+      const _Pal(hair: Color(0xFF1C8A78), hairD: Color(0xFF14655A), cap: Color(0xFF1C8A78), capD: Color(0xFF14655A), jacket: Color(0xFFD79A3C), jacketD: Color(0xFFA8742A), skin: _skinLight, skinD: _skinLightD, iris: Color(0xFF6B4A2E)),
+      const [Color(0xFF3DD2B8), Color(0xFF14655A)]),
+  // Copper side braid, plum jacket.
+  _Sprite(_braid,
+      const _Pal(hair: Color(0xFFB5651D), hairD: Color(0xFF8A4A12), cap: Color(0xFFB5651D), capD: Color(0xFF8A4A12), jacket: Color(0xFF7E4FD6), jacketD: Color(0xFF5A37A0), skin: _skinLight, skinD: _skinLightD, iris: Color(0xFF2E7D5B)),
+      const [Color(0xFFD07A2E), Color(0xFF8A4A12)]),
+  // Round spectacles, forest jacket, dark skin.
+  _Sprite(_glasses,
+      const _Pal(hair: Color(0xFF2A2530), hairD: Color(0xFF18151C), cap: Color(0xFF2A2530), capD: Color(0xFF18151C), jacket: Color(0xFF2E7D5B), jacketD: Color(0xFF1E5E44), skin: _skinDark, skinD: _skinDarkD, iris: Color(0xFF3A2E28), accent: Color(0xFF2E313A), accentD: Color(0xFF1E2128)),
+      const [Color(0xFF3D8F6B), Color(0xFF1E5E44)]),
+  // Silver bun elder, maroon cardigan.
+  _Sprite(_stack(_bunHead),
+      const _Pal(hair: Color(0xFFC9CFD8), hairD: Color(0xFF9AA3B2), cap: Color(0xFFC9CFD8), capD: Color(0xFF9AA3B2), jacket: Color(0xFF8E3B4A), jacketD: Color(0xFF692B36), skin: _skinMed, skinD: _skinMedD, iris: Color(0xFF4A5568)),
+      const [Color(0xFFC9CFD8), Color(0xFF6E7686)]),
+  // Espresso side-part, coral jacket.
+  _Sprite(_stack(_sidePartHead),
+      const _Pal(hair: Color(0xFF3E2A1A), hairD: Color(0xFF281A0E), cap: Color(0xFF3E2A1A), capD: Color(0xFF281A0E), jacket: Color(0xFFE0453C), jacketD: Color(0xFFB0322B), skin: _skinLight, skinD: _skinLightD, iris: Color(0xFF5B8FE0)),
+      const [Color(0xFFFF8A5B), Color(0xFFB0322B)]),
+];
+
+/// First global seed of the extra free block (directly after the royals).
+final int _extraFreeStart = _sprites.length + kRoyalAvatars.length;
+
+/// The sprite backing a base-roster or extra-free [seed] (royal seeds are
+/// resolved separately via [royalAvatarAt]).
+_Sprite _spriteFor(int seed) => seed >= _extraFreeStart
+    ? _extraFreeSprites[(seed - _extraFreeStart) % _extraFreeSprites.length]
+    : _sprites[seed % _sprites.length];
+
 /// Number of distinct pixel-character avatars offered (free + elite +
-/// royal). Royal characters live in royal_avatars.dart and occupy the sprite
-/// slots directly after the elite block (append-only, persisted).
-final int kPixelAvatarCount = _sprites.length + kRoyalAvatars.length;
+/// royal + extra free). Royal characters live in royal_avatars.dart and
+/// occupy the sprite slots directly after the elite block; the extra free
+/// block follows the royals (all append-only, persisted).
+final int kPixelAvatarCount =
+    _sprites.length + kRoyalAvatars.length + _extraFreeSprites.length;
+
+/// Every seed offered in the picker's free grid, in display order: the
+/// original free block, then the characters added when emoji avatars were
+/// retired. (Elite and royal seeds live in their own sections.)
+final List<int> kFreePixelSeeds = [
+  for (var i = 0; i < kFreePixelAvatarCount; i++) i,
+  for (var i = 0; i < _extraFreeSprites.length; i++) _extraFreeStart + i,
+];
 
 /// An elite pixel character: prestige art shown in its own picker section.
 /// [spriteIndex] is its slot in the shared sprite list (persisted in
@@ -391,20 +531,20 @@ EliteAvatar? eliteAvatarAt(int spriteIndex) {
 /// Test hook: raw glyph rows of sprite [i], for grid-integrity checks.
 @visibleForTesting
 List<String> debugSpriteRows(int i) =>
-    royalAvatarAt(i)?.rows ?? _sprites[i % _sprites.length].rows;
+    royalAvatarAt(i)?.rows ?? _spriteFor(i).rows;
 
 /// Coordinating halo gradient for a pixel avatar (used on the profile card).
 /// Royal characters carry their halo on their [RoyalTheme].
 List<Color> pixelHaloOf(int seed) =>
-    royalAvatarAt(seed)?.theme.halo ?? _sprites[seed % _sprites.length].halo;
+    royalAvatarAt(seed)?.theme.halo ?? _spriteFor(seed).halo;
 
-/// Renders a user's avatar from its persisted `{kind, value, accent}`. Used in
-/// the Home header, profile, share card and picker so they always match.
-/// (Accent applies to emoji avatars only — pixel characters carry own colours.)
+/// Renders a user's avatar from its persisted `{kind, value}`. Used in the
+/// Home header, profile, share card and picker so they always match. The
+/// roster is pixel-only; a legacy `kind == 'emoji'` value (pre-1.30 profile
+/// or backup) is mapped onto its migration sprite so old data still draws.
 class AvatarView extends StatelessWidget {
-  final String kind; // 'emoji' | 'pixel'
-  final String value; // emoji glyph or pixel sprite index
-  final int accent;
+  final String kind; // 'pixel' ('emoji' accepted as legacy input)
+  final String value; // pixel sprite seed (or a legacy emoji glyph)
   final double size;
   final bool ring;
 
@@ -420,12 +560,15 @@ class AvatarView extends StatelessWidget {
     super.key,
     required this.kind,
     required this.value,
-    required this.accent,
     this.size = 48,
     this.ring = true,
     this.spawnRoyals = true,
     this.animateRoyals = true,
   });
+
+  /// The effective pixel seed, migrating legacy emoji values.
+  int get seed =>
+      kind == 'pixel' ? (int.tryParse(value) ?? 0) : legacyEmojiSeed(value);
 
   @override
   Widget build(BuildContext context) {
@@ -434,7 +577,7 @@ class AvatarView extends StatelessWidget {
         : null;
 
     final Widget inner;
-    final royal = kind == 'pixel' ? royalAvatarAt(int.tryParse(value) ?? 0) : null;
+    final royal = royalAvatarAt(seed);
     if (royal != null) {
       // Royal characters are living avatars on their own velvet backdrop.
       inner = AnimatedRoyalAvatar(
@@ -443,7 +586,7 @@ class AvatarView extends StatelessWidget {
         spawn: spawnRoyals,
         animate: animateRoyals,
       );
-    } else if (kind == 'pixel') {
+    } else {
       inner = DecoratedBox(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -456,21 +599,9 @@ class AvatarView extends StatelessWidget {
           padding: EdgeInsets.all(size * 0.05),
           child: CustomPaint(
             size: Size.square(size),
-            painter: PixelAvatarPainter(seed: int.tryParse(value) ?? 0),
+            painter: PixelAvatarPainter(seed: seed),
           ),
         ),
-      );
-    } else {
-      inner = Container(
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: accentOf(accent),
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        child: Text(value, style: TextStyle(fontSize: size * 0.52)),
       );
     }
 
@@ -499,7 +630,7 @@ class PixelAvatarPainter extends CustomPainter {
           .paint(canvas, size);
       return;
     }
-    final sprite = _sprites[seed % _sprites.length];
+    final sprite = _spriteFor(seed);
     final pal = sprite.pal;
     final rows = sprite.rows;
     final cols = rows.first.length;

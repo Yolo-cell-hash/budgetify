@@ -2513,12 +2513,9 @@ class AppStrings {
   // Avatar picker
   String get usernameLabel => _t('Username', 'उपयोगकर्ता नाम', 'वापरकर्तानाव', 'ব্যবহারকারীর নাম', 'యూజర్‌నేమ్', 'பயனர்பெயர்');
   String get pickAName => _t('Pick a name', 'एक नाम चुनें', 'एक नाव निवडा', 'একটি নাম বেছে নিন', 'ఒక పేరును ఎంచుకోండి', 'ஒரு பெயரைத் தேர்ந்தெடு');
-  String get styleLabel => _t('STYLE', 'शैली', 'शैली', 'স্টাইল', 'స్టైల్', 'பாணி');
-  String get emojiStyle => _t('Emoji', 'इमोजी', 'इमोजी', 'ইমোজি', 'ఇమోజీ', 'எமோஜி');
-  String get pixelStyle => _t('Pixel', 'पिक्सेल', 'पिक्सेल', 'পিক্সেল', 'పిక్సెల్', 'பிக்சல்');
-  String get avatarLabel => _t('AVATAR', 'अवतार', 'अवतार', 'অবতার', 'అవతార్', 'அவதாரம்');
+  // Emoji avatars (and their accent picker) were retired in 1.30 — the
+  // roster is pixel-only, so the picker needs just the one section label.
   String get pixelAvatarLabel => _t('PIXEL AVATAR', 'पिक्सेल अवतार', 'पिक्सेल अवतार', 'পিক্সেল অবতার', 'పిక్సెల్ అవతార్', 'பிக்சல் அவதாரம்');
-  String get accentLabel => _t('ACCENT', 'रंग', 'रंग', 'রং', 'యాక్సెంట్', 'ஆக்சென்ட்');
   // Badges / achievements
   String tierName(String key) {
     switch (key) {

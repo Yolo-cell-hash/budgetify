@@ -39,15 +39,23 @@ void main() {
     expect(find.byIcon(Icons.lock_rounded), findsOneWidget);
   });
 
-  testWidgets('emoji avatar renders the glyph', (tester) async {
-    await _pump(tester,
-        const AvatarView(kind: 'emoji', value: '🦊', accent: 0, size: 60));
-    expect(find.text('🦊'), findsOneWidget);
+  testWidgets('legacy emoji avatar migrates to its pixel sprite',
+      (tester) async {
+    // Emoji avatars are retired: a stored emoji kind renders the pixel
+    // character it deterministically maps to — never the raw glyph.
+    await _pump(
+        tester, const AvatarView(kind: 'emoji', value: '🦊', size: 60));
+    expect(find.text('🦊'), findsNothing);
+    expect(
+      find.byWidgetPredicate(
+          (w) => w is CustomPaint && w.painter is PixelAvatarPainter),
+      findsOneWidget,
+    );
   });
 
   testWidgets('pixel avatar paints via PixelAvatarPainter', (tester) async {
-    await _pump(tester,
-        const AvatarView(kind: 'pixel', value: '3', accent: 1, size: 60));
+    await _pump(
+        tester, const AvatarView(kind: 'pixel', value: '3', size: 60));
     expect(
       find.byWidgetPredicate(
           (w) => w is CustomPaint && w.painter is PixelAvatarPainter),

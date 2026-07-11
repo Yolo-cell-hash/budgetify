@@ -14,6 +14,8 @@ import 'package:budget_tracker/services/entitlement_service.dart';
 import 'package:budget_tracker/providers/theme_provider.dart';
 import 'package:budget_tracker/providers/app_preferences.dart';
 import 'package:budget_tracker/providers/locale_provider.dart';
+import 'package:budget_tracker/widgets/royal_avatars.dart'
+    show courtHeroStyleFor;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -41,6 +43,16 @@ void main() async {
   await themeProvider.initialize();
   await appPreferences.initialize();
   await localeProvider.initialize();
+
+  // An equipped ROYALTY avatar carries its court onto every hero surface
+  // (Home balance card, SIP alert, insight heroes). Sync the override from
+  // the saved profile now, and again on every avatar save. (After a backup
+  // restore the override refreshes on next launch.)
+  final profile = await GamificationService().loadProfile();
+  themeProvider.setHeroOverride(
+      courtHeroStyleFor(profile.avatarKind, profile.avatarValue));
+  GamificationService.onProfileSaved = (p) => themeProvider
+      .setHeroOverride(courtHeroStyleFor(p.avatarKind, p.avatarValue));
 
   runApp(
     MultiProvider(

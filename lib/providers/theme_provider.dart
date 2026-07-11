@@ -23,11 +23,34 @@ class ThemeProvider extends ChangeNotifier {
   AppThemeVariant _variant = AppThemeVariant.light;
   bool _isInitialized = false;
 
+  /// When set, replaces the active variant's [HeroStyle] on every surface
+  /// that resolves `HeroStyle.of` — how an equipped ROYALTY avatar carries
+  /// its court across the whole app (Home hero card, SIP alert, insight
+  /// heroes) instead of living only on the profile page. Synced from the
+  /// gamification profile at startup and on every avatar save.
+  HeroStyle? _heroOverride;
+
   AppThemeVariant get variant => _variant;
   bool get isInitialized => _isInitialized;
+  HeroStyle? get heroOverride => _heroOverride;
 
-  /// The [ThemeData] for the active variant (carries its own brightness).
-  ThemeData get activeTheme => AppTheme.of(_variant);
+  void setHeroOverride(HeroStyle? style) {
+    _heroOverride = style;
+    notifyListeners();
+  }
+
+  /// The [ThemeData] for the active variant (carries its own brightness),
+  /// with the royal hero override injected when one is equipped.
+  ThemeData get activeTheme {
+    final base = AppTheme.of(_variant);
+    final override = _heroOverride;
+    if (override == null) return base;
+    final palette = base.extension<AppPalette>();
+    if (palette == null) return base;
+    return base.copyWith(
+      extensions: [AppPalette(colors: palette.colors, hero: override)],
+    );
+  }
 
   /// Kept for callers that still think in light/dark terms.
   bool get isDarkMode => _variant == AppThemeVariant.dark;
