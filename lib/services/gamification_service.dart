@@ -6,6 +6,7 @@ import '../models/achievement.dart';
 import '../models/holding.dart';
 import '../models/streak_reward.dart';
 import '../models/transaction_model.dart';
+import '../widgets/avatars.dart' show legacyEmojiSeed;
 import 'database_service.dart';
 import 'savings_goal_service.dart';
 
@@ -43,16 +44,20 @@ UsageTitle? usageTitleFor(double monthlyHours) {
 /// included in encrypted backups.
 class GamiProfile {
   final String username;
-  final String avatarKind; // 'emoji' | 'pixel'
-  final String avatarValue; // emoji glyph, or pixel seed index as a string
-  final int avatarAccent; // index into the accent palette
+
+  /// Always 'pixel' since 1.30 — kept as a field so old backups round-trip.
+  final String avatarKind;
+  final String avatarValue; // pixel sprite seed, as a string
+
+  /// Retired with emoji avatars; persisted so old backups round-trip.
+  final int avatarAccent;
   final List<String> showcasedBadgeIds; // up to 5, shown on the profile
   final String? primaryTitleId;
 
   const GamiProfile({
     this.username = '',
-    this.avatarKind = 'emoji',
-    this.avatarValue = '🦊',
+    this.avatarKind = 'pixel',
+    this.avatarValue = '0',
     this.avatarAccent = 0,
     this.showcasedBadgeIds = const [],
     this.primaryTitleId,
@@ -86,15 +91,26 @@ class GamiProfile {
         if (primaryTitleId != null) 'primaryTitleId': primaryTitleId,
       };
 
-  factory GamiProfile.fromMap(Map<String, dynamic> m) => GamiProfile(
-        username: m['username'] as String? ?? '',
-        avatarKind: m['avatarKind'] as String? ?? 'emoji',
-        avatarValue: m['avatarValue'] as String? ?? '🦊',
-        avatarAccent: (m['avatarAccent'] as num?)?.toInt() ?? 0,
-        showcasedBadgeIds:
-            (m['showcasedBadgeIds'] as List?)?.cast<String>() ?? const [],
-        primaryTitleId: m['primaryTitleId'] as String?,
-      );
+  factory GamiProfile.fromMap(Map<String, dynamic> m) {
+    // The roster is pixel-only since 1.30. Profiles (and backups) written
+    // before then may carry an emoji avatar — migrate it deterministically
+    // onto its free pixel sprite, so every legacy user keeps a stable face.
+    var kind = m['avatarKind'] as String? ?? 'pixel';
+    var value = m['avatarValue'] as String? ?? '0';
+    if (kind != 'pixel') {
+      kind = 'pixel';
+      value = '${legacyEmojiSeed(value)}';
+    }
+    return GamiProfile(
+      username: m['username'] as String? ?? '',
+      avatarKind: kind,
+      avatarValue: value,
+      avatarAccent: (m['avatarAccent'] as num?)?.toInt() ?? 0,
+      showcasedBadgeIds:
+          (m['showcasedBadgeIds'] as List?)?.cast<String>() ?? const [],
+      primaryTitleId: m['primaryTitleId'] as String?,
+    );
+  }
 }
 
 /// Persistence + stats for Gamified Budgets. All state lives in one
@@ -146,10 +162,16 @@ class GamificationService {
         : const GamiProfile();
   }
 
+  /// Called after every profile save, so app-level styling (the royal hero
+  /// override on ThemeProvider) re-syncs the moment the avatar changes —
+  /// without this service knowing about providers. Set once in main().
+  static void Function(GamiProfile profile)? onProfileSaved;
+
   Future<void> saveProfile(GamiProfile profile) async {
     final blob = await _read();
     blob['profile'] = profile.toMap();
     await _write(blob);
+    onProfileSaved?.call(profile);
   }
 
   // ── Streak (daily usage) ─────────────────────────────────────────────

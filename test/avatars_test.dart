@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
 import 'package:budget_tracker/providers/locale_provider.dart';
+import 'package:budget_tracker/providers/theme_provider.dart';
 import 'package:budget_tracker/services/gamification_service.dart';
 import 'package:budget_tracker/widgets/avatar_picker_sheet.dart';
 import 'package:budget_tracker/widgets/avatars.dart';
@@ -30,20 +31,30 @@ void main() {
     });
   });
 
-  group('Elite avatars', () {
-    test('occupy the sprite slots right after the free characters', () {
-      expect(
-          kFreePixelAvatarCount + kEliteAvatars.length + kRoyalAvatars.length,
-          kPixelAvatarCount);
+  group('Slot map (append-only: free, elite, royal, extra free)', () {
+    test('elite occupies the slots right after the original free block', () {
       for (var i = 0; i < kEliteAvatars.length; i++) {
         expect(kEliteAvatars[i].spriteIndex, kFreePixelAvatarCount + i,
             reason: kEliteAvatars[i].id);
       }
     });
 
-    test('free sprite indexes resolve to no elite character', () {
-      for (var i = 0; i < kFreePixelAvatarCount; i++) {
-        expect(eliteAvatarAt(i), isNull, reason: 'sprite $i');
+    test('free seeds are the original block plus the post-royal block', () {
+      final eliteEnd = kFreePixelAvatarCount + kEliteAvatars.length;
+      final extraStart = eliteEnd + kRoyalAvatars.length;
+      expect(kFreePixelSeeds.length + kEliteAvatars.length + kRoyalAvatars.length,
+          kPixelAvatarCount);
+      expect(
+        kFreePixelSeeds,
+        [
+          for (var i = 0; i < kFreePixelAvatarCount; i++) i,
+          for (var i = extraStart; i < kPixelAvatarCount; i++) i,
+        ],
+      );
+      // Free seeds never resolve to an elite or royal character.
+      for (final seed in kFreePixelSeeds) {
+        expect(eliteAvatarAt(seed), isNull, reason: 'seed $seed');
+        expect(royalAvatarAt(seed), isNull, reason: 'seed $seed');
       }
       for (final e in kEliteAvatars) {
         expect(eliteAvatarAt(e.spriteIndex)?.id, e.id);
@@ -51,10 +62,39 @@ void main() {
     });
   });
 
+  group('Legacy emoji migration', () {
+    test('every retired emoji maps deterministically into the free block',
+        () {
+      // The fox was the old default; it must map to a stable seed.
+      expect(legacyEmojiSeed('🦊'), 0);
+      expect(legacyEmojiSeed('🦊'), legacyEmojiSeed('🦊'));
+      expect(legacyEmojiSeed('👑'), inInclusiveRange(0, 11));
+      expect(legacyEmojiSeed('not-an-emoji'), 0);
+    });
+
+    test('GamiProfile.fromMap migrates stored emoji profiles to pixel', () {
+      final migrated = GamiProfile.fromMap({
+        'username': 'Riya',
+        'avatarKind': 'emoji',
+        'avatarValue': '🦊',
+        'avatarAccent': 3,
+      });
+      expect(migrated.avatarKind, 'pixel');
+      expect(migrated.avatarValue, '0');
+      // Untouched pixel profiles pass through unchanged.
+      final pixel = GamiProfile.fromMap({
+        'avatarKind': 'pixel',
+        'avatarValue': '${kRoyalAvatars.first.spriteIndex}',
+      });
+      expect(pixel.avatarValue, '${kRoyalAvatars.first.spriteIndex}');
+      // The default for brand-new users is the first pixel character.
+      expect(const GamiProfile().avatarKind, 'pixel');
+    });
+  });
+
   group('Royal avatars', () {
     test('occupy the sprite slots right after the elite block', () {
       final eliteEnd = kFreePixelAvatarCount + kEliteAvatars.length;
-      expect(eliteEnd + kRoyalAvatars.length, kPixelAvatarCount);
       for (var i = 0; i < kRoyalAvatars.length; i++) {
         expect(kRoyalAvatars[i].spriteIndex, eliteEnd + i,
             reason: kRoyalAvatars[i].id);
@@ -65,6 +105,29 @@ void main() {
         expect(royalAvatarAt(r.spriteIndex)?.id, r.id);
       }
       expect(royalAvatarAt(0), isNull);
+    });
+
+    test('equipping a royal overrides the hero style app-wide', () {
+      final royal = kRoyalAvatars.first;
+      final provider = ThemeProvider();
+
+      // Non-royal (and legacy emoji) avatars leave the theme untouched.
+      expect(courtHeroStyleFor('pixel', '0'), isNull);
+      expect(courtHeroStyleFor('emoji', '🦊'), isNull);
+
+      final court = courtHeroStyleFor('pixel', '${royal.spriteIndex}');
+      expect(court, isNotNull);
+      expect(court!.gradientColors, royal.theme.cardGradient);
+
+      provider.setHeroOverride(court);
+      final palette = provider.activeTheme.extension<AppPalette>();
+      expect(palette!.hero, same(court));
+      // AppColors stay the variant's own — only the hero surface changes.
+      expect(palette.colors, AppColors.light);
+
+      provider.setHeroOverride(null);
+      expect(provider.activeTheme.extension<AppPalette>()!.hero,
+          isNot(same(court)));
     });
 
     test('every animation frame stays on the base grid', () {
@@ -101,7 +164,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Center(
-            child: AvatarView(kind: 'pixel', value: seed, accent: 0, size: 84),
+            child: AvatarView(kind: 'pixel', value: seed, size: 84),
           ),
         ),
       );

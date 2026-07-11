@@ -119,9 +119,10 @@ class _ProfileShareCardState extends State<ProfileShareCard>
     final mythic = widget.mythic;
     final royal = _royal;
     final profile = widget.profile;
-    final halo = profile.avatarKind == 'pixel'
-        ? pixelHaloOf(int.tryParse(profile.avatarValue) ?? 0)
-        : accentOf(profile.avatarAccent);
+    // Pixel-only roster; a legacy emoji value maps to its migration sprite.
+    final halo = pixelHaloOf(profile.avatarKind == 'pixel'
+        ? (int.tryParse(profile.avatarValue) ?? 0)
+        : legacyEmojiSeed(profile.avatarValue));
     final name = profile.username.trim().isEmpty
         ? context.l10n.defaultBudgeteer
         : profile.username.trim();
@@ -367,7 +368,6 @@ class _ProfileShareCardState extends State<ProfileShareCard>
           AvatarView(
             kind: widget.profile.avatarKind,
             value: widget.profile.avatarValue,
-            accent: widget.profile.avatarAccent,
             size: 84,
             ring: false,
             animateRoyals: widget.animate,

@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../providers/theme_provider.dart';
+
 /// The ROYALTY avatar tier — the court above Elite.
 ///
 /// Royal characters are *living* avatars, not static sprites: they breathe,
@@ -92,6 +94,40 @@ class RoyalTheme {
     final wave = (math.sin(t * 2 * math.pi) + 1) / 2;
     return Color.lerp(const Color(0xFFF2C14E), accent, wave * 0.5)!;
   }
+
+  /// This court as a [HeroStyle] — how the equipped royal takes over the
+  /// app's hero surfaces (the Home balance card, SIP alert, insight heroes:
+  /// everything that resolves `HeroStyle.of`). Court canvases are all dark,
+  /// so a white-ink on-dark treatment works for every royal.
+  HeroStyle courtHeroStyle() => HeroStyle(
+        gradientColors: cardGradient,
+        border: accent.withValues(alpha: 0.55),
+        shadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.30),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+          BoxShadow(color: accent.withValues(alpha: 0.10), blurRadius: 26),
+        ],
+        foreground: Colors.white,
+        mutedForeground: Colors.white.withValues(alpha: 0.62),
+        accent: accentSoft,
+        innerFill: Colors.white.withValues(alpha: 0.07),
+        innerBorder: Colors.white.withValues(alpha: 0.10),
+        divider: Colors.white.withValues(alpha: 0.12),
+        positive: AppColors.successDark,
+        negative: AppColors.dangerDark,
+        onDark: true,
+      );
+}
+
+/// The hero-surface override for a persisted avatar, or null when the
+/// avatar isn't royal. Takes the raw profile fields (not [GamiProfile]) so
+/// this file stays import-cycle-free.
+HeroStyle? courtHeroStyleFor(String avatarKind, String avatarValue) {
+  if (avatarKind != 'pixel') return null;
+  return royalAvatarAt(int.tryParse(avatarValue) ?? -1)?.theme.courtHeroStyle();
 }
 
 const Color _outline = Color(0xFF15171E);

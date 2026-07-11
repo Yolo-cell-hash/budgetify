@@ -280,7 +280,6 @@ class _HomeRewardsAvatarState extends State<HomeRewardsAvatar> {
       child: AvatarView(
         kind: p.avatarKind,
         value: p.avatarValue,
-        accent: p.avatarAccent,
         size: 38,
       ),
     );
