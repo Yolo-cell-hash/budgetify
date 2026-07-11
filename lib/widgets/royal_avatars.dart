@@ -74,6 +74,16 @@ class RoyalTheme {
   /// Softer companion for text glows.
   final Color accentSoft;
 
+  /// Deep, ink-legible companion for trimming LIGHT surfaces, where the
+  /// bright [accent] would wash out against ivory.
+  final Color accentDeep;
+
+  /// The primary theme this royal dresses. The founding pair (Sovereign,
+  /// Empress) trim the LIGHT hero; the rest of the court trims the DARK
+  /// one. Reward-theme heroes are never touched — each is a hand-tuned
+  /// centrepiece of its own.
+  final Brightness homeBrightness;
+
   /// Velvet backdrop inside the avatar circle (radial, centre → edge).
   final List<Color> backdrop;
 
@@ -85,6 +95,8 @@ class RoyalTheme {
     required this.ringColors,
     required this.accent,
     required this.accentSoft,
+    required this.accentDeep,
+    required this.homeBrightness,
     required this.backdrop,
     required this.halo,
   });
@@ -95,39 +107,59 @@ class RoyalTheme {
     return Color.lerp(const Color(0xFFF2C14E), accent, wave * 0.5)!;
   }
 
-  /// This court as a [HeroStyle] — how the equipped royal takes over the
-  /// app's hero surfaces (the Home balance card, SIP alert, insight heroes:
-  /// everything that resolves `HeroStyle.of`). Court canvases are all dark,
-  /// so a white-ink on-dark treatment works for every royal.
-  HeroStyle courtHeroStyle() => HeroStyle(
-        gradientColors: cardGradient,
-        border: accent.withValues(alpha: 0.55),
-        shadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.30),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
-          ),
-          BoxShadow(color: accent.withValues(alpha: 0.10), blurRadius: 26),
-        ],
-        foreground: Colors.white,
-        mutedForeground: Colors.white.withValues(alpha: 0.62),
-        accent: accentSoft,
-        innerFill: Colors.white.withValues(alpha: 0.07),
-        innerBorder: Colors.white.withValues(alpha: 0.10),
-        divider: Colors.white.withValues(alpha: 0.12),
-        positive: AppColors.successDark,
-        negative: AppColors.dangerDark,
-        onDark: true,
-      );
+  /// The royal's touch on a hero surface: a TRIM, not a takeover. The
+  /// theme's own canvas, inks and semantics stay exactly as designed — only
+  /// the border, the accent details (eyebrow labels, chevrons, sparkles)
+  /// and a soft glow take the court colour, so the surface still reads as
+  /// the app's premium hero with a royal signature on it.
+  HeroStyle trimmedHero(HeroStyle base, {required bool onDarkPrimary}) {
+    final tint = onDarkPrimary ? accent : accentDeep;
+    return HeroStyle(
+      gradientColors: base.gradientColors,
+      border: tint.withValues(alpha: onDarkPrimary ? 0.45 : 0.50),
+      shadow: [
+        ...base.shadow,
+        BoxShadow(
+          color: tint.withValues(alpha: onDarkPrimary ? 0.14 : 0.10),
+          blurRadius: 26,
+        ),
+      ],
+      foreground: base.foreground,
+      mutedForeground: base.mutedForeground,
+      accent: tint,
+      innerFill: base.innerFill,
+      innerBorder: base.innerBorder,
+      divider: base.divider,
+      positive: base.positive,
+      negative: base.negative,
+      onDark: base.onDark,
+      showAura: base.showAura,
+    );
+  }
 }
 
-/// The hero-surface override for a persisted avatar, or null when the
-/// avatar isn't royal. Takes the raw profile fields (not [GamiProfile]) so
-/// this file stays import-cycle-free.
-HeroStyle? courtHeroStyleFor(String avatarKind, String avatarValue) {
+/// The hero trim for a persisted avatar, or null when the avatar isn't
+/// royal. Takes raw profile fields (not [GamiProfile]) so this file stays
+/// import-cycle-free.
+///
+/// The returned trim applies only on the royal's home PRIMARY theme —
+/// Sovereign/Empress dress the light theme, the rest of the court dresses
+/// the dark one — and never on reward themes, whose heroes are hand-tuned
+/// centrepieces. Everywhere else it returns null and the theme's own hero
+/// stands untouched.
+HeroTrim? courtHeroTrimFor(String avatarKind, String avatarValue) {
   if (avatarKind != 'pixel') return null;
-  return royalAvatarAt(int.tryParse(avatarValue) ?? -1)?.theme.courtHeroStyle();
+  final royal = royalAvatarAt(int.tryParse(avatarValue) ?? -1);
+  if (royal == null) return null;
+  final theme = royal.theme;
+  return (variant, base) {
+    final isLight = variant == AppThemeVariant.light;
+    final isDark = variant == AppThemeVariant.dark;
+    if (!isLight && !isDark) return null; // reward themes: never touched
+    if (isLight && theme.homeBrightness != Brightness.light) return null;
+    if (isDark && theme.homeBrightness != Brightness.dark) return null;
+    return theme.trimmedHero(base, onDarkPrimary: isDark);
+  };
 }
 
 const Color _outline = Color(0xFF15171E);
@@ -427,6 +459,8 @@ const List<RoyalAvatar> kRoyalAvatars = [
       ringColors: [_gold, Color(0xFFFFE9B0), Color(0xFFB02838), _gold],
       accent: Color(0xFFFFD75E),
       accentSoft: Color(0xFFFFE9B0),
+      accentDeep: Color(0xFF8E1F2F), // his robe's crimson, legible on ivory
+      homeBrightness: Brightness.light,
       backdrop: [Color(0xFF5E1826), Color(0xFF1E060A)],
       halo: [Color(0xFFFFD75E), Color(0xFF7E1820)],
     ),
@@ -446,6 +480,8 @@ const List<RoyalAvatar> kRoyalAvatars = [
       ringColors: [_gold, Color(0xFFE8D9FF), Color(0xFF7E5CE8), _gold],
       accent: Color(0xFFB18CFF),
       accentSoft: Color(0xFFE8D9FF),
+      accentDeep: Color(0xFF5E2CA5), // her gown's violet, legible on ivory
+      homeBrightness: Brightness.light,
       backdrop: [Color(0xFF3E2470), Color(0xFF140A28)],
       halo: [Color(0xFFC9A2FF), Color(0xFF3E1C70)],
     ),
@@ -466,6 +502,8 @@ const List<RoyalAvatar> kRoyalAvatars = [
       ringColors: [_gold, Color(0xFFFFE9B0), Color(0xFFD4A72C), _gold],
       accent: Color(0xFFFFC93C),
       accentSoft: Color(0xFFFFE9B0),
+      accentDeep: Color(0xFF9C7A16),
+      homeBrightness: Brightness.dark,
       backdrop: [Color(0xFF5E4A10), Color(0xFF1E1602)],
       halo: [Color(0xFFFFC93C), Color(0xFF7A5E10)],
     ),
@@ -491,6 +529,8 @@ const List<RoyalAvatar> kRoyalAvatars = [
       ],
       accent: Color(0xFFFF4632),
       accentSoft: Color(0xFFFF9A8C),
+      accentDeep: Color(0xFFB02838),
+      homeBrightness: Brightness.dark,
       backdrop: [Color(0xFF2A2A34), Color(0xFF0A0A0E)],
       halo: [Color(0xFFFF4632), Color(0xFF26060A)],
     ),
@@ -511,6 +551,8 @@ const List<RoyalAvatar> kRoyalAvatars = [
       ringColors: [_gold, Color(0xFFFFD1E4), Color(0xFFD4547E), _gold],
       accent: Color(0xFFFF9EC8),
       accentSoft: Color(0xFFFFD1E4),
+      accentDeep: Color(0xFFA83660),
+      homeBrightness: Brightness.dark,
       backdrop: [Color(0xFF6E1E3E), Color(0xFF240710)],
       halo: [Color(0xFFFF9EC8), Color(0xFF6E1E3E)],
     ),
@@ -531,6 +573,8 @@ const List<RoyalAvatar> kRoyalAvatars = [
       ringColors: [_gold, Color(0xFFB8F5E0), Color(0xFF2BB985), _gold],
       accent: Color(0xFF3DD2A0),
       accentSoft: Color(0xFFB8F5E0),
+      accentDeep: Color(0xFF1E8F6B),
+      homeBrightness: Brightness.dark,
       backdrop: [Color(0xFF14523E), Color(0xFF041E12)],
       halo: [Color(0xFF3DD2A0), Color(0xFF0E3A2C)],
     ),
