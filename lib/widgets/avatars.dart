@@ -442,7 +442,22 @@ const List<String> _glasses = [
   '..XXJJJJJJJJXX..',
 ];
 
-final List<_Sprite> _extraFreeSprites = [
+// Space buns (fem) — twin top buns over a fringe.
+const List<String> _spaceBunsHead = [
+  '.XHHX....XHHX...',
+  '....XXXXXXXX....',
+  '...XHHHHHHHHX...',
+  '..XHHHHHHHHHHX..',
+  '..XHKKKKKKKKHX..',
+];
+
+// The post-royal sprite block: all art at global slots >= [_extraStart],
+// in slot order. It mixes FREE and ELITE characters (both are append-only,
+// and the royal block already claimed the slots right after the original
+// elites). Which slots are elite is declared by [kEliteAvatars]; the free
+// grid derives the rest via [kFreePixelSeeds].
+final List<_Sprite> _extraSprites = [
+  // ── Free block, slots 24-31 ──────────────────────────────────────────────
   // Saffron turban, teal kurta.
   _Sprite(_stack(_turbanHead),
       const _Pal(hair: Color(0xFF2E2A33), hairD: Color(0xFF1C1A20), cap: Color(0xFFE8862E), capD: Color(0xFFB5641C), jacket: Color(0xFF2BB9A0), jacketD: Color(0xFF1C8A78), skin: _skinMed, skinD: _skinMedD, iris: Color(0xFF3A2E28)),
@@ -467,30 +482,128 @@ final List<_Sprite> _extraFreeSprites = [
   _Sprite(_stack(_sidePartHead),
       const _Pal(hair: Color(0xFF3E2A1A), hairD: Color(0xFF281A0E), cap: Color(0xFF3E2A1A), capD: Color(0xFF281A0E), jacket: Color(0xFFE0453C), jacketD: Color(0xFFB0322B), skin: _skinLight, skinD: _skinLightD, iris: Color(0xFF5B8FE0)),
       const [Color(0xFFFF8A5B), Color(0xFFB0322B)]),
+  // Space buns (fem), magenta hair, sky top — slot 30.
+  _Sprite(_stack(_spaceBunsHead),
+      const _Pal(hair: Color(0xFFE85C9E), hairD: Color(0xFFB53C77), cap: Color(0xFFE85C9E), capD: Color(0xFFB53C77), jacket: Color(0xFF4F8DF7), jacketD: Color(0xFF2456C8), skin: _skinLight, skinD: _skinLightD, iris: Color(0xFF6B4A2E)),
+      const [Color(0xFFF06AAE), Color(0xFFB53C77)]),
+  // Lavender bob (fem), teal top — slot 31.
+  _Sprite(_bob,
+      const _Pal(hair: Color(0xFFB59BE8), hairD: Color(0xFF8A6DC8), cap: Color(0xFFB59BE8), capD: Color(0xFF8A6DC8), jacket: Color(0xFF2BB9A0), jacketD: Color(0xFF1C8A78), skin: _skinMed, skinD: _skinMedD, iris: Color(0xFF5A4A78)),
+      const [Color(0xFFC7AEF5), Color(0xFF6A4BC8)]),
+
+  // ── Elite block, slots 32-35 (order mirrors kEliteAvatars tail) ──────────
+  // Frost Valkyrie (fem): winged silver helm, cyan glow eyes, ice armour.
+  _Sprite(const [
+    '................',
+    '.A....XXXX....A.',
+    '.AA..XCCCCX..AA.',
+    '..XXXCCCCCCXXX..',
+    '..XHCCCCCCCCHX..',
+    '..XHCcCCCCcCHX..',
+    '..XHKKAAKKAAHX..',
+    '..XHKKKKKKKKHX..',
+    '..XHKKKKKKKKHX..',
+    '..XHKKKkkKKKHX..',
+    '...XKKKKKKKKX...',
+    '.....XKKKKX.....',
+    '...XXJJJJJJXX...',
+    '..XJaJJJJJJaJX..',
+    '..XXJJJJJJJJXX..',
+    '................',
+  ],
+      const _Pal(hair: Color(0xFFEBE3D0), hairD: Color(0xFFC7BEA6), cap: Color(0xFFC2CEDE), capD: Color(0xFF8C99AC), jacket: Color(0xFFDCE6F2), jacketD: Color(0xFFAEBED2), skin: Color(0xFFF2D3B8), skinD: Color(0xFFD6B092), iris: Color(0xFF6FE3FF), accent: Color(0xFF6FE3FF), accentD: Color(0xFF2FA6C8)),
+      const [Color(0xFF9FE6FF), Color(0xFF2FA6C8)]),
+  // Astral Sorceress (fem): pointed violet hood, arcane glow eyes.
+  _Sprite(const [
+    '................',
+    '.......AA.......',
+    '......XCCX......',
+    '.....XCCCCX.....',
+    '....XCCCCCCX....',
+    '..XHCCCCCCCCHX..',
+    '..XHKKKKKKKKHX..',
+    '..XHKAAKKAAKHX..',
+    '..XHKKKKKKKKHX..',
+    '..XHKKKkkKKKHX..',
+    '...XKKKKKKKKX...',
+    '.....XKKKKX.....',
+    '...XXJJJJJJXX...',
+    '..XJaJJJJJJaJX..',
+    '..XXJJJJJJJJXX..',
+    '................',
+  ],
+      const _Pal(hair: Color(0xFF2E2A3C), hairD: Color(0xFF1C1926), cap: Color(0xFF6A4BC8), capD: Color(0xFF48309A), jacket: Color(0xFF3A2E6E), jacketD: Color(0xFF281F52), skin: _skinLight, skinD: _skinLightD, iris: Color(0xFFB18CFF), accent: Color(0xFFB18CFF), accentD: Color(0xFF7E5CE8)),
+      const [Color(0xFFC9A2FF), Color(0xFF48309A)]),
+  // Solar Priestess (fem): golden halo, white-and-gold robe.
+  _Sprite(const [
+    '................',
+    '....AAAAAAAA....',
+    '...A........A...',
+    '....XXXXXXXX....',
+    '...XHHHHHHHHX...',
+    '..XHHHHHHHHHHX..',
+    '..XHKKKKKKKKHX..',
+    '..XHKIIKKIIKHX..',
+    '..XHKKKKKKKKHX..',
+    '..XHKKKkkKKKHX..',
+    '...XKKKKKKKKX...',
+    '.....XKKKKX.....',
+    '...XXJJJJJJXX...',
+    '..XJaJJJJJJaJX..',
+    '..XXJJJJJJJJXX..',
+    '................',
+  ],
+      const _Pal(hair: Color(0xFFE6C15A), hairD: Color(0xFFC09A38), cap: Color(0xFFE6C15A), capD: Color(0xFFC09A38), jacket: Color(0xFFF4EFE3), jacketD: Color(0xFFD8CBB0), skin: _skinMed, skinD: _skinMedD, iris: Color(0xFF7A4B28), accent: Color(0xFFF2C14E), accentD: Color(0xFFC09232)),
+      const [Color(0xFFF7D98A), Color(0xFFC09232)]),
+  // Obsidian Warlord (masc): black horned helm, ember eyes, red trim.
+  _Sprite(const [
+    '.A...........A..',
+    '.AA.XXXXXX.AA...',
+    '...XCCCCCCCCX...',
+    '..XCCCCCCCCCCX..',
+    '..XCcCCCCCCcCX..',
+    '..XCKKKKKKKKCX..',
+    '..XCKIIKKIIKCX..',
+    '..XCKKKKKKKKCX..',
+    '..XCKkKKKKkKCX..',
+    '...XKKKKKKKKX...',
+    '.....XKKKKX.....',
+    '...XXJJJJJJXX...',
+    '..XJaJJJJJJaJX..',
+    '..XJjaJJJJajJX..',
+    '..XXJJJJJJJJXX..',
+    '................',
+  ],
+      const _Pal(hair: Color(0xFF23262F), hairD: Color(0xFF14161C), cap: Color(0xFF2B2F3B), capD: Color(0xFF1B1E26), jacket: Color(0xFF1D2027), jacketD: Color(0xFF14161C), skin: Color(0xFFE8D9C8), skinD: Color(0xFFC4B29E), iris: Color(0xFFFF4632), accent: Color(0xFFC0392B), accentD: Color(0xFF7E1820)),
+      const [Color(0xFFD4453A), Color(0xFF7E1820)]),
 ];
 
-/// First global seed of the extra free block (directly after the royals).
-final int _extraFreeStart = _sprites.length + kRoyalAvatars.length;
+/// First global seed of the post-royal block (directly after the royals).
+final int _extraStart = _sprites.length + kRoyalAvatars.length;
 
-/// The sprite backing a base-roster or extra-free [seed] (royal seeds are
+/// The sprite backing a base-roster or post-royal [seed] (royal seeds are
 /// resolved separately via [royalAvatarAt]).
-_Sprite _spriteFor(int seed) => seed >= _extraFreeStart
-    ? _extraFreeSprites[(seed - _extraFreeStart) % _extraFreeSprites.length]
+_Sprite _spriteFor(int seed) => seed >= _extraStart
+    ? _extraSprites[(seed - _extraStart) % _extraSprites.length]
     : _sprites[seed % _sprites.length];
 
 /// Number of distinct pixel-character avatars offered (free + elite +
-/// royal + extra free). Royal characters live in royal_avatars.dart and
-/// occupy the sprite slots directly after the elite block; the extra free
-/// block follows the royals (all append-only, persisted).
+/// royal). Royal characters live in royal_avatars.dart; the post-royal
+/// block ([_extraSprites]) holds later free and elite additions. All slots
+/// are append-only and persisted.
 final int kPixelAvatarCount =
-    _sprites.length + kRoyalAvatars.length + _extraFreeSprites.length;
+    _sprites.length + kRoyalAvatars.length + _extraSprites.length;
+
+/// Global slots claimed by an elite character (used to split the post-royal
+/// block into free vs elite for the picker grid).
+final Set<int> _eliteSlots = {for (final e in kEliteAvatars) e.spriteIndex};
 
 /// Every seed offered in the picker's free grid, in display order: the
-/// original free block, then the characters added when emoji avatars were
-/// retired. (Elite and royal seeds live in their own sections.)
+/// original free block, then every post-royal slot that isn't an elite.
 final List<int> kFreePixelSeeds = [
   for (var i = 0; i < kFreePixelAvatarCount; i++) i,
-  for (var i = 0; i < _extraFreeSprites.length; i++) _extraFreeStart + i,
+  for (var i = 0; i < _extraSprites.length; i++)
+    if (!_eliteSlots.contains(_extraStart + i)) _extraStart + i,
 ];
 
 /// An elite pixel character: prestige art shown in its own picker section.
@@ -506,7 +619,9 @@ class EliteAvatar {
   });
 }
 
-/// The elite roster, in sprite order right after the free characters.
+/// The elite roster. The first six live in the base sprite list (slots
+/// 12-17); the four newcomers live in the post-royal block (slots 32-35).
+/// Order here is display order in the picker's ELITE section.
 const List<EliteAvatar> kEliteAvatars = [
   EliteAvatar(id: 'shadowblade', spriteIndex: 12),
   EliteAvatar(id: 'crimsononi', spriteIndex: 13),
@@ -514,11 +629,17 @@ const List<EliteAvatar> kEliteAvatars = [
   EliteAvatar(id: 'dragonlord', spriteIndex: 15),
   EliteAvatar(id: 'voidmonarch', spriteIndex: 16),
   EliteAvatar(id: 'phoenix', spriteIndex: 17),
+  EliteAvatar(id: 'frostvalkyrie', spriteIndex: 32),
+  EliteAvatar(id: 'astralsorceress', spriteIndex: 33),
+  EliteAvatar(id: 'solarpriestess', spriteIndex: 34),
+  EliteAvatar(id: 'obsidianwarlord', spriteIndex: 35),
 ];
 
-/// Number of free (always available) pixel characters — elite sprites start
-/// at this index.
-final int kFreePixelAvatarCount = _sprites.length - kEliteAvatars.length;
+/// Number of original free (always available) pixel characters in the base
+/// sprite list — the slots not claimed by an original in-list elite. Later
+/// free additions live in the post-royal block (see [kFreePixelSeeds]).
+final int kFreePixelAvatarCount = _sprites.length -
+    kEliteAvatars.where((e) => e.spriteIndex < _sprites.length).length;
 
 /// The elite character occupying [spriteIndex], or null for a free one.
 EliteAvatar? eliteAvatarAt(int spriteIndex) {

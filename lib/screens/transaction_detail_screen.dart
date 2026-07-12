@@ -218,6 +218,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
 
   Future<void> _showBulkFlaggingDialog() async {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colors = AppColors.of(context);
     final cardColor = isDark ? const Color(0xFF16181E) : Colors.white;
     final textColor = isDark ? Colors.white : Colors.black87;
 
@@ -267,17 +268,19 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppColors.gold.withOpacity(isDark ? 0.12 : 0.10),
+                  color: colors.brandAccent
+                      .withValues(alpha: isDark ? 0.12 : 0.10),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.gold.withOpacity(0.45)),
+                  border: Border.all(
+                      color: colors.brandAccent.withValues(alpha: 0.45)),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.school_outlined,
                       size: 18,
-                      color: AppColors.gold,
+                      color: colors.brandAccent,
                     ),
                     const SizedBox(width: 10),
                     Expanded(

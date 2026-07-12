@@ -31,26 +31,38 @@ void main() {
     });
   });
 
-  group('Slot map (append-only: free, elite, royal, extra free)', () {
-    test('elite occupies the slots right after the original free block', () {
-      for (var i = 0; i < kEliteAvatars.length; i++) {
+  group('Slot map (append-only: free 0-11, elite 12-17, royal 18-23, '
+      'post-royal free 24-31, post-royal elite 32-35)', () {
+    test('original six elite occupy the slots after the original free block',
+        () {
+      expect(kFreePixelAvatarCount, 12);
+      for (var i = 0; i < 6; i++) {
         expect(kEliteAvatars[i].spriteIndex, kFreePixelAvatarCount + i,
             reason: kEliteAvatars[i].id);
       }
     });
 
-    test('free seeds are the original block plus the post-royal block', () {
-      final eliteEnd = kFreePixelAvatarCount + kEliteAvatars.length;
-      final extraStart = eliteEnd + kRoyalAvatars.length;
+    test('the four new elite occupy the tail of the post-royal block', () {
+      final newElite = kEliteAvatars.sublist(6);
+      expect(newElite.map((e) => e.id), [
+        'frostvalkyrie',
+        'astralsorceress',
+        'solarpriestess',
+        'obsidianwarlord',
+      ]);
+      // They sit at the very end of the sprite space (slots 32-35).
+      for (var i = 0; i < newElite.length; i++) {
+        expect(newElite[i].spriteIndex, kPixelAvatarCount - newElite.length + i,
+            reason: newElite[i].id);
+      }
+    });
+
+    test('free seeds are the original block plus the post-royal free slots',
+        () {
       expect(kFreePixelSeeds.length + kEliteAvatars.length + kRoyalAvatars.length,
           kPixelAvatarCount);
-      expect(
-        kFreePixelSeeds,
-        [
-          for (var i = 0; i < kFreePixelAvatarCount; i++) i,
-          for (var i = extraStart; i < kPixelAvatarCount; i++) i,
-        ],
-      );
+      // Free grid: 0-11 then the post-royal slots that aren't elite (24-31).
+      expect(kFreePixelSeeds, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 24, 25, 26, 27, 28, 29, 30, 31]);
       // Free seeds never resolve to an elite or royal character.
       for (final seed in kFreePixelSeeds) {
         expect(eliteAvatarAt(seed), isNull, reason: 'seed $seed');
@@ -58,6 +70,10 @@ void main() {
       }
       for (final e in kEliteAvatars) {
         expect(eliteAvatarAt(e.spriteIndex)?.id, e.id);
+      }
+      // Every non-royal slot resolves to some art (no gaps/out-of-range).
+      for (var i = 0; i < kPixelAvatarCount; i++) {
+        expect(debugSpriteRows(i).length, 16, reason: 'slot $i');
       }
     });
   });
@@ -93,10 +109,12 @@ void main() {
   });
 
   group('Royal avatars', () {
-    test('occupy the sprite slots right after the elite block', () {
-      final eliteEnd = kFreePixelAvatarCount + kEliteAvatars.length;
+    test('occupy the sprite slots right after the original elite block', () {
+      // Royals sit after the free block + the ORIGINAL six elites (slot 18);
+      // the four newer elites live later, in the post-royal block.
+      final royalStart = kFreePixelAvatarCount + 6;
       for (var i = 0; i < kRoyalAvatars.length; i++) {
-        expect(kRoyalAvatars[i].spriteIndex, eliteEnd + i,
+        expect(kRoyalAvatars[i].spriteIndex, royalStart + i,
             reason: kRoyalAvatars[i].id);
       }
       // No overlap with the elite/free resolvers.

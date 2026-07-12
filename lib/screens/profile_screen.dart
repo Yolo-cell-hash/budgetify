@@ -254,9 +254,14 @@ class _ProfileViewState extends State<ProfileView> {
       alignment: Alignment.center,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: earned ? AppColors.gold.withValues(alpha: 0.16) : colors.cardAlt,
+        // brandAccent (not a raw gold literal) so an equipped royal's court
+        // reaches earned-title emblems too; identical gold when undressed.
+        color: earned
+            ? colors.brandAccent.withValues(alpha: 0.16)
+            : colors.cardAlt,
         border: Border.all(
-            color: earned ? AppColors.gold.withValues(alpha: 0.5) : colors.border,
+            color:
+                earned ? colors.brandAccent.withValues(alpha: 0.5) : colors.border,
             width: size > 50 ? 2 : 1),
       ),
       child: Opacity(
@@ -335,7 +340,8 @@ class _ProfileViewState extends State<ProfileView> {
                               ),
                       ),
                       if (primary)
-                        const Icon(Icons.star_rounded, size: 16, color: AppColors.goldDeep)
+                        Icon(Icons.star_rounded,
+                            size: 16, color: colors.brandAccentDeep)
                       else if (earned)
                         Icon(Icons.check_circle_rounded, size: 16, color: colors.success)
                       else
@@ -848,8 +854,9 @@ class _ShowcasePickerState extends State<_ShowcasePicker> {
                                   ),
                                 ),
                                 if (_sel.contains(b.id))
-                                  const Icon(Icons.check_circle_rounded,
-                                      size: 18, color: AppColors.gold),
+                                  Icon(Icons.check_circle_rounded,
+                                      size: 18,
+                                      color: AppColors.of(context).brandAccent),
                               ],
                             ),
                             const SizedBox(height: 4),
