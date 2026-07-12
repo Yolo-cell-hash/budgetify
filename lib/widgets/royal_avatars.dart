@@ -138,27 +138,59 @@ class RoyalTheme {
   }
 }
 
-/// The hero trim for a persisted avatar, or null when the avatar isn't
-/// royal. Takes raw profile fields (not [GamiProfile]) so this file stays
-/// import-cycle-free.
+/// The app-wide theme dress for a persisted avatar, or null when the
+/// avatar isn't royal. Takes raw profile fields (not [GamiProfile]) so
+/// this file stays import-cycle-free.
 ///
-/// The returned trim applies only on the royal's home PRIMARY theme —
-/// Sovereign/Empress dress the light theme, the rest of the court dresses
-/// the dark one — and never on reward themes, whose heroes are hand-tuned
-/// centrepieces. Everywhere else it returns null and the theme's own hero
-/// stands untouched.
-HeroTrim? courtHeroTrimFor(String avatarKind, String avatarValue) {
+/// The dress applies only on the royal's home PRIMARY theme — Sovereign/
+/// Empress dress the light theme, the rest of the court dresses the dark
+/// one — and never on reward themes, whose palettes are hand-tuned.
+/// Everywhere else the base theme is returned untouched.
+///
+/// "Dressing" keeps every canvas colour (backgrounds, cards, text) exactly
+/// as the theme designed them and swaps only the GOLD slots for the court
+/// shade: AppColors.accent/brandAccent/brandAccentDeep, the ThemeData
+/// primary/secondary golds, and the hero surface's border/accent/glow.
+ThemeDress? courtDressFor(String avatarKind, String avatarValue) {
   if (avatarKind != 'pixel') return null;
   final royal = royalAvatarAt(int.tryParse(avatarValue) ?? -1);
   if (royal == null) return null;
-  final theme = royal.theme;
+  final t = royal.theme;
+
   return (variant, base) {
     final isLight = variant == AppThemeVariant.light;
     final isDark = variant == AppThemeVariant.dark;
-    if (!isLight && !isDark) return null; // reward themes: never touched
-    if (isLight && theme.homeBrightness != Brightness.light) return null;
-    if (isDark && theme.homeBrightness != Brightness.dark) return null;
-    return theme.trimmedHero(base, onDarkPrimary: isDark);
+    if (!isLight && !isDark) return base; // reward themes: never touched
+    if (isLight && t.homeBrightness != Brightness.light) return base;
+    if (isDark && t.homeBrightness != Brightness.dark) return base;
+
+    final palette = base.extension<AppPalette>();
+    if (palette == null) return base;
+
+    // Dark canvas carries the bright court accent; ivory needs the deep,
+    // ink-legible one. A darker companion keeps two-stop gradients alive.
+    final tint = isDark ? t.accent : t.accentDeep;
+    final tintDeep = isDark
+        ? t.accentDeep
+        : Color.lerp(t.accentDeep, Colors.black, 0.25)!;
+
+    final colors = palette.colors.copyWith(
+      // Light keeps its ink interactive accent; dark's accent IS gold.
+      accent: isDark ? tint : null,
+      brandAccent: tint,
+      brandAccentDeep: tintDeep,
+    );
+    final hero = t.trimmedHero(palette.hero, onDarkPrimary: isDark);
+
+    return base.copyWith(
+      // Dark pins primaryColor + colorScheme to gold; follow the court.
+      primaryColor: isDark ? tint : base.primaryColor,
+      colorScheme: base.colorScheme.copyWith(
+        primary: isDark ? tint : base.colorScheme.primary,
+        secondary: tint,
+      ),
+      extensions: [AppPalette(colors: colors, hero: hero)],
+    );
   };
 }
 

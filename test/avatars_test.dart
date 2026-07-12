@@ -116,72 +116,88 @@ void main() {
       }
     });
 
-    test('a royal trims only its home primary theme, and never a reward one',
-        () {
-      // Non-royal (and legacy emoji) avatars produce no trim at all.
-      expect(courtHeroTrimFor('pixel', '0'), isNull);
-      expect(courtHeroTrimFor('emoji', '🦊'), isNull);
+    test('the court dress swaps only the gold slots, only at home', () {
+      // Non-royal (and legacy emoji) avatars produce no dress at all.
+      expect(courtDressFor('pixel', '0'), isNull);
+      expect(courtDressFor('emoji', '🦊'), isNull);
 
-      final lightRoyal =
-          kRoyalAvatars.firstWhere((r) => r.id == 'sovereign');
-      final darkRoyal = kRoyalAvatars.firstWhere((r) => r.id == 'darkprince');
+      final sovereign = kRoyalAvatars.firstWhere((r) => r.id == 'sovereign');
+      final darkPrince =
+          kRoyalAvatars.firstWhere((r) => r.id == 'darkprince');
 
-      final lightHero =
-          AppTheme.of(AppThemeVariant.light).extension<AppPalette>()!.hero;
-      final darkHero =
-          AppTheme.of(AppThemeVariant.dark).extension<AppPalette>()!.hero;
+      final lightBase = AppTheme.of(AppThemeVariant.light);
+      final darkBase = AppTheme.of(AppThemeVariant.dark);
 
-      final lightTrim =
-          courtHeroTrimFor('pixel', '${lightRoyal.spriteIndex}')!;
-      final darkTrim = courtHeroTrimFor('pixel', '${darkRoyal.spriteIndex}')!;
+      final lightDress = courtDressFor('pixel', '${sovereign.spriteIndex}')!;
+      final darkDress = courtDressFor('pixel', '${darkPrince.spriteIndex}')!;
 
-      // Sovereign dresses light: the canvas is PRESERVED (trim, not
-      // takeover) and only the accent details take his deep crimson.
-      final trimmedLight = lightTrim(AppThemeVariant.light, lightHero);
-      expect(trimmedLight, isNotNull);
-      expect(trimmedLight!.gradientColors, lightHero.gradientColors);
-      expect(trimmedLight.foreground, lightHero.foreground);
-      expect(trimmedLight.accent, lightRoyal.theme.accentDeep);
+      // Sovereign dresses light: canvases and ink stay the theme's own,
+      // the gold brand slots take his deep crimson (light keeps its ink
+      // interactive accent), and the hero carries the trim.
+      final dressedLight =
+          lightDress(AppThemeVariant.light, lightBase)
+              .extension<AppPalette>()!;
+      expect(dressedLight.colors.background, AppColors.light.background);
+      expect(dressedLight.colors.text, AppColors.light.text);
+      expect(dressedLight.colors.accent, AppColors.light.accent);
+      expect(dressedLight.colors.brandAccent, sovereign.theme.accentDeep);
+      expect(dressedLight.hero.accent, sovereign.theme.accentDeep);
+      expect(dressedLight.hero.gradientColors,
+          lightBase.extension<AppPalette>()!.hero.gradientColors);
       // ...and he leaves the dark and reward themes alone.
-      expect(lightTrim(AppThemeVariant.dark, darkHero), isNull);
-      expect(lightTrim(AppThemeVariant.royalIndigo, lightHero), isNull);
+      expect(lightDress(AppThemeVariant.dark, darkBase), same(darkBase));
+      final royalIndigoBase = AppTheme.of(AppThemeVariant.royalIndigo);
+      expect(lightDress(AppThemeVariant.royalIndigo, royalIndigoBase),
+          same(royalIndigoBase));
 
-      // The Dark Prince dresses dark with his bright ember accent...
-      final trimmedDark = darkTrim(AppThemeVariant.dark, darkHero);
-      expect(trimmedDark, isNotNull);
-      expect(trimmedDark!.gradientColors, darkHero.gradientColors);
-      expect(trimmedDark.accent, darkRoyal.theme.accent);
+      // The Dark Prince dresses dark: gold abdicates everywhere — palette
+      // accent, brand slots, ThemeData primaries — background untouched.
+      final dressedDarkTheme = darkDress(AppThemeVariant.dark, darkBase);
+      final dressedDark = dressedDarkTheme.extension<AppPalette>()!;
+      expect(dressedDark.colors.background, AppColors.dark.background);
+      expect(dressedDark.colors.accent, darkPrince.theme.accent);
+      expect(dressedDark.colors.brandAccent, darkPrince.theme.accent);
+      expect(dressedDark.colors.brandAccentDeep, darkPrince.theme.accentDeep);
+      expect(dressedDarkTheme.primaryColor, darkPrince.theme.accent);
+      expect(dressedDarkTheme.colorScheme.primary, darkPrince.theme.accent);
+      expect(dressedDark.hero.accent, darkPrince.theme.accent);
       // ...and leaves light and reward themes alone.
-      expect(darkTrim(AppThemeVariant.light, lightHero), isNull);
-      expect(darkTrim(AppThemeVariant.midnightIndigo, darkHero), isNull);
+      expect(darkDress(AppThemeVariant.light, lightBase), same(lightBase));
+      final midnightBase = AppTheme.of(AppThemeVariant.midnightIndigo);
+      expect(darkDress(AppThemeVariant.midnightIndigo, midnightBase),
+          same(midnightBase));
     });
 
-    test('ThemeProvider applies and clears the trim on the active theme', () {
+    test('ThemeProvider applies and clears the dress on the active theme',
+        () {
       final provider = ThemeProvider(); // defaults to the light variant
-      final sovereign =
-          kRoyalAvatars.firstWhere((r) => r.id == 'sovereign');
-      final baseHero = AppTheme.of(AppThemeVariant.light)
-          .extension<AppPalette>()!
-          .hero;
+      final sovereign = kRoyalAvatars.firstWhere((r) => r.id == 'sovereign');
 
-      provider.setHeroTrim(
-          courtHeroTrimFor('pixel', '${sovereign.spriteIndex}'));
+      provider.setThemeDress(
+          courtDressFor('pixel', '${sovereign.spriteIndex}'));
       final palette = provider.activeTheme.extension<AppPalette>()!;
-      expect(palette.hero.accent, sovereign.theme.accentDeep);
-      expect(palette.hero.gradientColors, baseHero.gradientColors);
-      // AppColors stay the variant's own — only the hero surface changes.
-      expect(palette.colors, AppColors.light);
+      expect(palette.colors.brandAccent, sovereign.theme.accentDeep);
+      expect(palette.colors.background, AppColors.light.background);
 
       // A dark-court royal leaves the light theme entirely untouched.
       final medic = kRoyalAvatars.firstWhere((r) => r.id == 'royalmedic');
-      provider.setHeroTrim(
-          courtHeroTrimFor('pixel', '${medic.spriteIndex}'));
-      expect(provider.activeTheme.extension<AppPalette>()!.hero.accent,
-          baseHero.accent);
+      provider
+          .setThemeDress(courtDressFor('pixel', '${medic.spriteIndex}'));
+      expect(provider.activeTheme.extension<AppPalette>()!.colors.brandAccent,
+          AppColors.light.brandAccent);
 
-      provider.setHeroTrim(null);
-      expect(provider.activeTheme.extension<AppPalette>()!.hero.accent,
-          baseHero.accent);
+      // Clearing the dress (avatar changed / toggle off) restores the base.
+      provider.setThemeDress(null);
+      expect(provider.activeTheme.extension<AppPalette>()!.colors.brandAccent,
+          AppColors.light.brandAccent);
+    });
+
+    test('the app-wide toggle rides the profile', () {
+      final on = GamiProfile.fromMap({'avatarKind': 'pixel'});
+      expect(on.applyRoyalTheme, isTrue); // default: on
+      final off = on.copyWith(applyRoyalTheme: false);
+      expect(off.applyRoyalTheme, isFalse);
+      expect(GamiProfile.fromMap(off.toMap()).applyRoyalTheme, isFalse);
     });
 
     test('every animation frame stays on the base grid', () {
@@ -270,6 +286,70 @@ void main() {
       }
       await tester.pump(const Duration(milliseconds: 600));
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('royal sheet describes, toggles, and equips', (tester) async {
+      final royal = kRoyalAvatars.first;
+      GamiProfile? result;
+      await tester.pumpWidget(
+        ChangeNotifierProvider<LocaleProvider>(
+          create: (_) => LocaleProvider(),
+          child: MaterialApp(
+            home: Builder(
+              builder: (ctx) => Scaffold(
+                body: Center(
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      result = await showAvatarPicker(
+                        ctx,
+                        const GamiProfile(
+                            avatarKind: 'pixel', avatarValue: '0'),
+                      );
+                    },
+                    child: const Text('open'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // Tap the first royal tile → its court sheet opens with lore, the
+      // home-court note, the app-wide toggle, and Equip. The ROYALTY
+      // section sits below the fold, so bring the tile on-screen first.
+      final tile = find.byWidgetPredicate(
+          (w) => w is AnimatedRoyalAvatar && w.royal.id == royal.id);
+      await tester.ensureVisible(tile);
+      await tester.pump();
+      await tester.tap(tile, warnIfMissed: false);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.byType(SwitchListTile), findsOneWidget);
+      expect(find.text('Apply app-wide Crimson theme'), findsOneWidget);
+      expect(find.text('The Sovereign'), findsWidgets);
+      expect(find.text('Equip'), findsOneWidget);
+
+      // Flip the toggle off, equip him, then save the picker.
+      await tester.tap(find.byType(SwitchListTile));
+      await tester.pump();
+      await tester.ensureVisible(find.text('Equip'));
+      await tester.pump();
+      await tester.tap(find.text('Equip'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.ensureVisible(find.text('Save'));
+      await tester.pump();
+      await tester.tap(find.text('Save'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(result, isNotNull);
+      expect(result!.avatarValue, '${royal.spriteIndex}');
+      expect(result!.applyRoyalTheme, isFalse);
     });
 
     testWidgets('profile card adopts the equipped royal theme',

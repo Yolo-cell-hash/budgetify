@@ -35,6 +35,7 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
   late String _value = widget.initial.avatarKind == 'pixel'
       ? widget.initial.avatarValue
       : '${legacyEmojiSeed(widget.initial.avatarValue)}';
+  late bool _applyRoyalTheme = widget.initial.applyRoyalTheme;
   late final TextEditingController _name =
       TextEditingController(text: widget.initial.username);
 
@@ -51,6 +52,7 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
         username: _name.text.trim(),
         avatarKind: 'pixel',
         avatarValue: _value,
+        applyRoyalTheme: _applyRoyalTheme,
       ),
     );
   }
@@ -209,16 +211,165 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
     );
   }
 
+  /// The royal's court sheet: living avatar, lore, which primary theme it
+  /// dresses, the per-royal app-wide theme toggle, and the Equip action.
+  Future<void> _showRoyalSheet(RoyalAvatar r) async {
+    final colors = AppColors.of(context);
+    final accent = r.theme.accent;
+    final value = '${r.spriteIndex}';
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          final equipped = _value == value;
+          return Container(
+            padding: const EdgeInsets.fromLTRB(24, 14, 24, 28),
+            decoration: BoxDecoration(
+              color: colors.surface,
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(24)),
+              border: Border.all(color: accent.withValues(alpha: 0.45)),
+            ),
+            // Scrolls on short screens — the lore + note + toggle stack can
+            // outgrow a small viewport (or a large text scale).
+            child: SingleChildScrollView(
+              child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: colors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // The royal presents itself — spawn flourish included.
+                AvatarView(kind: 'pixel', value: value, size: 92, ring: false),
+                const SizedBox(height: 10),
+                Text(
+                  ctx.l10n.royalAvatarName(r.id),
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.2,
+                    color: accent,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  ctx.l10n.royalAvatarLore(r.id),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.4,
+                    color: colors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                // Home-court note: which primary theme the effects live in.
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(20),
+                    border:
+                        Border.all(color: accent.withValues(alpha: 0.35)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        r.theme.homeBrightness == Brightness.light
+                            ? Icons.light_mode_rounded
+                            : Icons.dark_mode_rounded,
+                        size: 14,
+                        color: accent,
+                      ),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          ctx.l10n.royalHomeNote(
+                              r.theme.homeBrightness == Brightness.light),
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            color: colors.text,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                // "Apply app-wide <court> theme" — the royal's own wording.
+                SwitchListTile(
+                  value: _applyRoyalTheme,
+                  onChanged: (v) {
+                    setState(() => _applyRoyalTheme = v);
+                    setSheetState(() {});
+                  },
+                  activeThumbColor: accent,
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    ctx.l10n.royalThemeToggle(r.id),
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: colors.text,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: equipped
+                        ? null
+                        : () {
+                            setState(() => _value = value);
+                            Navigator.pop(ctx);
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: accent,
+                      foregroundColor: r.theme.homeBrightness ==
+                              Brightness.light
+                          ? Colors.white
+                          : const Color(0xFF15171E),
+                      disabledBackgroundColor:
+                          accent.withValues(alpha: 0.35),
+                    ),
+                    icon: Icon(
+                        equipped
+                            ? Icons.check_rounded
+                            : Icons.workspace_premium_rounded,
+                        size: 18),
+                    label: Text(
+                        equipped ? ctx.l10n.equippedRoyal : ctx.l10n.equipRoyal),
+                  ),
+                ),
+              ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   /// A royal character tile — a living avatar in a gilded aura ring with its
-  /// court name beneath. Tiles stay calm (no spawn burst); the preview above
-  /// plays the flourish when one is equipped. Sized by the caller (two per
-  /// row in the ROYALTY grid).
+  /// court name beneath. Tiles stay calm (no spawn burst); tapping opens the
+  /// royal's court sheet (lore + app-wide theme toggle + equip). Sized by
+  /// the caller (two per row in the ROYALTY grid).
   Widget _royalOption(AppColors colors, RoyalAvatar r) {
     final value = '${r.spriteIndex}';
     final selected = _value == value;
     final accent = r.theme.accent;
     return GestureDetector(
-        onTap: () => setState(() => _value = value),
+        onTap: () => _showRoyalSheet(r),
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
