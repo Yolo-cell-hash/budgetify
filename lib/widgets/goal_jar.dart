@@ -22,6 +22,11 @@ class GoalJar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = accentOf(accent);
+    // The glass (tint, streak, foam, outline) was hardcoded white — fine on
+    // a dark card, invisible on the light Savings-Goals card. Derive it from
+    // the surface brightness so the jar reads in both.
+    final onLight = Theme.of(context).brightness == Brightness.light;
+    final glass = onLight ? const Color(0xFF3A2E52) : Colors.white;
     return SizedBox(
       width: size,
       height: size,
@@ -32,7 +37,9 @@ class GoalJar extends StatelessWidget {
         builder: (_, v, __) => Stack(
           alignment: Alignment.center,
           children: [
-            CustomPaint(size: Size.square(size), painter: _JarPainter(v, colors)),
+            CustomPaint(
+                size: Size.square(size),
+                painter: _JarPainter(v, colors, glass)),
             if (showPercent)
               Text(
                 '${(fraction * 100).round()}%',
@@ -40,8 +47,16 @@ class GoalJar extends StatelessWidget {
                   fontSize: size * 0.17,
                   fontWeight: FontWeight.w800,
                   letterSpacing: -0.5,
-                  color: Colors.white,
-                  shadows: const [Shadow(color: Colors.black54, blurRadius: 4)],
+                  // On a low fill the number sits over the glass, not the
+                  // liquid — so ink on light, white on dark.
+                  color: onLight ? const Color(0xFF2E2540) : Colors.white,
+                  shadows: [
+                    Shadow(
+                        color: onLight
+                            ? Colors.white.withValues(alpha: 0.7)
+                            : Colors.black54,
+                        blurRadius: 4),
+                  ],
                 ),
               ),
           ],
@@ -54,7 +69,8 @@ class GoalJar extends StatelessWidget {
 class _JarPainter extends CustomPainter {
   final double fill; // 0..1
   final List<Color> accent;
-  const _JarPainter(this.fill, this.accent);
+  final Color glass;
+  const _JarPainter(this.fill, this.accent, this.glass);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -65,7 +81,7 @@ class _JarPainter extends CustomPainter {
     final jar = RRect.fromRectAndRadius(body, Radius.circular(w * 0.16));
 
     // Glass tint.
-    canvas.drawRRect(jar, Paint()..color = Colors.white.withValues(alpha: 0.05));
+    canvas.drawRRect(jar, Paint()..color = glass.withValues(alpha: 0.06));
 
     // Liquid (clipped to the jar).
     canvas.save();
@@ -113,7 +129,7 @@ class _JarPainter extends CustomPainter {
       RRect.fromRectAndRadius(
           Rect.fromLTWH(body.left + w * 0.07, body.top + h * 0.08, w * 0.06, h * 0.45),
           Radius.circular(w * 0.04)),
-      Paint()..color = Colors.white.withValues(alpha: 0.14),
+      Paint()..color = glass.withValues(alpha: 0.16),
     );
 
     // Glass outline + a lid rim.
@@ -122,7 +138,7 @@ class _JarPainter extends CustomPainter {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = w * 0.03
-        ..color = Colors.white.withValues(alpha: 0.25),
+        ..color = glass.withValues(alpha: 0.40),
     );
     canvas.drawRRect(
       RRect.fromRectAndRadius(
@@ -133,5 +149,6 @@ class _JarPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_JarPainter old) => old.fill != fill || old.accent != accent;
+  bool shouldRepaint(_JarPainter old) =>
+      old.fill != fill || old.accent != accent || old.glass != glass;
 }

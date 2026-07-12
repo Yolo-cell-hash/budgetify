@@ -6,8 +6,10 @@ import '../l10n/app_strings.dart';
 import '../l10n/l10n.dart';
 import '../providers/app_preferences.dart';
 import '../providers/locale_provider.dart';
+import '../providers/theme_provider.dart';
 import '../services/background_service.dart';
 import '../widgets/app_toast.dart';
+import '../widgets/brand_logo.dart';
 import 'main_shell.dart';
 
 /// Onboarding screen for first-time users
@@ -242,85 +244,138 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   Widget _buildWelcomePage(bool isDark) {
+    final hero = HeroStyle.of(context);
+    final colors = AppColors.of(context);
     return Padding(
-      padding: const EdgeInsets.all(32),
+      padding: const EdgeInsets.fromLTRB(28, 8, 28, 24),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.account_balance_wallet_rounded,
-            size: 100,
-            color: Theme.of(context).primaryColor,
+          const Spacer(flex: 2),
+          // The real Budgetify mark, on a soft branded halo — the first
+          // impression, not a stock wallet glyph.
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(colors: [
+                colors.brandAccent.withValues(alpha: 0.18),
+                colors.brandAccent.withValues(alpha: 0.0),
+              ]),
+            ),
+            child: BrandLogo(
+              size: 104,
+              circular: true,
+            ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 26),
           Text(
             context.l10n.onboardWelcomeTitle,
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 32,
-              fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white : Colors.black87,
+              fontSize: 34,
+              height: 1.1,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.8,
+              color: colors.text,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           Text(
             context.l10n.onboardWelcomeDesc,
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 16,
-              color: isDark ? Color(0xFF9A9DA6) : Color(0xFF6E727C),
+              fontSize: 15,
+              height: 1.45,
+              color: colors.textSecondary,
             ),
           ),
-          const SizedBox(height: 24),
-          // Privacy disclaimer
+          const Spacer(flex: 1),
+          // Feature highlights, on the premium hero surface.
           Container(
-            padding: const EdgeInsets.all(16),
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF16181E) : Color(0xFFEDF2F8),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: isDark ? const Color(0xFF262931) : Color(0xFFD8E2EE),
-              ),
+              gradient: hero.gradient,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: hero.border),
+              boxShadow: hero.shadow,
             ),
-            child: Row(
+            child: Column(
               children: [
-                Icon(
-                  Icons.shield_outlined,
-                  color: isDark ? Color(0xFF8FA9C7) : Color(0xFF3E5577),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    context.l10n.dataPrivateDesc,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: isDark
-                          ? Color(0xFFAFC2D9)
-                          : Color(0xFF33486A),
-                    ),
-                  ),
-                ),
+                _welcomeFeature(hero, Icons.auto_awesome_motion_rounded,
+                    context.l10n.onboardFeatSmsTitle,
+                    context.l10n.onboardFeatSmsDesc),
+                _welcomeDivider(hero),
+                _welcomeFeature(hero, Icons.insights_rounded,
+                    context.l10n.onboardFeatInsightsTitle,
+                    context.l10n.onboardFeatInsightsDesc),
+                _welcomeDivider(hero),
+                _welcomeFeature(hero, Icons.lock_rounded,
+                    context.l10n.onboardFeatPrivacyTitle,
+                    context.l10n.onboardFeatPrivacyDesc),
               ],
             ),
           ),
-          const Spacer(),
+          const Spacer(flex: 2),
           SizedBox(
             width: double.infinity,
             height: 56,
             child: ElevatedButton(
               onPressed: _nextPage,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Theme.of(context).primaryColor,
-                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16)),
               ),
               child: Text(context.l10n.getStarted,
-                  style: const TextStyle(fontSize: 18)),
+                  style: const TextStyle(
+                      fontSize: 17, fontWeight: FontWeight.w700)),
             ),
           ),
         ],
       ),
     );
   }
+
+  Widget _welcomeFeature(
+      HeroStyle hero, IconData icon, String title, String desc) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: hero.accent.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Icon(icon, size: 20, color: hero.accent),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w700,
+                        color: hero.foreground)),
+                const SizedBox(height: 2),
+                Text(desc,
+                    style: TextStyle(
+                        fontSize: 12.5, color: hero.mutedForeground)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _welcomeDivider(HeroStyle hero) =>
+      Divider(height: 1, color: hero.divider);
 
   Widget _buildPermissionsPage(bool isDark) {
     return Padding(
@@ -397,14 +452,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         );
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Theme.of(context).primaryColor,
-                        foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 32,
+                          horizontal: 28,
                           vertical: 16,
                         ),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16)),
                       ),
-                      child: Text(context.l10n.grantPermissionAndStart),
+                      child: Text(context.l10n.grantPermissionAndStart,
+                          style: const TextStyle(fontWeight: FontWeight.w700)),
                     ),
             ],
           ),
