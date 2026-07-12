@@ -215,7 +215,12 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
   /// dresses, the per-royal app-wide theme toggle, and the Equip action.
   Future<void> _showRoyalSheet(RoyalAvatar r) async {
     final colors = AppColors.of(context);
-    final accent = r.theme.accent;
+    // A royal's bright accent (gold / lavender) is legible on a dark
+    // surface but washes out on the light picker; use the deep, ink-legible
+    // shade whenever the surface is light so names/borders stay readable.
+    final accent = Theme.of(context).brightness == Brightness.light
+        ? r.theme.accentDeep
+        : r.theme.accent;
     final value = '${r.spriteIndex}';
     await showModalBottomSheet<void>(
       context: context,
@@ -367,7 +372,13 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
   Widget _royalOption(AppColors colors, RoyalAvatar r) {
     final value = '${r.spriteIndex}';
     final selected = _value == value;
+    // The bright accent tints the tile fill; text + border use the deep
+    // shade on a light surface so the selected name never sits gold-on-
+    // yellow (illegible in light mode; fine on the dark tile).
     final accent = r.theme.accent;
+    final ink = Theme.of(context).brightness == Brightness.light
+        ? r.theme.accentDeep
+        : r.theme.accent;
     return GestureDetector(
         onTap: () => _showRoyalSheet(r),
         child: Container(
@@ -383,7 +394,7 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
               end: Alignment.bottomCenter,
             ),
             border: Border.all(
-              color: selected ? accent : accent.withValues(alpha: 0.35),
+              color: selected ? ink : ink.withValues(alpha: 0.35),
               width: selected ? 2 : 1,
             ),
             boxShadow: selected
@@ -410,7 +421,7 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
                   fontSize: 10.5,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.3,
-                  color: selected ? accent : colors.textSecondary,
+                  color: selected ? ink : colors.textSecondary,
                 ),
               ),
             ],
