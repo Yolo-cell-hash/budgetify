@@ -188,14 +188,14 @@ class _BudgetScreenState extends State<BudgetScreen>
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.gold.withOpacity(0.12),
+        color: colors.brandAccent.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.gold.withOpacity(0.45)),
+        border: Border.all(color: colors.brandAccent.withValues(alpha: 0.45)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.school_outlined, size: 18, color: AppColors.gold),
+          Icon(Icons.school_outlined, size: 18, color: colors.brandAccent),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -808,15 +808,15 @@ class _BudgetScreenState extends State<BudgetScreen>
     final pct = _budget!.amount > 0 ? _spent / _budget!.amount : 0.0;
     final remaining = _budget!.amount - _spent;
     final hero = HeroStyle.of(context);
-    // Gauge color: theme accent while healthy, amber near the limit, the hero's
-    // tuned red when over. Use the hero-tuned set (not the normal-surface
-    // palette) so the ring/pill stay legible on the coloured reward-theme
-    // heroes — on smoky-blue / mauve, plain brandAccent and danger are too
-    // close in hue to the hero and wash out.
+    // Gauge color: theme accent while healthy, accent warmed toward the
+    // hero's red near the limit, the tuned red when over. Deriving the
+    // near-limit hue from the ACTIVE accent (not a fixed amber) keeps the
+    // ring on-court under a royal dress and legible on the coloured
+    // reward-theme heroes alike.
     final color = pct >= 1
         ? hero.negative
         : pct >= 0.9
-        ? const Color(0xFFD79A3C)
+        ? Color.lerp(hero.accent, hero.negative, 0.5)!
         : hero.accent;
     final pillColor = remaining >= 0 ? hero.positive : hero.negative;
 
@@ -2136,10 +2136,12 @@ class _BudgetScreenState extends State<BudgetScreen>
     final spent = _categoryBudgetSpent[cat] ?? 0;
     final pct = b.amount > 0 ? spent / b.amount : 0.0;
     final over = spent > b.amount;
+    // Near-limit hue derives from the active accent (see the gauge above)
+    // so category bars follow a royal dress too.
     final barColor = pct >= 1
         ? colors.danger
         : pct >= 0.9
-            ? const Color(0xFFD79A3C)
+            ? Color.lerp(colors.brandAccent, colors.danger, 0.5)!
             : colors.brandAccent;
 
     return PressableScale(

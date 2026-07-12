@@ -170,15 +170,19 @@ class _RecurringEditorSheetState extends State<_RecurringEditorSheet> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppColors.gold.withOpacity(0.12),
+                  color:
+                      AppColors.of(context).brandAccent.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.gold.withOpacity(0.45)),
+                  border: Border.all(
+                      color: AppColors.of(context)
+                          .brandAccent
+                          .withValues(alpha: 0.45)),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.school_outlined,
-                        size: 18, color: AppColors.gold),
+                    Icon(Icons.school_outlined,
+                        size: 18, color: AppColors.of(context).brandAccent),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
