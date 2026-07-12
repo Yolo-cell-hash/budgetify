@@ -23,39 +23,32 @@ class ThemeProvider extends ChangeNotifier {
   AppThemeVariant _variant = AppThemeVariant.light;
   bool _isInitialized = false;
 
-  /// When set, may restyle the active variant's [HeroStyle] on every
-  /// surface that resolves `HeroStyle.of` — how an equipped ROYALTY avatar
-  /// puts its signature on the Home hero card / SIP alert beyond the
-  /// profile page. The trim decides per variant (returning null to leave
-  /// the theme untouched), so it re-evaluates when the user switches
-  /// themes: royals dress only their home primary theme, never the reward
-  /// themes. Synced from the gamification profile at startup and on every
-  /// avatar save.
-  HeroTrim? _heroTrim;
+  /// When set, may re-dress the active variant's ThemeData — how an
+  /// equipped ROYALTY avatar (with its app-wide theme toggle on) replaces
+  /// the theme's gold/accent slots with the court shade everywhere, while
+  /// every canvas colour stays the theme's own. The dress decides per
+  /// variant (returning the base unchanged to opt out), so it re-evaluates
+  /// when the user switches themes: royals dress only their home primary
+  /// theme, never the reward themes. Synced from the gamification profile
+  /// at startup and on every avatar save.
+  ThemeDress? _themeDress;
 
   AppThemeVariant get variant => _variant;
   bool get isInitialized => _isInitialized;
-  HeroTrim? get heroTrim => _heroTrim;
+  ThemeDress? get themeDress => _themeDress;
 
-  void setHeroTrim(HeroTrim? trim) {
-    _heroTrim = trim;
+  void setThemeDress(ThemeDress? dress) {
+    _themeDress = dress;
     notifyListeners();
   }
 
   /// The [ThemeData] for the active variant (carries its own brightness),
-  /// with the royal hero trim applied when the equipped royal dresses this
-  /// variant.
+  /// dressed by the equipped royal when this is its home primary theme.
   ThemeData get activeTheme {
     final base = AppTheme.of(_variant);
-    final trim = _heroTrim;
-    if (trim == null) return base;
-    final palette = base.extension<AppPalette>();
-    if (palette == null) return base;
-    final trimmed = trim(_variant, palette.hero);
-    if (trimmed == null) return base;
-    return base.copyWith(
-      extensions: [AppPalette(colors: palette.colors, hero: trimmed)],
-    );
+    final dress = _themeDress;
+    if (dress == null) return base;
+    return dress(_variant, base);
   }
 
   /// Kept for callers that still think in light/dark terms.
@@ -833,6 +826,30 @@ class AppColors {
     required this.danger,
   });
 
+  /// A palette with selected slots replaced — used by the app-wide royal
+  /// dress, which swaps the gold/accent slots for the equipped royal's
+  /// shade while leaving every canvas colour untouched.
+  AppColors copyWith({
+    Color? accent,
+    Color? brandAccent,
+    Color? brandAccentDeep,
+  }) =>
+      AppColors._(
+        background: background,
+        surface: surface,
+        card: card,
+        cardAlt: cardAlt,
+        border: border,
+        text: text,
+        textSecondary: textSecondary,
+        textTertiary: textTertiary,
+        accent: accent ?? this.accent,
+        brandAccent: brandAccent ?? this.brandAccent,
+        brandAccentDeep: brandAccentDeep ?? this.brandAccentDeep,
+        success: success,
+        danger: danger,
+      );
+
   static const light = AppColors._(
     background: Color(0xFFF6F6F3),
     surface: Colors.white,
@@ -993,11 +1010,12 @@ class AppPalette extends ThemeExtension<AppPalette> {
       (other is AppPalette && t >= 0.5) ? other : this;
 }
 
-/// A per-variant restyling hook for the hero surface. Given the active
-/// variant and its own [HeroStyle], returns a restyled hero — or null to
-/// leave the variant untouched. Used by ThemeProvider to let an equipped
-/// ROYALTY avatar trim the hero of its home primary theme only.
-typedef HeroTrim = HeroStyle? Function(AppThemeVariant variant, HeroStyle base);
+/// A per-variant restyling hook for the whole theme. Given the active
+/// variant and its base [ThemeData], returns the theme to use — the base
+/// itself to leave the variant untouched. Used by ThemeProvider to let an
+/// equipped ROYALTY avatar dress its home primary theme app-wide (accent
+/// slots + hero) while reward themes stay their hand-tuned selves.
+typedef ThemeDress = ThemeData Function(AppThemeVariant variant, ThemeData base);
 
 /// Premium "hero card" treatment that adapts to the active theme.
 ///

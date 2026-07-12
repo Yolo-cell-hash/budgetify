@@ -54,6 +54,12 @@ class GamiProfile {
   final List<String> showcasedBadgeIds; // up to 5, shown on the profile
   final String? primaryTitleId;
 
+  /// Whether an equipped ROYALTY avatar dresses its home primary theme
+  /// app-wide (gold slots take the court shade). Toggled from the royal's
+  /// description sheet in the avatar picker; on by default so equipping a
+  /// royal feels transformative out of the box.
+  final bool applyRoyalTheme;
+
   const GamiProfile({
     this.username = '',
     this.avatarKind = 'pixel',
@@ -61,6 +67,7 @@ class GamiProfile {
     this.avatarAccent = 0,
     this.showcasedBadgeIds = const [],
     this.primaryTitleId,
+    this.applyRoyalTheme = true,
   });
 
   GamiProfile copyWith({
@@ -71,6 +78,7 @@ class GamiProfile {
     List<String>? showcasedBadgeIds,
     String? primaryTitleId,
     bool clearPrimaryTitle = false,
+    bool? applyRoyalTheme,
   }) =>
       GamiProfile(
         username: username ?? this.username,
@@ -80,6 +88,7 @@ class GamiProfile {
         showcasedBadgeIds: showcasedBadgeIds ?? this.showcasedBadgeIds,
         primaryTitleId:
             clearPrimaryTitle ? null : (primaryTitleId ?? this.primaryTitleId),
+        applyRoyalTheme: applyRoyalTheme ?? this.applyRoyalTheme,
       );
 
   Map<String, dynamic> toMap() => {
@@ -89,6 +98,7 @@ class GamiProfile {
         'avatarAccent': avatarAccent,
         'showcasedBadgeIds': showcasedBadgeIds,
         if (primaryTitleId != null) 'primaryTitleId': primaryTitleId,
+        'applyRoyalTheme': applyRoyalTheme,
       };
 
   factory GamiProfile.fromMap(Map<String, dynamic> m) {
@@ -109,6 +119,7 @@ class GamiProfile {
       showcasedBadgeIds:
           (m['showcasedBadgeIds'] as List?)?.cast<String>() ?? const [],
       primaryTitleId: m['primaryTitleId'] as String?,
+      applyRoyalTheme: m['applyRoyalTheme'] as bool? ?? true,
     );
   }
 }
