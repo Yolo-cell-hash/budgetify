@@ -149,9 +149,9 @@ void main() {
       final lightDress = courtDressFor('pixel', '${sovereign.spriteIndex}')!;
       final darkDress = courtDressFor('pixel', '${darkPrince.spriteIndex}')!;
 
-      // Sovereign dresses light: canvases and ink stay the theme's own,
-      // the gold brand slots take his deep crimson (light keeps its ink
-      // interactive accent), and the hero carries the trim.
+      // Sovereign dresses light: the scaffold canvas and ink stay the
+      // theme's own, the gold brand slots take his deep crimson (light
+      // keeps its ink interactive accent), and the hero carries the trim.
       final dressedLightTheme = lightDress(AppThemeVariant.light, lightBase);
       final dressedLight = dressedLightTheme.extension<AppPalette>()!;
       expect(dressedLight.colors.background, AppColors.light.background);
@@ -159,8 +159,15 @@ void main() {
       expect(dressedLight.colors.accent, AppColors.light.accent);
       expect(dressedLight.colors.brandAccent, sovereign.theme.accentDeep);
       expect(dressedLight.hero.accent, sovereign.theme.accentDeep);
+      // The light HERO canvas is re-tinted off champagne to a pale court
+      // ivory (the old gold gradient would clash with the crimson accent).
+      final baseLightHero = lightBase.extension<AppPalette>()!.hero;
       expect(dressedLight.hero.gradientColors,
-          lightBase.extension<AppPalette>()!.hero.gradientColors);
+          isNot(baseLightHero.gradientColors));
+      // Top stop is near-white; both stops lean toward the court, never gold.
+      expect(dressedLight.hero.gradientColors.first.g, greaterThan(0.9));
+      expect(dressedLight.hero.gradientColors.last,
+          Color.lerp(const Color(0xFFFFFFFF), sovereign.theme.accentDeep, 0.17));
       // Light bakes gold into just the tab indicator + snackbar action —
       // those follow the court; ink buttons stay the theme's own.
       expect(dressedLightTheme.tabBarTheme.indicatorColor,
@@ -345,8 +352,14 @@ void main() {
       final royal = kRoyalAvatars.first;
       GamiProfile? result;
       await tester.pumpWidget(
-        ChangeNotifierProvider<LocaleProvider>(
-          create: (_) => LocaleProvider(),
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<LocaleProvider>(
+                create: (_) => LocaleProvider()),
+            // The royal sheet's "switch theme" row reads ThemeProvider.
+            ChangeNotifierProvider<ThemeProvider>(
+                create: (_) => ThemeProvider()),
+          ],
           child: MaterialApp(
             home: Builder(
               builder: (ctx) => Scaffold(

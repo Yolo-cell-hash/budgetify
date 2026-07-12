@@ -107,15 +107,25 @@ class RoyalTheme {
     return Color.lerp(const Color(0xFFF2C14E), accent, wave * 0.5)!;
   }
 
-  /// The royal's touch on a hero surface: a TRIM, not a takeover. The
-  /// theme's own canvas, inks and semantics stay exactly as designed — only
-  /// the border, the accent details (eyebrow labels, chevrons, sparkles)
-  /// and a soft glow take the court colour, so the surface still reads as
-  /// the app's premium hero with a royal signature on it.
+  /// The royal's touch on a hero surface. On the DARK primary the canvas is
+  /// a neutral midnight ink, so it stays and only the accents take the
+  /// court colour. On LIGHT the canvas is a warm CHAMPAGNE gradient — which
+  /// reads as leftover "gold" beside a crimson/violet dress — so the light
+  /// hero canvas is re-tinted to a pale wash of the court (still an airy,
+  /// premium ivory card, just the court's hue instead of gold).
   HeroStyle trimmedHero(HeroStyle base, {required bool onDarkPrimary}) {
     final tint = onDarkPrimary ? accent : accentDeep;
+    final gradient = onDarkPrimary
+        ? base.gradientColors
+        : [
+            // Near-white top → a soft court-tinted ivory at the bottom.
+            // Derived from accentDeep (crimson/violet), never accentSoft,
+            // so the Sovereign's pale-gold soft tone can't sneak back in.
+            Color.lerp(Colors.white, accentDeep, 0.05)!,
+            Color.lerp(Colors.white, accentDeep, 0.17)!,
+          ];
     return HeroStyle(
-      gradientColors: base.gradientColors,
+      gradientColors: gradient,
       border: tint.withValues(alpha: onDarkPrimary ? 0.45 : 0.50),
       shadow: [
         ...base.shadow,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../l10n/l10n.dart';
 
@@ -211,6 +212,56 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
     );
   }
 
+  /// A one-tap row inside the royal sheet: if the user isn't on the royal's
+  /// home primary theme, offer to switch to it so the dress goes live; if
+  /// they already are, a calm confirmation instead.
+  Widget _modeSwitchRow(BuildContext ctx, RoyalAvatar r, Color accent) {
+    final theme = ctx.watch<ThemeProvider>();
+    final wantsLight = r.theme.homeBrightness == Brightness.light;
+    final onHome = (theme.variant == AppThemeVariant.light) == wantsLight &&
+        (theme.variant == AppThemeVariant.light ||
+            theme.variant == AppThemeVariant.dark);
+    if (onHome) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: Row(
+          children: [
+            Icon(Icons.check_circle_rounded, size: 15, color: accent),
+            const SizedBox(width: 6),
+            Text(
+              ctx.l10n.royalOnHomeTheme,
+              style: TextStyle(
+                fontSize: 11.5,
+                color: AppColors.of(ctx).textSecondary,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: TextButton.icon(
+          onPressed: () => theme.setVariant(wantsLight
+              ? AppThemeVariant.light
+              : AppThemeVariant.dark),
+          style: TextButton.styleFrom(
+            foregroundColor: accent,
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            visualDensity: VisualDensity.compact,
+          ),
+          icon: Icon(
+              wantsLight ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+              size: 16),
+          label: Text(ctx.l10n.royalSwitchMode(wantsLight),
+              style: const TextStyle(fontSize: 12.5)),
+        ),
+      ),
+    );
+  }
+
   /// The royal's court sheet: living avatar, lore, which primary theme it
   /// dresses, the per-royal app-wide theme toggle, and the Equip action.
   Future<void> _showRoyalSheet(RoyalAvatar r) async {
@@ -328,6 +379,9 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
                     ),
                   ),
                 ),
+                // The court's effects only show on its home primary theme;
+                // offer a one-tap switch when the user isn't there yet.
+                _modeSwitchRow(ctx, r, accent),
                 const SizedBox(height: 8),
                 SizedBox(
                   width: double.infinity,
