@@ -182,6 +182,13 @@ ThemeDress? courtDressFor(String avatarKind, String avatarValue) {
     );
     final hero = t.trimmedHero(palette.hero, onDarkPrimary: isDark);
 
+    // The base themes BAKE gold into component themes (buttons, FAB, tab
+    // bar, bottom nav, focused inputs, snackbar action, selected chips) —
+    // re-dress every one of those slots too, or "See All" links, Mark-paid
+    // buttons and the nav bar stay gold under the court. Dark bakes gold
+    // into all of them; light only into the tab indicator + snackbar.
+    final buttonInk = isDark ? const Color(0xFF15110A) : Colors.white;
+
     return base.copyWith(
       // Dark pins primaryColor + colorScheme to gold; follow the court.
       primaryColor: isDark ? tint : base.primaryColor,
@@ -189,6 +196,44 @@ ThemeDress? courtDressFor(String avatarKind, String avatarValue) {
         primary: isDark ? tint : base.colorScheme.primary,
         secondary: tint,
       ),
+      elevatedButtonTheme: isDark
+          ? ElevatedButtonThemeData(
+              style: (base.elevatedButtonTheme.style ?? const ButtonStyle())
+                  .copyWith(
+                backgroundColor: WidgetStatePropertyAll(tint),
+                foregroundColor: WidgetStatePropertyAll(buttonInk),
+              ),
+            )
+          : base.elevatedButtonTheme,
+      textButtonTheme: isDark
+          ? TextButtonThemeData(
+              style: (base.textButtonTheme.style ?? const ButtonStyle())
+                  .copyWith(foregroundColor: WidgetStatePropertyAll(tint)),
+            )
+          : base.textButtonTheme,
+      floatingActionButtonTheme: isDark
+          ? base.floatingActionButtonTheme
+              .copyWith(backgroundColor: tint, foregroundColor: buttonInk)
+          : base.floatingActionButtonTheme,
+      inputDecorationTheme: isDark
+          ? base.inputDecorationTheme.copyWith(
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: tint, width: 1.5),
+              ),
+            )
+          : base.inputDecorationTheme,
+      bottomNavigationBarTheme: isDark
+          ? base.bottomNavigationBarTheme.copyWith(selectedItemColor: tint)
+          : base.bottomNavigationBarTheme,
+      tabBarTheme: base.tabBarTheme.copyWith(
+        labelColor: isDark ? tint : base.tabBarTheme.labelColor,
+        indicatorColor: tint,
+      ),
+      snackBarTheme: base.snackBarTheme.copyWith(actionTextColor: tint),
+      chipTheme: isDark
+          ? base.chipTheme.copyWith(selectedColor: tint)
+          : base.chipTheme,
       extensions: [AppPalette(colors: colors, hero: hero)],
     );
   };

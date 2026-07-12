@@ -134,9 +134,8 @@ void main() {
       // Sovereign dresses light: canvases and ink stay the theme's own,
       // the gold brand slots take his deep crimson (light keeps its ink
       // interactive accent), and the hero carries the trim.
-      final dressedLight =
-          lightDress(AppThemeVariant.light, lightBase)
-              .extension<AppPalette>()!;
+      final dressedLightTheme = lightDress(AppThemeVariant.light, lightBase);
+      final dressedLight = dressedLightTheme.extension<AppPalette>()!;
       expect(dressedLight.colors.background, AppColors.light.background);
       expect(dressedLight.colors.text, AppColors.light.text);
       expect(dressedLight.colors.accent, AppColors.light.accent);
@@ -144,6 +143,16 @@ void main() {
       expect(dressedLight.hero.accent, sovereign.theme.accentDeep);
       expect(dressedLight.hero.gradientColors,
           lightBase.extension<AppPalette>()!.hero.gradientColors);
+      // Light bakes gold into just the tab indicator + snackbar action —
+      // those follow the court; ink buttons stay the theme's own.
+      expect(dressedLightTheme.tabBarTheme.indicatorColor,
+          sovereign.theme.accentDeep);
+      expect(dressedLightTheme.snackBarTheme.actionTextColor,
+          sovereign.theme.accentDeep);
+      expect(dressedLightTheme.tabBarTheme.labelColor,
+          lightBase.tabBarTheme.labelColor);
+      expect(dressedLightTheme.elevatedButtonTheme.style,
+          same(lightBase.elevatedButtonTheme.style));
       // ...and he leaves the dark and reward themes alone.
       expect(lightDress(AppThemeVariant.dark, darkBase), same(darkBase));
       final royalIndigoBase = AppTheme.of(AppThemeVariant.royalIndigo);
@@ -161,6 +170,32 @@ void main() {
       expect(dressedDarkTheme.primaryColor, darkPrince.theme.accent);
       expect(dressedDarkTheme.colorScheme.primary, darkPrince.theme.accent);
       expect(dressedDark.hero.accent, darkPrince.theme.accent);
+      // ...including every component theme the base bakes gold into: the
+      // bottom nav, tab bar, FABs, buttons, focused inputs, snackbar
+      // actions and selected chips (the "See All" / "Mark paid" class).
+      final ember = darkPrince.theme.accent;
+      expect(dressedDarkTheme.bottomNavigationBarTheme.selectedItemColor,
+          ember);
+      expect(dressedDarkTheme.tabBarTheme.labelColor, ember);
+      expect(dressedDarkTheme.tabBarTheme.indicatorColor, ember);
+      expect(
+          dressedDarkTheme.floatingActionButtonTheme.backgroundColor, ember);
+      expect(
+          dressedDarkTheme.textButtonTheme.style!.foregroundColor!
+              .resolve(const {}),
+          ember);
+      expect(
+          dressedDarkTheme.elevatedButtonTheme.style!.backgroundColor!
+              .resolve(const {}),
+          ember);
+      expect(dressedDarkTheme.snackBarTheme.actionTextColor, ember);
+      expect(dressedDarkTheme.chipTheme.selectedColor, ember);
+      expect(
+          (dressedDarkTheme.inputDecorationTheme.focusedBorder!
+                  as OutlineInputBorder)
+              .borderSide
+              .color,
+          ember);
       // ...and leaves light and reward themes alone.
       expect(darkDress(AppThemeVariant.light, lightBase), same(lightBase));
       final midnightBase = AppTheme.of(AppThemeVariant.midnightIndigo);
