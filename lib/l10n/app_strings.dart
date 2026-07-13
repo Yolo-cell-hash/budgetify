@@ -3444,6 +3444,10 @@ class AppStrings {
   /// Small pill on a royal tile the user may spend a pick on.
   String get royalUnlockable => _t('Unlock', 'अनलॉक', 'अनलॉक', 'আনলক', 'అన్‌లాక్', 'திற');
 
+  /// Small pill on an unlocked-but-not-equipped royal tile.
+  String get royalTapToEquip =>
+      _t('Tap to equip', 'धारण करने हेतु टैप करें', 'धारण करण्यासाठी टॅप करा', 'পরতে ট্যাপ করুন', 'ధరించడానికి ట్యాప్ చేయండి', 'அணிய தட்டவும்');
+
   /// Primary action in the royal sheet when a pick can be spent.
   String get unlockRoyalCta =>
       _t('Unlock & equip', 'अनलॉक और धारण करें', 'अनलॉक व धारण करा', 'আনলক ও পরিধান', 'అన్‌లాక్ & ధరించు', 'திறந்து அணி');
@@ -3467,6 +3471,14 @@ class AppStrings {
         '$name అన్‌లాక్ అయింది! ధరించారు.',
         '$name திறக்கப்பட்டது! அணியப்பட்டது.',
       );
+
+  /// Road button that jumps to the ROYALTY picker to spend a royal pick.
+  String get unlockNow =>
+      _t('Unlock Now', 'अभी अनलॉक करें', 'आता अनलॉक करा', 'এখনই আনলক করুন', 'ఇప్పుడే అన్‌లాక్ చేయండి', 'இப்போது திற');
+
+  /// Road confirmation once this milestone's royal pick has been spent.
+  String get royalPickClaimed =>
+      _t('Royal unlocked', 'रॉयल अनलॉक हुआ', 'रॉयल अनलॉक झाला', 'রয়্যাল আনলক হয়েছে', 'రాయల్ అన్‌లాక్ అయింది', 'ராயல் திறக்கப்பட்டது');
 
   /// Road tile line once a royal pick has been earned.
   String get royalPickRoadUnlocked => _t(

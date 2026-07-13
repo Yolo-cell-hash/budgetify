@@ -6,6 +6,7 @@ import '../services/app_events.dart';
 import '../services/gamification_service.dart';
 import '../widgets/app_bar_title.dart';
 import '../widgets/app_toast.dart';
+import '../widgets/avatar_picker_sheet.dart';
 import '../widgets/streak_heatmap.dart';
 import '../widgets/streak_reward_road.dart';
 
@@ -26,6 +27,9 @@ class _StreakRewardsScreenState extends State<StreakRewardsScreen> {
   ({int available, bool armed}) _freeze = (available: 0, armed: false);
   Map<DateTime, int> _appTime = const {};
   int _monthSeconds = 0;
+  GamiProfile _profile = const GamiProfile();
+  Set<String> _unlockedRoyals = const {};
+  int _royalPicks = 0;
 
   @override
   void initState() {
@@ -45,14 +49,35 @@ class _StreakRewardsScreenState extends State<StreakRewardsScreen> {
     final freeze = await _svc.freezeInfo();
     final appTime = await _svc.appTimeByDay();
     final monthSecs = await _svc.monthAppSeconds();
+    final profile = await _svc.loadProfile();
+    final unlockedRoyals = await _svc.unlockedRoyalIds();
+    final royalPicks = await _svc.availableRoyalPicks();
     if (mounted) {
       setState(() {
         _streak = info;
         _freeze = freeze;
         _appTime = appTime;
         _monthSeconds = monthSecs;
+        _profile = profile;
+        _unlockedRoyals = unlockedRoyals;
+        _royalPicks = royalPicks;
       });
     }
+  }
+
+  /// "Unlock Now" from a royal-pick milestone: open the picker straight at the
+  /// ROYALTY section so the user can choose their royal, then refresh.
+  Future<void> _openRoyaltyPicker() async {
+    final edited = await showAvatarPicker(
+      context,
+      _profile,
+      unlockedRoyals: _unlockedRoyals,
+      royalPicksAvailable: _royalPicks,
+      onUnlockRoyal: _svc.unlockRoyal,
+      scrollToRoyalty: true,
+    );
+    if (edited != null) await _svc.saveProfile(edited);
+    await _load();
   }
 
   Future<void> _useFreeze() async {
@@ -100,6 +125,8 @@ class _StreakRewardsScreenState extends State<StreakRewardsScreen> {
                   StreakRewardRoad(
                     currentStreak: streak.current,
                     longestStreak: streak.longest,
+                    royalPicksSpent: _unlockedRoyals.length,
+                    onChooseRoyal: _openRoyaltyPicker,
                     padding: const EdgeInsets.only(top: 16, bottom: 8),
                   ),
                 ],
