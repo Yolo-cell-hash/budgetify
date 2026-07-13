@@ -35,10 +35,11 @@ class AppPreferences extends ChangeNotifier {
   // card — keeps the dashboard uncluttered while the number stays visible.
   bool _financialHealthDetailed = false;
 
-  // Gamified Budgets (opt-in, default off). Unlocks achievements, titles and a
-  // shareable profile via a separate Rewards hub. When off, the app is
-  // unchanged — no nav or dashboard additions.
-  bool _gamifiedMode = false;
+  // Gamified Budgets (default ON). Unlocks achievements, titles, streak
+  // rewards and a shareable profile via a separate Rewards hub. Users who'd
+  // rather keep things plain can switch it off in Settings — turning it off
+  // removes the Home avatar and every gamified addition.
+  bool _gamifiedMode = true;
 
   bool get isOnboardingComplete => _isOnboardingComplete;
   bool get isInitialized => _isInitialized;
@@ -61,7 +62,7 @@ class AppPreferences extends ChangeNotifier {
     _aiPredictionMode = prefs.getBool(_aiPredictionModeKey) ?? false;
     _financialHealthDetailed =
         prefs.getBool(_financialHealthDetailedKey) ?? false;
-    _gamifiedMode = prefs.getBool(_gamifiedModeKey) ?? false;
+    _gamifiedMode = prefs.getBool(_gamifiedModeKey) ?? true;
     _dismissedBudgetSuggestions =
         (prefs.getStringList(_dismissedBudgetSuggestionsKey) ?? const [])
             .toSet();

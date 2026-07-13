@@ -305,7 +305,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   title: Text(context.l10n.streakRewards),
                   subtitle: Text(
-                    context.l10n.themesUnlocked(
+                    context.l10n.streakRewardsUnlocked(
                       unlockedStreakRewards(_longestStreak).length,
                       kStreakRewards.length,
                     ),

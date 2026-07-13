@@ -381,6 +381,61 @@ class GamificationService {
     return fresh;
   }
 
+  // ── Royal avatar unlocks (from streak picks) ─────────────────────────
+  // Two persisted lists keep the maths honest: `unlockedRoyals` are royals
+  // bought with a streak pick (each costs one pick), while `grandfatheredRoyals`
+  // are royals a user already had equipped when gating shipped — free,
+  // permanent, and never counted against picks. Both ride encrypted backups.
+
+  /// Every royal the user may equip: pick-bought plus grandfathered.
+  Future<Set<String>> unlockedRoyalIds() async {
+    final blob = await _read();
+    return {..._picked(blob), ..._grandfathered(blob)};
+  }
+
+  /// Spend a pick to unlock royal [id]. Idempotent — unlocking an already
+  /// unlocked royal is a no-op (it doesn't consume a second pick).
+  Future<void> unlockRoyal(String id) async {
+    final blob = await _read();
+    final set = _picked(blob);
+    if (set.add(id)) {
+      blob['unlockedRoyals'] = set.toList();
+      await _write(blob);
+    }
+  }
+
+  /// Grant [id] as a free, permanent unlock (a royal the user already wore
+  /// before gating). No-op if it's already granted or pick-bought.
+  Future<void> grandfatherRoyal(String id) async {
+    final blob = await _read();
+    if (_picked(blob).contains(id)) return;
+    final set = _grandfathered(blob);
+    if (set.add(id)) {
+      blob['grandfatheredRoyals'] = set.toList();
+      await _write(blob);
+    }
+  }
+
+  /// Royal picks the user has earned (from their longest streak) but not yet
+  /// spent — how many still-locked royals they may unlock right now.
+  /// Grandfathered royals never reduce this.
+  Future<int> availableRoyalPicks() async {
+    final info = await streakInfo();
+    final blob = await _read();
+    final spent = _picked(blob).length;
+    return (royalPicksEarned(info.longest) - spent)
+        .clamp(0, kRoyalPickStreaks.length);
+  }
+
+  Set<String> _picked(Map<String, dynamic> blob) =>
+      ((blob['unlockedRoyals'] as List?)?.cast<String>() ?? const <String>[])
+          .toSet();
+
+  Set<String> _grandfathered(Map<String, dynamic> blob) =>
+      ((blob['grandfatheredRoyals'] as List?)?.cast<String>() ??
+              const <String>[])
+          .toSet();
+
   // ── Stats ────────────────────────────────────────────────────────────
   Future<GamiStats> computeStats({DateTime? now}) async {
     final today = _dateOnly(now ?? DateTime.now());

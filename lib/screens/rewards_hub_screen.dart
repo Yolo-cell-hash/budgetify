@@ -11,6 +11,7 @@ import '../widgets/avatars.dart';
 import '../widgets/avatar_picker_sheet.dart';
 import '../widgets/badge_medallion.dart';
 import '../widgets/profile_share_card.dart';
+import '../widgets/royal_avatars.dart';
 import '../widgets/streak_reward_road.dart';
 import 'profile_screen.dart';
 import 'trophy_room_screen.dart';
@@ -31,6 +32,8 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
   GamiProfile _profile = const GamiProfile();
   GamiStats? _stats;
   Map<String, DateTime> _unlockDates = const {};
+  Set<String> _unlockedRoyals = const {};
+  int _royalPicks = 0;
   bool _loading = true;
 
   @override
@@ -50,13 +53,21 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
 
   Future<void> _load({bool celebrate = false}) async {
     final profile = await _svc.loadProfile();
+    // A royal worn before gating shipped stays unlocked for good (and never
+    // costs a pick) — grandfather it before we read the unlock state.
+    final wornRoyal = royalAvatarAt(int.tryParse(profile.avatarValue) ?? -1);
+    if (wornRoyal != null) await _svc.grandfatherRoyal(wornRoyal.id);
     final stats = await _svc.computeStats();
     final dates = await _svc.unlockDates();
+    final unlockedRoyals = await _svc.unlockedRoyalIds();
+    final royalPicks = await _svc.availableRoyalPicks();
     if (!mounted) return;
     setState(() {
       _profile = profile;
       _stats = stats;
       _unlockDates = dates;
+      _unlockedRoyals = unlockedRoyals;
+      _royalPicks = royalPicks;
       _loading = false;
     });
     if (celebrate) {
@@ -215,8 +226,24 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
       showcased: showcased,
       allEarned: allEarned,
       onEdit: () async {
-        final edited = await showAvatarPicker(context, _profile);
+        final edited = await showAvatarPicker(
+          context,
+          _profile,
+          unlockedRoyals: _unlockedRoyals,
+          royalPicksAvailable: _royalPicks,
+          onUnlockRoyal: _svc.unlockRoyal,
+        );
         if (edited != null) await _save(edited);
+        // A pick may have been spent while the picker was open — refresh so
+        // the ROYALTY section reflects the new unlock state next time.
+        final unlockedRoyals = await _svc.unlockedRoyalIds();
+        final royalPicks = await _svc.availableRoyalPicks();
+        if (mounted) {
+          setState(() {
+            _unlockedRoyals = unlockedRoyals;
+            _royalPicks = royalPicks;
+          });
+        }
       },
       onUpdateShowcase: (ids) =>
           _save(_profile.copyWith(showcasedBadgeIds: ids)),

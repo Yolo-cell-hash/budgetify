@@ -18,14 +18,39 @@ void main() {
         unlockedStreakRewards(7).map((r) => r.id),
         ['theme_smoky_ivory', 'theme_seashell_mauve'],
       );
+      // A royal pick sits at 10 days, between the 7- and 14-day themes.
+      expect(
+        unlockedStreakRewards(10).map((r) => r.id),
+        ['theme_smoky_ivory', 'theme_seashell_mauve', 'royal_pick_1'],
+      );
       expect(
         unlockedStreakRewards(14).map((r) => r.id),
-        ['theme_smoky_ivory', 'theme_seashell_mauve', 'theme_onyx_amber'],
+        [
+          'theme_smoky_ivory',
+          'theme_seashell_mauve',
+          'royal_pick_1',
+          'theme_onyx_amber',
+        ],
       );
       expect(unlockedStreakRewards(100).length, kStreakRewards.length);
     });
 
-    test('rewards map to distinct theme variants', () {
+    test('royal picks are earned at the 10- and 24-day milestones', () {
+      expect(royalPicksEarned(0), 0);
+      expect(royalPicksEarned(9), 0);
+      expect(royalPicksEarned(10), 1);
+      expect(royalPicksEarned(23), 1);
+      expect(royalPicksEarned(24), 2);
+      expect(royalPicksEarned(100), 2);
+      // The two royal-pick milestones live in the catalog at those days.
+      final picks = kStreakRewards
+          .where((r) => r.kind == StreakRewardKind.royalPick)
+          .toList();
+      expect(picks.map((r) => r.days), kRoyalPickStreaks);
+      expect(picks.every((r) => r.themeVariant == null), isTrue);
+    });
+
+    test('theme rewards map to distinct theme variants', () {
       expect(streakRewardForVariant(AppThemeVariant.smokyIvory)?.id,
           'theme_smoky_ivory');
       expect(streakRewardForVariant(AppThemeVariant.seashellMauve)?.id,
@@ -33,8 +58,11 @@ void main() {
       expect(streakRewardForVariant(AppThemeVariant.light), isNull);
       expect(streakRewardForVariant(AppThemeVariant.dark), isNull);
 
-      final variants = kStreakRewards.map((r) => r.themeVariant).toSet();
-      expect(variants.length, kStreakRewards.length); // all distinct, non-null
+      final themeRewards =
+          kStreakRewards.where((r) => r.kind == StreakRewardKind.theme);
+      final variants = themeRewards.map((r) => r.themeVariant).toSet();
+      // Every theme reward has a distinct, non-null variant.
+      expect(variants.length, themeRewards.length);
     });
 
     test('catalog is ascending by days and well-formed', () {
@@ -44,8 +72,13 @@ void main() {
       }
       for (final r in kStreakRewards) {
         expect(r.swatch.length, 2);
-        expect(r.themeVariant, isNotNull);
         expect(r.id, isNotEmpty);
+        // Theme rewards carry a variant; royal picks carry none.
+        if (r.kind == StreakRewardKind.theme) {
+          expect(r.themeVariant, isNotNull);
+        } else {
+          expect(r.themeVariant, isNull);
+        }
       }
     });
 
@@ -121,6 +154,56 @@ void main() {
       // First-ever pop adopts both already-earned themes — no celebration.
       expect(await seed.popNewlyUnlockedStreakRewards(), isEmpty);
     });
+
+    test('royal picks track earned-minus-spent, and unlocks persist',
+        () async {
+      final svc = GamificationService();
+      expect(await svc.unlockedRoyalIds(), isEmpty);
+      expect(await svc.availableRoyalPicks(), 0);
+
+      // Reach a 10-day streak → one pick becomes available.
+      for (var d = 1; d <= 10; d++) {
+        await svc.recordActiveDay(now: DateTime(2026, 6, d));
+      }
+      expect((await svc.streakInfo()).longest, 10);
+      expect(await svc.availableRoyalPicks(), 1);
+
+      // Spend it on a royal: the pick is consumed and the unlock persists.
+      await svc.unlockRoyal('sovereign');
+      expect(await svc.unlockedRoyalIds(), {'sovereign'});
+      expect(await svc.availableRoyalPicks(), 0);
+
+      // Unlocking the same royal again is a no-op (no second pick spent).
+      await svc.unlockRoyal('sovereign');
+      expect(await svc.unlockedRoyalIds(), {'sovereign'});
+      expect(await svc.availableRoyalPicks(), 0);
+
+      // Carry the same streak on to 24 days → a second pick is earned.
+      for (var d = 11; d <= 24; d++) {
+        await svc.recordActiveDay(now: DateTime(2026, 6, d));
+      }
+      expect((await svc.streakInfo()).longest, 24);
+      expect(await svc.availableRoyalPicks(), 1);
+    });
+
+    test('grandfathered royals are free and never cost a pick', () async {
+      final svc = GamificationService();
+      // A royal worn before gating: unlocked, but no pick was earned or spent.
+      await svc.grandfatherRoyal('empress');
+      expect(await svc.unlockedRoyalIds(), {'empress'});
+      expect(await svc.availableRoyalPicks(), 0);
+
+      // Earn a pick at 10 days — the grandfathered royal doesn't eat it.
+      for (var d = 1; d <= 10; d++) {
+        await svc.recordActiveDay(now: DateTime(2026, 6, d));
+      }
+      expect(await svc.availableRoyalPicks(), 1);
+
+      // Spend the pick on a different royal: both are now unlocked.
+      await svc.unlockRoyal('sovereign');
+      expect(await svc.unlockedRoyalIds(), {'empress', 'sovereign'});
+      expect(await svc.availableRoyalPicks(), 0);
+    });
   });
 
   group('StreakRewardRoad widget', () {
@@ -153,6 +236,36 @@ void main() {
       expect(find.text('More streak rewards on the way.'), findsOneWidget);
       // Nothing unlocked yet, so no apply control is shown.
       expect(find.text('Apply theme'), findsNothing);
+      // The royal-pick milestones appear on the road, still locked.
+      expect(find.text('Royal Unlock'), findsWidgets);
+      expect(find.textContaining('Reach a 10-day streak'), findsOneWidget);
+    });
+
+    testWidgets('a reached royal-pick milestone points to the Royalty section',
+        (tester) async {
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<ThemeProvider>.value(value: ThemeProvider()),
+            ChangeNotifierProvider<LocaleProvider>(
+                create: (_) => LocaleProvider()),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: StreakRewardRoad(currentStreak: 10, longestStreak: 10),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // The 10-day pick is unlocked and nudges the user to choose a royal;
+      // the 24-day pick is still locked.
+      expect(find.textContaining('Choose your royal in the Royalty section'),
+          findsOneWidget);
+      expect(find.textContaining('Reach a 24-day streak'), findsOneWidget);
     });
   });
 }
