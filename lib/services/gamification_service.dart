@@ -7,6 +7,7 @@ import '../models/holding.dart';
 import '../models/streak_reward.dart';
 import '../models/transaction_model.dart';
 import '../widgets/avatars.dart' show legacyEmojiSeed;
+import '../widgets/royal_avatars.dart' show royalAvatarAt;
 import 'database_service.dart';
 import 'savings_goal_service.dart';
 
@@ -168,9 +169,24 @@ class GamificationService {
   Future<GamiProfile> loadProfile() async {
     final blob = await _read();
     final p = blob['profile'];
-    return p is Map
+    var profile = p is Map
         ? GamiProfile.fromMap(p.cast<String, dynamic>())
         : const GamiProfile();
+    // Gating rule: a royal avatar is honoured only if it was unlocked with a
+    // streak pick. A royal carried in from a pre-gating backup (when every
+    // royal was free) is NOT grandfathered — reset it to a basic avatar so it
+    // re-locks until earned. Self-heals once, then this is a no-op.
+    final royal = royalAvatarAt(int.tryParse(profile.avatarValue) ?? -1);
+    if (royal != null && !_picked(blob).contains(royal.id)) {
+      profile = profile.copyWith(
+        avatarKind: 'pixel',
+        avatarValue: '0',
+        applyRoyalTheme: false,
+      );
+      blob['profile'] = profile.toMap();
+      await _write(blob);
+    }
+    return profile;
   }
 
   /// Called after every profile save, so app-level styling (the royal hero
@@ -382,16 +398,14 @@ class GamificationService {
   }
 
   // ── Royal avatar unlocks (from streak picks) ─────────────────────────
-  // Two persisted lists keep the maths honest: `unlockedRoyals` are royals
-  // bought with a streak pick (each costs one pick), while `grandfatheredRoyals`
-  // are royals a user already had equipped when gating shipped — free,
-  // permanent, and never counted against picks. Both ride encrypted backups.
+  // `unlockedRoyals` holds the royals bought with a streak pick — the ONLY way
+  // to unlock one. A royal worn before gating (e.g. restored from an old
+  // backup, when every royal was free) is deliberately not honoured;
+  // [loadProfile] resets it to a basic avatar. Persisted in the blob, so
+  // earned unlocks ride encrypted backups.
 
-  /// Every royal the user may equip: pick-bought plus grandfathered.
-  Future<Set<String>> unlockedRoyalIds() async {
-    final blob = await _read();
-    return {..._picked(blob), ..._grandfathered(blob)};
-  }
+  /// The royals the user has unlocked by spending a streak pick.
+  Future<Set<String>> unlockedRoyalIds() async => _picked(await _read());
 
   /// Spend a pick to unlock royal [id]. Idempotent — unlocking an already
   /// unlocked royal is a no-op (it doesn't consume a second pick).
@@ -404,36 +418,17 @@ class GamificationService {
     }
   }
 
-  /// Grant [id] as a free, permanent unlock (a royal the user already wore
-  /// before gating). No-op if it's already granted or pick-bought.
-  Future<void> grandfatherRoyal(String id) async {
-    final blob = await _read();
-    if (_picked(blob).contains(id)) return;
-    final set = _grandfathered(blob);
-    if (set.add(id)) {
-      blob['grandfatheredRoyals'] = set.toList();
-      await _write(blob);
-    }
-  }
-
   /// Royal picks the user has earned (from their longest streak) but not yet
   /// spent — how many still-locked royals they may unlock right now.
-  /// Grandfathered royals never reduce this.
   Future<int> availableRoyalPicks() async {
     final info = await streakInfo();
-    final blob = await _read();
-    final spent = _picked(blob).length;
+    final spent = (await unlockedRoyalIds()).length;
     return (royalPicksEarned(info.longest) - spent)
         .clamp(0, kRoyalPickStreaks.length);
   }
 
   Set<String> _picked(Map<String, dynamic> blob) =>
       ((blob['unlockedRoyals'] as List?)?.cast<String>() ?? const <String>[])
-          .toSet();
-
-  Set<String> _grandfathered(Map<String, dynamic> blob) =>
-      ((blob['grandfatheredRoyals'] as List?)?.cast<String>() ??
-              const <String>[])
           .toSet();
 
   // ── Stats ────────────────────────────────────────────────────────────

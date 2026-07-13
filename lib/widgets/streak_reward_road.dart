@@ -16,6 +16,15 @@ class StreakRewardRoad extends StatelessWidget {
   final int currentStreak;
   final int longestStreak;
 
+  /// How many royals the user has already unlocked with a streak pick. Lets a
+  /// royal-pick milestone show "Unlock Now" (pick still available) vs a claimed
+  /// state (this milestone's pick already spent).
+  final int royalPicksSpent;
+
+  /// Opens the ROYALTY section of the avatar picker (the "Unlock Now" action).
+  /// When null, royal-pick milestones fall back to an informational hint.
+  final VoidCallback? onChooseRoyal;
+
   /// Outer padding; defaults suit a scrollable page.
   final EdgeInsets padding;
 
@@ -23,6 +32,8 @@ class StreakRewardRoad extends StatelessWidget {
     super.key,
     required this.currentStreak,
     required this.longestStreak,
+    this.royalPicksSpent = 0,
+    this.onChooseRoyal,
     this.padding = const EdgeInsets.fromLTRB(16, 16, 16, 32),
   });
 
@@ -44,6 +55,8 @@ class StreakRewardRoad extends StatelessWidget {
               reward: kStreakRewards[i],
               longestStreak: longestStreak,
               currentStreak: currentStreak,
+              royalPicksSpent: royalPicksSpent,
+              onChooseRoyal: onChooseRoyal,
               isFirst: i == 0,
               nextUnlocked: i + 1 < kStreakRewards.length
                   ? kStreakRewards[i + 1].isUnlocked(longestStreak)
@@ -140,6 +153,8 @@ class _MilestoneTile extends StatelessWidget {
   final StreakReward reward;
   final int longestStreak;
   final int currentStreak;
+  final int royalPicksSpent;
+  final VoidCallback? onChooseRoyal;
   final bool isFirst;
   final bool nextUnlocked;
 
@@ -147,6 +162,8 @@ class _MilestoneTile extends StatelessWidget {
     required this.reward,
     required this.longestStreak,
     required this.currentStreak,
+    required this.royalPicksSpent,
+    required this.onChooseRoyal,
     required this.isFirst,
     required this.nextUnlocked,
   });
@@ -180,6 +197,8 @@ class _MilestoneTile extends StatelessWidget {
                 reward: reward,
                 unlocked: unlocked,
                 currentStreak: currentStreak,
+                royalPicksSpent: royalPicksSpent,
+                onChooseRoyal: onChooseRoyal,
               ),
             ),
           ),
@@ -224,12 +243,24 @@ class _RewardCard extends StatelessWidget {
   final StreakReward reward;
   final bool unlocked;
   final int currentStreak;
+  final int royalPicksSpent;
+  final VoidCallback? onChooseRoyal;
 
   const _RewardCard({
     required this.reward,
     required this.unlocked,
     required this.currentStreak,
+    this.royalPicksSpent = 0,
+    this.onChooseRoyal,
   });
+
+  /// This royal-pick milestone's position among royal picks (1st = 10-day,
+  /// 2nd = 24-day) — used to tell if its pick has already been spent.
+  int get _royalPickOrdinal => kStreakRewards
+      .where((r) => r.kind == StreakRewardKind.royalPick && r.days <= reward.days)
+      .length;
+
+  bool get _royalPickSpent => royalPicksSpent >= _royalPickOrdinal;
 
   @override
   Widget build(BuildContext context) {
@@ -253,7 +284,9 @@ class _RewardCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              _SwatchPreview(colors: reward.swatch),
+              reward.kind == StreakRewardKind.royalPick
+                  ? const _RoyalCrownPreview()
+                  : _SwatchPreview(colors: reward.swatch),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -334,9 +367,44 @@ class _RewardCard extends StatelessWidget {
     }
 
     if (reward.kind == StreakRewardKind.royalPick) {
+      // Pick already spent on a royal → a claimed confirmation.
+      if (_royalPickSpent) {
+        return Row(
+          children: [
+            Icon(Icons.check_circle_rounded, size: 16, color: colors.accent),
+            const SizedBox(width: 6),
+            Text(
+              context.l10n.royalPickClaimed,
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+                color: colors.accent,
+              ),
+            ),
+          ],
+        );
+      }
+      // A pick is waiting — "Unlock Now" jumps to the ROYALTY picker (mirrors
+      // the theme rewards' "Apply theme"). Without a handler, fall back to a
+      // hint pointing at the profile avatar.
+      if (onChooseRoyal != null) {
+        return SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: onChooseRoyal,
+            icon: const Icon(Icons.lock_open_rounded, size: 17),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: colors.accent,
+              side: BorderSide(color: colors.accent.withValues(alpha: 0.6)),
+              padding: const EdgeInsets.symmetric(vertical: 11),
+            ),
+            label: Text(context.l10n.unlockNow),
+          ),
+        );
+      }
       return Row(
         children: [
-          Text('👑', style: TextStyle(fontSize: 15)),
+          const Text('👑', style: TextStyle(fontSize: 15)),
           const SizedBox(width: 6),
           Expanded(
             child: Text(
@@ -455,6 +523,31 @@ class _SwatchPreview extends StatelessWidget {
           Expanded(child: Container(color: colors.last)),
         ],
       ),
+    );
+  }
+}
+
+/// A gold-and-velvet crown chip for royal-pick milestones — reads clearly as a
+/// royal reward, not a theme swatch (which the two-tone [_SwatchPreview] did).
+class _RoyalCrownPreview extends StatelessWidget {
+  const _RoyalCrownPreview();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 38,
+      height: 38,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        gradient: const LinearGradient(
+          colors: [Color(0xFFF6D06A), Color(0xFF7A1E2B)], // gold → royal crimson
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(color: const Color(0xFFF2C14E).withValues(alpha: 0.5)),
+      ),
+      child: const Text('👑', style: TextStyle(fontSize: 18)),
     );
   }
 }

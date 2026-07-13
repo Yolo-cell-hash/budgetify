@@ -11,7 +11,6 @@ import '../widgets/avatars.dart';
 import '../widgets/avatar_picker_sheet.dart';
 import '../widgets/badge_medallion.dart';
 import '../widgets/profile_share_card.dart';
-import '../widgets/royal_avatars.dart';
 import '../widgets/streak_reward_road.dart';
 import 'profile_screen.dart';
 import 'trophy_room_screen.dart';
@@ -52,11 +51,9 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
   void _reload() => _load(celebrate: true);
 
   Future<void> _load({bool celebrate = false}) async {
+    // loadProfile() re-locks any royal that wasn't earned with a pick (e.g. one
+    // restored from a pre-gating backup), so the profile here is already clean.
     final profile = await _svc.loadProfile();
-    // A royal worn before gating shipped stays unlocked for good (and never
-    // costs a pick) — grandfather it before we read the unlock state.
-    final wornRoyal = royalAvatarAt(int.tryParse(profile.avatarValue) ?? -1);
-    if (wornRoyal != null) await _svc.grandfatherRoyal(wornRoyal.id);
     final stats = await _svc.computeStats();
     final dates = await _svc.unlockDates();
     final unlockedRoyals = await _svc.unlockedRoyalIds();
@@ -134,6 +131,28 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
     if (mounted) setState(() => _profile = p);
   }
 
+  /// Open the avatar picker (optionally scrolled straight to ROYALTY), then
+  /// refresh the royal-unlock state — a pick may have been spent inside.
+  Future<void> _openAvatarPicker({bool scrollToRoyalty = false}) async {
+    final edited = await showAvatarPicker(
+      context,
+      _profile,
+      unlockedRoyals: _unlockedRoyals,
+      royalPicksAvailable: _royalPicks,
+      onUnlockRoyal: _svc.unlockRoyal,
+      scrollToRoyalty: scrollToRoyalty,
+    );
+    if (edited != null) await _save(edited);
+    final unlockedRoyals = await _svc.unlockedRoyalIds();
+    final royalPicks = await _svc.availableRoyalPicks();
+    if (mounted) {
+      setState(() {
+        _unlockedRoyals = unlockedRoyals;
+        _royalPicks = royalPicks;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
@@ -173,6 +192,8 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
       child: StreakRewardRoad(
         currentStreak: stats.currentStreak,
         longestStreak: stats.longestStreak,
+        royalPicksSpent: _unlockedRoyals.length,
+        onChooseRoyal: () => _openAvatarPicker(scrollToRoyalty: true),
       ),
     );
   }
@@ -225,26 +246,7 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
       primaryTitle: primaryStillEarned ? primary : null,
       showcased: showcased,
       allEarned: allEarned,
-      onEdit: () async {
-        final edited = await showAvatarPicker(
-          context,
-          _profile,
-          unlockedRoyals: _unlockedRoyals,
-          royalPicksAvailable: _royalPicks,
-          onUnlockRoyal: _svc.unlockRoyal,
-        );
-        if (edited != null) await _save(edited);
-        // A pick may have been spent while the picker was open — refresh so
-        // the ROYALTY section reflects the new unlock state next time.
-        final unlockedRoyals = await _svc.unlockedRoyalIds();
-        final royalPicks = await _svc.availableRoyalPicks();
-        if (mounted) {
-          setState(() {
-            _unlockedRoyals = unlockedRoyals;
-            _royalPicks = royalPicks;
-          });
-        }
-      },
+      onEdit: () => _openAvatarPicker(),
       onUpdateShowcase: (ids) =>
           _save(_profile.copyWith(showcasedBadgeIds: ids)),
       onUpdatePrimaryTitle: (id) => _save(

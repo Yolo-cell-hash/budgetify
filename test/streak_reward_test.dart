@@ -2,6 +2,7 @@ import 'package:budget_tracker/models/streak_reward.dart';
 import 'package:budget_tracker/providers/locale_provider.dart';
 import 'package:budget_tracker/providers/theme_provider.dart';
 import 'package:budget_tracker/services/gamification_service.dart';
+import 'package:budget_tracker/widgets/royal_avatars.dart';
 import 'package:budget_tracker/widgets/streak_reward_road.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -186,23 +187,29 @@ void main() {
       expect(await svc.availableRoyalPicks(), 1);
     });
 
-    test('grandfathered royals are free and never cost a pick', () async {
+    test('a royal worn before gating is re-locked on load (not grandfathered)',
+        () async {
+      final sovereign =
+          kRoyalAvatars.firstWhere((r) => r.id == 'sovereign');
+      final empress = kRoyalAvatars.firstWhere((r) => r.id == 'empress');
       final svc = GamificationService();
-      // A royal worn before gating: unlocked, but no pick was earned or spent.
-      await svc.grandfatherRoyal('empress');
-      expect(await svc.unlockedRoyalIds(), {'empress'});
-      expect(await svc.availableRoyalPicks(), 0);
 
-      // Earn a pick at 10 days — the grandfathered royal doesn't eat it.
-      for (var d = 1; d <= 10; d++) {
-        await svc.recordActiveDay(now: DateTime(2026, 6, d));
-      }
-      expect(await svc.availableRoyalPicks(), 1);
+      // Simulate a pre-gating backup: a royal saved directly, no pick spent.
+      await svc.saveProfile(GamiProfile(
+          avatarKind: 'pixel', avatarValue: '${sovereign.spriteIndex}'));
 
-      // Spend the pick on a different royal: both are now unlocked.
-      await svc.unlockRoyal('sovereign');
-      expect(await svc.unlockedRoyalIds(), {'empress', 'sovereign'});
+      // loadProfile resets it to a basic avatar; it stays locked, no free pick.
+      expect((await svc.loadProfile()).avatarValue, '0');
+      expect(await svc.unlockedRoyalIds(), isEmpty);
       expect(await svc.availableRoyalPicks(), 0);
+      // Self-heals — a second load is stable.
+      expect((await svc.loadProfile()).avatarValue, '0');
+
+      // A royal genuinely bought with a pick is kept across loads.
+      await svc.unlockRoyal(empress.id);
+      await svc.saveProfile(GamiProfile(
+          avatarKind: 'pixel', avatarValue: '${empress.spriteIndex}'));
+      expect((await svc.loadProfile()).avatarValue, '${empress.spriteIndex}');
     });
   });
 
@@ -266,6 +273,71 @@ void main() {
       expect(find.textContaining('Choose your royal in the Royalty section'),
           findsOneWidget);
       expect(find.textContaining('Reach a 24-day streak'), findsOneWidget);
+    });
+
+    testWidgets('an unlocked royal pick shows "Unlock Now" and fires it',
+        (tester) async {
+      var chooseCalls = 0;
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<ThemeProvider>.value(value: ThemeProvider()),
+            ChangeNotifierProvider<LocaleProvider>(
+                create: (_) => LocaleProvider()),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: StreakRewardRoad(
+                  currentStreak: 10,
+                  longestStreak: 10,
+                  royalPicksSpent: 0,
+                  onChooseRoyal: () => chooseCalls++,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+
+      final btn = find.widgetWithText(OutlinedButton, 'Unlock Now');
+      expect(btn, findsOneWidget);
+      await tester.ensureVisible(btn);
+      await tester.pump();
+      await tester.tap(btn);
+      await tester.pump();
+      expect(chooseCalls, 1);
+    });
+
+    testWidgets('a spent royal pick reads as claimed, not "Unlock Now"',
+        (tester) async {
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<ThemeProvider>.value(value: ThemeProvider()),
+            ChangeNotifierProvider<LocaleProvider>(
+                create: (_) => LocaleProvider()),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: StreakRewardRoad(
+                  currentStreak: 10,
+                  longestStreak: 10,
+                  royalPicksSpent: 1,
+                  onChooseRoyal: () {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // The 10-day pick's royal was chosen → claimed, and no Unlock Now for it.
+      expect(find.text('Royal unlocked'), findsOneWidget);
+      expect(find.widgetWithText(OutlinedButton, 'Unlock Now'), findsNothing);
     });
   });
 }
