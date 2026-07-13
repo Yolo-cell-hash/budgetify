@@ -370,6 +370,9 @@ void main() {
                         ctx,
                         const GamiProfile(
                             avatarKind: 'pixel', avatarValue: '0'),
+                        // Sovereign already unlocked, so his court sheet
+                        // offers Equip (not the locked/Unlock states).
+                        unlockedRoyals: {royal.id},
                       );
                     },
                     child: const Text('open'),
@@ -416,6 +419,118 @@ void main() {
       expect(result, isNotNull);
       expect(result!.avatarValue, '${royal.spriteIndex}');
       expect(result!.applyRoyalTheme, isFalse);
+    });
+
+    testWidgets('locked royals read "Coming soon" and cannot be equipped',
+        (tester) async {
+      final royal = kRoyalAvatars.first;
+      await tester.pumpWidget(
+        ChangeNotifierProvider<LocaleProvider>(
+          create: (_) => LocaleProvider(),
+          child: MaterialApp(
+            home: Builder(
+              builder: (ctx) => Scaffold(
+                body: Center(
+                  child: ElevatedButton(
+                    // No unlocks, no picks → the whole court is locked.
+                    onPressed: () => showAvatarPicker(
+                      ctx,
+                      const GamiProfile(avatarKind: 'pixel', avatarValue: '0'),
+                    ),
+                    child: const Text('open'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // Locked tiles carry a "Coming soon" pill and the section hint.
+      final tile = find.byWidgetPredicate(
+          (w) => w is AnimatedRoyalAvatar && w.royal.id == royal.id);
+      await tester.ensureVisible(tile);
+      await tester.pump();
+      expect(find.text('Coming soon'), findsWidgets);
+
+      // The court sheet offers neither Equip nor Unlock — just the note.
+      await tester.tap(tile, warnIfMissed: false);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('Equip'), findsNothing);
+      expect(find.text('Unlock & equip'), findsNothing);
+      expect(find.textContaining('Reach a 10- or 24-day streak'),
+          findsOneWidget);
+    });
+
+    testWidgets('a royal pick unlocks and equips a chosen royal',
+        (tester) async {
+      final royal = kRoyalAvatars.first;
+      GamiProfile? result;
+      final unlockedCalls = <String>[];
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<LocaleProvider>(
+                create: (_) => LocaleProvider()),
+            ChangeNotifierProvider<ThemeProvider>(
+                create: (_) => ThemeProvider()),
+          ],
+          child: MaterialApp(
+            home: Builder(
+              builder: (ctx) => Scaffold(
+                body: Center(
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      result = await showAvatarPicker(
+                        ctx,
+                        const GamiProfile(
+                            avatarKind: 'pixel', avatarValue: '0'),
+                        royalPicksAvailable: 1,
+                        onUnlockRoyal: (id) async => unlockedCalls.add(id),
+                      );
+                    },
+                    child: const Text('open'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // A pick is waiting, so the locked royal offers "Unlock".
+      final tile = find.byWidgetPredicate(
+          (w) => w is AnimatedRoyalAvatar && w.royal.id == royal.id);
+      await tester.ensureVisible(tile);
+      await tester.pump();
+      expect(find.text('Unlock'), findsWidgets);
+
+      await tester.tap(tile, warnIfMissed: false);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      final unlockBtn = find.text('Unlock & equip');
+      expect(unlockBtn, findsOneWidget);
+      await tester.ensureVisible(unlockBtn);
+      await tester.pump();
+      await tester.tap(unlockBtn);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // The host was told to persist the unlock, and the royal is now equipped.
+      expect(unlockedCalls, [royal.id]);
+      await tester.ensureVisible(find.text('Save'));
+      await tester.pump();
+      await tester.tap(find.text('Save'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(result?.avatarValue, '${royal.spriteIndex}');
     });
 
     testWidgets('profile card adopts the equipped royal theme',

@@ -3,9 +3,10 @@ import 'package:flutter/material.dart';
 import '../providers/theme_provider.dart';
 import 'achievement.dart';
 
-/// What a streak milestone grants. Only [theme] exists today, but the model is
-/// deliberately open so future streak rewards (avatars, titles, …) slot in.
-enum StreakRewardKind { theme }
+/// What a streak milestone grants. [theme] applies a colour variant;
+/// [royalPick] grants one "royal pick" — a choice to unlock any one of the
+/// royal avatars from the ROYALTY section of the avatar picker.
+enum StreakRewardKind { theme, royalPick }
 
 /// One milestone on the Streak Reward Road: reach [days] consecutive days to
 /// unlock it. Unlock is evaluated against the user's *longest* streak, so it is
@@ -63,6 +64,18 @@ const List<StreakReward> kStreakRewards = [
     emblem: '🌸',
     swatch: [Color(0xFF9E756F), Color(0xFFD7C4BE)],
   ),
+  // First royal pick: choose any one of the six royals to unlock.
+  StreakReward(
+    id: 'royal_pick_1',
+    days: 10,
+    name: 'Royal Unlock',
+    blurb:
+        'Choose any one of the six royal avatars to unlock. Unlocked at a 10-day streak.',
+    kind: StreakRewardKind.royalPick,
+    rarity: BadgeRarity.gold,
+    emblem: '👑',
+    swatch: [Color(0xFFF2C14E), Color(0xFF4A121A)],
+  ),
   StreakReward(
     id: 'theme_onyx_amber',
     days: 14,
@@ -74,6 +87,18 @@ const List<StreakReward> kStreakRewards = [
     rarity: BadgeRarity.gold,
     emblem: '⚡',
     swatch: [Color(0xFFFF8C00), Color(0xFF202427)],
+  ),
+  // Second royal pick: choose another royal from the remaining five.
+  StreakReward(
+    id: 'royal_pick_2',
+    days: 24,
+    name: 'Royal Unlock',
+    blurb:
+        'Choose another royal avatar to unlock, from the remaining five. Unlocked at a 24-day streak.',
+    kind: StreakRewardKind.royalPick,
+    rarity: BadgeRarity.platinum,
+    emblem: '👑',
+    swatch: [Color(0xFFB18CFF), Color(0xFF32175E)],
   ),
   StreakReward(
     id: 'theme_royal_indigo',
@@ -102,6 +127,14 @@ const List<StreakReward> kStreakRewards = [
     swatch: [Color(0xFF27C0F5), Color(0xFF0D1430)],
   ),
 ];
+
+/// Streak lengths (in days) that each grant one royal-avatar pick. Kept in
+/// sync with the [StreakRewardKind.royalPick] entries in [kStreakRewards].
+const List<int> kRoyalPickStreaks = [10, 24];
+
+/// How many royal picks a [longestStreak] has earned (0, 1 or 2).
+int royalPicksEarned(int longestStreak) =>
+    kRoyalPickStreaks.where((d) => longestStreak >= d).length;
 
 /// All rewards unlocked at [longestStreak], in road order.
 List<StreakReward> unlockedStreakRewards(int longestStreak) =>

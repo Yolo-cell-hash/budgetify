@@ -333,6 +333,26 @@ class _RewardCard extends StatelessWidget {
       );
     }
 
+    if (reward.kind == StreakRewardKind.royalPick) {
+      return Row(
+        children: [
+          Text('👑', style: TextStyle(fontSize: 15)),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              context.l10n.royalPickRoadUnlocked,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                height: 1.3,
+                color: colors.accent,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
     if (reward.themeVariant == null) {
       return _earnedPill(context, colors);
     }

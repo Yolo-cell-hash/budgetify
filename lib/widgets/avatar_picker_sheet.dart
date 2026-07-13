@@ -5,26 +5,49 @@ import '../l10n/l10n.dart';
 
 import '../providers/theme_provider.dart';
 import '../services/gamification_service.dart';
+import 'app_toast.dart';
 import 'avatars.dart';
 import 'royal_avatars.dart';
 
 /// Edit the profile's avatar (emoji or procedural pixel) + accent + username.
 /// Returns the edited [GamiProfile], or null if cancelled.
+///
+/// Royal avatars are gated: [unlockedRoyals] are the ids the user has already
+/// unlocked (via streak picks), and [royalPicksAvailable] is how many
+/// still-locked royals they may unlock right now. Spending a pick calls
+/// [onUnlockRoyal] so the host can persist it. The currently-equipped royal
+/// (if any) is always treated as unlocked, so nobody loses their face.
 Future<GamiProfile?> showAvatarPicker(
   BuildContext context,
-  GamiProfile initial,
-) {
+  GamiProfile initial, {
+  Set<String> unlockedRoyals = const {},
+  int royalPicksAvailable = 0,
+  Future<void> Function(String royalId)? onUnlockRoyal,
+}) {
   return showModalBottomSheet<GamiProfile>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (_) => _AvatarPickerSheet(initial: initial),
+    builder: (_) => _AvatarPickerSheet(
+      initial: initial,
+      unlockedRoyals: unlockedRoyals,
+      royalPicksAvailable: royalPicksAvailable,
+      onUnlockRoyal: onUnlockRoyal,
+    ),
   );
 }
 
 class _AvatarPickerSheet extends StatefulWidget {
   final GamiProfile initial;
-  const _AvatarPickerSheet({required this.initial});
+  final Set<String> unlockedRoyals;
+  final int royalPicksAvailable;
+  final Future<void> Function(String royalId)? onUnlockRoyal;
+  const _AvatarPickerSheet({
+    required this.initial,
+    this.unlockedRoyals = const {},
+    this.royalPicksAvailable = 0,
+    this.onUnlockRoyal,
+  });
 
   @override
   State<_AvatarPickerSheet> createState() => _AvatarPickerSheetState();
@@ -39,6 +62,36 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
   late bool _applyRoyalTheme = widget.initial.applyRoyalTheme;
   late final TextEditingController _name =
       TextEditingController(text: widget.initial.username);
+
+  // Royals the user can equip: the ones they've unlocked, plus whatever royal
+  // they already have on (grandfathered so a gating rollout never strips a
+  // face someone is already wearing).
+  late final Set<String> _unlocked = {
+    ...widget.unlockedRoyals,
+    ...?_equippedRoyalId(),
+  };
+  // Picks left to spend on still-locked royals this session.
+  late int _picks = widget.royalPicksAvailable;
+
+  /// The equipped avatar's royal id as a one-element list, or null when the
+  /// equipped avatar isn't a royal — for a null-aware spread into [_unlocked].
+  List<String>? _equippedRoyalId() {
+    final r = royalAvatarAt(int.tryParse(_value) ?? -1);
+    return r == null ? null : [r.id];
+  }
+
+  bool _isRoyalUnlocked(RoyalAvatar r) => _unlocked.contains(r.id);
+
+  /// Spend a pick to unlock [r], then equip it. Persists via [onUnlockRoyal].
+  Future<void> _unlockRoyal(RoyalAvatar r) async {
+    if (_picks <= 0 || _isRoyalUnlocked(r)) return;
+    setState(() {
+      _unlocked.add(r.id);
+      _picks -= 1;
+      _value = '${r.spriteIndex}';
+    });
+    await widget.onUnlockRoyal?.call(r.id);
+  }
 
   @override
   void dispose() {
@@ -155,6 +208,8 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
               context.l10n.royalAvatarsDesc,
               style: TextStyle(fontSize: 11.5, color: colors.textTertiary),
             ),
+            const SizedBox(height: 10),
+            _royalStatusLine(colors),
             const SizedBox(height: 12),
             // Two showpiece tiles per row — the court is too large for one.
             LayoutBuilder(
@@ -194,6 +249,45 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
           color: colors.textSecondary,
         ),
       );
+
+  /// The ROYALTY unlock status: a gold call-to-action when picks are waiting,
+  /// a calm "coming soon" hint otherwise. Hidden once the whole court is
+  /// unlocked (nothing left to say).
+  Widget _royalStatusLine(AppColors colors) {
+    final allUnlocked = kRoyalAvatars.every(_isRoyalUnlocked);
+    if (allUnlocked) return const SizedBox.shrink();
+    if (_picks > 0) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: colors.brandAccent.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: colors.brandAccent.withValues(alpha: 0.4)),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.lock_open_rounded, size: 15, color: colors.brandAccent),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                context.l10n.royalPicksAvailable(_picks),
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.3,
+                  fontWeight: FontWeight.w700,
+                  color: colors.brandAccent,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return Text(
+      context.l10n.royalLockedHint,
+      style: TextStyle(fontSize: 11.5, height: 1.35, color: colors.textTertiary),
+    );
+  }
 
   Widget _option(AppColors colors, String value, bool selected) {
     return GestureDetector(
@@ -279,6 +373,8 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheetState) {
           final equipped = _value == value;
+          final unlocked = _isRoyalUnlocked(r);
+          final unlockable = !unlocked && _picks > 0;
           return Container(
             padding: const EdgeInsets.fromLTRB(24, 14, 24, 28),
             decoration: BoxDecoration(
@@ -361,55 +457,117 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
                   ),
                 ),
                 const SizedBox(height: 14),
-                // "Apply app-wide <court> theme" — the royal's own wording.
-                SwitchListTile(
-                  value: _applyRoyalTheme,
-                  onChanged: (v) {
-                    setState(() => _applyRoyalTheme = v);
-                    setSheetState(() {});
-                  },
-                  activeThumbColor: accent,
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(
-                    ctx.l10n.royalThemeToggle(r.id),
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: colors.text,
+                // Unlocked royals get the app-wide theme toggle + Equip. A
+                // still-locked royal shows either an Unlock action (a pick is
+                // waiting) or a calm "coming soon" note.
+                if (unlocked) ...[
+                  // "Apply app-wide <court> theme" — the royal's own wording.
+                  SwitchListTile(
+                    value: _applyRoyalTheme,
+                    onChanged: (v) {
+                      setState(() => _applyRoyalTheme = v);
+                      setSheetState(() {});
+                    },
+                    activeThumbColor: accent,
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      ctx.l10n.royalThemeToggle(r.id),
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: colors.text,
+                      ),
                     ),
                   ),
-                ),
-                // The court's effects only show on its home primary theme;
-                // offer a one-tap switch when the user isn't there yet.
-                _modeSwitchRow(ctx, r, accent),
-                const SizedBox(height: 8),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: equipped
-                        ? null
-                        : () {
-                            setState(() => _value = value);
-                            Navigator.pop(ctx);
-                          },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: accent,
-                      foregroundColor: r.theme.homeBrightness ==
-                              Brightness.light
-                          ? Colors.white
-                          : const Color(0xFF15171E),
-                      disabledBackgroundColor:
-                          accent.withValues(alpha: 0.35),
+                  // The court's effects only show on its home primary theme;
+                  // offer a one-tap switch when the user isn't there yet.
+                  _modeSwitchRow(ctx, r, accent),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: equipped
+                          ? null
+                          : () {
+                              setState(() => _value = value);
+                              Navigator.pop(ctx);
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: accent,
+                        foregroundColor: r.theme.homeBrightness ==
+                                Brightness.light
+                            ? Colors.white
+                            : const Color(0xFF15171E),
+                        disabledBackgroundColor:
+                            accent.withValues(alpha: 0.35),
+                      ),
+                      icon: Icon(
+                          equipped
+                              ? Icons.check_rounded
+                              : Icons.workspace_premium_rounded,
+                          size: 18),
+                      label: Text(equipped
+                          ? ctx.l10n.equippedRoyal
+                          : ctx.l10n.equipRoyal),
                     ),
-                    icon: Icon(
-                        equipped
-                            ? Icons.check_rounded
-                            : Icons.workspace_premium_rounded,
-                        size: 18),
-                    label: Text(
-                        equipped ? ctx.l10n.equippedRoyal : ctx.l10n.equipRoyal),
                   ),
-                ),
+                ] else if (unlockable) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        await _unlockRoyal(r);
+                        if (!ctx.mounted) return;
+                        Navigator.pop(ctx);
+                        if (mounted) {
+                          showAppToast(
+                            context,
+                            message: context.l10nRead.royalUnlockedToast(
+                                context.l10nRead.royalAvatarName(r.id)),
+                            type: AppToastType.success,
+                          );
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: accent,
+                        foregroundColor: r.theme.homeBrightness ==
+                                Brightness.light
+                            ? Colors.white
+                            : const Color(0xFF15171E),
+                      ),
+                      icon: const Icon(Icons.lock_open_rounded, size: 18),
+                      label: Text(ctx.l10n.unlockRoyalCta),
+                    ),
+                  ),
+                ] else ...[
+                  // Locked with no pick to spend: a calm coming-soon note.
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: colors.cardAlt,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: colors.border),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.lock_rounded,
+                            size: 16, color: colors.textSecondary),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            ctx.l10n.royalLockedSheetNote,
+                            style: TextStyle(
+                              fontSize: 12,
+                              height: 1.35,
+                              color: colors.textSecondary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ],
               ),
             ),
@@ -420,12 +578,17 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
   }
 
   /// A royal character tile — a living avatar in a gilded aura ring with its
-  /// court name beneath. Tiles stay calm (no spawn burst); tapping opens the
-  /// royal's court sheet (lore + app-wide theme toggle + equip). Sized by
-  /// the caller (two per row in the ROYALTY grid).
+  /// court name beneath. Tapping opens the royal's court sheet. Three looks:
+  /// unlocked (full, equippable), unlockable (full + gold "Unlock" pill when a
+  /// pick is waiting), and locked (dimmed under a lock + "Coming soon"). Even
+  /// locked, the living art still shows — a taste of what's behind the crown.
+  /// Sized by the caller (two per row in the ROYALTY grid).
   Widget _royalOption(AppColors colors, RoyalAvatar r) {
     final value = '${r.spriteIndex}';
     final selected = _value == value;
+    final unlocked = _isRoyalUnlocked(r);
+    final unlockable = !unlocked && _picks > 0;
+    final lockedSoon = !unlocked && !unlockable;
     // The bright accent tints the tile fill; text + border use the deep
     // shade on a light surface so the selected name never sits gold-on-
     // yellow (illegible in light mode; fine on the dark tile).
@@ -433,6 +596,13 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
     final ink = Theme.of(context).brightness == Brightness.light
         ? r.theme.accentDeep
         : r.theme.accent;
+    final borderColor = selected
+        ? ink
+        : unlockable
+            ? colors.brandAccent.withValues(alpha: 0.6)
+            : lockedSoon
+                ? colors.border
+                : ink.withValues(alpha: 0.35);
     return GestureDetector(
         onTap: () => _showRoyalSheet(r),
         child: Container(
@@ -441,14 +611,15 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
             borderRadius: BorderRadius.circular(16),
             gradient: LinearGradient(
               colors: [
-                accent.withValues(alpha: selected ? 0.16 : 0.07),
+                (lockedSoon ? colors.textTertiary : accent)
+                    .withValues(alpha: selected ? 0.16 : 0.07),
                 Colors.transparent,
               ],
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
             ),
             border: Border.all(
-              color: selected ? ink : ink.withValues(alpha: 0.35),
+              color: borderColor,
               width: selected ? 2 : 1,
             ),
             boxShadow: selected
@@ -457,14 +628,26 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
           ),
           child: Column(
             children: [
-              ClipOval(
-                child: AvatarView(
-                  kind: 'pixel',
-                  value: value,
-                  size: 62,
-                  ring: false,
-                  spawnRoyals: false,
-                ),
+              // The living royal — dimmed under a lock when still locked.
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  Opacity(
+                    opacity: lockedSoon ? 0.45 : 1,
+                    child: ClipOval(
+                      child: AvatarView(
+                        kind: 'pixel',
+                        value: value,
+                        size: 62,
+                        ring: false,
+                        spawnRoyals: false,
+                      ),
+                    ),
+                  ),
+                  if (lockedSoon)
+                    Icon(Icons.lock_rounded,
+                        size: 22, color: colors.text.withValues(alpha: 0.8)),
+                ],
               ),
               const SizedBox(height: 6),
               Text(
@@ -475,12 +658,50 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
                   fontSize: 10.5,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.3,
-                  color: selected ? ink : colors.textSecondary,
+                  color: selected
+                      ? ink
+                      : lockedSoon
+                          ? colors.textTertiary
+                          : colors.textSecondary,
                 ),
               ),
+              if (unlockable || lockedSoon) ...[
+                const SizedBox(height: 4),
+                _royalTilePill(colors, unlockable),
+              ],
             ],
           ),
         ),
+    );
+  }
+
+  /// The little status pill under a not-yet-unlocked royal: a gold "Unlock"
+  /// when a pick can be spent, a muted "Coming soon" otherwise.
+  Widget _royalTilePill(AppColors colors, bool unlockable) {
+    final fg = unlockable ? colors.brandAccent : colors.textTertiary;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: fg.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(unlockable ? Icons.lock_open_rounded : Icons.schedule_rounded,
+              size: 10, color: fg),
+          const SizedBox(width: 3),
+          Text(
+            unlockable ? context.l10n.royalUnlockable : context.l10n.royalComingSoon,
+            style: TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.3,
+              color: fg,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
