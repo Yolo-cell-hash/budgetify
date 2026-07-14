@@ -119,63 +119,98 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
+  /// Shared page shell: the action button is PINNED at the bottom (always
+  /// on-screen, always tappable) while everything above it scrolls when it
+  /// doesn't fit. Longer-script languages (हिन्दी, தமிழ், తెలుగు…) used to
+  /// overflow these fixed columns on smaller phones and push the Continue
+  /// button out of reach — a soft-lock right at the front door. The
+  /// min-height + IntrinsicHeight pairing keeps the airy Spacer layout on
+  /// tall screens and degrades to scrolling on short ones.
+  Widget _pageShell({
+    required List<Widget> content,
+    required Widget footer,
+    EdgeInsets padding = const EdgeInsets.fromLTRB(32, 16, 32, 24),
+  }) {
+    return Padding(
+      padding: padding,
+      child: Column(
+        children: [
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) => SingleChildScrollView(
+                physics: const ClampingScrollPhysics(),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: IntrinsicHeight(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: content,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          footer,
+        ],
+      ),
+    );
+  }
+
   /// First step: pick the app language. The choice applies instantly (the
   /// rest of onboarding — and the guided tour after it — re-render in it),
   /// defaults to English, and can be changed later in Settings.
   Widget _buildLanguagePage(bool isDark) {
     final current = context.watch<LocaleProvider>().language;
-    return Padding(
-      padding: const EdgeInsets.all(32),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Spacer(),
-          Icon(
-            Icons.translate_rounded,
-            size: 72,
-            color: Theme.of(context).primaryColor,
+    return _pageShell(
+      content: [
+        const Spacer(),
+        Icon(
+          Icons.translate_rounded,
+          size: 72,
+          color: Theme.of(context).primaryColor,
+        ),
+        const SizedBox(height: 24),
+        Text(
+          context.l10n.chooseLanguageTitle,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
+            color: isDark ? Colors.white : Colors.black87,
           ),
-          const SizedBox(height: 24),
-          Text(
-            context.l10n.chooseLanguageTitle,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white : Colors.black87,
-            ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          context.l10n.chooseLanguageDesc,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 14,
+            color: isDark ? const Color(0xFF9A9DA6) : const Color(0xFF6E727C),
           ),
-          const SizedBox(height: 8),
-          Text(
-            context.l10n.chooseLanguageDesc,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 14,
-              color: isDark ? const Color(0xFF9A9DA6) : const Color(0xFF6E727C),
-            ),
-          ),
-          const SizedBox(height: 28),
-          for (final lang in AppLanguage.values) ...[
-            _languageOption(lang, current == lang, isDark),
-            const SizedBox(height: 10),
-          ],
-          const Spacer(),
-          SizedBox(
-            width: double.infinity,
-            height: 56,
-            child: ElevatedButton(
-              onPressed: _nextPage,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Theme.of(context).primaryColor,
-                foregroundColor: Colors.white,
-              ),
-              child: Text(
-                context.l10n.commonContinue,
-                style: const TextStyle(fontSize: 18),
-              ),
-            ),
-          ),
+        ),
+        const SizedBox(height: 28),
+        for (final lang in AppLanguage.values) ...[
+          _languageOption(lang, current == lang, isDark),
+          const SizedBox(height: 10),
         ],
+        const Spacer(),
+      ],
+      footer: SizedBox(
+        width: double.infinity,
+        height: 56,
+        child: ElevatedButton(
+          onPressed: _nextPage,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Theme.of(context).primaryColor,
+            foregroundColor: Colors.white,
+          ),
+          child: Text(
+            context.l10n.commonContinue,
+            style: const TextStyle(fontSize: 18),
+          ),
+        ),
       ),
     );
   }
@@ -246,14 +281,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Widget _buildWelcomePage(bool isDark) {
     final hero = HeroStyle.of(context);
     final colors = AppColors.of(context);
-    return Padding(
+    return _pageShell(
       padding: const EdgeInsets.fromLTRB(28, 8, 28, 24),
-      child: Column(
-        children: [
-          const Spacer(flex: 2),
-          // The real Budgetify mark, on a soft branded halo — the first
-          // impression, not a stock wallet glyph.
-          Container(
+      content: [
+        const Spacer(flex: 2),
+        // The real Budgetify mark, on a soft branded halo — the first
+        // impression, not a stock wallet glyph.
+        Center(
+          child: Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
@@ -267,71 +302,71 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               circular: true,
             ),
           ),
-          const SizedBox(height: 26),
-          Text(
-            context.l10n.onboardWelcomeTitle,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 34,
-              height: 1.1,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.8,
-              color: colors.text,
-            ),
+        ),
+        const SizedBox(height: 26),
+        Text(
+          context.l10n.onboardWelcomeTitle,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 34,
+            height: 1.1,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.8,
+            color: colors.text,
           ),
-          const SizedBox(height: 12),
-          Text(
-            context.l10n.onboardWelcomeDesc,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 15,
-              height: 1.45,
-              color: colors.textSecondary,
-            ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          context.l10n.onboardWelcomeDesc,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 15,
+            height: 1.45,
+            color: colors.textSecondary,
           ),
-          const Spacer(flex: 1),
-          // Feature highlights, on the premium hero surface.
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
-            decoration: BoxDecoration(
-              gradient: hero.gradient,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: hero.border),
-              boxShadow: hero.shadow,
-            ),
-            child: Column(
-              children: [
-                _welcomeFeature(hero, Icons.auto_awesome_motion_rounded,
-                    context.l10n.onboardFeatSmsTitle,
-                    context.l10n.onboardFeatSmsDesc),
-                _welcomeDivider(hero),
-                _welcomeFeature(hero, Icons.insights_rounded,
-                    context.l10n.onboardFeatInsightsTitle,
-                    context.l10n.onboardFeatInsightsDesc),
-                _welcomeDivider(hero),
-                _welcomeFeature(hero, Icons.lock_rounded,
-                    context.l10n.onboardFeatPrivacyTitle,
-                    context.l10n.onboardFeatPrivacyDesc),
-              ],
-            ),
+        ),
+        const Spacer(flex: 1),
+        // Feature highlights, on the premium hero surface.
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
+          decoration: BoxDecoration(
+            gradient: hero.gradient,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: hero.border),
+            boxShadow: hero.shadow,
           ),
-          const Spacer(flex: 2),
-          SizedBox(
-            width: double.infinity,
-            height: 56,
-            child: ElevatedButton(
-              onPressed: _nextPage,
-              style: ElevatedButton.styleFrom(
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16)),
-              ),
-              child: Text(context.l10n.getStarted,
-                  style: const TextStyle(
-                      fontSize: 17, fontWeight: FontWeight.w700)),
-            ),
+          child: Column(
+            children: [
+              _welcomeFeature(hero, Icons.auto_awesome_motion_rounded,
+                  context.l10n.onboardFeatSmsTitle,
+                  context.l10n.onboardFeatSmsDesc),
+              _welcomeDivider(hero),
+              _welcomeFeature(hero, Icons.insights_rounded,
+                  context.l10n.onboardFeatInsightsTitle,
+                  context.l10n.onboardFeatInsightsDesc),
+              _welcomeDivider(hero),
+              _welcomeFeature(hero, Icons.lock_rounded,
+                  context.l10n.onboardFeatPrivacyTitle,
+                  context.l10n.onboardFeatPrivacyDesc),
+            ],
           ),
-        ],
+        ),
+        const Spacer(flex: 2),
+      ],
+      footer: SizedBox(
+        width: double.infinity,
+        height: 56,
+        child: ElevatedButton(
+          onPressed: _nextPage,
+          style: ElevatedButton.styleFrom(
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16)),
+          ),
+          child: Text(context.l10n.getStarted,
+              style: const TextStyle(
+                  fontSize: 17, fontWeight: FontWeight.w700)),
+        ),
       ),
     );
   }
@@ -378,91 +413,93 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       Divider(height: 1, color: hero.divider);
 
   Widget _buildPermissionsPage(bool isDark) {
-    return Padding(
-      padding: const EdgeInsets.all(32),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.sms_outlined,
-            size: 80,
-            color: Theme.of(context).primaryColor,
+    return _pageShell(
+      content: [
+        const Spacer(),
+        Icon(
+          Icons.sms_outlined,
+          size: 80,
+          color: Theme.of(context).primaryColor,
+        ),
+        const SizedBox(height: 32),
+        Text(
+          context.l10n.smsPermissionTitle,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: isDark ? Colors.white : Colors.black87,
           ),
-          const SizedBox(height: 32),
-          Text(
-            context.l10n.smsPermissionTitle,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white : Colors.black87,
-            ),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          context.l10n.smsPermissionDesc,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 14,
+            color: isDark ? Color(0xFF9A9DA6) : Color(0xFF6E727C),
           ),
-          const SizedBox(height: 16),
-          Text(
-            context.l10n.smsPermissionDesc,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 14,
-              color: isDark ? Color(0xFF9A9DA6) : Color(0xFF6E727C),
-            ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF16181E) : Color(0xFFE9F6F0),
+            borderRadius: BorderRadius.circular(12),
           ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF16181E) : Color(0xFFE9F6F0),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.shield_outlined, color: Color(0xFF178A5B)),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    context.l10n.smsPrivacyNote,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF11744C),
-                    ),
+          child: Row(
+            children: [
+              Icon(Icons.shield_outlined, color: Color(0xFF178A5B)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  context.l10n.smsPrivacyNote,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF11744C),
                   ),
                 ),
-              ],
-            ),
-          ),
-          const Spacer(),
-          Row(
-            children: [
-              TextButton(
-                  onPressed: _previousPage, child: Text(context.l10n.back)),
-              const Spacer(),
-              _isLoading
-                  ? const CircularProgressIndicator()
-                  : ElevatedButton(
-                      onPressed: () async {
-                        // Request SMS permission
-                        final smsStatus = await Permission.sms.request();
-
-                        // Also request notification permission for Android 13+
-                        await Permission.notification.request();
-
-                        // Continue even if denied - user can grant later
-                        await _completeOnboarding(
-                          smsGranted: smsStatus.isGranted,
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 28,
-                          vertical: 16,
-                        ),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16)),
-                      ),
-                      child: Text(context.l10n.grantPermissionAndStart,
-                          style: const TextStyle(fontWeight: FontWeight.w700)),
-                    ),
+              ),
             ],
+          ),
+        ),
+        const Spacer(),
+      ],
+      // The grant button gets the flexible slot so long localized labels
+      // wrap inside it instead of overflowing the row.
+      footer: Row(
+        children: [
+          TextButton(
+              onPressed: _previousPage, child: Text(context.l10n.back)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : ElevatedButton(
+                    onPressed: () async {
+                      // Request SMS permission
+                      final smsStatus = await Permission.sms.request();
+
+                      // Also request notification permission for Android 13+
+                      await Permission.notification.request();
+
+                      // Continue even if denied - user can grant later
+                      await _completeOnboarding(
+                        smsGranted: smsStatus.isGranted,
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 16,
+                      ),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16)),
+                    ),
+                    child: Text(context.l10n.grantPermissionAndStart,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontWeight: FontWeight.w700)),
+                  ),
           ),
         ],
       ),

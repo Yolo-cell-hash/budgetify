@@ -90,6 +90,27 @@ class ThemeProvider extends ChangeNotifier {
     await prefs.setString(_variantKey, variant.name);
   }
 
+  /// Developer-mode preview: apply [variant] for this session WITHOUT
+  /// persisting, so a locked streak theme previewed in dev mode reverts to
+  /// the user's real theme on the next launch.
+  void setSessionVariant(AppThemeVariant variant) {
+    if (_variant == variant) return;
+    _variant = variant;
+    notifyListeners();
+  }
+
+  /// Drop any session-only preview and return to the persisted variant
+  /// (used when developer mode is switched off without restarting).
+  Future<void> restorePersistedVariant() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(_variantKey);
+    final restored =
+        saved != null ? _parse(saved) : AppThemeVariant.light;
+    if (restored == _variant) return;
+    _variant = restored;
+    notifyListeners();
+  }
+
   /// Toggle between light and dark (kept for the base appearance selector).
   Future<void> toggleTheme() async {
     await setVariant(

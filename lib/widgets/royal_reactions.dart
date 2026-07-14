@@ -80,6 +80,8 @@ class RoyalMood {
   static bool? _wasOverBudget;
   static bool? _wasHealthy;
 
+  static bool _launchCheerDone = false;
+
   static void observe(FinancialHealth health) {
     if (!health.hasScore) return;
     final overBudget =
@@ -87,10 +89,17 @@ class RoyalMood {
     final band = health.band;
     final healthy = band == HealthBand.good || band == HealthBand.excellent;
 
-    // First observation this session: adopt the state silently.
+    // First observation this session: adopt the state as the baseline. When
+    // that baseline is already GOOD — budgets adhered to, healthy score — the
+    // royal opens the session by celebrating the user (once per session; the
+    // host holds it until the welcome routine finishes).
     if (_wasOverBudget == null) {
       _wasOverBudget = overBudget;
       _wasHealthy = healthy;
+      if (!overBudget && healthy && !_launchCheerDone) {
+        _launchCheerDone = true;
+        requestRoyalReaction(RoyalReaction.cheer);
+      }
       return;
     }
     if (overBudget && !_wasOverBudget!) {
@@ -106,6 +115,7 @@ class RoyalMood {
   static void reset() {
     _wasOverBudget = null;
     _wasHealthy = null;
+    _launchCheerDone = false;
   }
 }
 
@@ -167,6 +177,7 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
     with SingleTickerProviderStateMixin {
   RoyalAvatar? _royal;
   _Routine? _routine;
+  _Routine? _pending; // one queued reaction, played after the current routine
   int _lastNonce = -1;
   int _lastCameoNonce = -1;
   double _durationMs = 1;
@@ -228,10 +239,20 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
     if (_bootedThisSession || !mounted) return;
     if (royalHomeAnchorKey.currentContext != null && _routine == null) {
       _bootedThisSession = true;
-      if (!_reduceMotion) _play(_Routine.boot);
+      if (!_reduceMotion) {
+        _play(_Routine.boot);
+      } else {
+        _playPending();
+      }
       return;
     }
-    if (attempts >= 40) return; // ~8s: user never reached Home — skip it.
+    if (attempts >= 40) {
+      // ~8s: user never reached Home — skip the parade, but let a reaction
+      // that queued up behind it (e.g. the launch cheer) still play.
+      _bootedThisSession = true;
+      _playPending();
+      return;
+    }
     Future.delayed(
         const Duration(milliseconds: 200), () => _scheduleBoot(attempts + 1));
   }
@@ -242,12 +263,28 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
     _lastNonce = ev.nonce;
     if (_royal == null) return;
     if (!context.read<AppPreferences>().gamifiedMode) return;
-    // Don't interrupt an in-flight routine — reactions are rare.
-    if (_routine != null) return;
-    _play(switch (ev.reaction) {
+    final routine = switch (ev.reaction) {
       RoyalReaction.scold => _Routine.smash,
       RoyalReaction.cheer => _Routine.praise,
       RoyalReaction.strike => _Routine.strike,
+    };
+    // A reaction that lands during another routine (or before the welcome
+    // parade has run) waits its turn instead of being dropped — the launch
+    // cheer always arrives while the boot is playing. Latest one wins.
+    if (_routine != null || !_bootedThisSession) {
+      _pending = routine;
+      return;
+    }
+    _play(routine);
+  }
+
+  void _playPending() {
+    final p = _pending;
+    if (p == null || !mounted || _routine != null) return;
+    _pending = null;
+    // A short beat between routines, so they read as separate thoughts.
+    Future.delayed(const Duration(milliseconds: 350), () {
+      if (mounted && _routine == null) _play(p);
     });
   }
 
@@ -324,8 +361,8 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
   void _play(_Routine r) {
     _durationMs = switch (r) {
       _Routine.boot => 5600,
-      _Routine.smash => 3400,
-      _Routine.praise => 2800,
+      _Routine.smash => 4600, // slam + a piece of the royal mind
+      _Routine.praise => 3400, // cheer + victory twirl
       _Routine.strike => 2200,
       _Routine.stroll => 6500,
       _Routine.dash => 3000,
@@ -353,6 +390,7 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
     royalCharacterOut.value = false;
     _lastPlayEnd = DateTime.now();
     if (mounted) setState(() => _routine = null);
+    _playPending();
   }
 
   // ── Frame maths ─────────────────────────────────────────────────────────
@@ -470,21 +508,21 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
   _CharFrame _smashRoutine(double t, Offset icon, Size screen) {
     final outC = Offset(_clampX(icon.dx - 26, screen), _groundY(icon) - _ch * 0.5);
     final marchC = Offset(_clampX(screen.width * 0.5, screen), outC.dy);
-    if (t < 0.10) {
-      final p = Curves.easeOutBack.transform(_seg(t, 0, 0.10)).clamp(0.0, 1.0);
+    if (t < 0.08) {
+      final p = Curves.easeOutBack.transform(_seg(t, 0, 0.08)).clamp(0.0, 1.0);
       return _CharFrame(
           center: _lerpO(icon, outC, p), scale: p, action: RoyalAction.idle, actionT: 0, facing: -1);
     }
-    if (t < 0.30) {
-      final p = Curves.easeInOut.transform(_seg(t, 0.10, 0.30));
+    if (t < 0.22) {
+      final p = Curves.easeInOut.transform(_seg(t, 0.08, 0.22));
       return _CharFrame(
           center: _lerpO(outC, marchC, p), scale: 1, action: RoyalAction.run, actionT: _cyc(t, 320), facing: -1);
     }
-    if (t < 0.72) {
+    if (t < 0.52) {
       // The overhead smash — impact mid-swing; a shockwave cracks the UI.
-      final at = _seg(t, 0.30, 0.72);
-      final impact = _seg(t, 0.47, 0.55);
-      final decay = 1 - _seg(t, 0.55, 0.72);
+      final at = _seg(t, 0.22, 0.52);
+      final impact = _seg(t, 0.34, 0.40);
+      final decay = 1 - _seg(t, 0.40, 0.52);
       return _CharFrame(
         center: marchC,
         scale: 1,
@@ -495,12 +533,22 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
         crack: impact * decay,
       );
     }
-    if (t < 0.90) {
-      final p = Curves.easeInOut.transform(_seg(t, 0.72, 0.90));
+    if (t < 0.80) {
+      // Then a piece of the royal mind: stomping, fist-shaking, head going
+      // side to side — properly upset before storming home.
+      return _CharFrame(
+          center: marchC,
+          scale: 1,
+          action: RoyalAction.fume,
+          actionT: _cyc(t, 720),
+          facing: -1);
+    }
+    if (t < 0.93) {
+      final p = Curves.easeInOut.transform(_seg(t, 0.80, 0.93));
       return _CharFrame(
           center: _lerpO(marchC, outC, p), scale: 1, action: RoyalAction.run, actionT: _cyc(t, 320), facing: 1);
     }
-    final p = _seg(t, 0.90, 1.0);
+    final p = _seg(t, 0.93, 1.0);
     return _CharFrame(
         center: _lerpO(outC, icon, Curves.easeIn.transform(p)),
         scale: (1 - p).clamp(0.0, 1.0),
@@ -511,16 +559,31 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
 
   _CharFrame _praise(double t, Offset icon, Size screen) {
     final showC = Offset(_clampX(icon.dx - 28, screen), _groundY(icon) - _ch * 0.5);
-    if (t < 0.12) {
-      final p = Curves.easeOutBack.transform(_seg(t, 0, 0.12)).clamp(0.0, 1.0);
+    if (t < 0.10) {
+      final p = Curves.easeOutBack.transform(_seg(t, 0, 0.10)).clamp(0.0, 1.0);
       return _CharFrame(
           center: _lerpO(icon, showC, p), scale: p, action: RoyalAction.cheer, actionT: 0, facing: -1);
     }
-    if (t < 0.84) {
+    if (t < 0.42) {
       return _CharFrame(
           center: showC, scale: 1, action: RoyalAction.cheer, actionT: _cyc(t, 800), facing: -1);
     }
-    final p = _seg(t, 0.84, 1.0);
+    if (t < 0.58) {
+      // A victory twirl: the royal spins in place (rapid facing flips read as
+      // a spin at chibi scale), arms and weapon still raised.
+      final flips = (t * _durationMs / 130).floor();
+      return _CharFrame(
+          center: showC,
+          scale: 1,
+          action: RoyalAction.cheer,
+          actionT: _cyc(t, 800),
+          facing: flips.isEven ? -1 : 1);
+    }
+    if (t < 0.86) {
+      return _CharFrame(
+          center: showC, scale: 1, action: RoyalAction.cheer, actionT: _cyc(t, 800), facing: -1);
+    }
+    final p = _seg(t, 0.86, 1.0);
     return _CharFrame(
         center: _lerpO(showC, icon, Curves.easeIn.transform(p)),
         scale: (1 - p).clamp(0.0, 1.0),

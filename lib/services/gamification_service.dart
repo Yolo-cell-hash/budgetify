@@ -166,6 +166,13 @@ class GamificationService {
   }
 
   // ── Profile ──────────────────────────────────────────────────────────
+
+  /// Developer-mode preview: when set, [loadProfile] reports this pixel-sprite
+  /// value as the equipped avatar WITHOUT touching what's persisted. Lets a
+  /// dev session equip any royal; a normal restart clears it, landing back on
+  /// the user's real, earned avatar. Never written to storage.
+  static String? sessionAvatarOverride;
+
   Future<GamiProfile> loadProfile() async {
     final blob = await _read();
     final p = blob['profile'];
@@ -185,6 +192,15 @@ class GamificationService {
       );
       blob['profile'] = profile.toMap();
       await _write(blob);
+    }
+    // Session-only dev-mode preview rides on top of (never into) storage.
+    final override = sessionAvatarOverride;
+    if (override != null) {
+      profile = profile.copyWith(
+        avatarKind: 'pixel',
+        avatarValue: override,
+        applyRoyalTheme: true,
+      );
     }
     return profile;
   }
