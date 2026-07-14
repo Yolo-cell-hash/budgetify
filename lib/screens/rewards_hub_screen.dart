@@ -11,6 +11,8 @@ import '../widgets/avatars.dart';
 import '../widgets/avatar_picker_sheet.dart';
 import '../widgets/badge_medallion.dart';
 import '../widgets/profile_share_card.dart';
+import '../widgets/royal_avatars.dart';
+import '../widgets/royal_reactions.dart';
 import '../widgets/streak_reward_road.dart';
 import 'profile_screen.dart';
 import 'trophy_room_screen.dart';
@@ -298,6 +300,7 @@ class _HomeRewardsAvatarState extends State<HomeRewardsAvatar> {
   Widget build(BuildContext context) {
     final p = _profile;
     if (p == null) return const SizedBox(width: 38, height: 38);
+    final isRoyal = royalAvatarAt(int.tryParse(p.avatarValue) ?? -1) != null;
     return GestureDetector(
       onTap: () async {
         await Navigator.push(
@@ -306,10 +309,38 @@ class _HomeRewardsAvatarState extends State<HomeRewardsAvatar> {
         );
         _load();
       },
-      child: AvatarView(
-        kind: p.avatarKind,
-        value: p.avatarValue,
-        size: 38,
+      // The anchor + empty-socket let a royal literally leave and return to this
+      // circle during a reaction routine (see royal_reactions.dart).
+      child: ValueListenableBuilder<bool>(
+        valueListenable: royalCharacterOut,
+        builder: (context, out, _) => SizedBox(
+          key: royalHomeAnchorKey,
+          width: 38,
+          height: 38,
+          child: (out && isRoyal)
+              ? const _EmptyAvatarSocket()
+              : AvatarView(kind: p.avatarKind, value: p.avatarValue, size: 38),
+        ),
+      ),
+    );
+  }
+}
+
+/// The vacated profile circle shown while a royal is out performing a routine.
+class _EmptyAvatarSocket extends StatelessWidget {
+  const _EmptyAvatarSocket();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: colors.cardAlt.withValues(alpha: 0.6),
+        border: Border.all(
+          color: colors.brandAccent.withValues(alpha: 0.5),
+          width: 1.4,
+        ),
       ),
     );
   }
