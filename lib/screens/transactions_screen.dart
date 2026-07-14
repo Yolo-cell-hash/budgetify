@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../l10n/l10n.dart';
 import '../models/transaction_model.dart';
 import '../providers/theme_provider.dart';
+import '../services/app_events.dart';
 import '../services/database_service.dart';
 import '../services/tutorial_service.dart';
 import '../widgets/app_toast.dart';
@@ -368,6 +369,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
     await _dbService.deleteTransaction(transaction.id!);
     await _loadTransactions();
+    // Cosmetic only: an equipped royal "vanquishes" the removed entry.
+    requestRoyalReaction(RoyalReaction.strike);
 
     if (mounted) {
       showAppToast(context,

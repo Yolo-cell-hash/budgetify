@@ -25,3 +25,42 @@ final ValueNotifier<String?> homeSpotlightRequest =
 /// shell's IndexedStack stay mounted while hidden, so tab-scoped UI (like the
 /// guided tour's tips) checks this before showing anything.
 final ValueNotifier<int> mainShellTabIndex = ValueNotifier<int>(0);
+
+/// A one-shot reaction the equipped ROYALTY avatar can play on the Home header
+/// — purely cosmetic (rendered by royal_reactions.dart). Strictly QOL: nothing
+/// in this pathway reads or writes core data, and if no royal is equipped (or
+/// Gamified Budgets is off) there simply is no listener, so it's a silent no-op.
+enum RoyalReaction {
+  /// A weapon strike — e.g. after deleting a transaction (the royal "vanquishes"
+  /// it).
+  strike,
+
+  /// An angry weapon slam — e.g. when a budget is exceeded.
+  scold,
+
+  /// A happy flourish — e.g. when financial health turns healthy.
+  cheer,
+}
+
+/// A reaction plus a monotonic nonce, so the SAME reaction firing twice in a
+/// row still notifies listeners (a bare enum value wouldn't change).
+class RoyalReactionEvent {
+  final RoyalReaction reaction;
+  final int nonce;
+  const RoyalReactionEvent(this.reaction, this.nonce);
+}
+
+/// Latest requested royal reaction, consumed by the Home avatar. Null until the
+/// first request.
+final ValueNotifier<RoyalReactionEvent?> royalReactionRequest =
+    ValueNotifier<RoyalReactionEvent?>(null);
+
+int _royalReactionNonce = 0;
+
+/// Ask the Home royal avatar to play [reaction]. Fire-and-forget and always
+/// safe: it only updates a notifier, never blocks, and does nothing visible
+/// unless a royal avatar is on the Home header.
+void requestRoyalReaction(RoyalReaction reaction) {
+  royalReactionRequest.value =
+      RoyalReactionEvent(reaction, ++_royalReactionNonce);
+}

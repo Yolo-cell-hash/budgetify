@@ -16,6 +16,7 @@ import 'package:budget_tracker/providers/app_preferences.dart';
 import 'package:budget_tracker/providers/locale_provider.dart';
 import 'package:budget_tracker/widgets/royal_avatars.dart'
     show courtDressFor;
+import 'package:budget_tracker/widgets/royal_reactions.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -95,8 +96,11 @@ class MyApp extends StatelessWidget {
           theme: themeProvider.activeTheme,
           themeMode: ThemeMode.light,
           // The lock gate wraps the Navigator itself so the lock screen
-          // covers every route, not just the home screen.
-          builder: (context, child) => AppLockGate(child: child!),
+          // covers every route, not just the home screen. The royal-reaction
+          // host sits inside it (below the lock overlay) so a royal avatar's
+          // cosmetic flourishes float above the app — but never over the lock.
+          builder: (context, child) =>
+              AppLockGate(child: RoyalReactionHost(child: child!)),
           home: appPreferences.isOnboardingComplete
               ? const MainShell()
               : const OnboardingScreen(),

@@ -6,6 +6,7 @@ import '../models/recurring_payment.dart';
 import '../models/transaction_model.dart';
 import '../models/transaction_rule_model.dart';
 import '../providers/theme_provider.dart';
+import '../services/app_events.dart';
 import '../services/database_service.dart';
 import '../services/custom_tag_service.dart';
 import '../services/ledger_service.dart';
@@ -1729,6 +1730,8 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
       );
     }
     await _dbService.deleteTransaction(_transaction.id!);
+    // Cosmetic only: an equipped royal "vanquishes" the removed entry.
+    requestRoyalReaction(RoyalReaction.strike);
     if (!mounted) return;
     showAppToast(
       context,
