@@ -782,9 +782,49 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
           ),
+
+          // Developer Section — only present while dev mode is on (the mode is
+          // entered from the hidden Home-title gate). Persisted, so it stays
+          // on across restarts until switched off here. English-only, like the
+          // rest of the developer tooling.
+          if (DevMode.isActive) ...[
+            const SizedBox(height: 24),
+            _buildSectionHeader('Developer', isDark),
+            const SizedBox(height: 8),
+            _buildSettingsCard(
+              isDark: isDark,
+              child: SwitchListTile(
+                secondary: Icon(
+                  Icons.developer_mode_rounded,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                title: const Text('Developer mode'),
+                subtitle: Text(
+                  'All themes & royals unlocked for preview; backups disabled. '
+                  'Turn off to return to your real, earned state.',
+                  style: TextStyle(
+                    color:
+                        isDark ? const Color(0xFF8A8D96) : const Color(0xFF6E727C),
+                  ),
+                ),
+                value: true,
+                onChanged: (_) => _disableDevMode(),
+              ),
+            ),
+          ],
         ],
       ),
       ),
+    );
+  }
+
+  Future<void> _disableDevMode() async {
+    await DevMode.disable(context.read<ThemeProvider>());
+    if (!mounted) return;
+    _showStyledSnackBar(
+      icon: Icons.developer_mode_rounded,
+      message: 'Developer mode turned off.',
+      color: const Color(0xFF70798A),
     );
   }
 

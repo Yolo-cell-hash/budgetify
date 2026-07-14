@@ -23,6 +23,41 @@ void main() {
       expect(DevMode.isActive, isTrue);
     });
 
+    test('the on/off flag persists and is restored by initialize', () async {
+      // A fresh install starts off.
+      await DevMode.initialize();
+      expect(DevMode.isActive, isFalse);
+
+      // Unlocking writes the flag through to storage.
+      DevMode.tryUnlock('budgetify.dev');
+      // Let the fire-and-forget persist settle.
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getBool('dev_mode_active'), isTrue);
+
+      // Simulate a relaunch: in-memory flag cleared, restored from storage.
+      DevMode.active.value = false;
+      await DevMode.initialize();
+      expect(DevMode.isActive, isTrue,
+          reason: 'dev mode stays on across restarts');
+    });
+
+    test('disable clears the flag so the next launch starts off', () async {
+      SharedPreferences.setMockInitialValues({'dev_mode_active': true});
+      await DevMode.initialize();
+      expect(DevMode.isActive, isTrue);
+
+      final tp = ThemeProvider();
+      await tp.initialize();
+      await DevMode.disable(tp);
+      expect(DevMode.isActive, isFalse);
+
+      DevMode.active.value = true; // pretend something set it
+      await DevMode.initialize(); // relaunch reads storage
+      expect(DevMode.isActive, isFalse,
+          reason: 'disable persisted the off state');
+    });
+
     test('session avatar override rides on top of the persisted profile',
         () async {
       final empress = kRoyalAvatars.firstWhere((r) => r.id == 'empress');
