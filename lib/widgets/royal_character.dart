@@ -21,7 +21,7 @@ import 'royal_avatars.dart';
 /// Medic's rolling supply cart). Cosmetic only; never part of core logic.
 
 /// What the character is doing this frame.
-enum RoyalAction { idle, walk, run, wave, smash, cheer, ride }
+enum RoyalAction { idle, walk, run, wave, smash, cheer, fume, ride }
 
 enum RoyalOutfit { robe, armor, coat }
 
@@ -788,34 +788,78 @@ class RoyalCharacterPainter extends CustomPainter {
     canvas.restore();
   }
 
-  /// Effects drawn unsquashed above the figure: impact sparks, cheer stars.
+  /// Effects drawn unsquashed above the figure: impact sparks, cheer
+  /// stars/hearts, fume anger-mark + steam.
   void _actionAccents(Canvas canvas, Size size, _Pose pose) {
     if (pose.flourish <= 0) return;
     final w = size.width, h = size.height;
     final accent = royal.theme.accent;
-    if (action == RoyalAction.smash) {
-      // Radial impact sparks at the strike point.
-      final at = Offset(w * 0.22, h * 0.93);
-      final sp = Paint()
-        ..strokeWidth = 2
-        ..strokeCap = StrokeCap.round
-        ..color = accent.withValues(alpha: pose.flourish);
-      for (var i = 0; i < 5; i++) {
-        final a = math.pi + i * 0.42 - 0.4;
-        final r0 = w * 0.05 + w * 0.09 * (1 - pose.flourish);
-        final r1 = r0 + w * 0.085 * pose.flourish;
-        canvas.drawLine(at + Offset(math.cos(a), math.sin(a)) * r0,
-            at + Offset(math.cos(a), math.sin(a)) * r1, sp);
-      }
-    } else {
-      // Cheer: little four-point stars popping around the head.
-      for (var i = 0; i < 3; i++) {
-        final a = i * 2.1 + t * 2 * math.pi;
-        final p = Offset(w * 0.5, h * 0.28) +
-            Offset(math.cos(a) * w * 0.36, math.sin(a) * h * 0.10 - h * 0.06);
-        _star(canvas, p, w * 0.030 * pose.flourish,
-            accent.withValues(alpha: 0.85 * pose.flourish));
-      }
+    switch (action) {
+      case RoyalAction.smash:
+        // Radial impact sparks at the strike point.
+        final at = Offset(w * 0.22, h * 0.93);
+        final sp = Paint()
+          ..strokeWidth = 2
+          ..strokeCap = StrokeCap.round
+          ..color = accent.withValues(alpha: pose.flourish);
+        for (var i = 0; i < 5; i++) {
+          final a = math.pi + i * 0.42 - 0.4;
+          final r0 = w * 0.05 + w * 0.09 * (1 - pose.flourish);
+          final r1 = r0 + w * 0.085 * pose.flourish;
+          canvas.drawLine(at + Offset(math.cos(a), math.sin(a)) * r0,
+              at + Offset(math.cos(a), math.sin(a)) * r1, sp);
+        }
+      case RoyalAction.fume:
+        // The classic anger cross-vein, pulsing beside the crown, plus two
+        // little steam puffs rising off the royal head.
+        final pulse = 0.85 + 0.15 * math.sin(t * 2 * math.pi * 5);
+        final markC = Offset(w * 0.80, h * 0.10);
+        final mark = Paint()
+          ..strokeWidth = 2.4
+          ..strokeCap = StrokeCap.round
+          ..style = PaintingStyle.stroke
+          ..color = const Color(0xFFFF4632)
+              .withValues(alpha: 0.95 * pose.flourish);
+        final r = w * 0.052 * pulse;
+        for (final q in const [
+          (0.35, 0.35),
+          (-0.35, 0.35),
+          (0.35, -0.35),
+          (-0.35, -0.35),
+        ]) {
+          final dir = Offset(q.$1, q.$2);
+          canvas.drawArc(
+            Rect.fromCircle(center: markC + dir * r * 2.1, radius: r),
+            dir.direction + math.pi * 0.75,
+            math.pi * 0.5,
+            false,
+            mark,
+          );
+        }
+        for (var i = 0; i < 2; i++) {
+          final p = (t * 1.6 + i * 0.5) % 1.0;
+          final puff = Offset(w * (0.24 - i * 0.06), h * (0.10 - p * 0.075));
+          canvas.drawCircle(
+              puff,
+              w * (0.020 + 0.014 * p),
+              Paint()
+                ..color = Colors.white
+                    .withValues(alpha: 0.38 * (1 - p) * pose.flourish));
+        }
+      default:
+        // Cheer: stars and hearts popping around the head.
+        for (var i = 0; i < 4; i++) {
+          final a = i * 1.6 + t * 2 * math.pi;
+          final p = Offset(w * 0.5, h * 0.28) +
+              Offset(math.cos(a) * w * 0.36, math.sin(a) * h * 0.10 - h * 0.06);
+          if (i.isOdd) {
+            _heart(canvas, p, w * 0.026 * pose.flourish,
+                accent.withValues(alpha: 0.9 * pose.flourish));
+          } else {
+            _star(canvas, p, w * 0.030 * pose.flourish,
+                accent.withValues(alpha: 0.85 * pose.flourish));
+          }
+        }
     }
   }
 
@@ -1371,6 +1415,24 @@ class RoyalCharacterPainter extends CustomPainter {
           flourish: 0.5 + hop * 0.5,
           headTilt: math.sin(t * 2 * math.pi) * 0.04,
         );
+      case RoyalAction.fume:
+        // Post-smash scolding: leaning right into the user, stomping in
+        // place, fists pumping, head shaking a firm royal "no".
+        final stomp = math.sin(t * 2 * math.pi * 2);
+        final shake = math.sin(t * 2 * math.pi * 5);
+        return _Pose(
+          bob: -stomp.abs() * 0.012,
+          lean: 0.10,
+          squash: 1 - stomp.abs() * 0.02,
+          legPhase: stomp * 0.5,
+          stride: 0.8,
+          armFree: 0.55 + stomp * 0.07, // fists down-out, pumping
+          armWeapon: -0.55 - stomp * 0.07,
+          wiggle: shake * 0.2,
+          blink: false, // glaring
+          headTilt: shake * 0.055,
+          flourish: 1,
+        );
       case RoyalAction.ride:
         return const _Pose(); // ride has its own pipeline
     }
@@ -1438,6 +1500,17 @@ class RoyalCharacterPainter extends CustomPainter {
     canvas.drawPath(p, _inkStroke..strokeWidth = 1.0);
     canvas.drawCircle(c.translate(-r * 0.2, -r * 0.25), r * 0.22,
         Paint()..color = Colors.white.withValues(alpha: 0.85));
+  }
+
+  void _heart(Canvas canvas, Offset c, double r, Color color) {
+    final p = Path()
+      ..moveTo(c.dx, c.dy + r)
+      ..cubicTo(c.dx + r * 1.5, c.dy + r * 0.1, c.dx + r * 0.9,
+          c.dy - r * 1.2, c.dx, c.dy - r * 0.35)
+      ..cubicTo(c.dx - r * 0.9, c.dy - r * 1.2, c.dx - r * 1.5,
+          c.dy + r * 0.1, c.dx, c.dy + r)
+      ..close();
+    canvas.drawPath(p, Paint()..color = color);
   }
 
   void _star(Canvas canvas, Offset c, double r, Color color) {

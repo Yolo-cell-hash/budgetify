@@ -5,6 +5,7 @@ import '../models/achievement.dart';
 import '../models/streak_reward.dart';
 import '../providers/theme_provider.dart';
 import '../services/app_events.dart';
+import '../services/dev_mode.dart';
 import '../services/gamification_service.dart';
 import '../widgets/app_bar_title.dart';
 import '../widgets/avatars.dart';
@@ -135,16 +136,26 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
 
   /// Open the avatar picker (optionally scrolled straight to ROYALTY), then
   /// refresh the royal-unlock state — a pick may have been spent inside.
+  /// Developer mode shows the whole court unlocked; equipping a royal the
+  /// user hasn't actually earned becomes a session-only preview.
   Future<void> _openAvatarPicker({bool scrollToRoyalty = false}) async {
     final edited = await showAvatarPicker(
       context,
       _profile,
-      unlockedRoyals: _unlockedRoyals,
+      unlockedRoyals: DevMode.isActive
+          ? {for (final r in kRoyalAvatars) r.id}
+          : _unlockedRoyals,
       royalPicksAvailable: _royalPicks,
       onUnlockRoyal: _svc.unlockRoyal,
       scrollToRoyalty: scrollToRoyalty,
     );
-    if (edited != null) await _save(edited);
+    if (edited != null) {
+      if (applyDevRoyalPreview(edited, _unlockedRoyals)) {
+        if (mounted) setState(() => _profile = edited);
+      } else {
+        await _save(edited);
+      }
+    }
     final unlockedRoyals = await _svc.unlockedRoyalIds();
     final royalPicks = await _svc.availableRoyalPicks();
     if (mounted) {

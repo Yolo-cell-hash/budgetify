@@ -18,6 +18,7 @@ import '../services/app_events.dart';
 import '../services/app_lock_service.dart';
 import '../services/axio_import_service.dart';
 import '../services/backup_service.dart';
+import '../services/dev_mode.dart';
 import '../services/background_service.dart';
 import '../services/export_service.dart';
 import '../services/gamification_service.dart';
@@ -27,6 +28,7 @@ import '../services/tutorial_service.dart';
 import '../widgets/app_bar_title.dart';
 import '../widgets/app_dialog.dart';
 import '../widgets/app_toast.dart';
+import '../widgets/language_picker_sheet.dart';
 import '../widgets/export_options_sheet.dart';
 import '../widgets/import_options_sheet.dart';
 import 'manage_tags_screen.dart';
@@ -65,14 +67,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.initState();
     _loadSettings();
     TutorialService.instance.addListener(_onTutorialTick);
+    // Theme locks and the backup gate follow the dev-mode switch live.
+    DevMode.active.addListener(_onDevModeChange);
     WidgetsBinding.instance
         .addPostFrameCallback((_) => _maybeShowTutorialTip());
   }
 
   @override
   void dispose() {
+    DevMode.active.removeListener(_onDevModeChange);
     TutorialService.instance.removeListener(_onTutorialTick);
     super.dispose();
+  }
+
+  void _onDevModeChange() {
+    if (mounted) setState(() {});
   }
 
   void _onTutorialTick() {
@@ -292,7 +301,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Icons.chevron_right_rounded,
                     color: isDark ? const Color(0xFF8A8D96) : const Color(0xFF9A9DA6),
                   ),
-                  onTap: () => _showLanguageSheet(localeProvider),
+                  onTap: () => showLanguagePickerSheet(context, localeProvider),
                 ),
                 Divider(
                   height: 1,
@@ -812,7 +821,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _themeTile(AppThemeVariant v, ThemeProvider themeProvider) {
     final palette = AppColors.forVariant(v);
     final reward = streakRewardForVariant(v); // null for light/dark
-    final locked = reward != null && !reward.isUnlocked(_longestStreak);
+    final earned = reward == null || reward.isUnlocked(_longestStreak);
+    // Developer mode previews every theme; the padlock lifts for the session.
+    final locked = !earned && !DevMode.isActive;
     final active = themeProvider.variant == v;
     final accent = Theme.of(context).colorScheme.primary;
 
@@ -824,6 +835,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             message: context.l10nRead.lockedThemeNudge(reward.days),
             color: const Color(0xFF70798A),
           );
+          return;
+        }
+        if (!earned) {
+          // Dev-mode preview of a locked theme: session-only, never persisted,
+          // so a restart returns to the user's real theme.
+          themeProvider.setSessionVariant(v);
           return;
         }
         themeProvider.setVariant(v);
@@ -919,71 +936,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         AppThemeVariant.royalIndigo => context.l10n.themeNameRoyalIndigo,
         AppThemeVariant.midnightIndigo => context.l10n.themeNameMidnightIndigo,
       };
-
-  /// Bottom sheet to pick the in-app language. Applies immediately and persists
-  /// via [LocaleProvider]; the whole app rebuilds in the chosen language.
-  void _showLanguageSheet(LocaleProvider localeProvider) {
-    final colors = AppColors.of(context);
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: colors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 12),
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: colors.border,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 6),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  context.l10nRead.language,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: colors.text,
-                  ),
-                ),
-              ),
-            ),
-            for (final lang in AppLanguage.values)
-              ListTile(
-                title: Text(
-                  lang.nativeName,
-                  style: TextStyle(
-                    color: colors.text,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                subtitle: Text(
-                  lang.englishName,
-                  style: TextStyle(color: colors.textSecondary, fontSize: 12),
-                ),
-                trailing: localeProvider.language == lang
-                    ? Icon(Icons.check_circle_rounded, color: colors.accent)
-                    : Icon(Icons.circle_outlined, color: colors.textTertiary),
-                onTap: () {
-                  localeProvider.setLanguage(lang);
-                  Navigator.pop(sheetContext);
-                },
-              ),
-            const SizedBox(height: 12),
-          ],
-        ),
-      ),
-    );
-  }
 
   Widget _buildSectionHeader(String title, bool isDark) {
     return Padding(
@@ -1097,6 +1049,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _createBackup() async {
+    // Dev mode previews unearned themes/royals; freezing that state into a
+    // backup would blur the line with the user's real (prod) progress.
+    // English-only: dev mode is a developer tool, not product surface.
+    if (DevMode.isActive) {
+      _showStyledSnackBar(
+        icon: Icons.science_outlined,
+        message: 'Backups are disabled while developer mode is on.',
+        color: const Color(0xFF70798A),
+      );
+      return;
+    }
     final passphrase = await _promptPassphrase(confirm: true);
     if (passphrase == null || !mounted) return;
 

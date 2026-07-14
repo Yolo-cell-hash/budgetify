@@ -98,7 +98,9 @@ void main() {
         RoyalMood.observe(_health(income: 100, expenses: 150, limit: 100, spent: 150));
         RoyalMood.observe(_health(income: 100, expenses: 160, limit: 100, spent: 160));
       });
-      expect(events, [RoyalReaction.scold]);
+      // The healthy, adherent baseline legitimately opens with the launch
+      // cheer; the point under test is exactly ONE scold for the transition.
+      expect(events, [RoyalReaction.cheer, RoyalReaction.scold]);
     });
 
     test('cheer fires once when newly healthy', () {
@@ -112,10 +114,29 @@ void main() {
 
     test('over budget suppresses cheer even with a healthy score', () {
       final events = capture(() {
-        RoyalMood.observe(_health(income: 100, expenses: 30, limit: 100, spent: 50));
+        // Baseline is deliberately NOT healthy (95% of income spent, no
+        // budgets set) so the launch cheer stays out of this scenario.
+        RoyalMood.observe(_health(income: 100, expenses: 95));
         RoyalMood.observe(_health(income: 100, expenses: 30, limit: 40, spent: 90));
       });
       expect(events, [RoyalReaction.scold]);
+    });
+
+    test('a session that OPENS healthy and adherent cheers once', () {
+      final events = capture(() {
+        RoyalMood.observe(_health(income: 100, expenses: 20, limit: 100, spent: 50));
+        RoyalMood.observe(_health(income: 100, expenses: 22, limit: 100, spent: 55));
+        RoyalMood.observe(_health(income: 100, expenses: 18, limit: 100, spent: 40));
+      });
+      expect(events, [RoyalReaction.cheer],
+          reason: 'the launch celebration fires exactly once');
+    });
+
+    test('a session that opens over budget does NOT launch-cheer', () {
+      final events = capture(() {
+        RoyalMood.observe(_health(income: 100, expenses: 20, limit: 40, spent: 90));
+      });
+      expect(events, isEmpty);
     });
   });
 
@@ -174,6 +195,42 @@ void main() {
 
       expect(royalCharacterOut.value, isTrue);
       expect(_hasCharacter(tester), isTrue);
+    });
+
+    testWidgets('a reaction during the boot parade queues and plays after it',
+        (tester) async {
+      final sovereign = kRoyalAvatars.firstWhere((r) => r.id == 'sovereign');
+      SharedPreferences.setMockInitialValues({
+        'gamification_v1': jsonEncode({
+          'profile': {
+            'avatarKind': 'pixel',
+            'avatarValue': '${sovereign.spriteIndex}',
+          },
+          'unlockedRoyals': ['sovereign'],
+        }),
+      });
+      final prefs = AppPreferences();
+      await prefs.initialize();
+
+      await tester.pumpWidget(_host(prefs));
+      for (var i = 0; i < 14; i++) {
+        await tester.pump(const Duration(milliseconds: 40));
+      }
+      expect(royalCharacterOut.value, isTrue, reason: 'boot is playing');
+
+      // The launch cheer lands mid-parade — it must wait, not vanish.
+      requestRoyalReaction(RoyalReaction.cheer);
+      await tester.pump(const Duration(seconds: 6)); // boot (5.6s) finishes
+      await tester.pump(const Duration(milliseconds: 400)); // inter-beat
+      await tester.pump(const Duration(milliseconds: 600)); // praise underway
+
+      expect(_hasCharacter(tester), isTrue,
+          reason: 'the queued praise routine should be playing');
+      expect(_characterPainter(tester)!.action, RoyalAction.cheer);
+
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pump();
+      expect(_hasCharacter(tester), isFalse);
     });
 
     testWidgets('every cameo plays after boot without vacating the icon',
