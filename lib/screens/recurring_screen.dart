@@ -197,6 +197,8 @@ class _RecurringScreenState extends State<RecurringScreen> {
     }
     HapticFeedback.selectionClick();
     await _svc.markPaid(v.plan, due, amount: amount);
+    // Cosmetic only: an equipped royal cheers the user for staying on top of bills.
+    requestRoyalReaction(RoyalReaction.cheer);
     if (mounted) {
       showAppToast(context,
           message: context.l10nRead.recurringPaidLabel,

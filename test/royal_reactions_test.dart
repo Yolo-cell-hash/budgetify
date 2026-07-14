@@ -4,6 +4,7 @@ import 'package:budget_tracker/providers/app_preferences.dart';
 import 'package:budget_tracker/services/app_events.dart';
 import 'package:budget_tracker/services/financial_health_service.dart';
 import 'package:budget_tracker/widgets/royal_avatars.dart';
+import 'package:budget_tracker/widgets/royal_character.dart';
 import 'package:budget_tracker/widgets/royal_reactions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -22,6 +23,25 @@ FinancialHealth _health({
       budgets: limit > 0 ? [BudgetUsage(limit: limit, spent: spent)] : const [],
     );
 
+bool _hasCharacter(WidgetTester tester) => tester
+    .widgetList<CustomPaint>(find.byType(CustomPaint))
+    .any((c) => c.painter is RoyalCharacterPainter);
+
+Widget _host(AppPreferences prefs) => ChangeNotifierProvider<AppPreferences>.value(
+      value: prefs,
+      child: MaterialApp(
+        home: RoyalReactionHost(
+          child: Scaffold(
+            body: Align(
+              alignment: Alignment.topRight,
+              // Stand in for the Home profile icon the boot routine anchors to.
+              child: SizedBox(key: royalHomeAnchorKey, width: 38, height: 38),
+            ),
+          ),
+        ),
+      ),
+    );
+
 void main() {
   group('Royal weapons', () {
     test('each royal wields its signature weapon', () {
@@ -36,7 +56,6 @@ void main() {
       for (final r in kRoyalAvatars) {
         expect(r.weapon, expected[r.id], reason: r.id);
       }
-      // Every weapon in the enum is claimed by exactly one royal.
       expect(kRoyalAvatars.map((r) => r.weapon).toSet().length,
           RoyalWeapon.values.length);
     });
@@ -67,11 +86,8 @@ void main() {
 
     test('scold fires once when newly over budget', () {
       final events = capture(() {
-        // Baseline: within budget.
         RoyalMood.observe(_health(income: 100, expenses: 50, limit: 100, spent: 50));
-        // Cross over the cap → scold.
         RoyalMood.observe(_health(income: 100, expenses: 150, limit: 100, spent: 150));
-        // Still over → no repeat.
         RoyalMood.observe(_health(income: 100, expenses: 160, limit: 100, spent: 160));
       });
       expect(events, [RoyalReaction.scold]);
@@ -79,11 +95,8 @@ void main() {
 
     test('cheer fires once when newly healthy', () {
       final events = capture(() {
-        // Baseline: weak savings, no budgets → not healthy, not over budget.
         RoyalMood.observe(_health(income: 100, expenses: 95));
-        // Strong savings → excellent band → cheer.
         RoyalMood.observe(_health(income: 100, expenses: 30));
-        // Still healthy → no repeat.
         RoyalMood.observe(_health(income: 100, expenses: 20));
       });
       expect(events, [RoyalReaction.cheer]);
@@ -92,49 +105,44 @@ void main() {
     test('over budget suppresses cheer even with a healthy score', () {
       final events = capture(() {
         RoyalMood.observe(_health(income: 100, expenses: 30, limit: 100, spent: 50));
-        // Great savings but a category blown → scold, never cheer.
         RoyalMood.observe(_health(income: 100, expenses: 30, limit: 40, spent: 90));
       });
       expect(events, [RoyalReaction.scold]);
     });
   });
 
-  group('RoyalReactionView', () {
-    testWidgets('renders every royal × reaction and completes without error',
-        (tester) async {
+  group('RoyalCharacterView', () {
+    testWidgets('renders every royal × action without error', (tester) async {
       for (final royal in kRoyalAvatars) {
-        for (final reaction in RoyalReaction.values) {
-          var done = false;
+        for (final action in RoyalAction.values) {
           await tester.pumpWidget(
             MaterialApp(
               home: Scaffold(
                 body: Center(
-                  child: RoyalReactionView(
-                    key: ValueKey('${royal.id}-$reaction'),
+                  child: RoyalCharacterView(
+                    key: ValueKey('${royal.id}-$action'),
                     royal: royal,
-                    reaction: reaction,
-                    size: 116,
-                    onDone: () => done = true,
+                    action: action,
+                    facing: action == RoyalAction.walk ? -1 : 1,
                   ),
                 ),
               ),
             ),
           );
-          // Drive the full ~1.35s one-shot animation to completion.
           await tester.pump();
-          for (var i = 0; i < 11; i++) {
-            await tester.pump(const Duration(milliseconds: 160));
+          for (var i = 0; i < 5; i++) {
+            await tester.pump(const Duration(milliseconds: 120));
           }
-          expect(tester.takeException(), isNull,
-              reason: '${royal.id} · $reaction');
-          expect(done, isTrue, reason: '${royal.id} · $reaction onDone');
+          expect(tester.takeException(), isNull, reason: '${royal.id} · $action');
         }
       }
     });
   });
 
   group('RoyalReactionHost', () {
-    testWidgets('plays a reaction for an equipped royal when gamified is on',
+    setUp(RoyalReactionHost.debugReset);
+
+    testWidgets('an equipped royal emerges with the welcome routine',
         (tester) async {
       final sovereign = kRoyalAvatars.firstWhere((r) => r.id == 'sovereign');
       SharedPreferences.setMockInitialValues({
@@ -149,26 +157,18 @@ void main() {
       final prefs = AppPreferences();
       await prefs.initialize(); // Gamified Budgets defaults on.
 
-      await tester.pumpWidget(
-        ChangeNotifierProvider<AppPreferences>.value(
-          value: prefs,
-          child: const MaterialApp(
-            home: RoyalReactionHost(child: Scaffold(body: SizedBox())),
-          ),
-        ),
-      );
-      // Let the host load the equipped royal.
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 20));
+      await tester.pumpWidget(_host(prefs));
+      // Let the host load the royal and fire the one-time welcome routine
+      // (which waits for the profile-icon anchor to be on screen).
+      for (var i = 0; i < 14; i++) {
+        await tester.pump(const Duration(milliseconds: 40));
+      }
 
-      expect(find.byType(RoyalReactionView), findsNothing);
-      requestRoyalReaction(RoyalReaction.strike);
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 60));
-      expect(find.byType(RoyalReactionView), findsOneWidget);
+      expect(royalCharacterOut.value, isTrue);
+      expect(_hasCharacter(tester), isTrue);
     });
 
-    testWidgets('stays silent for a non-royal avatar', (tester) async {
+    testWidgets('a non-royal avatar stays silent', (tester) async {
       SharedPreferences.setMockInitialValues({
         'gamification_v1': jsonEncode({
           'profile': {'avatarKind': 'pixel', 'avatarValue': '0'},
@@ -177,21 +177,17 @@ void main() {
       final prefs = AppPreferences();
       await prefs.initialize();
 
-      await tester.pumpWidget(
-        ChangeNotifierProvider<AppPreferences>.value(
-          value: prefs,
-          child: const MaterialApp(
-            home: RoyalReactionHost(child: Scaffold(body: SizedBox())),
-          ),
-        ),
-      );
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 20));
+      await tester.pumpWidget(_host(prefs));
+      for (var i = 0; i < 6; i++) {
+        await tester.pump(const Duration(milliseconds: 40));
+      }
 
-      requestRoyalReaction(RoyalReaction.strike);
+      requestRoyalReaction(RoyalReaction.scold);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 60));
-      expect(find.byType(RoyalReactionView), findsNothing);
+
+      expect(royalCharacterOut.value, isFalse);
+      expect(_hasCharacter(tester), isFalse);
     });
   });
 }

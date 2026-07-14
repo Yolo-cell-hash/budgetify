@@ -954,6 +954,10 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
     );
     TutorialService.instance.advanceFrom(TutorialStep.investEditor);
     if (changed) {
+      // Cosmetic only: cheer when a brand-new investment/holding is added.
+      if (existingHolding == null && existingSip == null) {
+        requestRoyalReaction(RoyalReaction.cheer);
+      }
       await _load();
       if (mounted) {
         showAppToast(context,
