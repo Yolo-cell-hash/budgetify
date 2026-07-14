@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -10,12 +11,18 @@ import '../services/gamification_service.dart';
 import 'royal_avatars.dart';
 import 'royal_character.dart';
 
-/// The "living court": full-body ROYALTY avatars that emerge from the Home
-/// profile icon to react to moments — smash the screen when the user blows a
-/// budget, cheer good behaviour (adherence, bills paid, investments), and a
-/// welcome routine at launch. Strictly-additive QOL: everything renders as a
-/// transient overlay above the app and never reads/writes core data or blocks
-/// a flow. Silent unless a royal is equipped and Gamified Budgets is on.
+/// The "living court": pocket-size, full-body ROYALTY avatars that inhabit the
+/// app. They emerge from the Home profile icon for the big moments — a welcome
+/// parade at launch (with their royal ride), a smash when the user blows a
+/// budget, a cheer for good behaviour — and, between moments, drop rare
+/// ambient CAMEOS anywhere in the app: strolling along the bottom of whatever
+/// page is open, galloping across on their mount, peeking in from a screen
+/// edge, or popping up at a random spot for a tiny celebration.
+///
+/// Strictly-additive QOL: everything renders as a transient overlay above the
+/// app, ignores pointers, and never reads/writes core data or blocks a flow.
+/// Silent unless a royal is equipped and Gamified Budgets is on; cameos also
+/// respect the platform's reduce-motion setting and never interrupt a routine.
 
 const _ink = Color(0xFF15171E);
 const _crackTint = Color(0xFFFFD75E);
@@ -26,8 +33,42 @@ const _crackTint = Color(0xFFFFD75E);
 final GlobalKey royalHomeAnchorKey = GlobalKey();
 
 /// True while the character is "out" of the profile circle, so the Home avatar
-/// can show an empty socket instead of doubling up.
+/// can show an empty socket instead of doubling up. Cameos don't set this —
+/// they wander in from off-screen, not out of the icon.
 final ValueNotifier<bool> royalCharacterOut = ValueNotifier<bool>(false);
+
+/// The ambient walk-on appearances the court makes between reactions.
+enum RoyalCameo {
+  /// A little stroll across the bottom of the current page, with a mid-way
+  /// wave to the user.
+  stroll,
+
+  /// A full-tilt dash across the bottom on the royal's own ride.
+  dash,
+
+  /// Peeking in from a random screen edge, a look around, a wave, gone.
+  peek,
+
+  /// Popping up at a random safe spot for a two-hop celebration.
+  twirl,
+}
+
+class _RoyalCameoEvent {
+  final RoyalCameo cameo;
+  final int nonce;
+  const _RoyalCameoEvent(this.cameo, this.nonce);
+}
+
+final ValueNotifier<_RoyalCameoEvent?> _royalCameoRequest =
+    ValueNotifier<_RoyalCameoEvent?>(null);
+int _royalCameoNonce = 0;
+
+/// Ask the court to play an ambient [cameo] now (subject to the same gates as
+/// scheduled ones: royal equipped, gamified on, nothing already playing).
+/// Fire-and-forget; used by the internal scheduler and by tests.
+void requestRoyalCameo(RoyalCameo cameo) {
+  _royalCameoRequest.value = _RoyalCameoEvent(cameo, ++_royalCameoNonce);
+}
 
 /// Watches financial-health snapshots and fires scold/cheer on meaningful
 /// transitions (freshly over budget, or newly healthy). In-memory and
@@ -68,8 +109,9 @@ class RoyalMood {
   }
 }
 
-/// The choreographed routines the character can perform.
-enum _Routine { boot, smash, praise, strike }
+/// The choreographed routines the character can perform. The first four are
+/// icon-anchored reactions; the rest are ambient cameos.
+enum _Routine { boot, smash, praise, strike, stroll, dash, peek, twirl }
 
 /// One frame of a routine: where the character is, what it's doing, and how
 /// strong the screen effects are.
@@ -92,20 +134,29 @@ class _CharFrame {
   });
 }
 
-const double _cw = 116;
-const double _ch = 152;
+// Character boxes. Standing is a chibi portrait; riding gets a wide stage.
+const double _cw = 78;
+const double _ch = 100;
+const double _rw = 150;
+const double _rh = 96;
 
 /// Mounted in `MaterialApp.builder` (inside the app-lock gate). Loads the
-/// equipped royal, plays a welcome routine once at launch, and turns reaction
-/// requests into full-body routines above the app.
+/// equipped royal, plays a welcome routine once at launch, turns reaction
+/// requests into full-body routines above the app, and schedules the rare
+/// ambient cameos in between.
 class RoyalReactionHost extends StatefulWidget {
   final Widget child;
   const RoyalReactionHost({super.key, required this.child});
+
+  /// Test override for the ambient-cameo gap (defaults to minutes).
+  @visibleForTesting
+  static Duration? debugCameoGap;
 
   @visibleForTesting
   static void debugReset() {
     _RoyalReactionHostState._bootedThisSession = false;
     royalCharacterOut.value = false;
+    debugCameoGap = null;
   }
 
   @override
@@ -117,8 +168,17 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
   RoyalAvatar? _royal;
   _Routine? _routine;
   int _lastNonce = -1;
+  int _lastCameoNonce = -1;
   double _durationMs = 1;
   static bool _bootedThisSession = false;
+
+  final math.Random _rng = math.Random();
+  Timer? _cameoTimer;
+  DateTime _lastPlayEnd = DateTime.fromMillisecondsSinceEpoch(0);
+  // Per-cameo randomness, rolled once when the cameo starts.
+  double _camDir = 1;
+  double _camA = 0.5;
+  double _camB = 0.5;
 
   late final AnimationController _ctrl = AnimationController(vsync: this)
     ..addStatusListener((s) {
@@ -130,6 +190,8 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
     super.initState();
     appDataRevision.addListener(_loadRoyal);
     royalReactionRequest.addListener(_onReaction);
+    _royalCameoRequest.addListener(_onCameoRequest);
+    mainShellTabIndex.addListener(_onTabChange);
     _loadRoyal();
   }
 
@@ -137,6 +199,9 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
   void dispose() {
     appDataRevision.removeListener(_loadRoyal);
     royalReactionRequest.removeListener(_onReaction);
+    _royalCameoRequest.removeListener(_onCameoRequest);
+    mainShellTabIndex.removeListener(_onTabChange);
+    _cameoTimer?.cancel();
     _ctrl.dispose();
     super.dispose();
   }
@@ -146,21 +211,24 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
     final royal = royalAvatarAt(int.tryParse(p.avatarValue) ?? -1);
     if (!mounted) return;
     setState(() => _royal = royal);
+    if (royal == null) {
+      _cameoTimer?.cancel();
+      return;
+    }
     // A one-time welcome when a royal is equipped and gamified is on — but only
     // once the Home profile icon is actually on screen, so the royal really
     // does jump out of that circle (not out of a splash/onboarding screen).
-    if (royal != null &&
-        !_bootedThisSession &&
-        context.read<AppPreferences>().gamifiedMode) {
+    if (!_bootedThisSession && context.read<AppPreferences>().gamifiedMode) {
       _scheduleBoot();
     }
+    _scheduleCameo();
   }
 
   void _scheduleBoot([int attempts = 0]) {
     if (_bootedThisSession || !mounted) return;
     if (royalHomeAnchorKey.currentContext != null && _routine == null) {
       _bootedThisSession = true;
-      _play(_Routine.boot);
+      if (!_reduceMotion) _play(_Routine.boot);
       return;
     }
     if (attempts >= 40) return; // ~8s: user never reached Home — skip it.
@@ -183,23 +251,107 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
     });
   }
 
+  // ── Ambient cameo scheduling ────────────────────────────────────────────
+
+  bool get _reduceMotion => MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+
+  Duration get _cameoGap =>
+      RoyalReactionHost.debugCameoGap ??
+      Duration(seconds: 110 + _rng.nextInt(150));
+
+  void _scheduleCameo([Duration? gap]) {
+    _cameoTimer?.cancel();
+    if (_royal == null) return;
+    _cameoTimer = Timer(gap ?? _cameoGap, _fireScheduledCameo);
+  }
+
+  void _fireScheduledCameo() {
+    if (!mounted || _royal == null) return;
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    final away =
+        lifecycle != null && lifecycle != AppLifecycleState.resumed;
+    final keyboardUp =
+        (MediaQuery.maybeOf(context)?.viewInsets.bottom ?? 0) > 0;
+    if (away ||
+        keyboardUp ||
+        _routine != null ||
+        _reduceMotion ||
+        !context.read<AppPreferences>().gamifiedMode) {
+      _scheduleCameo(const Duration(seconds: 45)); // try again soon
+      return;
+    }
+    final roll = _rng.nextDouble();
+    requestRoyalCameo(roll < 0.30
+        ? RoyalCameo.stroll
+        : roll < 0.55
+            ? RoyalCameo.dash
+            : roll < 0.80
+                ? RoyalCameo.peek
+                : RoyalCameo.twirl);
+    _scheduleCameo();
+  }
+
+  /// Landing on another tab occasionally invites a cameo there — that's what
+  /// makes the court feel at home on every page, not just Home.
+  void _onTabChange() {
+    if (!mounted || _royal == null || _routine != null) return;
+    if (DateTime.now().difference(_lastPlayEnd) <
+        const Duration(seconds: 75)) {
+      return;
+    }
+    if (_rng.nextDouble() >= 0.25) return;
+    Future.delayed(const Duration(milliseconds: 600), () {
+      if (!mounted || _routine != null || _reduceMotion) return;
+      requestRoyalCameo(
+          _rng.nextBool() ? RoyalCameo.peek : RoyalCameo.stroll);
+    });
+  }
+
+  void _onCameoRequest() {
+    final ev = _royalCameoRequest.value;
+    if (ev == null || ev.nonce == _lastCameoNonce || !mounted) return;
+    _lastCameoNonce = ev.nonce;
+    if (_royal == null || _routine != null) return;
+    if (!context.read<AppPreferences>().gamifiedMode) return;
+    _play(switch (ev.cameo) {
+      RoyalCameo.stroll => _Routine.stroll,
+      RoyalCameo.dash => _Routine.dash,
+      RoyalCameo.peek => _Routine.peek,
+      RoyalCameo.twirl => _Routine.twirl,
+    });
+  }
+
   void _play(_Routine r) {
     _durationMs = switch (r) {
-      _Routine.boot => 5200,
-      _Routine.smash => 3200,
-      _Routine.praise => 2600,
-      _Routine.strike => 2100,
+      _Routine.boot => 5600,
+      _Routine.smash => 3400,
+      _Routine.praise => 2800,
+      _Routine.strike => 2200,
+      _Routine.stroll => 6500,
+      _Routine.dash => 3000,
+      _Routine.peek => 4200,
+      _Routine.twirl => 3000,
     }
         .toDouble();
+    _camDir = _rng.nextBool() ? 1 : -1;
+    _camA = _rng.nextDouble();
+    _camB = _rng.nextDouble();
     setState(() => _routine = r);
-    royalCharacterOut.value = true;
+    if (!_isCameo(r)) royalCharacterOut.value = true;
     _ctrl
       ..duration = Duration(milliseconds: _durationMs.round())
       ..forward(from: 0);
   }
 
+  bool _isCameo(_Routine r) =>
+      r == _Routine.stroll ||
+      r == _Routine.dash ||
+      r == _Routine.peek ||
+      r == _Routine.twirl;
+
   void _endRoutine() {
     royalCharacterOut.value = false;
+    _lastPlayEnd = DateTime.now();
     if (mounted) setState(() => _routine = null);
   }
 
@@ -217,22 +369,38 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
 
   double _cyc(double t, double periodMs) => (t * _durationMs / periodMs) % 1;
 
-  _CharFrame _frame(_Routine r, double t, Offset icon, Size screen) => switch (r) {
+  _CharFrame _frame(
+          _Routine r, double t, Offset icon, Size screen, EdgeInsets pad) =>
+      switch (r) {
         _Routine.boot => _boot(t, icon, screen),
         _Routine.smash => _smashRoutine(t, icon, screen),
         _Routine.praise => _praise(t, icon, screen),
         _Routine.strike => _strike(t, icon, screen),
+        _Routine.stroll => _stroll(t, screen, pad),
+        _Routine.dash => _dash(t, screen, pad),
+        _Routine.peek => _peek(t, screen),
+        _Routine.twirl => _twirl(t, screen),
       };
 
-  double _clampX(double x, Size s) => x.clamp(_cw * 0.5, s.width - _cw * 0.5);
+  double _clampX(double x, Size s, [double half = _cw * 0.5]) =>
+      x.clamp(half, s.width - half);
+
+  /// The floor line shared by standing and riding boxes near the icon, so a
+  /// royal that mounts up mid-routine doesn't hop levels.
+  double _groundY(Offset icon) => icon.dy + _ch * 0.92;
 
   _CharFrame _boot(double t, Offset icon, Size screen) {
-    final outY = icon.dy + _ch * 0.32;
-    final waveC = Offset(_clampX(icon.dx - 34, screen), outY);
-    final leftC = Offset(_cw * 0.55, outY);
-    if (t < 0.14) {
-      final p = Curves.easeOutBack.transform(_seg(t, 0, 0.14)).clamp(0.0, 1.2);
-      final hop = -math.sin(_seg(t, 0, 0.14) * math.pi) * 18;
+    final ground = _groundY(icon);
+    final standY = ground - _ch * 0.5;
+    final rideY = ground - _rh * 0.5;
+    final waveC = Offset(_clampX(icon.dx - 30, screen), standY);
+    final rideHomeC = Offset(waveC.dx, rideY);
+    final leftC = Offset(_rw * 0.45, rideY);
+
+    if (t < 0.09) {
+      // Pop out of the icon with a little hop.
+      final p = Curves.easeOutBack.transform(_seg(t, 0, 0.09));
+      final hop = -math.sin(_seg(t, 0, 0.09) * math.pi) * 16;
       return _CharFrame(
           center: _lerpO(icon, waveC, p.clamp(0.0, 1.0)).translate(0, hop),
           scale: p.clamp(0.0, 1.0),
@@ -240,28 +408,56 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
           actionT: _cyc(t, 1400),
           facing: -1);
     }
-    if (t < 0.32) {
+    if (t < 0.24) {
       return _CharFrame(
-          center: waveC, scale: 1, action: RoyalAction.wave, actionT: _seg(t, 0.14, 0.32), facing: -1);
+          center: waveC,
+          scale: 1,
+          action: RoyalAction.wave,
+          actionT: _seg(t, 0.09, 0.24),
+          facing: -1);
+    }
+    if (t < 0.29) {
+      // A beat before the mount appears.
+      return _CharFrame(
+          center: waveC, scale: 1, action: RoyalAction.idle, actionT: _cyc(t, 1400), facing: -1);
     }
     if (t < 0.50) {
-      final p = Curves.easeInOut.transform(_seg(t, 0.32, 0.50));
+      // Ride out across the screen on the royal ride.
+      final p = Curves.easeInOut.transform(_seg(t, 0.29, 0.50));
       return _CharFrame(
-          center: _lerpO(waveC, leftC, p), scale: 1, action: RoyalAction.run, actionT: _cyc(t, 360), facing: -1);
+          center: _lerpO(rideHomeC, leftC, p),
+          scale: 1,
+          action: RoyalAction.ride,
+          actionT: _cyc(t, 420),
+          facing: -1);
     }
     if (t < 0.55) {
-      return _CharFrame(center: leftC, scale: 1, action: RoyalAction.idle, actionT: _cyc(t, 1400), facing: 1);
-    }
-    if (t < 0.75) {
-      final p = Curves.easeInOut.transform(_seg(t, 0.55, 0.75));
       return _CharFrame(
-          center: _lerpO(leftC, waveC, p), scale: 1, action: RoyalAction.run, actionT: _cyc(t, 360), facing: 1);
+          center: leftC, scale: 1, action: RoyalAction.ride, actionT: _cyc(t, 700), facing: 1);
     }
-    if (t < 0.86) {
+    if (t < 0.76) {
+      final p = Curves.easeInOut.transform(_seg(t, 0.55, 0.76));
       return _CharFrame(
-          center: waveC, scale: 1, action: RoyalAction.wave, actionT: _seg(t, 0.75, 0.86), facing: -1);
+          center: _lerpO(leftC, rideHomeC, p),
+          scale: 1,
+          action: RoyalAction.ride,
+          actionT: _cyc(t, 420),
+          facing: 1);
     }
-    final p = _seg(t, 0.86, 1.0);
+    if (t < 0.80) {
+      // Dismount beat.
+      return _CharFrame(
+          center: waveC, scale: 1, action: RoyalAction.idle, actionT: _cyc(t, 1400), facing: -1);
+    }
+    if (t < 0.92) {
+      return _CharFrame(
+          center: waveC,
+          scale: 1,
+          action: RoyalAction.wave,
+          actionT: _seg(t, 0.80, 0.92),
+          facing: -1);
+    }
+    final p = _seg(t, 0.92, 1.0);
     final hop = -math.sin(p * math.pi) * 10;
     return _CharFrame(
         center: _lerpO(waveC, icon, Curves.easeIn.transform(p)).translate(0, hop),
@@ -272,24 +468,23 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
   }
 
   _CharFrame _smashRoutine(double t, Offset icon, Size screen) {
-    final outY = icon.dy + _ch * 0.30;
-    final marchC = Offset(_clampX(screen.width * 0.5, screen), outY);
-    if (t < 0.12) {
-      final p = Curves.easeOutBack.transform(_seg(t, 0, 0.12)).clamp(0.0, 1.0);
+    final outC = Offset(_clampX(icon.dx - 26, screen), _groundY(icon) - _ch * 0.5);
+    final marchC = Offset(_clampX(screen.width * 0.5, screen), outC.dy);
+    if (t < 0.10) {
+      final p = Curves.easeOutBack.transform(_seg(t, 0, 0.10)).clamp(0.0, 1.0);
       return _CharFrame(
-          center: _lerpO(icon, marchC, p), scale: p, action: RoyalAction.run, actionT: _cyc(t, 300), facing: -1);
+          center: _lerpO(icon, outC, p), scale: p, action: RoyalAction.idle, actionT: 0, facing: -1);
     }
-    if (t < 0.34) {
-      final p = Curves.easeInOut.transform(_seg(t, 0.12, 0.34));
+    if (t < 0.30) {
+      final p = Curves.easeInOut.transform(_seg(t, 0.10, 0.30));
       return _CharFrame(
-          center: _lerpO(icon, marchC, 1), scale: 1, action: RoyalAction.run, actionT: _cyc(t, 300), facing: -1)
-          ._at(_lerpO(_lerpO(icon, marchC, 0.2), marchC, p));
+          center: _lerpO(outC, marchC, p), scale: 1, action: RoyalAction.run, actionT: _cyc(t, 320), facing: -1);
     }
-    if (t < 0.74) {
-      // The overhead smash — impact ~mid; a shockwave shakes and cracks the UI.
-      final at = _seg(t, 0.34, 0.74);
-      final impact = _seg(t, 0.50, 0.58);
-      final decay = 1 - _seg(t, 0.58, 0.74);
+    if (t < 0.72) {
+      // The overhead smash — impact mid-swing; a shockwave cracks the UI.
+      final at = _seg(t, 0.30, 0.72);
+      final impact = _seg(t, 0.47, 0.55);
+      final decay = 1 - _seg(t, 0.55, 0.72);
       return _CharFrame(
         center: marchC,
         scale: 1,
@@ -301,51 +496,172 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
       );
     }
     if (t < 0.90) {
-      final p = Curves.easeInOut.transform(_seg(t, 0.74, 0.90));
+      final p = Curves.easeInOut.transform(_seg(t, 0.72, 0.90));
       return _CharFrame(
-          center: _lerpO(marchC, icon, p), scale: 1, action: RoyalAction.run, actionT: _cyc(t, 300), facing: 1);
+          center: _lerpO(marchC, outC, p), scale: 1, action: RoyalAction.run, actionT: _cyc(t, 320), facing: 1);
     }
     final p = _seg(t, 0.90, 1.0);
     return _CharFrame(
-        center: _lerpO(marchC, icon, 1), scale: (1 - p).clamp(0.0, 1.0), action: RoyalAction.idle, actionT: _cyc(t, 1400), facing: 1)
-        ._at(icon);
+        center: _lerpO(outC, icon, Curves.easeIn.transform(p)),
+        scale: (1 - p).clamp(0.0, 1.0),
+        action: RoyalAction.idle,
+        actionT: _cyc(t, 1400),
+        facing: 1);
   }
 
   _CharFrame _praise(double t, Offset icon, Size screen) {
-    final outY = icon.dy + _ch * 0.30;
-    final showC = Offset(_clampX(icon.dx - 30, screen), outY);
-    if (t < 0.16) {
-      final p = Curves.easeOutBack.transform(_seg(t, 0, 0.16)).clamp(0.0, 1.0);
-      return _CharFrame(center: _lerpO(icon, showC, p), scale: p, action: RoyalAction.cheer, actionT: 0, facing: -1);
+    final showC = Offset(_clampX(icon.dx - 28, screen), _groundY(icon) - _ch * 0.5);
+    if (t < 0.12) {
+      final p = Curves.easeOutBack.transform(_seg(t, 0, 0.12)).clamp(0.0, 1.0);
+      return _CharFrame(
+          center: _lerpO(icon, showC, p), scale: p, action: RoyalAction.cheer, actionT: 0, facing: -1);
     }
-    if (t < 0.82) {
-      return _CharFrame(center: showC, scale: 1, action: RoyalAction.cheer, actionT: _cyc(t, 900), facing: -1);
+    if (t < 0.84) {
+      return _CharFrame(
+          center: showC, scale: 1, action: RoyalAction.cheer, actionT: _cyc(t, 800), facing: -1);
     }
-    final p = _seg(t, 0.82, 1.0);
+    final p = _seg(t, 0.84, 1.0);
     return _CharFrame(
-        center: _lerpO(showC, icon, Curves.easeIn.transform(p)), scale: (1 - p).clamp(0.0, 1.0), action: RoyalAction.idle, actionT: _cyc(t, 1400), facing: -1);
+        center: _lerpO(showC, icon, Curves.easeIn.transform(p)),
+        scale: (1 - p).clamp(0.0, 1.0),
+        action: RoyalAction.idle,
+        actionT: _cyc(t, 1400),
+        facing: -1);
   }
 
   _CharFrame _strike(double t, Offset icon, Size screen) {
-    final outY = icon.dy + _ch * 0.30;
-    final showC = Offset(_clampX(icon.dx - 30, screen), outY);
-    if (t < 0.18) {
-      final p = Curves.easeOutBack.transform(_seg(t, 0, 0.18)).clamp(0.0, 1.0);
-      return _CharFrame(center: _lerpO(icon, showC, p), scale: p, action: RoyalAction.idle, actionT: 0, facing: -1);
-    }
-    if (t < 0.70) {
-      final at = _seg(t, 0.18, 0.70);
+    final showC = Offset(_clampX(icon.dx - 28, screen), _groundY(icon) - _ch * 0.5);
+    if (t < 0.14) {
+      final p = Curves.easeOutBack.transform(_seg(t, 0, 0.14)).clamp(0.0, 1.0);
       return _CharFrame(
-          center: showC, scale: 1, action: RoyalAction.smash, actionT: at, facing: -1, shake: _seg(t, 0.40, 0.46) * (1 - _seg(t, 0.46, 0.60)) * 0.5);
+          center: _lerpO(icon, showC, p), scale: p, action: RoyalAction.idle, actionT: 0, facing: -1);
     }
-    final p = _seg(t, 0.70, 1.0);
+    if (t < 0.68) {
+      final at = _seg(t, 0.14, 0.68);
+      return _CharFrame(
+          center: showC,
+          scale: 1,
+          action: RoyalAction.smash,
+          actionT: at,
+          facing: -1,
+          shake: _seg(t, 0.36, 0.42) * (1 - _seg(t, 0.42, 0.58)) * 0.4);
+    }
+    final p = _seg(t, 0.68, 1.0);
     return _CharFrame(
-        center: _lerpO(showC, icon, Curves.easeIn.transform(p)), scale: (1 - p).clamp(0.0, 1.0), action: RoyalAction.idle, actionT: _cyc(t, 1400), facing: -1);
+        center: _lerpO(showC, icon, Curves.easeIn.transform(p)),
+        scale: (1 - p).clamp(0.0, 1.0),
+        action: RoyalAction.idle,
+        actionT: _cyc(t, 1400),
+        facing: -1);
+  }
+
+  /// The walking lane: just above the bottom navigation bar.
+  double _laneGround(Size screen, EdgeInsets pad) =>
+      screen.height - pad.bottom - kBottomNavigationBarHeight - 4;
+
+  _CharFrame _stroll(double t, Size screen, EdgeInsets pad) {
+    const scale = 0.85;
+    final y = _laneGround(screen, pad) - _ch * scale * 0.5;
+    final dir = _camDir;
+    final fromX = dir > 0 ? -_cw * 0.6 : screen.width + _cw * 0.6;
+    final toX = dir > 0 ? screen.width + _cw * 0.6 : -_cw * 0.6;
+    // Walk 45% of the way, pause for a wave, walk off.
+    final waveX = _lerp(fromX, toX, 0.45);
+    if (t < 0.40) {
+      final p = _seg(t, 0, 0.40);
+      return _CharFrame(
+          center: Offset(_lerp(fromX, waveX, p), y),
+          scale: scale,
+          action: RoyalAction.walk,
+          actionT: _cyc(t, 480),
+          facing: dir);
+    }
+    if (t < 0.58) {
+      return _CharFrame(
+          center: Offset(waveX, y),
+          scale: scale,
+          action: RoyalAction.wave,
+          actionT: _seg(t, 0.40, 0.58),
+          facing: dir);
+    }
+    final p = _seg(t, 0.58, 1.0);
+    return _CharFrame(
+        center: Offset(_lerp(waveX, toX, p), y),
+        scale: scale,
+        action: RoyalAction.walk,
+        actionT: _cyc(t, 480),
+        facing: dir);
+  }
+
+  _CharFrame _dash(double t, Size screen, EdgeInsets pad) {
+    const scale = 0.9;
+    final y = _laneGround(screen, pad) - _rh * scale * 0.5;
+    final dir = _camDir;
+    final fromX = dir > 0 ? -_rw * 0.6 : screen.width + _rw * 0.6;
+    final toX = dir > 0 ? screen.width + _rw * 0.6 : -_rw * 0.6;
+    final p = Curves.easeInOutSine.transform(t);
+    return _CharFrame(
+        center: Offset(_lerp(fromX, toX, p), y),
+        scale: scale,
+        action: RoyalAction.ride,
+        actionT: _cyc(t, 400),
+        facing: dir);
+  }
+
+  _CharFrame _peek(double t, Size screen) {
+    final side = _camDir; // +1 = right edge, -1 = left edge
+    final y = _lerp(screen.height * 0.24, screen.height * 0.58, _camA);
+    final hiddenX =
+        side > 0 ? screen.width + _cw * 0.55 : -_cw * 0.55;
+    final shownX =
+        side > 0 ? screen.width - _cw * 0.10 : _cw * 0.10;
+    final facing = -side; // look into the screen
+    double x;
+    RoyalAction action = RoyalAction.idle;
+    double actionT = _cyc(t, 1400);
+    if (t < 0.15) {
+      x = _lerp(hiddenX, shownX, Curves.easeOutCubic.transform(_seg(t, 0, 0.15)));
+    } else if (t < 0.55) {
+      x = shownX;
+    } else if (t < 0.75) {
+      x = shownX;
+      action = RoyalAction.wave;
+      actionT = _seg(t, 0.55, 0.75);
+    } else if (t < 0.85) {
+      x = shownX;
+    } else {
+      x = _lerp(shownX, hiddenX, Curves.easeInCubic.transform(_seg(t, 0.85, 1)));
+    }
+    return _CharFrame(
+        center: Offset(x, y), scale: 1, action: action, actionT: actionT, facing: facing);
+  }
+
+  _CharFrame _twirl(double t, Size screen) {
+    const scale = 0.8;
+    final spot = Offset(_lerp(screen.width * 0.25, screen.width * 0.75, _camA),
+        _lerp(screen.height * 0.30, screen.height * 0.52, _camB));
+    final facing = _camDir;
+    if (t < 0.14) {
+      final p = Curves.easeOutBack.transform(_seg(t, 0, 0.14));
+      return _CharFrame(
+          center: spot, scale: scale * p.clamp(0.0, 1.15), action: RoyalAction.cheer, actionT: 0, facing: facing);
+    }
+    if (t < 0.86) {
+      return _CharFrame(
+          center: spot, scale: scale, action: RoyalAction.cheer, actionT: _cyc(t, 800), facing: facing);
+    }
+    final p = 1 - _seg(t, 0.86, 1.0);
+    return _CharFrame(
+        center: spot,
+        scale: scale * Curves.easeIn.transform(p),
+        action: RoyalAction.cheer,
+        actionT: _cyc(t, 800),
+        facing: facing);
   }
 
   Offset _shake(double s) {
     final e = _ctrl.value * _durationMs;
-    return Offset(math.sin(e * 0.09) * 11, math.cos(e * 0.13) * 8) * s;
+    return Offset(math.sin(e * 0.09) * 10, math.cos(e * 0.13) * 7) * s;
   }
 
   @override
@@ -361,8 +677,11 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
 
         final mq = MediaQuery.of(context);
         final icon = _anchorCenter(mq.size, mq.padding.top);
-        final f = _frame(routine, _ctrl.value, icon, mq.size);
+        final f = _frame(routine, _ctrl.value, icon, mq.size, mq.padding);
         final shakeOff = f.shake > 0 ? _shake(f.shake) : Offset.zero;
+        final wide = f.action == RoyalAction.ride;
+        final boxW = wide ? _rw : _cw;
+        final boxH = wide ? _rh : _ch;
 
         return Stack(
           children: [
@@ -372,15 +691,17 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
                 child: IgnorePointer(
                   child: CustomPaint(
                     painter: _SmashOverlayPainter(
-                        impact: f.center.translate(0, _ch * 0.24), crack: f.crack),
+                        impact: f.center
+                            .translate(-f.facing * _cw * 0.28, _ch * 0.42),
+                        crack: f.crack),
                   ),
                 ),
               ),
             Positioned(
-              left: f.center.dx - _cw / 2,
-              top: f.center.dy - _ch / 2,
-              width: _cw,
-              height: _ch,
+              left: f.center.dx - boxW / 2,
+              top: f.center.dy - boxH / 2,
+              width: boxW,
+              height: boxH,
               child: IgnorePointer(
                 child: Transform.scale(
                   scale: f.scale,
@@ -406,20 +727,6 @@ double _seg(double t, double a, double b) => ((t - a) / (b - a)).clamp(0.0, 1.0)
 double _lerp(double a, double b, double x) => a + (b - a) * x;
 Offset _lerpO(Offset a, Offset b, double x) =>
     Offset(_lerp(a.dx, b.dx, x), _lerp(a.dy, b.dy, x));
-
-extension on _CharFrame {
-  /// A copy repositioned to [c] (keeps everything else) — small helper for
-  /// phases that recompute position after construction.
-  _CharFrame _at(Offset c) => _CharFrame(
-        center: c,
-        scale: scale,
-        action: action,
-        actionT: actionT,
-        facing: facing,
-        shake: shake,
-        crack: crack,
-      );
-}
 
 /// A full-screen crack + flash for the budget smash. Deterministic (fixed
 /// crack geometry) so it doesn't flicker between frames.
