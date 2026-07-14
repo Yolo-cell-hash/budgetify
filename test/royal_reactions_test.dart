@@ -27,6 +27,14 @@ bool _hasCharacter(WidgetTester tester) => tester
     .widgetList<CustomPaint>(find.byType(CustomPaint))
     .any((c) => c.painter is RoyalCharacterPainter);
 
+RoyalCharacterPainter? _characterPainter(WidgetTester tester) {
+  for (final c in tester.widgetList<CustomPaint>(find.byType(CustomPaint))) {
+    final p = c.painter;
+    if (p is RoyalCharacterPainter) return p;
+  }
+  return null;
+}
+
 Widget _host(AppPreferences prefs) => ChangeNotifierProvider<AppPreferences>.value(
       value: prefs,
       child: MaterialApp(
@@ -168,6 +176,50 @@ void main() {
       expect(_hasCharacter(tester), isTrue);
     });
 
+    testWidgets('every cameo plays after boot without vacating the icon',
+        (tester) async {
+      final sovereign = kRoyalAvatars.firstWhere((r) => r.id == 'sovereign');
+      SharedPreferences.setMockInitialValues({
+        'gamification_v1': jsonEncode({
+          'profile': {
+            'avatarKind': 'pixel',
+            'avatarValue': '${sovereign.spriteIndex}',
+          },
+          'unlockedRoyals': ['sovereign'],
+        }),
+      });
+      final prefs = AppPreferences();
+      await prefs.initialize();
+
+      await tester.pumpWidget(_host(prefs));
+      // Let the welcome routine start and play out fully (5.6s).
+      for (var i = 0; i < 14; i++) {
+        await tester.pump(const Duration(milliseconds: 40));
+      }
+      await tester.pump(const Duration(seconds: 6));
+      await tester.pump();
+      expect(royalCharacterOut.value, isFalse);
+      expect(_hasCharacter(tester), isFalse);
+
+      for (final cameo in RoyalCameo.values) {
+        requestRoyalCameo(cameo);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(_hasCharacter(tester), isTrue, reason: '$cameo should be on');
+        // Cameos wander in from off-screen; the Home icon keeps its avatar.
+        expect(royalCharacterOut.value, isFalse, reason: '$cameo');
+        if (cameo == RoyalCameo.dash) {
+          expect(_characterPainter(tester)!.action, RoyalAction.ride,
+              reason: 'the dash cameo arrives on the royal ride');
+        }
+        // Play it out; the overlay must clean up after itself.
+        await tester.pump(const Duration(seconds: 7));
+        await tester.pump();
+        expect(_hasCharacter(tester), isFalse, reason: '$cameo should end');
+        expect(tester.takeException(), isNull, reason: '$cameo');
+      }
+    });
+
     testWidgets('a non-royal avatar stays silent', (tester) async {
       SharedPreferences.setMockInitialValues({
         'gamification_v1': jsonEncode({
@@ -183,6 +235,7 @@ void main() {
       }
 
       requestRoyalReaction(RoyalReaction.scold);
+      requestRoyalCameo(RoyalCameo.stroll);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 60));
 
