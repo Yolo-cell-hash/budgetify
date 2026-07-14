@@ -26,6 +26,7 @@ import '../widgets/hero_aura.dart';
 import '../widgets/insights_card.dart';
 import '../widgets/savings_summary.dart';
 import '../widgets/privacy_amount.dart';
+import '../widgets/royal_reactions.dart';
 import '../widgets/upcoming_recurring_card.dart';
 import '../widgets/motion.dart';
 import '../widgets/permission_request_card.dart';
@@ -353,6 +354,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         _dueSipCount = dueSips.length;
         _health = health;
       });
+
+      // Cosmetic only: let an equipped royal react to a freshly over-budget or
+      // newly-healthy state (a no-op unless a royal is equipped). Never blocks.
+      RoyalMood.observe(health);
 
       // Keep the home-screen widget in sync
       WidgetService.update();

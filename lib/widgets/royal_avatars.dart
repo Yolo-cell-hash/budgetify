@@ -25,6 +25,10 @@ import '../providers/theme_provider.dart';
 //   W  eye white     I iris         R robe/gown    r robe shadow
 //   T  gold trim     F ermine fur   f fur fleck
 
+/// The signature weapon/ability each royal wields in the cosmetic reaction
+/// animations (see royal_reactions.dart). Rendering only — never gameplay.
+enum RoyalWeapon { lance, warClub, bow, medKit, orbs, staff }
+
 /// One royal character: identity, base art, animation frames and theme.
 class RoyalAvatar {
   final String id;
@@ -46,6 +50,9 @@ class RoyalAvatar {
 
   final RoyalTheme theme;
 
+  /// The royal's signature weapon, shown in reaction animations.
+  final RoyalWeapon weapon;
+
   const RoyalAvatar({
     required this.id,
     required this.spriteIndex,
@@ -57,6 +64,7 @@ class RoyalAvatar {
     required this.eyesLeft,
     required this.eyesRight,
     required this.theme,
+    required this.weapon,
   });
 }
 
@@ -534,6 +542,7 @@ const List<RoyalAvatar> kRoyalAvatars = [
   RoyalAvatar(
     id: 'sovereign',
     spriteIndex: 18,
+    weapon: RoyalWeapon.staff,
     rows: _kingRows,
     palette: _kingPalette,
     eyeRowWhites: 6,
@@ -555,6 +564,7 @@ const List<RoyalAvatar> kRoyalAvatars = [
   RoyalAvatar(
     id: 'empress',
     spriteIndex: 19,
+    weapon: RoyalWeapon.orbs,
     rows: _queenRows,
     palette: _queenPalette,
     eyeRowWhites: 6,
@@ -577,6 +587,7 @@ const List<RoyalAvatar> kRoyalAvatars = [
   RoyalAvatar(
     id: 'prince',
     spriteIndex: 20,
+    weapon: RoyalWeapon.lance,
     rows: _princeRows,
     palette: _princePalette,
     eyeRowWhites: 6,
@@ -599,6 +610,7 @@ const List<RoyalAvatar> kRoyalAvatars = [
   RoyalAvatar(
     id: 'darkprince',
     spriteIndex: 21,
+    weapon: RoyalWeapon.warClub,
     rows: _darkPrinceRows,
     palette: _darkPrincePalette,
     eyeRowWhites: 6,
@@ -626,6 +638,7 @@ const List<RoyalAvatar> kRoyalAvatars = [
   RoyalAvatar(
     id: 'princess',
     spriteIndex: 22,
+    weapon: RoyalWeapon.bow,
     rows: _princessRows,
     palette: _princessPalette,
     eyeRowWhites: 6,
@@ -648,6 +661,7 @@ const List<RoyalAvatar> kRoyalAvatars = [
   RoyalAvatar(
     id: 'royalmedic',
     spriteIndex: 23,
+    weapon: RoyalWeapon.medKit,
     rows: _medicRows,
     palette: _medicPalette,
     eyeRowWhites: 5,
@@ -667,6 +681,29 @@ const List<RoyalAvatar> kRoyalAvatars = [
     ),
   ),
 ];
+
+/// Paints a glyph-grid sprite ([rows] mapped through [palette]) to fill [size]
+/// with crisp, transparent-background pixels. Shared by the royal avatar and
+/// its reaction animations so both render the sprite identically.
+void paintRoyalGrid(
+    Canvas canvas, Size size, List<String> rows, Map<String, Color> palette) {
+  final cols = rows.first.length;
+  final cell = size.width / cols;
+  final paint = Paint()..isAntiAlias = false;
+  for (var r = 0; r < rows.length; r++) {
+    final line = rows[r];
+    for (var c = 0; c < line.length; c++) {
+      final color = palette[line[c]];
+      if (color == null) continue;
+      paint.color = color;
+      // +0.5 overscan avoids hairline seams between cells.
+      canvas.drawRect(
+        Rect.fromLTWH(c * cell, r * cell, cell + 0.5, cell + 0.5),
+        paint,
+      );
+    }
+  }
+}
 
 /// The royal occupying [spriteIndex], or null.
 RoyalAvatar? royalAvatarAt(int spriteIndex) {
@@ -810,24 +847,8 @@ class RoyalAvatarPainter extends CustomPainter {
     }
   }
 
-  void _grid(Canvas canvas, Size size, List<String> rows) {
-    final cols = rows.first.length;
-    final cell = size.width / cols;
-    final paint = Paint()..isAntiAlias = false;
-    for (var r = 0; r < rows.length; r++) {
-      final line = rows[r];
-      for (var c = 0; c < line.length; c++) {
-        final color = royal.palette[line[c]];
-        if (color == null) continue;
-        paint.color = color;
-        // +0.5 overscan avoids hairline seams between cells.
-        canvas.drawRect(
-          Rect.fromLTWH(c * cell, r * cell, cell + 0.5, cell + 0.5),
-          paint,
-        );
-      }
-    }
-  }
+  void _grid(Canvas canvas, Size size, List<String> rows) =>
+      paintRoyalGrid(canvas, size, rows, royal.palette);
 
   @override
   bool shouldRepaint(RoyalAvatarPainter old) =>
