@@ -1,56 +1,81 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../providers/theme_provider.dart';
 import '../widgets/royal_avatars.dart';
 import 'app_events.dart';
 import 'gamification_service.dart';
 
-/// Session-only developer mode.
+/// Persistent developer mode.
 ///
 /// Unlocked from a hidden gate on the Home title (five quick taps → password
-/// prompt, password `budgetify.dev`). While active, every theme and every
-/// ROYALTY avatar is equippable for PREVIEW: the choices live in memory only
-/// (see [GamificationService.sessionAvatarOverride] and
-/// [ThemeProvider.setSessionVariant]) so a normal app restart lands back on
-/// the user's real, earned state. Backups cannot be created while dev mode is
-/// on — a dev-session backup would freeze preview state into a prod artefact.
+/// prompt, password `budgetify.dev`). Once on, it STAYS on across app restarts
+/// (the flag is persisted) until the user turns it off — either from the
+/// hidden gate or the "Disable developer mode" toggle that appears in Settings
+/// while it's active. Re-enabling is the same five-taps-plus-password gate.
 ///
-/// Deliberately NOT persisted, NOT localized (it's a developer tool) and never
-/// part of core logic: nothing here writes to the database or SharedPreferences.
+/// While active, every theme and every ROYALTY avatar is equippable for
+/// PREVIEW. Those previews stay SESSION-only — the equipped-royal override
+/// ([GamificationService.sessionAvatarOverride]) and previewed theme variant
+/// ([ThemeProvider.setSessionVariant]) are never written to storage, so a
+/// restart keeps dev mode ON but lands back on the user's real, earned avatar
+/// and theme (which are one tap away again in the unlocked pickers). Backups
+/// cannot be created while dev mode is on — a dev-session backup would freeze
+/// preview state into a prod artefact.
+///
+/// NOT localized (it's a developer tool) and never part of core logic: the
+/// only thing it persists is its own on/off flag.
 class DevMode {
   DevMode._();
 
   static const String _password = 'budgetify.dev';
+  static const String _prefsKey = 'dev_mode_active';
 
-  /// Whether developer mode is on for this session. Widgets that gate on it
-  /// listen to this (it's a [ValueNotifier], so `ValueListenableBuilder`
-  /// works) — there is no persistence to invalidate.
+  /// Whether developer mode is on. Widgets that gate on it listen to this
+  /// (it's a [ValueNotifier], so `ValueListenableBuilder` works). Persisted:
+  /// call [initialize] once at startup to restore it.
   static final ValueNotifier<bool> active = ValueNotifier<bool>(false);
 
   static bool get isActive => active.value;
 
-  /// Attempt to unlock with [input]; true on success.
+  /// Restore the persisted on/off flag. Call once during app startup, before
+  /// the first frame. Safe to call more than once.
+  static Future<void> initialize() async {
+    final prefs = await SharedPreferences.getInstance();
+    active.value = prefs.getBool(_prefsKey) ?? false;
+  }
+
+  /// Attempt to unlock with [input]; true on success. Persists the flag so
+  /// dev mode survives the next launch.
   static bool tryUnlock(String input) {
     if (input.trim() == _password) {
       active.value = true;
+      _persist(true);
       return true;
     }
     return false;
   }
 
-  /// Turn dev mode off and drop every session-only preview: the avatar
-  /// override is cleared and the persisted theme variant is restored, so the
-  /// app returns to exactly the user's earned state without a restart.
+  /// Turn dev mode off, clear the persisted flag, and drop every session-only
+  /// preview: the avatar override is cleared and the persisted theme variant
+  /// is restored, so the app returns to exactly the user's earned state
+  /// without a restart.
   static Future<void> disable(ThemeProvider themeProvider) async {
     active.value = false;
+    await _persist(false);
     GamificationService.sessionAvatarOverride = null;
     await themeProvider.restorePersistedVariant();
     // Re-sync the royal dress and every profile-driven surface.
     GamificationService.onProfileSaved
         ?.call(await GamificationService().loadProfile());
     notifyAppDataChanged();
+  }
+
+  static Future<void> _persist(bool on) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_prefsKey, on);
   }
 
   @visibleForTesting
