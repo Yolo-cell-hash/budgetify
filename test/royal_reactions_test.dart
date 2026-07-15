@@ -185,7 +185,90 @@ void main() {
   });
 
   group('RoyalReactionHost', () {
-    setUp(RoyalReactionHost.debugReset);
+    setUp(() {
+      RoyalReactionHost.debugReset();
+      RoyalOverlayRouteObserver.instance.debugReset();
+    });
+
+    // A host that registers the popup observer (as the real MaterialApp does)
+    // and hands back its navigator, so a test can push a modal over the app.
+    Widget observedHost(AppPreferences prefs, GlobalKey<NavigatorState> navKey) =>
+        ChangeNotifierProvider<AppPreferences>.value(
+          value: prefs,
+          child: MaterialApp(
+            navigatorKey: navKey,
+            navigatorObservers: [RoyalOverlayRouteObserver.instance],
+            home: RoyalReactionHost(
+              child: Scaffold(
+                body: Align(
+                  alignment: Alignment.topRight,
+                  child:
+                      SizedBox(key: royalHomeAnchorKey, width: 38, height: 38),
+                ),
+              ),
+            ),
+          ),
+        );
+
+    testWidgets('a modal popup bows the court out and blocks new flourishes',
+        (tester) async {
+      final sovereign = kRoyalAvatars.firstWhere((r) => r.id == 'sovereign');
+      SharedPreferences.setMockInitialValues({
+        'gamification_v1': jsonEncode({
+          'profile': {
+            'avatarKind': 'pixel',
+            'avatarValue': '${sovereign.spriteIndex}',
+          },
+          'unlockedRoyals': ['sovereign'],
+        }),
+        'royal_custom_animations': true,
+      });
+      final prefs = AppPreferences();
+      await prefs.initialize();
+
+      final navKey = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(observedHost(prefs, navKey));
+      // Let the welcome parade play out fully so we start from a clean slate.
+      for (var i = 0; i < 14; i++) {
+        await tester.pump(const Duration(milliseconds: 40));
+      }
+      await tester.pump(const Duration(seconds: 6));
+      await tester.pump();
+      expect(_hasCharacter(tester), isFalse, reason: 'boot finished');
+
+      // A flourish is on screen…
+      requestRoyalCameo(RoyalCameo.stroll);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(_hasCharacter(tester), isTrue);
+
+      // …then the user opens a dialog (a PopupRoute). The court must vanish.
+      showDialog<void>(
+        context: navKey.currentContext!,
+        builder: (_) => const SizedBox.shrink(),
+      );
+      await tester.pump(); // route pushed → observer fires
+      await tester.pump(); // host rebuilds after cancel
+      expect(RoyalOverlayRouteObserver.instance.popupOpen.value, isTrue);
+      expect(_hasCharacter(tester), isFalse,
+          reason: 'the overlay must not paint over a modal popup');
+      expect(royalCharacterOut.value, isFalse);
+
+      // A reaction requested while the popup is up must NOT start over it.
+      requestRoyalReaction(RoyalReaction.scold);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(_hasCharacter(tester), isFalse,
+          reason: 'nothing starts on top of a popup');
+
+      // Closing the popup leaves everything clean.
+      navKey.currentState!.pop();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(RoyalOverlayRouteObserver.instance.popupOpen.value, isFalse);
+      expect(_hasCharacter(tester), isFalse);
+      expect(tester.takeException(), isNull);
+    });
 
     testWidgets('an equipped royal emerges with the welcome routine',
         (tester) async {
