@@ -82,7 +82,7 @@ class _StreakRewardsScreenState extends State<StreakRewardsScreen> {
       onUnlockRoyal: _svc.unlockRoyal,
       scrollToRoyalty: true,
     );
-    if (edited != null && !applyDevRoyalPreview(edited, _unlockedRoyals)) {
+    if (edited != null && !await applyDevRoyalPreview(edited, _unlockedRoyals)) {
       await _svc.saveProfile(edited);
     }
     await _load();
