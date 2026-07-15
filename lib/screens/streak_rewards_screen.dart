@@ -3,11 +3,9 @@ import 'package:flutter/material.dart';
 import '../l10n/l10n.dart';
 import '../providers/theme_provider.dart';
 import '../services/app_events.dart';
-import '../services/dev_mode.dart';
 import '../services/gamification_service.dart';
 import '../widgets/app_bar_title.dart';
 import '../widgets/app_toast.dart';
-import '../widgets/royal_avatars.dart';
 import '../widgets/avatar_picker_sheet.dart';
 import '../widgets/streak_heatmap.dart';
 import '../widgets/streak_reward_road.dart';
@@ -69,22 +67,16 @@ class _StreakRewardsScreenState extends State<StreakRewardsScreen> {
 
   /// "Unlock Now" from a royal-pick milestone: open the picker straight at the
   /// ROYALTY section so the user can choose their royal, then refresh.
-  /// Developer mode shows the whole court unlocked; equipping an unearned
-  /// royal becomes a session-only preview (never persisted).
   Future<void> _openRoyaltyPicker() async {
     final edited = await showAvatarPicker(
       context,
       _profile,
-      unlockedRoyals: DevMode.isActive
-          ? {for (final r in kRoyalAvatars) r.id}
-          : _unlockedRoyals,
+      unlockedRoyals: _unlockedRoyals,
       royalPicksAvailable: _royalPicks,
       onUnlockRoyal: _svc.unlockRoyal,
       scrollToRoyalty: true,
     );
-    if (edited != null && !await applyDevRoyalPreview(edited, _unlockedRoyals)) {
-      await _svc.saveProfile(edited);
-    }
+    if (edited != null) await _svc.saveProfile(edited);
     await _load();
   }
 

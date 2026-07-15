@@ -18,7 +18,6 @@ import '../services/app_events.dart';
 import '../services/app_lock_service.dart';
 import '../services/axio_import_service.dart';
 import '../services/backup_service.dart';
-import '../services/dev_mode.dart';
 import '../services/background_service.dart';
 import '../services/export_service.dart';
 import '../services/gamification_service.dart';
@@ -67,21 +66,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.initState();
     _loadSettings();
     TutorialService.instance.addListener(_onTutorialTick);
-    // Theme locks and the backup gate follow the dev-mode switch live.
-    DevMode.active.addListener(_onDevModeChange);
     WidgetsBinding.instance
         .addPostFrameCallback((_) => _maybeShowTutorialTip());
   }
 
   @override
   void dispose() {
-    DevMode.active.removeListener(_onDevModeChange);
     TutorialService.instance.removeListener(_onTutorialTick);
     super.dispose();
-  }
-
-  void _onDevModeChange() {
-    if (mounted) setState(() {});
   }
 
   void _onTutorialTick() {
@@ -782,49 +774,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
           ),
-
-          // Developer Section — only present while dev mode is on (the mode is
-          // entered from the hidden Home-title gate). Persisted, so it stays
-          // on across restarts until switched off here. English-only, like the
-          // rest of the developer tooling.
-          if (DevMode.isActive) ...[
-            const SizedBox(height: 24),
-            _buildSectionHeader('Developer', isDark),
-            const SizedBox(height: 8),
-            _buildSettingsCard(
-              isDark: isDark,
-              child: SwitchListTile(
-                secondary: Icon(
-                  Icons.developer_mode_rounded,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                title: const Text('Developer mode'),
-                subtitle: Text(
-                  'All themes & royals unlocked for preview; backups disabled. '
-                  'Turn off to return to your real, earned state.',
-                  style: TextStyle(
-                    color:
-                        isDark ? const Color(0xFF8A8D96) : const Color(0xFF6E727C),
-                  ),
-                ),
-                value: true,
-                onChanged: (_) => _disableDevMode(),
-              ),
-            ),
-          ],
         ],
       ),
       ),
-    );
-  }
-
-  Future<void> _disableDevMode() async {
-    await DevMode.disable(context.read<ThemeProvider>());
-    if (!mounted) return;
-    _showStyledSnackBar(
-      icon: Icons.developer_mode_rounded,
-      message: 'Developer mode turned off.',
-      color: const Color(0xFF70798A),
     );
   }
 
@@ -861,9 +813,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _themeTile(AppThemeVariant v, ThemeProvider themeProvider) {
     final palette = AppColors.forVariant(v);
     final reward = streakRewardForVariant(v); // null for light/dark
-    final earned = reward == null || reward.isUnlocked(_longestStreak);
-    // Developer mode previews every theme; the padlock lifts for the session.
-    final locked = !earned && !DevMode.isActive;
+    final locked = reward != null && !reward.isUnlocked(_longestStreak);
     final active = themeProvider.variant == v;
     final accent = Theme.of(context).colorScheme.primary;
 
@@ -877,17 +827,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           );
           return;
         }
-        if (!earned) {
-          // Dev-mode preview of a locked theme: applied as a persisted overlay
-          // (survives a restart while dev mode stays on) but never written to
-          // the real theme_variant, so turning dev mode off restores it.
-          DevMode.previewTheme(themeProvider, v);
-          return;
-        }
         themeProvider.setVariant(v);
-        // In dev mode, an earned pick is the user's real theme — drop any dev
-        // overlay so it doesn't shadow this choice on the next launch.
-        if (DevMode.isActive) DevMode.clearThemePreview();
       },
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 6),
@@ -1093,17 +1033,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _createBackup() async {
-    // Dev mode previews unearned themes/royals; freezing that state into a
-    // backup would blur the line with the user's real (prod) progress.
-    // English-only: dev mode is a developer tool, not product surface.
-    if (DevMode.isActive) {
-      _showStyledSnackBar(
-        icon: Icons.science_outlined,
-        message: 'Backups are disabled while developer mode is on.',
-        color: const Color(0xFF70798A),
-      );
-      return;
-    }
     final passphrase = await _promptPassphrase(confirm: true);
     if (passphrase == null || !mounted) return;
 
