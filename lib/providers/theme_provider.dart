@@ -90,9 +90,12 @@ class ThemeProvider extends ChangeNotifier {
     await prefs.setString(_variantKey, variant.name);
   }
 
-  /// Developer-mode preview: apply [variant] for this session WITHOUT
-  /// persisting, so a locked streak theme previewed in dev mode reverts to
-  /// the user's real theme on the next launch.
+  /// Developer-mode preview: apply [variant] for this session WITHOUT writing
+  /// the real [_variantKey], so the user's earned theme is never overwritten.
+  /// The dev-mode overlay is persisted separately by [DevMode] (and re-applied
+  /// here at startup), so a previewed theme survives a restart while dev mode
+  /// stays on, yet is dropped — reverting to the real theme — when dev mode is
+  /// turned off.
   void setSessionVariant(AppThemeVariant variant) {
     if (_variant == variant) return;
     _variant = variant;

@@ -83,22 +83,98 @@ void main() {
     });
 
     test('applyDevRoyalPreview: preview only for unearned royals in dev mode',
-        () {
+        () async {
       final prince = kRoyalAvatars.firstWhere((r) => r.id == 'prince');
       final profile =
           const GamiProfile().copyWith(avatarKind: 'pixel', avatarValue: '20');
 
       // Dev mode off → never a preview.
-      expect(applyDevRoyalPreview(profile, const {}), isFalse);
+      expect(await applyDevRoyalPreview(profile, const {}), isFalse);
       expect(GamificationService.sessionAvatarOverride, isNull);
 
       DevMode.tryUnlock('budgetify.dev');
-      // Unearned royal → session preview.
-      expect(applyDevRoyalPreview(profile, const {}), isTrue);
+      // Unearned royal → session preview, persisted as the dev overlay.
+      expect(await applyDevRoyalPreview(profile, const {}), isTrue);
       expect(GamificationService.sessionAvatarOverride, '20');
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('dev_mode_avatar'), '20');
 
-      // Actually-earned royal → real save path, preview dropped.
-      expect(applyDevRoyalPreview(profile, {prince.id}), isFalse);
+      // Actually-earned royal → real save path, overlay dropped.
+      expect(await applyDevRoyalPreview(profile, {prince.id}), isFalse);
+      expect(GamificationService.sessionAvatarOverride, isNull);
+      expect(prefs.getString('dev_mode_avatar'), isNull);
+    });
+
+    test('the preview overlay (avatar + theme) is restored on the next launch',
+        () async {
+      final empress = kRoyalAvatars.firstWhere((r) => r.id == 'empress');
+      SharedPreferences.setMockInitialValues({
+        'theme_variant': AppThemeVariant.light.name, // the real, earned theme
+      });
+      DevMode.tryUnlock('budgetify.dev');
+
+      final tp = ThemeProvider();
+      await tp.initialize();
+
+      // Preview an unearned theme + royal; both persist to the dev overlay.
+      await DevMode.previewTheme(tp, AppThemeVariant.royalIndigo);
+      await applyDevRoyalPreview(
+        const GamiProfile()
+            .copyWith(avatarKind: 'pixel', avatarValue: '${empress.spriteIndex}'),
+        const {},
+      );
+
+      // Simulate a relaunch: fresh in-memory state, read back from storage.
+      DevMode.active.value = false;
+      GamificationService.sessionAvatarOverride = null;
+      final tp2 = ThemeProvider();
+      await tp2.initialize();
+      expect(tp2.variant, AppThemeVariant.light, reason: 'real theme first');
+
+      await DevMode.initialize(tp2);
+      expect(DevMode.isActive, isTrue);
+      expect(tp2.variant, AppThemeVariant.royalIndigo,
+          reason: 'previewed theme overlay restored');
+      expect(GamificationService.sessionAvatarOverride,
+          '${empress.spriteIndex}',
+          reason: 'previewed royal overlay restored');
+
+      // The real, earned theme was never overwritten.
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('theme_variant'), AppThemeVariant.light.name);
+    });
+
+    test('disable drops the persisted overlay and restores the earned state',
+        () async {
+      final empress = kRoyalAvatars.firstWhere((r) => r.id == 'empress');
+      SharedPreferences.setMockInitialValues({
+        'theme_variant': AppThemeVariant.dark.name,
+      });
+      DevMode.tryUnlock('budgetify.dev');
+
+      final tp = ThemeProvider();
+      await tp.initialize();
+      await DevMode.previewTheme(tp, AppThemeVariant.royalIndigo);
+      await applyDevRoyalPreview(
+        const GamiProfile()
+            .copyWith(avatarKind: 'pixel', avatarValue: '${empress.spriteIndex}'),
+        const {},
+      );
+
+      await DevMode.disable(tp);
+      expect(DevMode.isActive, isFalse);
+      expect(tp.variant, AppThemeVariant.dark, reason: 'earned theme restored');
+      expect(GamificationService.sessionAvatarOverride, isNull);
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('dev_mode_theme'), isNull);
+      expect(prefs.getString('dev_mode_avatar'), isNull);
+
+      // A relaunch after disabling starts clean: no dev overlay reapplied.
+      final tp2 = ThemeProvider();
+      await tp2.initialize();
+      await DevMode.initialize(tp2);
+      expect(tp2.variant, AppThemeVariant.dark);
       expect(GamificationService.sessionAvatarOverride, isNull);
     });
   });

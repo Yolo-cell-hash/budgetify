@@ -150,7 +150,7 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
       scrollToRoyalty: scrollToRoyalty,
     );
     if (edited != null) {
-      if (applyDevRoyalPreview(edited, _unlockedRoyals)) {
+      if (await applyDevRoyalPreview(edited, _unlockedRoyals)) {
         if (mounted) setState(() => _profile = edited);
       } else {
         await _save(edited);

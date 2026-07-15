@@ -169,8 +169,11 @@ class GamificationService {
 
   /// Developer-mode preview: when set, [loadProfile] reports this pixel-sprite
   /// value as the equipped avatar WITHOUT touching what's persisted. Lets a
-  /// dev session equip any royal; a normal restart clears it, landing back on
-  /// the user's real, earned avatar. Never written to storage.
+  /// dev session equip any royal. This field itself is never written to
+  /// storage; while dev mode is on it is re-applied at startup from DevMode's
+  /// persisted overlay (so the previewed royal survives a restart), and cleared
+  /// the moment dev mode is turned off — landing back on the user's real,
+  /// earned avatar.
   static String? sessionAvatarOverride;
 
   Future<GamiProfile> loadProfile() async {

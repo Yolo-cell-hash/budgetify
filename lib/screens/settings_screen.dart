@@ -878,12 +878,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
           return;
         }
         if (!earned) {
-          // Dev-mode preview of a locked theme: session-only, never persisted,
-          // so a restart returns to the user's real theme.
-          themeProvider.setSessionVariant(v);
+          // Dev-mode preview of a locked theme: applied as a persisted overlay
+          // (survives a restart while dev mode stays on) but never written to
+          // the real theme_variant, so turning dev mode off restores it.
+          DevMode.previewTheme(themeProvider, v);
           return;
         }
         themeProvider.setVariant(v);
+        // In dev mode, an earned pick is the user's real theme — drop any dev
+        // overlay so it doesn't shadow this choice on the next launch.
+        if (DevMode.isActive) DevMode.clearThemePreview();
       },
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 6),
