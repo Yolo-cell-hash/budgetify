@@ -20,6 +20,7 @@ import '../widgets/glass.dart';
 import '../widgets/merchant_bar.dart';
 import '../widgets/motion.dart';
 import '../widgets/privacy_amount.dart';
+import '../widgets/royal_reactions.dart';
 import '../widgets/savings_summary.dart';
 import '../widgets/spending_calendar.dart';
 import 'category_budget_insights_screen.dart';
@@ -859,7 +860,12 @@ class _BudgetScreenState extends State<BudgetScreen>
             ],
           ),
           const SizedBox(height: 22),
+          // The royal's over-budget attack lands dead-centre on this gauge
+          // when the scold fires on the Budgets tab (royal_reactions.dart).
+          // The progress card renders for the current month only, so the
+          // GlobalKey exists at most once — and the blown budget IS this ring.
           SizedBox(
+            key: royalBudgetChartAnchorKey,
             height: 160,
             width: 160,
             child: Stack(

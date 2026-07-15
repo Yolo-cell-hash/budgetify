@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
+import 'package:budget_tracker/providers/app_preferences.dart';
 import 'package:budget_tracker/providers/locale_provider.dart';
 import 'package:budget_tracker/providers/theme_provider.dart';
 import 'package:budget_tracker/services/gamification_service.dart';
@@ -311,8 +312,14 @@ void main() {
         (tester) async {
       final royal = kRoyalAvatars.first;
       await tester.pumpWidget(
-        ChangeNotifierProvider<LocaleProvider>(
-          create: (_) => LocaleProvider(),
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<LocaleProvider>(
+                create: (_) => LocaleProvider()),
+            // The picker's "Enable Custom Animations" toggle reads this.
+            ChangeNotifierProvider<AppPreferences>(
+                create: (_) => AppPreferences()),
+          ],
           child: MaterialApp(
             home: Builder(
               builder: (ctx) => Scaffold(
@@ -359,6 +366,9 @@ void main() {
             // The royal sheet's "switch theme" row reads ThemeProvider.
             ChangeNotifierProvider<ThemeProvider>(
                 create: (_) => ThemeProvider()),
+            // The picker's "Enable Custom Animations" toggle reads this.
+            ChangeNotifierProvider<AppPreferences>(
+                create: (_) => AppPreferences()),
           ],
           child: MaterialApp(
             home: Builder(
@@ -397,13 +407,17 @@ void main() {
       await tester.tap(tile, warnIfMissed: false);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
-      expect(find.byType(SwitchListTile), findsOneWidget);
+      // Two switches now: the app-wide court theme AND the global
+      // custom-animations toggle (which lives in this court sheet).
+      expect(find.byType(SwitchListTile), findsNWidgets(2));
       expect(find.text('Apply app-wide Crimson theme'), findsOneWidget);
+      expect(find.text('Enable Custom Animations'), findsOneWidget);
       expect(find.text('The Sovereign'), findsWidgets);
       expect(find.text('Equip'), findsOneWidget);
 
-      // Flip the toggle off, equip him, then save the picker.
-      await tester.tap(find.byType(SwitchListTile));
+      // Flip the theme toggle off, equip him, then save the picker.
+      await tester.tap(
+          find.widgetWithText(SwitchListTile, 'Apply app-wide Crimson theme'));
       await tester.pump();
       await tester.ensureVisible(find.text('Equip'));
       await tester.pump();
@@ -425,8 +439,13 @@ void main() {
         (tester) async {
       final royal = kRoyalAvatars.first;
       await tester.pumpWidget(
-        ChangeNotifierProvider<LocaleProvider>(
-          create: (_) => LocaleProvider(),
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<LocaleProvider>(
+                create: (_) => LocaleProvider()),
+            ChangeNotifierProvider<AppPreferences>(
+                create: (_) => AppPreferences()),
+          ],
           child: MaterialApp(
             home: Builder(
               builder: (ctx) => Scaffold(
@@ -478,6 +497,8 @@ void main() {
                 create: (_) => LocaleProvider()),
             ChangeNotifierProvider<ThemeProvider>(
                 create: (_) => ThemeProvider()),
+            ChangeNotifierProvider<AppPreferences>(
+                create: (_) => AppPreferences()),
           ],
           child: MaterialApp(
             home: Builder(

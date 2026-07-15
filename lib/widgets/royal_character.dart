@@ -20,8 +20,22 @@ import 'royal_avatars.dart';
 /// floating palanquin, the Sovereign's lion, the Princess's unicorn, the
 /// Medic's rolling supply cart). Cosmetic only; never part of core logic.
 
-/// What the character is doing this frame.
-enum RoyalAction { idle, walk, run, wave, smash, cheer, fume, ride }
+/// What the character is doing this frame. Besides the shared verbs, each
+/// weapon has its own attack: [slash] (sword), [slice] (lance), [shoot]
+/// (bow), [hurl] (orbs) — [smash] stays the blunt overhead slam (war club,
+/// med kit). Use [royalAttackActionFor] to pick the right one.
+enum RoyalAction { idle, walk, run, wave, smash, slash, slice, shoot, hurl, cheer, fume, ride }
+
+/// The attack verb a royal's weapon speaks: the Sovereign slashes, the Prince
+/// slices, the Princess shoots, the Empress hurls, the Dark Prince and the
+/// Medic smash. Keeps host choreography and painter poses in agreement.
+RoyalAction royalAttackActionFor(RoyalWeapon weapon) => switch (weapon) {
+      RoyalWeapon.sword => RoyalAction.slash,
+      RoyalWeapon.lance => RoyalAction.slice,
+      RoyalWeapon.bow => RoyalAction.shoot,
+      RoyalWeapon.orbs => RoyalAction.hurl,
+      RoyalWeapon.warClub || RoyalWeapon.medKit => RoyalAction.smash,
+    };
 
 enum RoyalOutfit { robe, armor, coat }
 
@@ -612,20 +626,43 @@ class RoyalCharacterPainter extends CustomPainter {
     Offset along(double d) =>
         hand + Offset(math.sin(dir), -math.cos(dir)) * -d;
     switch (royal.weapon) {
-      case RoyalWeapon.staff:
-        // Planted like a sceptre of office: butt on the ground, gem at crown
-        // height, pulsing softly.
-        final base = rest ? Offset(hand.dx, h * 0.945) : along(h * 0.16);
-        final top = rest ? Offset(hand.dx, h * 0.30) : along(-h * 0.42);
-        _shaft(canvas, base, top, w * 0.042, _gold, _darken(_gold, 0.3));
-        final pulse = 0.8 + 0.2 * math.sin(t * 2 * math.pi * 1.5);
-        canvas.drawCircle(
-            top,
-            w * 0.075 * pulse,
+      case RoyalWeapon.sword:
+        // The blade of state. At rest it stands point-down like a sceptre —
+        // both hands may rest on the pommel, throne-room style. Swung, it
+        // rides the arm: steel first, gold crossguard, gem pommel.
+        final steel = royal.palette['S'] ?? const Color(0xFFD7DCE4);
+        final Offset guard, tip;
+        if (rest) {
+          guard = Offset(hand.dx, hand.dy + h * 0.015);
+          tip = Offset(hand.dx, h * 0.945);
+        } else {
+          guard = along(h * 0.03);
+          tip = along(-h * 0.42);
+        }
+        final bladeDir = (tip - guard).direction;
+        // Blade body + a bright fuller line down the middle.
+        _shaft(canvas, guard, Offset.lerp(guard, tip, 0.90)!, w * 0.042,
+            steel, _darken(steel, 0.4));
+        canvas.drawLine(
+            Offset.lerp(guard, tip, 0.08)!,
+            Offset.lerp(guard, tip, 0.82)!,
             Paint()
-              ..color = body.gem.withValues(alpha: 0.30)
-              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5));
-        _gemShape(canvas, top, w * 0.055, body.gem);
+              ..strokeWidth = 1.2
+              ..strokeCap = StrokeCap.round
+              ..color = Colors.white.withValues(alpha: 0.75));
+        _triangle(canvas, tip, bladeDir, w * 0.085, w * 0.030, steel);
+        // Gold crossguard, perpendicular to the blade, + gem pommel.
+        final perp =
+            Offset(-math.sin(bladeDir), math.cos(bladeDir)) * (w * 0.062);
+        canvas.drawLine(
+            guard + perp,
+            guard - perp,
+            Paint()
+              ..strokeWidth = w * 0.034
+              ..strokeCap = StrokeCap.round
+              ..color = _gold);
+        _gemShape(canvas, guard - Offset(math.cos(bladeDir), math.sin(bladeDir)) * (h * 0.045),
+            w * 0.038, body.gem);
       case RoyalWeapon.lance:
         // Taller than its owner, steel tip, pennant snapping in the wind.
         final base = rest ? Offset(hand.dx, h * 0.945) : along(h * 0.18);
@@ -809,6 +846,61 @@ class RoyalCharacterPainter extends CustomPainter {
           canvas.drawLine(at + Offset(math.cos(a), math.sin(a)) * r0,
               at + Offset(math.cos(a), math.sin(a)) * r1, sp);
         }
+      case RoyalAction.slash:
+      case RoyalAction.slice:
+        // A crescent motion-streak trailing the blade through the swing —
+        // a white edge over an accent ghost, fading with the flourish.
+        final c = Offset(w * 0.34, h * 0.55);
+        final sweep = math.pi * (action == RoyalAction.slice ? 0.55 : 0.75);
+        final start = action == RoyalAction.slice
+            ? math.pi * 0.72
+            : math.pi * 0.55; // slash arcs steeper, slice flatter
+        for (final (rr, paintW, col) in [
+          (w * 0.52, 5.0, accent.withValues(alpha: 0.30 * pose.flourish)),
+          (w * 0.48, 2.2, Colors.white.withValues(alpha: 0.65 * pose.flourish)),
+        ]) {
+          canvas.drawArc(
+            Rect.fromCircle(center: c, radius: rr),
+            start,
+            sweep * pose.flourish.clamp(0.0, 1.0),
+            false,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeCap = StrokeCap.round
+              ..strokeWidth = paintW
+              ..color = col,
+          );
+        }
+      case RoyalAction.shoot:
+        // A release snap at the bow: three short sparks off the string line.
+        final at = Offset(w * 0.16, h * 0.52);
+        final sp = Paint()
+          ..strokeWidth = 1.8
+          ..strokeCap = StrokeCap.round
+          ..color = Colors.white.withValues(alpha: 0.8 * pose.flourish);
+        for (var i = 0; i < 3; i++) {
+          final a = math.pi * (0.85 + i * 0.12);
+          final r0 = w * 0.03, r1 = w * (0.075 + 0.05 * pose.flourish);
+          canvas.drawLine(at + Offset(math.cos(a), math.sin(a)) * r0,
+              at + Offset(math.cos(a), math.sin(a)) * r1, sp);
+        }
+      case RoyalAction.hurl:
+        // The casting gathers overhead: a pulsing glow + two orbiting motes.
+        final at = Offset(w * 0.42, h * 0.10);
+        canvas.drawCircle(
+            at,
+            w * (0.06 + 0.05 * pose.flourish),
+            Paint()
+              ..color = accent.withValues(alpha: 0.35 * pose.flourish)
+              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6));
+        for (var i = 0; i < 2; i++) {
+          final a = t * 2 * math.pi * 3 + i * math.pi;
+          _star(
+              canvas,
+              at + Offset(math.cos(a), math.sin(a)) * w * 0.10,
+              w * 0.022 * pose.flourish,
+              Colors.white.withValues(alpha: 0.8 * pose.flourish));
+        }
       case RoyalAction.fume:
         // The classic anger cross-vein, pulsing beside the crown, plus two
         // little steam puffs rising off the royal head.
@@ -945,7 +1037,8 @@ class RoyalCharacterPainter extends CustomPainter {
   _Pose _riderPose(double cyc) => _Pose(
         armFree: 0.95, // reins hand forward
         armWeapon: royal.weapon == RoyalWeapon.lance ||
-                royal.weapon == RoyalWeapon.warClub
+                royal.weapon == RoyalWeapon.warClub ||
+                royal.weapon == RoyalWeapon.sword
             ? -2.1 // charge!
             : -0.35,
         gaze: 1,
@@ -1401,6 +1494,83 @@ class RoyalCharacterPainter extends CustomPainter {
           stride: slam * 0.8,
           blink: false,
           flourish: impact,
+        );
+      case RoyalAction.slash:
+        // A cross-body cut: coil back-high, rip through the diagonal, follow
+        // through low. Snappier than the overhead smash — all edge, no thud.
+        final coil = Curves.easeOut.transform((t / 0.38).clamp(0.0, 1.0));
+        final cut =
+            Curves.easeIn.transform(((t - 0.38) / 0.14).clamp(0.0, 1.0));
+        final follow =
+            Curves.easeOut.transform(((t - 0.52) / 0.48).clamp(0.0, 1.0));
+        return _Pose(
+          lean: -0.08 * coil + 0.26 * cut - 0.16 * follow,
+          squash: 1 + 0.06 * coil - 0.14 * cut + 0.09 * follow,
+          armWeapon: -0.35 - 2.35 * coil + 3.6 * cut - 0.9 * follow,
+          armFree: 0.15 + 0.25 * coil - 0.55 * cut + 0.3 * follow,
+          legPhase: cut * 0.7 - follow * 0.5,
+          stride: cut * 0.9,
+          blink: false,
+          gaze: 1,
+          flourish: cut * (1 - follow),
+        );
+      case RoyalAction.slice:
+        // A couched charge-cut: the lance drops level, a deep lunge drives it
+        // clean through, then the knight straightens out of the follow-through.
+        final couch = Curves.easeOut.transform((t / 0.30).clamp(0.0, 1.0));
+        final drive =
+            Curves.easeInOut.transform(((t - 0.30) / 0.30).clamp(0.0, 1.0));
+        final recover =
+            Curves.easeOut.transform(((t - 0.62) / 0.38).clamp(0.0, 1.0));
+        return _Pose(
+          lean: 0.10 * couch + 0.22 * drive - 0.24 * recover,
+          squash: 1 - 0.05 * couch - 0.06 * drive + 0.08 * recover,
+          armWeapon: -0.3 - 1.15 * couch + 2.75 * drive - 1.05 * recover,
+          armFree: 0.2 + 0.5 * couch - 0.4 * drive,
+          legPhase: drive * 0.8 - recover * 0.6,
+          stride: 0.9,
+          blink: false,
+          gaze: 1,
+          flourish: drive * (1 - recover),
+        );
+      case RoyalAction.shoot:
+        // One arrow: the bow arm levels out at the shoulder, the string hand
+        // draws to the cheek, the release snaps. The host repeats this action
+        // per arrow and flies the projectile itself.
+        final raise = Curves.easeOut.transform((t / 0.26).clamp(0.0, 1.0));
+        final draw =
+            Curves.easeInOut.transform(((t - 0.26) / 0.34).clamp(0.0, 1.0));
+        final rel =
+            Curves.easeOut.transform(((t - 0.72) / 0.28).clamp(0.0, 1.0));
+        return _Pose(
+          lean: 0.05 * raise - 0.05 * rel,
+          squash: 1 + 0.02 * draw - 0.03 * rel,
+          armWeapon: -0.25 + 1.75 * raise, // bow levels out forward
+          armFree: 0.2 + 1.2 * raise - 0.75 * draw + 0.5 * rel,
+          wiggle: t >= 0.72 ? (1 - rel) * 0.5 : 0,
+          blink: false,
+          gaze: 1,
+          headTilt: -0.04 * draw,
+          flourish: t >= 0.72 ? (1 - rel) : 0,
+        );
+      case RoyalAction.hurl:
+        // Conjure overhead — both arms gather the casting — then a whipped
+        // overhand throw. The thrown orb is the host's projectile.
+        final gather = Curves.easeOut.transform((t / 0.42).clamp(0.0, 1.0));
+        final throwP =
+            Curves.easeIn.transform(((t - 0.42) / 0.16).clamp(0.0, 1.0));
+        final settle =
+            Curves.easeOut.transform(((t - 0.58) / 0.42).clamp(0.0, 1.0));
+        return _Pose(
+          bob: -0.02 * gather + 0.008 * throwP,
+          lean: -0.06 * gather + 0.22 * throwP - 0.16 * settle,
+          squash: 1 + 0.05 * gather - 0.10 * throwP + 0.07 * settle,
+          armWeapon: -0.3 - 2.3 * gather + 3.8 * throwP - 1.2 * settle,
+          armFree: 0.2 + 2.2 * gather - 2.6 * throwP + 0.6 * settle,
+          blink: false,
+          gaze: 1,
+          headTilt: -0.03 * gather + 0.03 * throwP,
+          flourish: math.max(gather * 0.6, throwP * (1 - settle)),
         );
       case RoyalAction.cheer:
         final hop = math.sin(t * 2 * math.pi * 2).abs();

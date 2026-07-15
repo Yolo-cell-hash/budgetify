@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../l10n/l10n.dart';
 
+import '../providers/app_preferences.dart';
 import '../providers/theme_provider.dart';
 import '../services/gamification_service.dart';
 import 'app_toast.dart';
@@ -500,6 +501,39 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                         color: colors.text,
+                      ),
+                    ),
+                  ),
+                  // Full-body theatrics (off by default): the royal roaming,
+                  // peeking and attacking the screen. Global and persisted
+                  // immediately via AppPreferences — not part of this
+                  // profile, so Save/Cancel doesn't touch it. The circle
+                  // avatar keeps blinking and waving either way.
+                  SwitchListTile(
+                    value: ctx.watch<AppPreferences>().royalCustomAnimations,
+                    onChanged: (v) {
+                      ctx.read<AppPreferences>().setRoyalCustomAnimations(v);
+                      setSheetState(() {});
+                    },
+                    activeThumbColor: accent,
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      ctx.l10n.royalCustomAnimationsTitle,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: colors.text,
+                      ),
+                    ),
+                    subtitle: Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        ctx.l10n.royalCustomAnimationsDesc,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          height: 1.3,
+                          color: colors.textTertiary,
+                        ),
                       ),
                     ),
                   ),

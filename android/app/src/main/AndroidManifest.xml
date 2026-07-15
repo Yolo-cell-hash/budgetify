@@ -18,6 +18,13 @@
     <!-- Notification permission for Android 13+ -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
+    <!-- Physical rumble for the royal screen-smash reaction. The impact-style
+         haptics (HapticFeedback.*Impact) ride the system touch-feedback
+         setting, which many users keep off; HapticFeedback.vibrate() drives
+         the vibrator service directly and needs this permission. Normal
+         (install-time) permission — no runtime prompt, no privacy surface. -->
+    <uses-permission android:name="android.permission.VIBRATE"/>
+
     <!-- Biometric app lock -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
     
