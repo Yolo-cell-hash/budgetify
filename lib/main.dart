@@ -91,6 +91,9 @@ class MyApp extends StatelessWidget {
           title: 'Budget Tracker',
           debugShowCheckedModeBanner: false,
           navigatorKey: NotificationService.navigatorKey,
+          // Lets the royal-reaction host know when a modal popup (dialog, sheet,
+          // menu) is on top, so its cosmetic overlay never paints over one.
+          navigatorObservers: [RoyalOverlayRouteObserver.instance],
           locale: localeProvider.locale,
           supportedLocales: const [Locale('en'), Locale('hi'), Locale('mr'), Locale('bn'), Locale('te'), Locale('ta')],
           localizationsDelegates: const [

@@ -66,6 +66,65 @@ final GlobalKey royalBudgetChartAnchorKey = GlobalKey();
 /// they wander in from off-screen, not out of the icon.
 final ValueNotifier<bool> royalCharacterOut = ValueNotifier<bool>(false);
 
+/// Watches the root navigator for modal POPUP routes — dialogs, bottom sheets,
+/// menus, dropdowns — and reports whether any is currently on top.
+///
+/// The reaction host paints ABOVE the whole app (it wraps the Navigator in
+/// `MaterialApp.builder`), so without this a screen attack in progress would
+/// draw its shatter cracks and character straight over a sheet the user opens
+/// mid-animation (e.g. Edit Budget) — and its haptics would keep firing under
+/// the sheet. The host watches [popupOpen] and cleanly bows out the instant a
+/// popup appears, and never starts a new flourish while one is up. It only
+/// tracks [PopupRoute]s, so full-screen page pushes (which the court is allowed
+/// to roam over) are unaffected. Registered in `MaterialApp.navigatorObservers`.
+class RoyalOverlayRouteObserver extends NavigatorObserver {
+  RoyalOverlayRouteObserver._();
+  static final RoyalOverlayRouteObserver instance =
+      RoyalOverlayRouteObserver._();
+
+  final Set<Route<dynamic>> _popups = <Route<dynamic>>{};
+
+  /// True while at least one modal popup route is on top of the app.
+  final ValueNotifier<bool> popupOpen = ValueNotifier<bool>(false);
+
+  void _recount() => popupOpen.value = _popups.isNotEmpty;
+
+  void _add(Route<dynamic>? route) {
+    if (route is PopupRoute) {
+      _popups.add(route);
+      _recount();
+    }
+  }
+
+  void _remove(Route<dynamic>? route) {
+    if (route != null && _popups.remove(route)) _recount();
+  }
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) =>
+      _add(route);
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) =>
+      _remove(route);
+
+  @override
+  void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) =>
+      _remove(route);
+
+  @override
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
+    _remove(oldRoute);
+    _add(newRoute);
+  }
+
+  @visibleForTesting
+  void debugReset() {
+    _popups.clear();
+    popupOpen.value = false;
+  }
+}
+
 /// The ambient walk-on appearances the court makes between reactions.
 enum RoyalCameo {
   /// A little stroll across the bottom of the current page, with a mid-way
@@ -278,6 +337,7 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
     royalReactionRequest.addListener(_onReaction);
     _royalCameoRequest.addListener(_onCameoRequest);
     mainShellTabIndex.addListener(_onTabChange);
+    RoyalOverlayRouteObserver.instance.popupOpen.addListener(_onPopupChanged);
     _prefs = context.read<AppPreferences>()..addListener(_onPrefsChanged);
     _customAnimEnabled = _prefs!.royalCustomAnimations;
     _loadRoyal();
@@ -289,10 +349,35 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
     royalReactionRequest.removeListener(_onReaction);
     _royalCameoRequest.removeListener(_onCameoRequest);
     mainShellTabIndex.removeListener(_onTabChange);
+    RoyalOverlayRouteObserver.instance.popupOpen
+        .removeListener(_onPopupChanged);
     _prefs?.removeListener(_onPrefsChanged);
     _cameoTimer?.cancel();
     _ctrl.dispose();
     super.dispose();
+  }
+
+  bool get _popupOpen => RoyalOverlayRouteObserver.instance.popupOpen.value;
+
+  /// A modal popup (dialog, bottom sheet, menu) just opened or closed. The
+  /// court never shares the screen with one: an in-flight flourish is bowed
+  /// out cleanly the moment a popup appears (stopping its haptics too), and
+  /// nothing new starts until it's gone.
+  void _onPopupChanged() {
+    if (!mounted) return;
+    if (_popupOpen) _cancelRoutine();
+  }
+
+  /// Abort the current routine immediately, without the tail effects a natural
+  /// finish would run. Unlike [_endRoutine] it does NOT flush [_pending] — a
+  /// queued reaction must not spring up over the popup that just cancelled us.
+  void _cancelRoutine() {
+    if (_routine == null) return;
+    _ctrl.stop();
+    _pending = null;
+    royalCharacterOut.value = false;
+    _lastPlayEnd = DateTime.now();
+    if (mounted) setState(() => _routine = null);
   }
 
   /// Whether the equipped royal's full-body theatrics are enabled. The circle
@@ -467,6 +552,10 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
   }
 
   void _play(_Routine r) {
+    // Never begin a flourish over a modal popup — it would paint across the
+    // dialog/sheet and rumble underneath it. (A popup opening mid-routine is
+    // handled by _onPopupChanged, which cancels the one already playing.)
+    if (_popupOpen) return;
     final weapon = _royal?.weapon ?? RoyalWeapon.sword;
     _durationMs = switch (r) {
       _Routine.boot => 5600,
@@ -1260,6 +1349,10 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
         final royal = _royal;
         final routine = _routine;
         if (routine == null || royal == null || !gamified) return child!;
+        // Defensive: a popup on top means the overlay must not paint (the
+        // routine is normally already cancelled by _onPopupChanged; this also
+        // covers the single frame between the push and that callback).
+        if (_popupOpen) return child!;
 
         final mq = MediaQuery.of(context);
         final icon = _anchorCenter(mq.size, mq.padding);
