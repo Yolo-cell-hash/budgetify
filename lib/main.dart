@@ -9,6 +9,7 @@ import 'package:budget_tracker/services/app_lock_service.dart';
 import 'package:budget_tracker/services/notification_service.dart';
 import 'package:budget_tracker/services/background_service.dart';
 import 'package:budget_tracker/services/custom_tag_service.dart';
+import 'package:budget_tracker/services/dev_mode.dart';
 import 'package:budget_tracker/services/gamification_service.dart';
 import 'package:budget_tracker/services/entitlement_service.dart';
 import 'package:budget_tracker/providers/theme_provider.dart';
@@ -44,6 +45,12 @@ void main() async {
   await themeProvider.initialize();
   await appPreferences.initialize();
   await localeProvider.initialize();
+
+  // Restore the persisted developer-mode flag (stays on across restarts until
+  // the user turns it off). While on, this also re-applies the persisted
+  // preview overlay: the previewed theme (via themeProvider) and the equipped
+  // royal (via the session avatar override, read below by loadProfile).
+  await DevMode.initialize(themeProvider);
 
   // An equipped ROYALTY avatar (with its app-wide theme toggle on) dresses
   // its home primary theme everywhere: the gold slots take the court shade
