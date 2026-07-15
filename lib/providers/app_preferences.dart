@@ -9,6 +9,7 @@ class AppPreferences extends ChangeNotifier {
   static const String _financialHealthDetailedKey =
       'financial_health_detailed';
   static const String _gamifiedModeKey = 'gamified_mode';
+  static const String _royalCustomAnimationsKey = 'royal_custom_animations';
   static const String _dismissedBudgetSuggestionsKey =
       'dismissed_budget_suggestions';
 
@@ -41,12 +42,21 @@ class AppPreferences extends ChangeNotifier {
   // removes the Home avatar and every gamified addition.
   bool _gamifiedMode = true;
 
+  // Custom royal animations (default OFF). Gates the equipped royal's full-body
+  // on-screen theatrics — the launch parade, budget smash, cheers, and the
+  // ambient roaming/peeking cameos rendered over the app by royal_reactions.dart.
+  // When off, the royal only blinks and waves from the Home profile circle; the
+  // full-body character never leaves that circle. Opt-in, so the busier motion
+  // is something the user turns on deliberately from the avatar picker.
+  bool _royalCustomAnimations = false;
+
   bool get isOnboardingComplete => _isOnboardingComplete;
   bool get isInitialized => _isInitialized;
   bool get privacyMode => _privacyMode;
   bool get aiPredictionMode => _aiPredictionMode;
   bool get financialHealthDetailed => _financialHealthDetailed;
   bool get gamifiedMode => _gamifiedMode;
+  bool get royalCustomAnimations => _royalCustomAnimations;
 
   /// Whether amounts should currently render hidden: privacy mode is on and
   /// the user hasn't tapped to reveal this session.
@@ -63,6 +73,8 @@ class AppPreferences extends ChangeNotifier {
     _financialHealthDetailed =
         prefs.getBool(_financialHealthDetailedKey) ?? false;
     _gamifiedMode = prefs.getBool(_gamifiedModeKey) ?? true;
+    _royalCustomAnimations =
+        prefs.getBool(_royalCustomAnimationsKey) ?? false;
     _dismissedBudgetSuggestions =
         (prefs.getStringList(_dismissedBudgetSuggestionsKey) ?? const [])
             .toSet();
@@ -125,6 +137,15 @@ class AppPreferences extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_gamifiedModeKey, enabled);
+  }
+
+  /// Turn the royal's full-body custom animations on/off (persisted). When off,
+  /// the royal only waves and blinks from the Home profile circle.
+  Future<void> setRoyalCustomAnimations(bool enabled) async {
+    _royalCustomAnimations = enabled;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_royalCustomAnimationsKey, enabled);
   }
 
   /// Mark onboarding as complete

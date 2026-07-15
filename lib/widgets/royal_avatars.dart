@@ -27,7 +27,10 @@ import '../providers/theme_provider.dart';
 
 /// The signature weapon/ability each royal wields in the cosmetic reaction
 /// animations (see royal_reactions.dart). Rendering only — never gameplay.
-enum RoyalWeapon { lance, warClub, bow, medKit, orbs, staff }
+/// Each weapon also decides HOW its royal attacks the screen (and what the
+/// shatter looks like): sword slashes, lance slices, club smashes, bow
+/// shoots, orbs are hurled, the med kit slams a shock pulse.
+enum RoyalWeapon { lance, warClub, bow, medKit, orbs, sword }
 
 /// One royal character: identity, base art, animation frames and theme.
 class RoyalAvatar {
@@ -542,7 +545,7 @@ const List<RoyalAvatar> kRoyalAvatars = [
   RoyalAvatar(
     id: 'sovereign',
     spriteIndex: 18,
-    weapon: RoyalWeapon.staff,
+    weapon: RoyalWeapon.sword,
     rows: _kingRows,
     palette: _kingPalette,
     eyeRowWhites: 6,
