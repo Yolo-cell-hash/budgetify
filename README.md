@@ -363,19 +363,25 @@ flowchart LR
 ```mermaid
 flowchart TD
   subgraph UI["UI Layer — Flutter widgets"]
-    Home[Home] & Budget["Budget &amp; Analytics"] & Rec[Recurring] & NW[Net Worth] & Settings[Settings]
-    Txns[Transactions] & Splits[Splits] & Goals[Goals] & Insights[Insights] & Wrapped[Wrapped] & Rewards[Rewards Hub]
+    direction LR
+    Tabs["Tabs: Home · Budgets · Recurring<br/>Net Worth · Settings"]
+    Deep["Transactions · Splits · Goals · Insights<br/>Merchants · Wrapped · Rewards Hub"]
   end
+
   subgraph SVC["Service Layer"]
-    Parser[SmsParserService] & Tpl[BankTemplates] & SmsSvc[SmsService] & Bg[BackgroundService] & Notif[NotificationService]
-    Import[StatementImportService] & Export[ExportService] & Backup[BackupService] & Lock[AppLockService] & Widget[WidgetService]
-    Ledger[LedgerService] & Goal[SavingsGoalService] & Sip[SipService] & RecSvc[RecurringService]
-    Ins[InsightsService] & Coach[CoachService] & Health[FinancialHealthService] & Recap[RecapService] & Gami[GamificationService]
+    direction LR
+    Cap["Capture<br/>SmsParserService · BankTemplates<br/>SmsService · BackgroundService<br/>StatementImportService"]
+    Money["Money<br/>RecurringService · LedgerService<br/>SavingsGoalService · SipService"]
+    Think["Insight<br/>InsightsService · CoachService<br/>FinancialHealthService<br/>RecapService · GamificationService"]
+    Plat["Platform<br/>ExportService · BackupService<br/>AppLockService · NotificationService<br/>WidgetService"]
   end
+
   subgraph DATA["Data Layer"]
+    direction LR
     DBService[DatabaseService] --> SQLite[("SQLite")]
     Prefs[("SharedPreferences")]
   end
+
   UI --> SVC
   SVC --> DATA
 ```
