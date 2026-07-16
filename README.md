@@ -360,31 +360,24 @@ flowchart LR
 
 ## 🏗️ Architecture & tech stack
 
+A conventional three-layer split — widgets never touch the database directly, and every service is context-free enough to run from a background isolate.
+
 ```mermaid
 flowchart TD
-  subgraph UI["UI Layer — Flutter widgets"]
-    direction LR
-    Tabs["Tabs: Home · Budgets · Recurring<br/>Net Worth · Settings"]
-    Deep["Transactions · Splits · Goals · Insights<br/>Merchants · Wrapped · Rewards Hub"]
-  end
-
-  subgraph SVC["Service Layer"]
-    direction LR
-    Cap["Capture<br/>SmsParserService · BankTemplates<br/>SmsService · BackgroundService<br/>StatementImportService"]
-    Money["Money<br/>RecurringService · LedgerService<br/>SavingsGoalService · SipService"]
-    Think["Insight<br/>InsightsService · CoachService<br/>FinancialHealthService<br/>RecapService · GamificationService"]
-    Plat["Platform<br/>ExportService · BackupService<br/>AppLockService · NotificationService<br/>WidgetService"]
-  end
-
-  subgraph DATA["Data Layer"]
-    direction LR
-    DBService[DatabaseService] --> SQLite[("SQLite")]
-    Prefs[("SharedPreferences")]
-  end
-
+  UI["UI Layer — Flutter widgets<br/>Home · Budgets · Recurring · Net Worth · Settings<br/>Transactions · Splits · Goals · Insights · Merchants · Wrapped · Rewards"]
+  SVC["Service Layer<br/>capture · money · insight · platform"]
   UI --> SVC
-  SVC --> DATA
+  SVC --> DBService["DatabaseService"]
+  SVC --> Prefs[("SharedPreferences")]
+  DBService --> SQLite[("SQLite")]
 ```
+
+| Group | Services |
+|---|---|
+| **Capture** | `SmsParserService` · `BankTemplates` · `SmsService` · `BackgroundService` · `StatementImportService` · `AxioImportService` |
+| **Money** | `RecurringService` · `LedgerService` · `SavingsGoalService` · `SipService` |
+| **Insight** | `InsightsService` · `CoachService` · `FinancialHealthService` · `RecapService` · `GamificationService` |
+| **Platform** | `ExportService` · `BackupService` · `AppLockService` · `NotificationService` · `WidgetService` · `TutorialService` |
 
 | Concern | Choice |
 |---|---|
