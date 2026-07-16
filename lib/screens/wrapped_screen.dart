@@ -1,6 +1,8 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:intl/intl.dart';
@@ -10,17 +12,21 @@ import 'package:share_plus/share_plus.dart';
 import '../l10n/l10n.dart';
 import '../models/monthly_recap.dart';
 import '../providers/theme_provider.dart';
+import '../services/gamification_service.dart';
 import '../services/recap_service.dart';
+import '../services/wrapped_gif.dart';
 import '../widgets/app_bar_title.dart';
 import '../widgets/app_dialog.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/glass.dart';
 import '../widgets/motion.dart';
+import '../widgets/royal_avatars.dart';
 import '../widgets/wrapped_card.dart';
 
 /// Monthly "Wrapped": a privacy-safe, shareable recap of any month with at
-/// least [MonthlyRecap.minDays] days of activity. Pick a month, then share the
-/// card to WhatsApp / Instagram / anywhere via the system share sheet.
+/// least [MonthlyRecap.minDays] days of activity. Pick a month, then share
+/// the card — as a living animated GIF or a crisp still — to WhatsApp /
+/// Instagram / anywhere via the system share sheet.
 class WrappedScreen extends StatefulWidget {
   /// Month to open on first (defaults to the current month).
   final DateTime? initialMonth;
@@ -31,19 +37,33 @@ class WrappedScreen extends StatefulWidget {
   State<WrappedScreen> createState() => _WrappedScreenState();
 }
 
+enum _ShareKind { animated, still }
+
 class _WrappedScreenState extends State<WrappedScreen>
     with SingleTickerProviderStateMixin {
   final RecapService _service = RecapService();
   final GlobalKey _cardKey = GlobalKey();
 
+  // ── Animated share tuning ──
+  // One loop of the card's motion; the GIF captures exactly one period so it
+  // loops seamlessly. 24 frames at 10 fps = the same 2.4 s the live card
+  // takes, and 1.2× pixel ratio keeps the GIF sharp but chat-friendly.
+  static const Duration _loopPeriod = Duration(milliseconds: 2400);
+  static const int _gifFrames = 24;
+  static const int _gifFps = 10;
+  static const double _gifPixelRatio = 1.2;
+
   late List<DateTime> _months;
   late DateTime _selected;
   MonthlyRecap? _recap;
+  RoyalAvatar? _royal;
   bool _loading = true;
-  bool _sharing = false;
+  _ShareKind? _sharing;
   bool _showAmounts = false; // reveal actual ₹ figures on the card
 
-  late AnimationController _shimmerController;
+  /// Drives every loop effect on the card (sparks, border sheen, shimmer,
+  /// peak pulse, royal seal) and the share button's own shimmer.
+  late AnimationController _loop;
 
   @override
   void initState() {
@@ -53,16 +73,14 @@ class _WrappedScreenState extends State<WrappedScreen>
     final init = widget.initialMonth;
     _selected = init == null ? _months.first : DateTime(init.year, init.month, 1);
     _load(_selected);
+    _loadRoyal();
 
-    _shimmerController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 3),
-    )..repeat();
+    _loop = AnimationController(vsync: this, duration: _loopPeriod)..repeat();
   }
 
   @override
   void dispose() {
-    _shimmerController.dispose();
+    _loop.dispose();
     super.dispose();
   }
 
@@ -79,35 +97,93 @@ class _WrappedScreenState extends State<WrappedScreen>
     });
   }
 
+  /// The equipped royal (if any) signs the card with its living seal.
+  /// [GamificationService.loadProfile] already enforces the unlock gating.
+  Future<void> _loadRoyal() async {
+    final profile = await GamificationService().loadProfile();
+    if (!mounted) return;
+    setState(() {
+      _royal = profile.avatarKind == 'pixel'
+          ? royalAvatarAt(int.tryParse(profile.avatarValue) ?? -1)
+          : null;
+    });
+  }
+
+  RenderRepaintBoundary? get _boundary =>
+      _cardKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+
   /// Capture the card as a PNG and return the temp file path.
-  Future<File?> _captureCard() async {
+  Future<File?> _capturePng() async {
     try {
-      final boundary =
-          _cardKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
-      final image = await boundary.toImage(pixelRatio: 3.0);
+      final image = await _boundary!.toImage(pixelRatio: 3.0);
       final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+      image.dispose();
       final dir = await getTemporaryDirectory();
       final period = DateFormat('yyyy-MM').format(_selected);
-      final file = await File('${dir.path}/budgetify_wrapped_$period.png')
+      return await File('${dir.path}/budgetify_wrapped_$period.png')
           .writeAsBytes(bytes!.buffer.asUint8List());
-      return file;
     } catch (e) {
       return null;
     }
   }
 
-  /// Capture the card and hand it to the system share sheet (which already
-  /// lists WhatsApp, Instagram, and everything else).
-  Future<void> _share() async {
-    if (_sharing) return;
-    setState(() => _sharing = true);
+  /// Step the loop through one full period, capturing each frame, then
+  /// encode a seamlessly looping GIF off the UI thread.
+  Future<File?> _captureGif() async {
+    try {
+      final boundary = _boundary!;
+      final frames = <Uint8List>[];
+      var w = 0, h = 0;
+      _loop.stop();
+      try {
+        for (var i = 0; i < _gifFrames; i++) {
+          _loop.value = i / _gifFrames;
+          await WidgetsBinding.instance.endOfFrame;
+          final image = await boundary.toImage(pixelRatio: _gifPixelRatio);
+          final data =
+              await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+          w = image.width;
+          h = image.height;
+          image.dispose();
+          if (data == null) return null;
+          frames.add(
+              data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
+        }
+      } finally {
+        _loop.repeat();
+      }
+      final gif = await compute(
+        buildWrappedGif,
+        WrappedGifRequest(
+            width: w, height: h, fps: _gifFps, rgbaFrames: frames),
+      );
+      final dir = await getTemporaryDirectory();
+      final period = DateFormat('yyyy-MM').format(_selected);
+      return await File('${dir.path}/budgetify_wrapped_$period.gif')
+          .writeAsBytes(gif);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Capture the card (animated or still) and hand it to the system share
+  /// sheet (which already lists WhatsApp, Instagram, and everything else).
+  Future<void> _share(_ShareKind kind) async {
+    if (_sharing != null) return;
+    setState(() => _sharing = kind);
     final l10n = context.l10nRead;
     try {
-      final file = await _captureCard();
+      final file = await (kind == _ShareKind.animated
+          ? _captureGif()
+          : _capturePng());
       if (file == null) throw Exception('Capture failed');
       final monthName = l10n.monthYear(_selected);
       await Share.shareXFiles(
-        [XFile(file.path, mimeType: 'image/png')],
+        [
+          XFile(file.path,
+              mimeType:
+                  kind == _ShareKind.animated ? 'image/gif' : 'image/png'),
+        ],
         text: l10n.wrappedShareText(monthName),
       );
     } catch (e) {
@@ -116,7 +192,7 @@ class _WrappedScreenState extends State<WrappedScreen>
             message: l10n.couldNotShareCard, type: AppToastType.error);
       }
     } finally {
-      if (mounted) setState(() => _sharing = false);
+      if (mounted) setState(() => _sharing = null);
     }
   }
 
@@ -193,21 +269,23 @@ class _WrappedScreenState extends State<WrappedScreen>
               m.year == _selected.year && m.month == _selected.month;
           final isCurrent = m.year == now.year && m.month == now.month;
           return GestureDetector(
-            onTap: () => _load(m),
+            // Month switches are parked while a share capture is running so
+            // the frames all come from one recap.
+            onTap: _sharing != null ? null : () => _load(m),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               padding: const EdgeInsets.symmetric(horizontal: 16),
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: selected ? AppColors.gold : colors.card,
+                color: selected ? colors.brandAccent : colors.card,
                 borderRadius: BorderRadius.circular(22),
                 border: Border.all(
-                  color: selected ? AppColors.gold : colors.border,
+                  color: selected ? colors.brandAccent : colors.border,
                 ),
                 boxShadow: selected
                     ? [
                         BoxShadow(
-                          color: AppColors.gold.withValues(alpha: 0.25),
+                          color: colors.brandAccent.withValues(alpha: 0.25),
                           blurRadius: 12,
                           offset: const Offset(0, 3),
                         ),
@@ -232,6 +310,7 @@ class _WrappedScreenState extends State<WrappedScreen>
 
   Widget _buildEligible(MonthlyRecap recap) {
     final colors = AppColors.of(context);
+    final l10n = context.l10n;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
@@ -246,30 +325,68 @@ class _WrappedScreenState extends State<WrappedScreen>
             child: FittedBox(
               child: RepaintBoundary(
                 key: _cardKey,
-                child: WrappedCard(recap: recap, showAmounts: _showAmounts),
+                child: WrappedCard(
+                  // Keyed per month so the entrance animations replay when
+                  // the user hops between months.
+                  key: ValueKey(_selected),
+                  recap: recap,
+                  showAmounts: _showAmounts,
+                  loop: _loop,
+                  royal: _royal,
+                ),
               ),
             ),
           ),
           const SizedBox(height: 24),
 
-          // Single share button — the system sheet already offers WhatsApp,
-          // Instagram and every other target.
+          // Animated share is the marquee action; a still image remains one
+          // tap away. The system sheet offers WhatsApp, Instagram and the
+          // rest either way.
           FadeSlideIn(
             order: 2,
             child: SizedBox(
               width: double.infinity,
               child: _ShareButton(
-                onPressed: _sharing ? null : _share,
-                isLoading: _sharing,
-                shimmerController: _shimmerController,
+                onPressed:
+                    _sharing != null ? null : () => _share(_ShareKind.animated),
+                isLoading: _sharing == _ShareKind.animated,
+                label: l10n.shareAnimatedWrapped,
+                loadingLabel: l10n.creatingAnimation,
+                icon: Icons.auto_awesome_motion_rounded,
+                shimmer: _loop,
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          FadeSlideIn(
+            order: 3,
+            child: TextButton.icon(
+              onPressed:
+                  _sharing != null ? null : () => _share(_ShareKind.still),
+              icon: _sharing == _ShareKind.still
+                  ? SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: colors.textSecondary),
+                    )
+                  : Icon(Icons.image_outlined,
+                      size: 16, color: colors.textSecondary),
+              label: Text(
+                l10n.shareStillImage,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: colors.textSecondary,
+                ),
               ),
             ),
           ),
 
-          const SizedBox(height: 14),
+          const SizedBox(height: 8),
 
           FadeSlideIn(
-            order: 3,
+            order: 4,
             child: Container(
               padding: const EdgeInsets.symmetric(
                   horizontal: 16, vertical: 10),
@@ -278,23 +395,26 @@ class _WrappedScreenState extends State<WrappedScreen>
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: _showAmounts
-                      ? AppColors.gold.withValues(alpha: 0.4)
+                      ? colors.brandAccent.withValues(alpha: 0.4)
                       : colors.border,
                 ),
               ),
               child: Row(
                 children: [
-                  Icon(_showAmounts ? Icons.warning_amber_rounded : Icons.lock_outline,
+                  Icon(
+                      _showAmounts
+                          ? Icons.warning_amber_rounded
+                          : Icons.lock_outline,
                       size: 15,
                       color: _showAmounts
-                          ? AppColors.gold
+                          ? colors.brandAccent
                           : colors.textTertiary),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       _showAmounts
-                          ? 'Amounts are showing — anything you share will include your real ₹ figures.'
-                          : 'Only percentages & names on the card — no amounts. Your finances stay private.',
+                          ? l10n.wrappedAmountsOnNote
+                          : l10n.wrappedPrivacyNote,
                       style: TextStyle(
                         fontSize: 11.5,
                         height: 1.4,
@@ -325,7 +445,7 @@ class _WrappedScreenState extends State<WrappedScreen>
           Icon(
             _showAmounts ? Icons.visibility : Icons.visibility_off_outlined,
             size: 17,
-            color: _showAmounts ? AppColors.gold : colors.textSecondary,
+            color: _showAmounts ? colors.brandAccent : colors.textSecondary,
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -340,8 +460,8 @@ class _WrappedScreenState extends State<WrappedScreen>
           ),
           Switch(
             value: _showAmounts,
-            onChanged: _toggleAmounts,
-            activeTrackColor: AppColors.gold,
+            onChanged: _sharing != null ? null : _toggleAmounts,
+            activeTrackColor: colors.brandAccent,
           ),
         ],
       ),
@@ -404,7 +524,7 @@ class _WrappedScreenState extends State<WrappedScreen>
                   children: [
                     AnimatedProgressBar(
                       value: days / MonthlyRecap.minDays,
-                      color: AppColors.gold,
+                      color: colors.brandAccent,
                       backgroundColor: colors.border,
                       height: 5,
                     ),
@@ -433,32 +553,39 @@ class _WrappedScreenState extends State<WrappedScreen>
 class _ShareButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final bool isLoading;
-  final AnimationController shimmerController;
+  final String label;
+  final String loadingLabel;
+  final IconData icon;
+  final Animation<double> shimmer;
 
   const _ShareButton({
     required this.onPressed,
     required this.isLoading,
-    required this.shimmerController,
+    required this.label,
+    required this.loadingLabel,
+    required this.icon,
+    required this.shimmer,
   });
 
   @override
   Widget build(BuildContext context) {
+    final hero = HeroStyle.of(context);
     return AnimatedBuilder(
-      animation: shimmerController,
+      animation: shimmer,
       builder: (context, child) {
         return Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             gradient: LinearGradient(
-              colors: const [
-                Color(0xFF3A3220),
-                AppColors.gold,
-                Color(0xFF3A3220),
+              colors: [
+                hero.accent.withValues(alpha: 0.25),
+                hero.accent,
+                hero.accent.withValues(alpha: 0.25),
               ],
               stops: [
-                (shimmerController.value - 0.3).clamp(0.0, 1.0),
-                shimmerController.value,
-                (shimmerController.value + 0.3).clamp(0.0, 1.0),
+                (shimmer.value - 0.3).clamp(0.0, 1.0),
+                shimmer.value,
+                (shimmer.value + 0.3).clamp(0.0, 1.0),
               ],
               begin: Alignment.centerLeft,
               end: Alignment.centerRight,
@@ -476,40 +603,37 @@ class _ShareButton extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 15),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: AppColors.heroGradient,
-              ),
+              gradient: LinearGradient(colors: hero.gradientColors),
               borderRadius: BorderRadius.circular(15),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 if (isLoading) ...[
-                  const SizedBox(
+                  SizedBox(
                     width: 18,
                     height: 18,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: AppColors.gold,
+                      color: hero.accent,
                     ),
                   ),
                   const SizedBox(width: 10),
                   Text(
-                    context.l10n.preparing,
-                    style: const TextStyle(
-                      color: Colors.white70,
+                    loadingLabel,
+                    style: TextStyle(
+                      color: hero.mutedForeground,
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                 ] else ...[
-                  const Icon(Icons.ios_share_rounded,
-                      color: AppColors.gold, size: 19),
+                  Icon(icon, color: hero.accent, size: 19),
                   const SizedBox(width: 10),
                   Text(
-                    context.l10n.shareMyWrapped,
-                    style: const TextStyle(
-                      color: Colors.white,
+                    label,
+                    style: TextStyle(
+                      color: hero.foreground,
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
                       letterSpacing: -0.2,
@@ -524,4 +648,3 @@ class _ShareButton extends StatelessWidget {
     );
   }
 }
-
