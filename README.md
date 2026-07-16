@@ -278,7 +278,7 @@ flowchart TD
 ### Real-time SMS → transaction pipeline
 
 ```mermaid
-flowchart LR
+flowchart TD
   SMS[Incoming bank SMS] --> Listen[Telephony listener]
   Listen --> Sender{Known bank header?<br/>not a -P promo?}
   Sender -- No --> Drop1[Ignore]
@@ -345,7 +345,7 @@ flowchart TD
 ### Encrypted backup & restore
 
 ```mermaid
-flowchart LR
+flowchart TD
   D[(Your data)] --> J[Build JSON snapshot]
   J --> K[Derive key from passphrase<br/>PBKDF2-HMAC-SHA256]
   K --> E[Encrypt with AES-256-GCM]
