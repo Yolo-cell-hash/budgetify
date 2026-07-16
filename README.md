@@ -9,7 +9,7 @@ Budgetify reads your bank SMS on-device, turns them into a clean spending pictur
 
 <br/>
 
-![Version](https://img.shields.io/badge/version-1.38.1-C8A75E?style=for-the-badge)
+![Version](https://img.shields.io/badge/version-1.39.0-C8A75E?style=for-the-badge)
 ![Platform](https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)
 ![Flutter](https://img.shields.io/badge/Flutter-02569B?style=for-the-badge&logo=flutter&logoColor=white)
 ![Offline](https://img.shields.io/badge/100%25-Offline-1B7F5C?style=for-the-badge)
@@ -60,7 +60,7 @@ Most people in India already get a text message for **every** bank transaction �
 - 👥 **Split expenses offline** — a Splitwise-style ledger where the other people are just names, not accounts.
 - 🎯 **Goals & net worth** — earmark savings toward goals, and track assets, liabilities, SIPs and holdings by hand.
 - 🧠 **A money coach that stays quiet** — insights and nudges built on robust statistics, deliberately guarded against crying wolf.
-- 🎁 **Monthly Wrapped** — a shareable, percentages-only recap card that carries no amounts off your device.
+- 🎁 **Monthly Wrapped** — a shareable, theme-aware recap poster (animated GIF optional) that's amount-free unless you reveal the numbers.
 - 🏆 **Gamified budgeting** — streaks, achievements, trophies, and a reward road that unlocks themes and royal avatars.
 - 💎 **A genuinely premium feel** — a hand-built "midnight ink & champagne gold" theme, the Manrope typeface, glassmorphic surfaces, and tasteful motion throughout.
 - 🌏 **Six languages** — English, हिन्दी, मराठी, বাংলা, తెలుగు, and தமிழ்.
@@ -192,7 +192,13 @@ The coach behind the nudges is deliberately conservative. Spend is heavily right
 - **Per-category budget insights** for the envelopes you set.
 
 ### 🎁 Monthly Wrapped
-A shareable, end-of-month recap card — your top category, top merchant, biggest mover, and how the month compared. It's **privacy-safe by construction**: the recap carries only **percentages, counts and names — never amounts**, so sharing it to WhatsApp or Instagram can't leak what you actually spent. Sharing goes through the system share sheet (no internet permission involved).
+A shareable, end-of-month **poster** that tells the month's story at a glance: a hero stat, your day-by-day spending rhythm, top categories, biggest mover, and a grid of insights (busiest day, no-spend days, time in app, activity).
+
+- **Amount-free by default.** The card carries only **percentages, counts and names**, so it's safe to post anywhere. A **"reveal numbers"** toggle flips it to real ₹ figures — opt-in, for when you *want* the detail.
+- **It wears your theme.** The card dresses itself from the active theme, so every theme — and an equipped royal's court dress — restyles it automatically, and an equipped royal signs it with a small living seal.
+- **Animated share.** Export it as a seamlessly looping GIF; the ~24-frame encode hops to a background isolate so it never janks the UI.
+
+Sharing goes through the system share sheet — still no internet permission involved.
 
 ### 🏆 Gamified budgeting
 On by default, and switchable off in Settings. Daily **streaks** (with freezes, live flame and a heatmap), **achievements**, a **trophy room**, and a **profile card** you can share. The **Streak Reward Road** unlocks as your *longest* streak grows — so a broken streak never re-locks what you earned:
@@ -245,7 +251,7 @@ flowchart LR
     P --> DB
     DB --> UI["Dashboards · Budgets · Analytics"]
     DB --> BK["AES-256 encrypted<br/>backup file (you keep it)"]
-    DB --> W["Wrapped card<br/>(percentages only)"]
+    DB --> W["Wrapped card<br/>(amount-free by default)"]
     LOCK["Biometric lock"] -.gates.-> UI
   end
   CLOUD["☁️ Any server / cloud"]
@@ -393,6 +399,7 @@ flowchart TD
 | PDF export | `pdf` (pure Dart — no network) |
 | Statement import | `file_picker` + `excel` + in-house `csv_reader` |
 | Sharing | `share_plus` (system share sheet, no INTERNET) |
+| Animated Wrapped GIF | `image` (encoded on a background isolate) |
 | Home widget | `home_widget` |
 | State | `provider` |
 | Localization | in-house `AppStrings` tables (6 languages) |
@@ -497,7 +504,7 @@ Yes — banks with known formats get a **template pack**. New packs are added fr
 Yes — import a CSV or Excel statement from your bank. Duplicates against existing SMS transactions are detected and excluded.
 
 **Does the Wrapped card leak my spending?**
-No. The recap is built from percentages, counts and names only — no amounts are ever put on the card.
+Not unless you ask it to. The card is amount-free by default — percentages, counts and names only — so it's safe to post as-is. If you want the real figures on it, there's an explicit **reveal numbers** toggle.
 
 **How do I move my data to a new phone?**
 Create an encrypted backup, copy the `.bgfy` file across, and restore it with your passphrase.
