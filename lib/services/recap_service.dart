@@ -2,17 +2,24 @@ import '../models/holding.dart';
 import '../models/monthly_recap.dart';
 import '../models/transaction_model.dart';
 import 'database_service.dart';
+import 'gamification_service.dart';
 
 /// Builds a privacy-safe [MonthlyRecap] for a given month from on-device data.
 /// Pure statistics over the local database — no network, no amounts leave the
 /// device (the recap itself carries only percentages, counts and names).
 class RecapService {
   final DatabaseService _db;
+  final GamificationService _gami;
 
-  RecapService([DatabaseService? db]) : _db = db ?? DatabaseService();
+  RecapService([DatabaseService? db, GamificationService? gami])
+      : _db = db ?? DatabaseService(),
+        _gami = gami ?? GamificationService(db);
 
   // Ignore tiny-base categories when picking the month's biggest mover.
   static const double _minMoverBase = 500;
+
+  /// How many categories the card's "top categories" strip shows.
+  static const int topCategoryCount = 3;
 
   Future<MonthlyRecap> compute(DateTime month, {DateTime? now}) async {
     final today = now ?? DateTime.now();
@@ -55,6 +62,13 @@ class RecapService {
     }
     final avgPerDay = availableDays > 0 ? spent / availableDays : 0.0;
 
+    // Day-by-day texture: rhythm strip, busiest day, no-spend days.
+    final trends = RecapTrends.compute(txns: txns, month: monthStart, now: today);
+
+    // Time spent in the app during this month (gamification tally; 0 when
+    // the month predates tracking). monthAppSeconds keys off its `now`.
+    final appTimeSeconds = await _gami.monthAppSeconds(now: monthStart);
+
     // Spend vs last month.
     final lastStart = DateTime(month.year, month.month - 1, 1);
     final lastEnd = DateTime(month.year, month.month, 0, 23, 59, 59);
@@ -63,23 +77,22 @@ class RecapService {
     final spendVsLastMonthPct =
         spentLast > 0 ? ((spent - spentLast) / spentLast * 100).round() : null;
 
-    // Top category + biggest mover vs last month.
+    // Top categories + biggest mover vs last month.
     final byCat =
         await _db.getSpendingByCategory(startDate: monthStart, endDate: monthEnd);
     final catLast =
         await _db.getSpendingByCategory(startDate: lastStart, endDate: lastEnd);
 
-    RecapHighlight? topCategory;
-    double? topCategoryAmount;
-    if (byCat.isNotEmpty) {
-      final top = byCat.entries.first; // query is ordered desc
-      topCategoryAmount = top.value;
-      topCategory = RecapHighlight(
-        label: top.key,
-        icon: ExpenseCategories.getIcon(top.key),
-        sharePct: MonthlyRecap.pct(top.value, spent) ?? 0,
-      );
-    }
+    // Query is ordered desc, so the first N are the month's biggest.
+    final topCategories = <RecapHighlight>[
+      for (final e in byCat.entries.take(topCategoryCount))
+        RecapHighlight(
+          label: e.key,
+          icon: ExpenseCategories.getIcon(e.key),
+          sharePct: MonthlyRecap.pct(e.value, spent) ?? 0,
+          amount: e.value,
+        ),
+    ];
 
     ({String cat, double change, double pct})? best;
     for (final e in byCat.entries) {
@@ -103,14 +116,14 @@ class RecapService {
     final merchants = await _db.getMerchantBreakdown(
         startDate: monthStart, endDate: monthEnd);
     RecapHighlight? topMerchant;
-    double? topMerchantAmount;
     if (merchants.isNotEmpty) {
       final m = merchants.first;
-      topMerchantAmount = (m['total'] as num).toDouble();
+      final amount = (m['total'] as num).toDouble();
       topMerchant = RecapHighlight(
         label: m['merchant'] as String,
         icon: '🏪',
-        sharePct: MonthlyRecap.pct(topMerchantAmount, spent) ?? 0,
+        sharePct: MonthlyRecap.pct(amount, spent) ?? 0,
+        amount: amount,
       );
     }
 
@@ -141,17 +154,17 @@ class RecapService {
       hasData: true,
       savingsRatePct: savingsRatePct,
       spendVsLastMonthPct: spendVsLastMonthPct,
-      topCategory: topCategory,
+      topCategories: topCategories,
       topMerchant: topMerchant,
       categoryMover: mover,
       netWorthChangePct: netWorthChangePct,
       investedPct: investedPct,
       transactionCount: txns.length,
       merchantCount: merchants.length,
+      trends: trends,
+      appTimeSeconds: appTimeSeconds,
       totalSpent: spent,
       totalIncome: income,
-      topCategoryAmount: topCategoryAmount,
-      topMerchantAmount: topMerchantAmount,
       categoryMoverAmount: best?.change,
       avgPerDay: avgPerDay,
       biggestTxnAmount: biggestTxnAmount,
