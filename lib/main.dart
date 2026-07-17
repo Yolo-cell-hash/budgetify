@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
@@ -22,48 +24,39 @@ import 'package:budget_tracker/widgets/royal_reactions.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Record the trial anchor (first-use timestamp) as the very first thing, so
-  // it survives even if a later startup step fails. Silent: nothing reads it
-  // yet and no feature is gated on it.
-  await EntitlementService().initialize();
-
-  // Initialize notification service
-  await NotificationService().initialize();
-
-  // Initialize background service for scheduled SMS scans
-  await BackgroundService.initialize();
-
-  // Initialize custom tags (must be before UI builds)
-  await CustomTagService().initialize();
-
-  // Create providers
+  // Only first-frame-critical state is awaited before runApp. The three
+  // providers and the custom-tag cache are each just a few SharedPreferences
+  // reads (sharing one cached instance), and they decide what the very first
+  // frame *is*: the theme, the onboarding-vs-home route, the locale and the
+  // tag icons. Keeping the pre-runApp path this thin is what lets the first
+  // frame paint in tens of milliseconds.
+  //
+  // Everything heavier — WorkManager scheduling, notification channels, the
+  // trial clock, the gamification profile — used to be awaited here too. On a
+  // cold first launch that blocked the first frame for many seconds (measured
+  // ~7.5s of pre-runApp work, 15s to first frame on a fresh install), leaving
+  // the user staring at the bare Android system launch screen and reporting
+  // the app as "broken on first open." A warm relaunch — already AOT-compiled,
+  // caches hot — hid it, which is why a force-kill+reopen "fixed" it. That work
+  // now runs after the first frame in [_initDeferredServices].
   final themeProvider = ThemeProvider();
   final appPreferences = AppPreferences();
   final localeProvider = LocaleProvider();
 
-  // Initialize providers
   await themeProvider.initialize();
   await appPreferences.initialize();
   await localeProvider.initialize();
+  // Custom tags feed transaction icons synchronously during build, so the
+  // cache is warmed before the first frame (a cheap cached-prefs read).
+  await CustomTagService().initialize();
 
   // Restore the persisted developer-mode flag (stays on across restarts until
   // the user turns it off). While on, this also re-applies the persisted
   // preview overlay: the previewed theme (via themeProvider) and the equipped
-  // royal (via the session avatar override, read below by loadProfile).
+  // royal (via the session avatar override, read by the deferred loadProfile in
+  // _initDeferredServices). Kept in the pre-runApp path because it can change
+  // the previewed theme, which the very first frame must reflect.
   await DevMode.initialize(themeProvider);
-
-  // An equipped ROYALTY avatar (with its app-wide theme toggle on) dresses
-  // its home primary theme everywhere: the gold slots take the court shade
-  // — Sovereign/Empress in light, the rest of the court in dark; canvases
-  // and reward themes stay untouched. Sync from the saved profile now, and
-  // again on every avatar save. (After a backup restore the dress
-  // refreshes on next launch.)
-  final profile = await GamificationService().loadProfile();
-  themeProvider.setThemeDress(profile.applyRoyalTheme
-      ? courtDressFor(profile.avatarKind, profile.avatarValue)
-      : null);
-  GamificationService.onProfileSaved = (p) => themeProvider.setThemeDress(
-      p.applyRoyalTheme ? courtDressFor(p.avatarKind, p.avatarValue) : null);
 
   runApp(
     MultiProvider(
@@ -76,8 +69,66 @@ void main() async {
     ),
   );
 
-  // If a tapped notification cold-started the app, route after first frame.
-  await NotificationService().handleLaunchPayload();
+  // Kick off the heavy, non-first-frame work once the first frame is on
+  // screen. Fire-and-forget so it never blocks or bricks startup.
+  unawaited(_initDeferredServices(themeProvider));
+}
+
+/// Startup work the first frame does not depend on, run after [runApp] so a
+/// slow step (WorkManager) or a throwing one (notification-channel setup) can
+/// neither delay the first frame nor strand the app on the launch screen. Each
+/// step is isolated in its own try/catch so one failure never blocks the rest.
+Future<void> _initDeferredServices(ThemeProvider themeProvider) async {
+  // Trial anchor (first-use timestamp). Silent — nothing is gated on it yet —
+  // so stamping it just after first paint is fine.
+  try {
+    await EntitlementService().initialize();
+  } catch (e) {
+    debugPrint('EntitlementService.initialize failed: $e');
+  }
+
+  // An equipped ROYALTY avatar (with its app-wide theme toggle on) dresses its
+  // home primary theme everywhere: the gold slots take the court shade —
+  // Sovereign/Empress in light, the rest of the court in dark; canvases and
+  // reward themes stay untouched. Sync from the saved profile now, and again on
+  // every avatar save. (After a backup restore the dress refreshes on next
+  // launch.) Applied a beat after the first frame rather than before it — the
+  // splash covers the swap, so an equipped royal sees no flash.
+  try {
+    final profile = await GamificationService().loadProfile();
+    themeProvider.setThemeDress(profile.applyRoyalTheme
+        ? courtDressFor(profile.avatarKind, profile.avatarValue)
+        : null);
+  } catch (e) {
+    debugPrint('GamificationService.loadProfile failed: $e');
+  }
+  GamificationService.onProfileSaved = (p) => themeProvider.setThemeDress(
+      p.applyRoyalTheme ? courtDressFor(p.avatarKind, p.avatarValue) : null);
+
+  // Notification channels. HomeScreen also (re)initializes this before it posts
+  // anything, so here it is just an early warm-up.
+  try {
+    await NotificationService().initialize();
+  } catch (e) {
+    debugPrint('NotificationService.initialize failed: $e');
+  }
+
+  // If a tapped notification cold-started the app, route now that the navigator
+  // exists (the first frame is up).
+  try {
+    await NotificationService().handleLaunchPayload();
+  } catch (e) {
+    debugPrint('NotificationService.handleLaunchPayload failed: $e');
+  }
+
+  // Background service for scheduled SMS scans and reminders (WorkManager) —
+  // the slowest step, and needed only for future background runs, so it goes
+  // last.
+  try {
+    await BackgroundService.initialize();
+  } catch (e) {
+    debugPrint('BackgroundService.initialize failed: $e');
+  }
 }
 
 class MyApp extends StatelessWidget {
