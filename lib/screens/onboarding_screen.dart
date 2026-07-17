@@ -10,7 +10,6 @@ import '../providers/theme_provider.dart';
 import '../services/background_service.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/brand_logo.dart';
-import 'main_shell.dart';
 
 /// Onboarding screen for first-time users
 class OnboardingScreen extends StatefulWidget {
@@ -62,14 +61,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         await prefs.setBool('needs_initial_scan', true);
       }
 
-      // Mark onboarding complete
+      // Mark onboarding complete. MyApp's `home:` is bound to
+      // AppPreferences.isOnboardingComplete, so flipping it swaps the root route
+      // from this screen to MainShell on the next frame. We must NOT also
+      // pushReplacement a MainShell here: doing both spun up TWO MainShell/
+      // HomeScreen trees at once on first launch (two HomeScreen.initState calls
+      // for one completion), and that duplicated, half-orphaned dashboard is
+      // what rendered as the collapsed, overlapping cards users saw on the
+      // first-install home screen (a force-kill "fixed" it because later
+      // launches hit `home: MainShell` directly, with no second navigation).
       if (mounted) {
         await context.read<AppPreferences>().completeOnboarding();
-
-        // Navigate to home
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const MainShell()),
-        );
       }
     } catch (e) {
       if (mounted) {
