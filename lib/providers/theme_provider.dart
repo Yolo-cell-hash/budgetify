@@ -38,6 +38,11 @@ class ThemeProvider extends ChangeNotifier {
   ThemeDress? get themeDress => _themeDress;
 
   void setThemeDress(ThemeDress? dress) {
+    // Skip no-op updates. The common case — no royal equipped — sets this to
+    // null on top of null; notifying anyway would rebuild the whole app for
+    // nothing, and doing so during the onboarding→home hand-off (where this is
+    // now synced, after the first frame) only adds churn to that transition.
+    if (identical(_themeDress, dress)) return;
     _themeDress = dress;
     notifyListeners();
   }

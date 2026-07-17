@@ -60,10 +60,25 @@ class BackgroundService {
   /// Allowed scan intervals (hours) offered in settings.
   static const List<int> intervalOptions = [1, 3, 6, 12, 18, 24];
 
+  /// Whether `Workmanager().initialize()` has run this process. WorkManager
+  /// rejects task ops before it's initialized, so every entry point that
+  /// registers or cancels work goes through [_ensureWorkmanager] first. This
+  /// matters because [initialize] is now deferred past the first frame (see
+  /// main.dart) while [saveScanSettings] can be called from onboarding — the
+  /// guard makes their ordering irrelevant instead of a race.
+  static bool _workmanagerReady = false;
+
+  /// Idempotently initialize WorkManager. Safe to call from any task op.
+  static Future<void> _ensureWorkmanager() async {
+    if (_workmanagerReady) return;
+    await Workmanager().initialize(callbackDispatcher, isInDebugMode: false);
+    _workmanagerReady = true;
+  }
+
   /// Initialize the background service and make sure the periodic scan is
   /// scheduled whenever auto-scan is enabled.
   static Future<void> initialize() async {
-    await Workmanager().initialize(callbackDispatcher, isInDebugMode: false);
+    await _ensureWorkmanager();
     await _ensureScheduled();
     await _ensureWeeklyReminder();
     await _ensureSipPrompts();
@@ -210,6 +225,7 @@ class BackgroundService {
 
   /// Register the periodic scan task.
   static Future<void> _registerBackgroundTask({required bool replace}) async {
+    await _ensureWorkmanager();
     final prefs = await SharedPreferences.getInstance();
     final hours = prefs.getInt(_scanIntervalHoursKey) ?? defaultIntervalHours;
 
@@ -236,6 +252,7 @@ class BackgroundService {
 
   /// Cancel background tasks
   static Future<void> _cancelBackgroundTask() async {
+    await _ensureWorkmanager();
     await Workmanager().cancelByUniqueName(scanTaskUniqueName);
   }
 
