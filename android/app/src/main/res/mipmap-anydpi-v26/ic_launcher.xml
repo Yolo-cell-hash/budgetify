@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Adaptive launcher icon (Android 8+): the gold brand mark on the navy
+     background layer, masked by the launcher to a circle/squircle.
+
+     Sizing note (this bit the first attempt): the 108dp adaptive canvas is
+     mostly bleed — launchers reveal only the central ~72dp (66dp guaranteed
+     safe circle). The foreground mark is therefore drawn at 40% of the canvas
+     so it appears at ~60% of the visible icon, matching the original square
+     icon's breathing room. Sizing it relative to the full canvas (the first
+     attempt used 62%) renders edge-to-edge and cramped on real launchers.
+
+     Pre-26 devices fall back to the bitmap @mipmap/ic_launcher.png. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+</adaptive-icon>
