@@ -2,4 +2,9 @@
 <resources>
     <!-- Ink background used by the native launch splash -->
     <color name="launch_ink">#131520</color>
+    <!-- Brand navy behind the adaptive launcher icon (matches the logo mark's
+         own background, #04204C), so the icon masks to a clean navy
+         circle/squircle on Android 8+ launchers and the Android 12+ system
+         splash. -->
+    <color name="ic_launcher_background">#04204C</color>
 </resources>
