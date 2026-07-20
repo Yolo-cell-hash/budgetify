@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../l10n/l10n.dart';
 import '../models/budget_model.dart';
 import '../models/merchant_summary.dart';
+import '../models/plus_products.dart';
 import '../models/transaction_model.dart';
 import '../providers/app_preferences.dart';
 import '../providers/theme_provider.dart';
@@ -26,6 +27,7 @@ import '../widgets/spending_calendar.dart';
 import 'category_budget_insights_screen.dart';
 import 'merchant_detail_screen.dart';
 import 'merchants_screen.dart';
+import 'plus_screen.dart';
 import 'transaction_detail_screen.dart';
 
 /// Chart display mode for trends
@@ -2396,6 +2398,13 @@ class _BudgetScreenState extends State<BudgetScreen>
   /// Add a per-category budget. [presetCategory] pre-selects a category (used
   /// by the suggestion hint).
   Future<void> _showCategoryBudgetDialog({String? presetCategory}) async {
+    // Plus gate (dormant during the free window): creating NEW category
+    // budgets locks after the free window — the overall monthly budget stays
+    // free, and existing category budgets are never deleted on lock.
+    if (!await PlusScreen.maybePush(context, PlusFeature.categoryBudgets)) {
+      return;
+    }
+    if (!mounted) return;
     final budgeted =
         _categoryBudgets.map((b) => b.category).whereType<String>().toSet();
     final available = ExpenseCategories.allCategories

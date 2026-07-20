@@ -9,6 +9,7 @@ import '../models/transaction_model.dart';
 import '../widgets/avatars.dart' show legacyEmojiSeed;
 import '../widgets/royal_avatars.dart' show royalAvatarAt;
 import 'database_service.dart';
+import 'entitlement_service.dart';
 import 'savings_goal_service.dart';
 
 /// Playful "time in app this month" titles — a separate axis from the
@@ -183,11 +184,14 @@ class GamificationService {
         ? GamiProfile.fromMap(p.cast<String, dynamic>())
         : const GamiProfile();
     // Gating rule: a royal avatar is honoured only if it was unlocked with a
-    // streak pick. A royal carried in from a pre-gating backup (when every
-    // royal was free) is NOT grandfathered — reset it to a basic avatar so it
-    // re-locks until earned. Self-heals once, then this is a no-op.
+    // streak pick or bought outright (₹49, once billing ships). A royal
+    // carried in from a pre-gating backup (when every royal was free) is NOT
+    // grandfathered — reset it to a basic avatar so it re-locks until earned.
+    // Self-heals once, then this is a no-op.
     final royal = royalAvatarAt(int.tryParse(profile.avatarValue) ?? -1);
-    if (royal != null && !_picked(blob).contains(royal.id)) {
+    if (royal != null &&
+        !_picked(blob).contains(royal.id) &&
+        !await _purchased(royal.id)) {
       profile = profile.copyWith(
         avatarKind: 'pixel',
         avatarValue: '0',
@@ -416,15 +420,24 @@ class GamificationService {
     return fresh;
   }
 
-  // ── Royal avatar unlocks (from streak picks) ─────────────────────────
-  // `unlockedRoyals` holds the royals bought with a streak pick — the ONLY way
-  // to unlock one. A royal worn before gating (e.g. restored from an old
-  // backup, when every royal was free) is deliberately not honoured;
-  // [loadProfile] resets it to a basic avatar. Persisted in the blob, so
-  // earned unlocks ride encrypted backups.
+  // ── Royal avatar unlocks (streak picks + purchases) ──────────────────
+  // `unlockedRoyals` holds the royals bought with a STREAK PICK (two picks
+  // earnable, at the 10- and 24-day streaks). EntitlementService holds the
+  // royals bought with MONEY (₹49 each — dormant until billing ships). The
+  // two sets stay separate so a purchase can never consume a streak pick;
+  // only the union decides what's equippable. A royal worn before gating
+  // (e.g. restored from an old backup, when every royal was free) is
+  // deliberately not honoured; [loadProfile] resets it to a basic avatar.
+  // Picks persist in the blob, purchases in the entitlement cache — both ride
+  // encrypted backups.
 
-  /// The royals the user has unlocked by spending a streak pick.
-  Future<Set<String>> unlockedRoyalIds() async => _picked(await _read());
+  /// Every royal the user may equip: streak-picked ∪ purchased.
+  Future<Set<String>> unlockedRoyalIds() async =>
+      _picked(await _read()).union(await _purchasedRoyals());
+
+  /// The royals unlocked specifically by spending a streak pick — the set
+  /// that pick accounting (spent/available) is measured against.
+  Future<Set<String>> streakPickedRoyalIds() async => _picked(await _read());
 
   /// Spend a pick to unlock royal [id]. Idempotent — unlocking an already
   /// unlocked royal is a no-op (it doesn't consume a second pick).
@@ -438,10 +451,12 @@ class GamificationService {
   }
 
   /// Royal picks the user has earned (from their longest streak) but not yet
-  /// spent — how many still-locked royals they may unlock right now.
+  /// spent — how many still-locked royals they may unlock right now. Only
+  /// streak-picked royals count as spent picks; a purchased royal never
+  /// consumes one.
   Future<int> availableRoyalPicks() async {
     final info = await streakInfo();
-    final spent = (await unlockedRoyalIds()).length;
+    final spent = (await streakPickedRoyalIds()).length;
     return (royalPicksEarned(info.longest) - spent)
         .clamp(0, kRoyalPickStreaks.length);
   }
@@ -449,6 +464,21 @@ class GamificationService {
   Set<String> _picked(Map<String, dynamic> blob) =>
       ((blob['unlockedRoyals'] as List?)?.cast<String>() ?? const <String>[])
           .toSet();
+
+  /// Purchased royals from the entitlement cache. Fail-safe: any read error
+  /// means "none" — never blocks, never grants.
+  Future<Set<String>> _purchasedRoyals() async {
+    try {
+      final svc = EntitlementService();
+      await svc.initialize();
+      return svc.purchasedRoyalIds;
+    } catch (_) {
+      return const <String>{};
+    }
+  }
+
+  Future<bool> _purchased(String id) async =>
+      (await _purchasedRoyals()).contains(id);
 
   // ── Stats ────────────────────────────────────────────────────────────
   Future<GamiStats> computeStats({DateTime? now}) async {

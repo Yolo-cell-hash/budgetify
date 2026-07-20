@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../l10n/l10n.dart';
 import '../models/ledger_models.dart';
+import '../models/plus_products.dart';
 import '../models/recurring_payment.dart';
 import '../models/transaction_model.dart';
 import '../models/transaction_rule_model.dart';
@@ -11,6 +12,7 @@ import '../services/database_service.dart';
 import '../services/custom_tag_service.dart';
 import '../services/ledger_service.dart';
 import '../services/tutorial_service.dart';
+import 'plus_screen.dart';
 import '../widgets/app_bar_title.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/recurring_editor_sheet.dart';
@@ -343,7 +345,22 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     TutorialService.instance.advanceFrom(TutorialStep.applyOptions);
 
     if (result != null && mounted) {
-      await _processBulkFlagging(result);
+      // Plus gate (dormant during the free window): the bulk options —
+      // Apply to All (1) and Apply to All Existing (2) — lock after the free
+      // window; "Only this one" (3) stays free forever. When locked, the
+      // paywall opens and, unless Plus was bought right there, the save
+      // gracefully degrades to the free single-transaction path. The
+      // transaction itself was already saved above — nothing is lost.
+      var effective = result;
+      if (result == 1 || result == 2) {
+        final feature = result == 1
+            ? PlusFeature.tagApplyToAll
+            : PlusFeature.tagApplyToExisting;
+        final allowed = await PlusScreen.maybePush(context, feature);
+        if (!allowed) effective = 3;
+      }
+      if (!mounted) return;
+      await _processBulkFlagging(effective);
     } else if (mounted) {
       // User dismissed the dialog — transaction was already saved above,
       // so pop with true to signal the calling screen to refresh.
