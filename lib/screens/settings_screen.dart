@@ -32,6 +32,7 @@ import '../widgets/language_picker_sheet.dart';
 import '../widgets/export_options_sheet.dart';
 import '../widgets/import_options_sheet.dart';
 import 'manage_tags_screen.dart';
+import 'plus_screen.dart';
 import 'statement_import_screen.dart';
 import 'streak_rewards_screen.dart';
 
@@ -809,6 +810,63 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 value: true,
                 onChanged: (_) => _disableDevMode(),
+              ),
+            ),
+            const SizedBox(height: 8),
+            // Post-trial simulation: flips EntitlementService.trialActive to
+            // false via the DevMode overlay so every Plus gate bites exactly
+            // as it will on day 183 — category-budget creation and tag
+            // bulk-apply open the paywall, Plus-only notifications go quiet.
+            // The real trial anchor is never touched.
+            _buildSettingsCard(
+              isDark: isDark,
+              child: ValueListenableBuilder<bool>(
+                valueListenable: DevMode.simulateTrialExpired,
+                builder: (context, simOn, _) => Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SwitchListTile(
+                      secondary: Icon(
+                        Icons.hourglass_bottom_rounded,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      title: const Text('Simulate trial expired'),
+                      subtitle: Text(
+                        'Preview the post-6-months experience: Plus gates '
+                        'lock (category budgets, bulk tagging, premium '
+                        'notifications) and the subscription screen appears. '
+                        'Your real trial clock is untouched.',
+                        style: TextStyle(
+                          color: isDark
+                              ? const Color(0xFF8A8D96)
+                              : const Color(0xFF6E727C),
+                        ),
+                      ),
+                      value: simOn,
+                      onChanged: (v) => DevMode.setSimulateTrialExpired(v),
+                    ),
+                    ListTile(
+                      leading: Icon(
+                        Icons.workspace_premium_rounded,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      title: const Text('Preview Plus paywall'),
+                      subtitle: Text(
+                        'Open the subscription screen directly.',
+                        style: TextStyle(
+                          color: isDark
+                              ? const Color(0xFF8A8D96)
+                              : const Color(0xFF6E727C),
+                        ),
+                      ),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                            builder: (_) => const PlusScreen()),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],

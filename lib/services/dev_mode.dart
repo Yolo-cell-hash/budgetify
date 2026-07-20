@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/theme_provider.dart';
 import '../widgets/royal_avatars.dart';
 import 'app_events.dart';
+import 'entitlement_service.dart';
 import 'gamification_service.dart';
 
 /// Persistent developer mode.
@@ -43,12 +44,42 @@ class DevMode {
   static const String _prefsAvatarKey = 'dev_mode_avatar';
   static const String _prefsThemeKey = 'dev_mode_theme';
 
+  /// Overlay key for the simulated post-trial state (see
+  /// [simulateTrialExpired]). Same lifecycle as the other overlays: persists
+  /// across restarts while dev mode stays on, dropped on [disable].
+  static const String _prefsTrialExpiredKey = 'dev_mode_trial_expired';
+
   /// Whether developer mode is on. Widgets that gate on it listen to this
   /// (it's a [ValueNotifier], so `ValueListenableBuilder` works). Persisted:
   /// call [initialize] once at startup to restore it.
   static final ValueNotifier<bool> active = ValueNotifier<bool>(false);
 
   static bool get isActive => active.value;
+
+  /// Whether the post-trial (6-months-elapsed) experience is being simulated.
+  /// While on, [EntitlementService.trialActive] reports false, so every Plus
+  /// gate bites exactly as it will on day 183: category-budget creation and
+  /// tag bulk-apply open the paywall, Plus-only notifications go quiet, and
+  /// the subscription screen becomes reachable. The REAL trial anchor is
+  /// never touched — flipping this off restores the true state instantly.
+  /// Only meaningful while dev mode is on; [disable] always clears it.
+  static final ValueNotifier<bool> simulateTrialExpired =
+      ValueNotifier<bool>(false);
+
+  /// Toggle the simulated post-trial state, persist it as a dev overlay (so
+  /// it survives a relaunch while dev mode stays on), and nudge listening
+  /// surfaces to refresh their gate state.
+  static Future<void> setSimulateTrialExpired(bool on) async {
+    simulateTrialExpired.value = on;
+    EntitlementService.debugSimulateTrialExpired = on;
+    final prefs = await SharedPreferences.getInstance();
+    if (on) {
+      await prefs.setBool(_prefsTrialExpiredKey, true);
+    } else {
+      await prefs.remove(_prefsTrialExpiredKey);
+    }
+    notifyAppDataChanged();
+  }
 
   /// Restore the persisted on/off flag, and — while dev mode is on — re-apply
   /// the persisted preview overlay (previewed royal avatar + theme) so the last
@@ -65,6 +96,12 @@ class DevMode {
     // Re-apply the persisted avatar overlay (rides on top of storage via
     // GamificationService.loadProfile); null when nothing was previewed.
     GamificationService.sessionAvatarOverride = prefs.getString(_prefsAvatarKey);
+
+    // Re-apply the simulated post-trial state (only ever set while dev mode
+    // is on; a stale key with dev mode off never reaches here).
+    final simExpired = prefs.getBool(_prefsTrialExpiredKey) ?? false;
+    simulateTrialExpired.value = simExpired;
+    EntitlementService.debugSimulateTrialExpired = simExpired;
 
     // Re-apply the persisted theme overlay over the real variant.
     final themeName = prefs.getString(_prefsThemeKey);
@@ -110,6 +147,7 @@ class DevMode {
     await _persist(false);
     await _persistAvatar(null);
     await _persistTheme(null);
+    await setSimulateTrialExpired(false);
     GamificationService.sessionAvatarOverride = null;
     await themeProvider.restorePersistedVariant();
     // Re-sync the royal dress and every profile-driven surface.
@@ -146,6 +184,8 @@ class DevMode {
   @visibleForTesting
   static void debugReset() {
     active.value = false;
+    simulateTrialExpired.value = false;
+    EntitlementService.debugSimulateTrialExpired = false;
     GamificationService.sessionAvatarOverride = null;
   }
 }
@@ -241,9 +281,10 @@ Future<void> showDevModeDialog(BuildContext context) {
             content: const Text(
               'Developer mode is ON.\n\n'
               'All themes and royal characters are unlocked for preview, '
-              'and backups are disabled. Your previewed look is kept while '
-              'developer mode stays on — turn it off to return to your real, '
-              'earned state.',
+              'and backups are disabled. Settings › Developer can also '
+              'simulate the post-trial (6-months) state. Your previewed look '
+              'is kept while developer mode stays on — turn it off to return '
+              'to your real, earned state.',
             ),
             actions: [
               TextButton(
