@@ -21,6 +21,11 @@ class MerchantBar extends StatelessWidget {
   /// "of spending"). Localized at build time.
   final bool shareIsCategory;
 
+  /// Overrides the trailing share word entirely (e.g. "of income" for the
+  /// top-payees list). When null, [shareIsCategory] picks between the
+  /// "of category" / "of spending" defaults.
+  final String? shareLabel;
+
   /// Optional tap handler (e.g. to drill into a merchant).
   final VoidCallback? onTap;
 
@@ -35,6 +40,7 @@ class MerchantBar extends StatelessWidget {
     required this.color,
     this.isTop = false,
     this.shareIsCategory = false,
+    this.shareLabel,
     this.onTap,
   });
 
@@ -138,7 +144,7 @@ class MerchantBar extends StatelessWidget {
         Text(
           '${context.l10n.txnCountCaption(count)} · '
           '${(shareOfTotal * 100).toStringAsFixed(0)}% '
-          '${shareIsCategory ? context.l10n.ofCategory : context.l10n.ofSpending}',
+          '${shareLabel ?? (shareIsCategory ? context.l10n.ofCategory : context.l10n.ofSpending)}',
           style: TextStyle(fontSize: 11.5, color: colors.textSecondary),
         ),
       ],

@@ -31,6 +31,12 @@ import 'transaction_detail_screen.dart';
 /// Chart display mode for trends
 enum _TrendsChartMode { bar, line }
 
+/// Which side of the ledger the Overview analysis sections describe — the
+/// "Where it went / Daily Spending / Top merchants" cards flip to their income
+/// equivalents ("Where it came from / Daily Income / Top payees") when the
+/// Income tile is selected. Defaults to [expenses].
+enum _AnalysisMode { expenses, income }
+
 class BudgetScreen extends StatefulWidget {
   const BudgetScreen({super.key});
 
@@ -55,6 +61,11 @@ class _BudgetScreenState extends State<BudgetScreen>
   late PageController _overviewPageController;
   DateTime _selectedOverviewMonth = DateTime.now();
   final Map<DateTime, _MonthOverviewData> _overviewCache = {};
+
+  // Overview tab: whether the analysis sections describe Expenses (default) or
+  // Income. Driven by tapping the Income / Expenses tiles on the stats card;
+  // shared across the month pager so the chosen side persists as you swipe.
+  _AnalysisMode _analysisMode = _AnalysisMode.expenses;
 
   // Categories tab month selection
   DateTime _selectedCategoryMonth = DateTime.now();
@@ -340,6 +351,21 @@ class _BudgetScreenState extends State<BudgetScreen>
         limit: 6,
       );
 
+      // Income-side aggregates for the "Income" analysis toggle.
+      final incomeCategories = await _db.getIncomeByCategory(
+        startDate: start,
+        endDate: end,
+      );
+      final incomeDaily = await _db.getDailyIncome(
+        startDate: start,
+        endDate: end,
+      );
+      final payees = await _db.getPayeeBreakdown(
+        startDate: start,
+        endDate: end,
+        limit: 6,
+      );
+
       if (!mounted) return;
       setState(() {
         _overviewCache[month] = _MonthOverviewData(
@@ -348,6 +374,9 @@ class _BudgetScreenState extends State<BudgetScreen>
           categories: categories,
           daily: daily,
           merchants: merchants,
+          incomeCategories: incomeCategories,
+          incomeDaily: incomeDaily,
+          payees: payees,
         );
       });
     }
@@ -629,31 +658,70 @@ class _BudgetScreenState extends State<BudgetScreen>
             order: order++,
             child: _buildMonthStatsCard(data, isDark, fmt),
           ),
-          if (data.categories.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            FadeSlideIn(
-              order: order++,
-              child: _buildOverviewCard(
-                isDark: isDark,
-                title: context.l10n.whereItWent,
-                child: CategoryDonut(spending: data.categories),
-              ),
-            ),
-          ],
-          if (data.daily.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            FadeSlideIn(
-              order: order++,
-              child: _buildMonthDailyChart(month, data, isDark),
-            ),
-          ],
-          if (data.merchants.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            FadeSlideIn(
-              order: order++,
-              child: _buildTopMerchantsCard(month, data, isDark),
-            ),
-          ],
+          // The analysis trio (breakdown donut, daily chart, top vendors) flips
+          // between the expense and income sides with the selected tile above.
+          ...(() {
+            final income = _analysisMode == _AnalysisMode.income;
+            final cats = income ? data.incomeCategories : data.categories;
+            final dailyMap = income ? data.incomeDaily : data.daily;
+            final vendors = income ? data.payees : data.merchants;
+            final sections = <Widget>[];
+            if (cats.isNotEmpty) {
+              sections.addAll([
+                const SizedBox(height: 16),
+                FadeSlideIn(
+                  order: order++,
+                  child: _buildOverviewCard(
+                    isDark: isDark,
+                    title: income
+                        ? context.l10n.whereItCameFrom
+                        : context.l10n.whereItWent,
+                    child: CategoryDonut(
+                      spending: cats,
+                      // Default center label is "SPENT"; income earns "INCOME".
+                      centerLabel:
+                          income ? context.l10n.commonIncome : null,
+                    ),
+                  ),
+                ),
+              ]);
+            }
+            if (dailyMap.isNotEmpty) {
+              sections.addAll([
+                const SizedBox(height: 16),
+                FadeSlideIn(
+                  order: order++,
+                  child: _buildMonthDailyChart(month, data, isDark, income),
+                ),
+              ]);
+            }
+            if (vendors.isNotEmpty) {
+              sections.addAll([
+                const SizedBox(height: 16),
+                FadeSlideIn(
+                  order: order++,
+                  child: _buildTopMerchantsCard(month, data, isDark, income),
+                ),
+              ]);
+            }
+            // Income selected on a month with earnings but nothing to break
+            // down (e.g. all credits uncategorised and payee-less) — say so
+            // rather than leaving a blank space under the toggle.
+            if (income && sections.isEmpty) {
+              sections.addAll([
+                const SizedBox(height: 32),
+                Icon(Icons.savings_outlined,
+                    size: 44, color: AppColors.of(context).textTertiary),
+                const SizedBox(height: 10),
+                Text(
+                  context.l10n.noIncomeThisMonth,
+                  style:
+                      TextStyle(color: AppColors.of(context).textSecondary),
+                ),
+              ]);
+            }
+            return sections;
+          })(),
           const SizedBox(height: 80),
         ],
       ),
@@ -720,6 +788,8 @@ class _BudgetScreenState extends State<BudgetScreen>
       ),
       child: Column(
         children: [
+          // The two tiles double as the analysis selector: the highlighted one
+          // decides whether the sections below describe Expenses or Income.
           Row(
             children: [
               Expanded(
@@ -730,6 +800,9 @@ class _BudgetScreenState extends State<BudgetScreen>
                   color: const Color(0xFF2AA76F),
                   icon: Icons.arrow_downward,
                   isDark: isDark,
+                  selected: _analysisMode == _AnalysisMode.income,
+                  onTap: () =>
+                      setState(() => _analysisMode = _AnalysisMode.income),
                 ),
               ),
               const SizedBox(width: 12),
@@ -741,11 +814,31 @@ class _BudgetScreenState extends State<BudgetScreen>
                   color: const Color(0xFFD25A5F),
                   icon: Icons.arrow_upward,
                   isDark: isDark,
+                  selected: _analysisMode == _AnalysisMode.expenses,
+                  onTap: () =>
+                      setState(() => _analysisMode = _AnalysisMode.expenses),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
+          // Discoverability: makes it obvious the tiles above are tappable.
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.touch_app_outlined,
+                  size: 13, color: AppColors.of(context).textTertiary),
+              const SizedBox(width: 5),
+              Text(
+                context.l10n.analysisTapHint,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: AppColors.of(context).textTertiary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
           SavingsRateBar(income: data.income, expenses: data.spent),
         ],
       ),
@@ -759,12 +852,23 @@ class _BudgetScreenState extends State<BudgetScreen>
     required Color color,
     required IconData icon,
     required bool isDark,
+    bool selected = false,
+    VoidCallback? onTap,
   }) {
-    return Container(
+    final selectable = onTap != null;
+    final content = AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOut,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: color.withAlpha(20),
+        color: color.withAlpha(selected ? 40 : 16),
         borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          // Selected tile gets a solid accent ring; unselected keeps a hairline
+          // in the same hue so both tiles read as one control.
+          color: selected ? color : color.withAlpha(selectable ? 46 : 0),
+          width: 1.6,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -774,19 +878,36 @@ class _BudgetScreenState extends State<BudgetScreen>
               Container(
                 padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
-                  color: color.withAlpha(40),
+                  color: color.withAlpha(selected ? 56 : 40),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Icon(icon, size: 14, color: color),
               ),
               const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: isDark ? Color(0xFF9A9DA6) : Color(0xFF6E727C),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+                    color: isDark
+                        ? const Color(0xFF9A9DA6)
+                        : const Color(0xFF6E727C),
+                  ),
                 ),
               ),
+              if (selectable)
+                Icon(
+                  selected
+                      ? Icons.radio_button_checked
+                      : Icons.radio_button_unchecked,
+                  size: 15,
+                  color: selected
+                      ? color
+                      : (isDark
+                          ? const Color(0xFF4E525C)
+                          : const Color(0xFFC9CAC4)),
+                ),
             ],
           ),
           const SizedBox(height: 8),
@@ -800,6 +921,12 @@ class _BudgetScreenState extends State<BudgetScreen>
           ),
         ],
       ),
+    );
+    if (!selectable) return content;
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: content,
     );
   }
 
@@ -955,6 +1082,7 @@ class _BudgetScreenState extends State<BudgetScreen>
     DateTime month,
     _MonthOverviewData data,
     bool isDark,
+    bool income,
   ) {
     final colors = AppColors.of(context);
     final fmt = NumberFormat.currency(
@@ -962,7 +1090,8 @@ class _BudgetScreenState extends State<BudgetScreen>
       symbol: '₹',
       decimalDigits: 0,
     );
-    final summary = MerchantSummary.fromRows(data.merchants);
+    final summary =
+        MerchantSummary.fromRows(income ? data.payees : data.merchants);
     final top = summary.merchants.take(5).toList();
 
     return Container(
@@ -984,11 +1113,15 @@ class _BudgetScreenState extends State<BudgetScreen>
         children: [
           Row(
             children: [
-              Icon(Icons.storefront_outlined,
-                  size: 18, color: colors.textSecondary),
+              Icon(
+                  income
+                      ? Icons.diversity_3_outlined
+                      : Icons.storefront_outlined,
+                  size: 18,
+                  color: colors.textSecondary),
               const SizedBox(width: 8),
               Text(
-                context.l10n.topMerchants,
+                income ? context.l10n.topPayees : context.l10n.topMerchants,
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -1000,7 +1133,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                 onPressed: () => Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => MerchantsScreen(month: month),
+                    builder: (_) => MerchantsScreen(month: month, income: income),
                   ),
                 ).then((_) => _loadData()),
                 style: TextButton.styleFrom(
@@ -1024,15 +1157,21 @@ class _BudgetScreenState extends State<BudgetScreen>
               shareOfTotal: summary.share(top[i]),
               color: CustomTagService.colorFromName(top[i].name),
               isTop: i == 0,
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => MerchantDetailScreen(
-                    merchant: top[i].name,
-                    month: month,
-                  ),
-                ),
-              ).then((_) => _loadData()),
+              shareLabel: income ? context.l10n.ofIncome : null,
+              // Merchant detail is expense-scoped (debit trend + transactions),
+              // so payee bars stay non-navigating rather than showing a payer's
+              // spending. The ranked list is the drill-down for income.
+              onTap: income
+                  ? null
+                  : () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => MerchantDetailScreen(
+                            merchant: top[i].name,
+                            month: month,
+                          ),
+                        ),
+                      ).then((_) => _loadData()),
             ),
           ],
         ],
@@ -1046,6 +1185,7 @@ class _BudgetScreenState extends State<BudgetScreen>
     DateTime month,
     _MonthOverviewData data,
     bool isDark,
+    bool income,
   ) {
     final start = DateTime(month.year, month.month, 1);
     final end = DateTime(month.year, month.month + 1, 0);
@@ -1053,7 +1193,12 @@ class _BudgetScreenState extends State<BudgetScreen>
 
     final now = DateTime.now();
     final isCurrentMonth = month.year == now.year && month.month == now.month;
-    final showBudgetLine = isCurrentMonth && _budget != null;
+    // The dashed pace line is a budget concept — expense side only.
+    final showBudgetLine = isCurrentMonth && _budget != null && !income;
+    final source = income ? data.incomeDaily : data.daily;
+    // Income earns its own green so the curve reads as money in, not out.
+    final accent =
+        income ? const Color(0xFF2AA76F) : AppColors.of(context).brandAccent;
 
     List<FlSpot> spots = [];
     double cum = 0;
@@ -1067,7 +1212,7 @@ class _BudgetScreenState extends State<BudgetScreen>
       i++
     ) {
       final day = DateTime(start.year, start.month, start.day + i);
-      cum += data.daily[day] ?? 0;
+      cum += source[day] ?? 0;
       if (cum > maxCum) maxCum = cum;
       spots.add(FlSpot(i.toDouble(), cum));
     }
@@ -1097,7 +1242,7 @@ class _BudgetScreenState extends State<BudgetScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            context.l10n.dailySpending,
+            income ? context.l10n.dailyIncome : context.l10n.dailySpending,
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 16),
@@ -1159,12 +1304,12 @@ class _BudgetScreenState extends State<BudgetScreen>
                         LineChartBarData(
                           spots: spots,
                           isCurved: true,
-                          color: AppColors.of(context).brandAccent,
+                          color: accent,
                           barWidth: 3,
                           dotData: const FlDotData(show: false),
                           belowBarData: BarAreaData(
                             show: true,
-                            color: AppColors.of(context).brandAccent.withAlpha(40),
+                            color: accent.withAlpha(40),
                           ),
                         ),
                       ],
@@ -2514,9 +2659,15 @@ class _BudgetScreenState extends State<BudgetScreen>
 class _MonthOverviewData {
   final double spent;
   final double income;
+  // Expense side (the "Expenses" analysis view).
   final Map<String, double> categories;
   final Map<DateTime, double> daily;
   final List<Map<String, dynamic>> merchants;
+  // Income side (the "Income" analysis view): category breakdown, daily
+  // income, and top payees (credits grouped by payer).
+  final Map<String, double> incomeCategories;
+  final Map<DateTime, double> incomeDaily;
+  final List<Map<String, dynamic>> payees;
 
   const _MonthOverviewData({
     required this.spent,
@@ -2524,5 +2675,8 @@ class _MonthOverviewData {
     required this.categories,
     required this.daily,
     this.merchants = const [],
+    this.incomeCategories = const {},
+    this.incomeDaily = const {},
+    this.payees = const [],
   });
 }
