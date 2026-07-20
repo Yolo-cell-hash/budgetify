@@ -29,6 +29,9 @@ class _StreakRewardsScreenState extends State<StreakRewardsScreen> {
   int _monthSeconds = 0;
   GamiProfile _profile = const GamiProfile();
   Set<String> _unlockedRoyals = const {};
+  // Streak-picked royals only — pick accounting must not count a royal
+  // bought with money (unlockedRoyalIds unions purchases).
+  int _royalPicksSpent = 0;
   int _royalPicks = 0;
 
   @override
@@ -51,6 +54,7 @@ class _StreakRewardsScreenState extends State<StreakRewardsScreen> {
     final monthSecs = await _svc.monthAppSeconds();
     final profile = await _svc.loadProfile();
     final unlockedRoyals = await _svc.unlockedRoyalIds();
+    final picksSpent = (await _svc.streakPickedRoyalIds()).length;
     final royalPicks = await _svc.availableRoyalPicks();
     if (mounted) {
       setState(() {
@@ -60,6 +64,7 @@ class _StreakRewardsScreenState extends State<StreakRewardsScreen> {
         _monthSeconds = monthSecs;
         _profile = profile;
         _unlockedRoyals = unlockedRoyals;
+        _royalPicksSpent = picksSpent;
         _royalPicks = royalPicks;
       });
     }
@@ -125,7 +130,7 @@ class _StreakRewardsScreenState extends State<StreakRewardsScreen> {
                   StreakRewardRoad(
                     currentStreak: streak.current,
                     longestStreak: streak.longest,
-                    royalPicksSpent: _unlockedRoyals.length,
+                    royalPicksSpent: _royalPicksSpent,
                     onChooseRoyal: _openRoyaltyPicker,
                     padding: const EdgeInsets.only(top: 16, bottom: 8),
                   ),

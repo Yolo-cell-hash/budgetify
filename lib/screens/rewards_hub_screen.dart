@@ -34,6 +34,9 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
   GamiStats? _stats;
   Map<String, DateTime> _unlockDates = const {};
   Set<String> _unlockedRoyals = const {};
+  // Streak-picked royals only — pick accounting must not count a royal
+  // bought with money (unlockedRoyalIds unions purchases).
+  int _royalPicksSpent = 0;
   int _royalPicks = 0;
   bool _loading = true;
 
@@ -59,6 +62,7 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
     final stats = await _svc.computeStats();
     final dates = await _svc.unlockDates();
     final unlockedRoyals = await _svc.unlockedRoyalIds();
+    final picksSpent = (await _svc.streakPickedRoyalIds()).length;
     final royalPicks = await _svc.availableRoyalPicks();
     if (!mounted) return;
     setState(() {
@@ -66,6 +70,7 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
       _stats = stats;
       _unlockDates = dates;
       _unlockedRoyals = unlockedRoyals;
+      _royalPicksSpent = picksSpent;
       _royalPicks = royalPicks;
       _loading = false;
     });
@@ -146,10 +151,12 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
     );
     if (edited != null) await _save(edited);
     final unlockedRoyals = await _svc.unlockedRoyalIds();
+    final picksSpent = (await _svc.streakPickedRoyalIds()).length;
     final royalPicks = await _svc.availableRoyalPicks();
     if (mounted) {
       setState(() {
         _unlockedRoyals = unlockedRoyals;
+        _royalPicksSpent = picksSpent;
         _royalPicks = royalPicks;
       });
     }
@@ -194,7 +201,7 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
       child: StreakRewardRoad(
         currentStreak: stats.currentStreak,
         longestStreak: stats.longestStreak,
-        royalPicksSpent: _unlockedRoyals.length,
+        royalPicksSpent: _royalPicksSpent,
         onChooseRoyal: () => _openAvatarPicker(scrollToRoyalty: true),
       ),
     );
