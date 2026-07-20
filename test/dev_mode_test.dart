@@ -1,7 +1,9 @@
 import 'dart:convert';
 
+import 'package:budget_tracker/models/plus_products.dart';
 import 'package:budget_tracker/providers/theme_provider.dart';
 import 'package:budget_tracker/services/dev_mode.dart';
+import 'package:budget_tracker/services/entitlement_service.dart';
 import 'package:budget_tracker/services/gamification_service.dart';
 import 'package:budget_tracker/widgets/royal_avatars.dart';
 import 'package:flutter/material.dart';
@@ -176,6 +178,90 @@ void main() {
       await DevMode.initialize(tp2);
       expect(tp2.variant, AppThemeVariant.dark);
       expect(GamificationService.sessionAvatarOverride, isNull);
+    });
+  });
+
+  group('simulated trial expiry', () {
+    test('toggling flips every Plus gate, without touching the real anchor',
+        () async {
+      final ent = EntitlementService();
+      ent.resetForTest();
+      await ent.initialize(); // fresh install: trial just started
+      final anchor = ent.firstLaunchAt;
+      expect(ent.hasFullAccess, isTrue);
+
+      DevMode.tryUnlock('budgetify.dev');
+      await DevMode.setSimulateTrialExpired(true);
+      expect(ent.trialActive, isFalse);
+      expect(ent.trialDaysLeft, 0);
+      expect(ent.hasFullAccess, isFalse);
+      for (final f in PlusFeature.values) {
+        expect(ent.allows(f), isFalse, reason: f.name);
+      }
+
+      await DevMode.setSimulateTrialExpired(false);
+      expect(ent.hasFullAccess, isTrue, reason: 'instantly reversible');
+      expect(ent.firstLaunchAt, anchor,
+          reason: 'the real trial anchor is never touched');
+    });
+
+    test('a simulated expiry still honours Plus ownership', () async {
+      final ent = EntitlementService();
+      ent.resetForTest();
+      await ent.initialize();
+      await ent.registerPlusPurchase('plus_lifetime');
+
+      DevMode.tryUnlock('budgetify.dev');
+      await DevMode.setSimulateTrialExpired(true);
+      expect(ent.trialActive, isFalse);
+      expect(ent.hasFullAccess, isTrue,
+          reason: 'simulation expires the TRIAL, not a purchase — '
+              'exactly like day 183 for a paying user');
+    });
+
+    test('the overlay survives a relaunch while dev mode stays on', () async {
+      DevMode.tryUnlock('budgetify.dev');
+      await DevMode.setSimulateTrialExpired(true);
+
+      // Simulate a relaunch.
+      DevMode.debugReset();
+      expect(EntitlementService.debugSimulateTrialExpired, isFalse);
+      await DevMode.initialize();
+
+      expect(DevMode.isActive, isTrue);
+      expect(DevMode.simulateTrialExpired.value, isTrue);
+      expect(EntitlementService.debugSimulateTrialExpired, isTrue);
+    });
+
+    test('disable clears the simulation now and for the next launch',
+        () async {
+      DevMode.tryUnlock('budgetify.dev');
+      await DevMode.setSimulateTrialExpired(true);
+
+      final tp = ThemeProvider();
+      await tp.initialize();
+      await DevMode.disable(tp);
+      expect(DevMode.simulateTrialExpired.value, isFalse);
+      expect(EntitlementService.debugSimulateTrialExpired, isFalse);
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getBool('dev_mode_trial_expired'), isNull);
+
+      // Relaunch: nothing comes back.
+      await DevMode.initialize();
+      expect(EntitlementService.debugSimulateTrialExpired, isFalse);
+    });
+
+    test('a stale overlay key is ignored while dev mode is off', () async {
+      // Defensive: the key should never exist with dev mode off, but if it
+      // does (manual prefs edit, crash mid-disable), it must not leak into
+      // a prod-looking session.
+      SharedPreferences.setMockInitialValues({
+        'dev_mode_trial_expired': true,
+      });
+      await DevMode.initialize();
+      expect(DevMode.isActive, isFalse);
+      expect(EntitlementService.debugSimulateTrialExpired, isFalse);
     });
   });
 
