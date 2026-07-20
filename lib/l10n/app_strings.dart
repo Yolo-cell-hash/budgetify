@@ -1228,15 +1228,20 @@ class AppStrings {
   String noActivityIn(String monthYear) => _t('No activity in $monthYear',
       '$monthYear में कोई गतिविधि नहीं', '$monthYear मध्ये कोणतीही हालचाल नाही', '$monthYear-এ কোনো কার্যকলাপ নেই', '$monthYear లో ఏ కార్యకలాపం లేదు', '$monthYear இல் எந்த செயல்பாடும் இல்லை');
   String get whereItWent => _t('Where it went', 'पैसा कहाँ गया', 'पैसे कुठे गेले', 'টাকা কোথায় গেল', 'ఎక్కడికి వెళ్లింది', 'எங்கு சென்றது');
+  String get whereItCameFrom => _t('Where it came from', 'पैसा कहाँ से आया', 'पैसे कुठून आले', 'টাকা কোথা থেকে এল', 'ఎక్కడి నుండి వచ్చింది', 'எங்கிருந்து வந்தது');
   String budgetOf(String amount) => _t('of $amount', '$amount में से', '$amount पैकी', '$amount-এর মধ্যে', '$amount లో', '$amount இல்');
   String amountLeft(String amount) => _t('$amount left', '$amount बचे', '$amount शिल्लक', '$amount বাকি', '$amount మిగిలింది', '$amount மீதம்');
   String amountOver(String amount) => _t('$amount over!', '$amount अधिक!', '$amount जास्त!', '$amount বেশি!', '$amount ఎక్కువైంది!', '$amount அதிகம்!');
   String get topMerchants => _t('Top merchants', 'शीर्ष व्यापारी', 'आघाडीचे व्यापारी', 'শীর্ষ বিক্রেতা', 'టాప్ మర్చెంట్‌లు', 'சிறந்த வணிகர்கள்');
+  String get topPayees => _t('Top payees', 'शीर्ष भुगतानकर्ता', 'आघाडीचे देणारे', 'শীর্ষ প্রদানকারী', 'టాప్ చెల్లింపుదారులు', 'முதன்மை செலுத்துநர்கள்');
   String get seeAllLower => _t('See all', 'सभी देखें', 'सर्व पाहा', 'সব দেখুন', 'అన్నీ చూడు', 'அனைத்தையும் காண்க');
   String get dailySpending => _t('Daily Spending', 'दैनिक खर्च', 'दैनिक खर्च', 'দৈনিক খরচ', 'రోజువారీ ఖర్చు', 'தினசரி செலவு');
+  String get dailyIncome => _t('Daily Income', 'दैनिक आय', 'दैनिक उत्पन्न', 'দৈনিক আয়', 'రోజువారీ ఆదాయం', 'தினசரி வருமானம்');
   String get noDataYet => _t('No data yet', 'अभी कोई डेटा नहीं', 'अजून डेटा नाही', 'এখনও কোনো ডেটা নেই', 'ఇంకా డేటా లేదు', 'இன்னும் தரவு இல்லை');
   String get noSpendingThisMonth => _t('No spending data for this month',
       'इस महीने का कोई खर्च डेटा नहीं', 'या महिन्याचा खर्च डेटा नाही', 'এই মাসের কোনো খরচ ডেটা নেই', 'ఈ నెలకు ఖర్చు డేటా లేదు', 'இந்த மாதத்திற்கு செலவு தரவு இல்லை');
+  String get analysisTapHint => _t('Tap Income or Expenses to explore',
+      'जानने के लिए आय या खर्च टैप करें', 'एक्सप्लोर करण्यासाठी उत्पन्न किंवा खर्च टॅप करा', 'দেখতে আয় বা খরচে ট্যাপ করুন', 'విశ్లేషించడానికి ఆదాయం లేదా ఖర్చుని నొక్కండి', 'ஆராய வருமானம் அல்லது செலவைத் தட்டவும்');
   String get noHistoricalData => _t(
       'No historical data available', 'कोई ऐतिहासिक डेटा उपलब्ध नहीं', 'ऐतिहासिक डेटा उपलब्ध नाही', 'কোনো ঐতিহাসিক ডেটা নেই', 'చారిత్రక డేటా అందుబాటులో లేదు', 'வரலாற்று தரவு எதுவும் இல்லை');
   String get monthlySpendingTrend =>
@@ -1810,11 +1815,22 @@ class AppStrings {
   // ── Merchants ─────────────────────────────────────────────────────────────
   String get noMerchantSpending => _t('No merchant spending this month',
       'इस महीने कोई व्यापारी खर्च नहीं', 'या महिन्यात कोणताही व्यापारी खर्च नाही', 'এই মাসে কোনো বিক্রেতা খরচ নেই', 'ఈ నెల మర్చెంట్ ఖర్చు లేదు', 'இந்த மாதம் வணிகர் செலவு இல்லை');
+  String get noPayeeIncome => _t('No income received this month',
+      'इस महीने कोई आय प्राप्त नहीं', 'या महिन्यात कोणतेही उत्पन्न मिळाले नाही', 'এই মাসে কোনো আয় পাওয়া যায়নি', 'ఈ నెలలో ఆదాయం అందలేదు', 'இந்த மாதம் வருமானம் எதுவும் பெறவில்லை');
   String get topMerchantLabel => _t('Top merchant', 'शीर्ष व्यापारी', 'आघाडीचा व्यापारी', 'শীর্ষ বিক্রেতা', 'టాప్ మర్చెంట్', 'சிறந்த வணிகர்');
+  String get topPayeeLabel => _t('Top payee', 'शीर्ष भुगतानकर्ता', 'आघाडीचा देणारा', 'শীর্ষ প্রদানকারী', 'టాప్ చెల్లింపుదారు', 'முதன்மை செலுத்துநர்');
+  // Header captions for the Top merchants / Top payees full-screen lists.
+  String spentAcrossMerchants(int count) => _t(
+      'SPENT ACROSS $count MERCHANT${count == 1 ? '' : 'S'}',
+      '$count व्यापारियों में खर्च', '$count व्यापाऱ्यांमध्ये खर्च', '$count বিক্রেতায় খরচ', '$count వ్యాపారులలో ఖర్చు', '$count வணிகர்களில் செலவு');
+  String receivedFromPayees(int count) => _t(
+      'RECEIVED FROM $count PAYEE${count == 1 ? '' : 'S'}',
+      '$count भुगतानकर्ताओं से प्राप्त', '$count देणाऱ्यांकडून मिळाले', '$count প্রদানকারী থেকে প্রাপ্ত', '$count చెల్లింపుదారుల నుండి అందింది', '$count செலுத்துநர்களிடமிருந்து பெறப்பட்டது');
   String pctOfMerchantSpend(int pct) =>
       _t('$pct% of merchant spend', 'व्यापारी खर्च का $pct%', 'व्यापारी खर्चाच्या $pct%', 'বিক্রেতা খরচের $pct%', 'మర్చెంట్ ఖర్చులో $pct%', 'வணிகர் செலவில் $pct%');
   String get ofSpending => _t('of spending', 'खर्च का', 'खर्चाच्या', 'খরচের', 'ఖర్చులో', 'செலவில்');
   String get ofCategory => _t('of category', 'श्रेणी का', 'श्रेणीच्या', 'বিভাগের', 'వర్గంలో', 'வகையில்');
+  String get ofIncome => _t('of income', 'आय का', 'उत्पन्नाच्या', 'আয়ের', 'ఆదాయంలో', 'வருமானத்தில்');
   String get topBadge => _t('TOP', 'शीर्ष', 'आघाडी', 'শীর্ষ', 'టాప్', 'சிறந்தது');
   String txnCountCaption(int n) =>
       _t('$n transaction${n == 1 ? '' : 's'}', '$n लेन-देन', '$n व्यवहार', '$n লেনদেন', '$n లావాదేవీలు', '$n பரிவர்த்தனைகள்');

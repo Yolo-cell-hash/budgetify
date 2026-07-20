@@ -18,7 +18,16 @@ import 'merchant_detail_screen.dart';
 class MerchantsScreen extends StatefulWidget {
   final DateTime month;
 
-  const MerchantsScreen({super.key, required this.month});
+  /// When true, the screen lists top **payees** (income sources) instead of
+  /// top merchants: same ranked-bar UI, credit-side data. Rows don't drill into
+  /// the (expense-scoped) merchant detail in this mode.
+  final bool income;
+
+  const MerchantsScreen({
+    super.key,
+    required this.month,
+    this.income = false,
+  });
 
   @override
   State<MerchantsScreen> createState() => _MerchantsScreenState();
@@ -43,8 +52,15 @@ class _MerchantsScreenState extends State<MerchantsScreen> {
     _load();
   }
 
+  Future<List<Map<String, dynamic>>> _breakdown(
+      DateTime start, DateTime end) {
+    return widget.income
+        ? _db.getPayeeBreakdown(startDate: start, endDate: end)
+        : _db.getMerchantBreakdown(startDate: start, endDate: end);
+  }
+
   Future<void> _load() async {
-    final rows = await _db.getMerchantBreakdown(startDate: _start, endDate: _end);
+    final rows = await _breakdown(_start, _end);
     final summary = MerchantSummary.fromRows(rows);
 
     double? topVs;
@@ -53,8 +69,7 @@ class _MerchantsScreenState extends State<MerchantsScreen> {
       final prevStart = DateTime(widget.month.year, widget.month.month - 1, 1);
       final prevEnd =
           DateTime(widget.month.year, widget.month.month, 0, 23, 59, 59);
-      final prevRows = await _db.getMerchantBreakdown(
-          startDate: prevStart, endDate: prevEnd);
+      final prevRows = await _breakdown(prevStart, prevEnd);
       final prev = prevRows.firstWhere(
         (r) => r['merchant'] == top.name,
         orElse: () => const {'total': 0.0},
@@ -80,8 +95,13 @@ class _MerchantsScreenState extends State<MerchantsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: AppBarTitle(context.l10n.topMerchants,
-            icon: Icons.storefront_rounded),
+        title: AppBarTitle(
+            widget.income
+                ? context.l10n.topPayees
+                : context.l10n.topMerchants,
+            icon: widget.income
+                ? Icons.diversity_3_rounded
+                : Icons.storefront_rounded),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(20),
           child: Padding(
@@ -120,9 +140,17 @@ class _MerchantsScreenState extends State<MerchantsScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.storefront_outlined, size: 56, color: colors.textTertiary),
+          Icon(
+              widget.income
+                  ? Icons.savings_outlined
+                  : Icons.storefront_outlined,
+              size: 56,
+              color: colors.textTertiary),
           const SizedBox(height: 12),
-          Text(context.l10n.noMerchantSpending,
+          Text(
+              widget.income
+                  ? context.l10n.noPayeeIncome
+                  : context.l10n.noMerchantSpending,
               style: TextStyle(color: colors.textSecondary)),
         ],
       ),
@@ -149,8 +177,9 @@ class _MerchantsScreenState extends State<MerchantsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'SPENT ACROSS ${_summary.merchantCount} MERCHANT'
-            '${_summary.merchantCount == 1 ? '' : 'S'}',
+            widget.income
+                ? context.l10n.receivedFromPayees(_summary.merchantCount)
+                : context.l10n.spentAcrossMerchants(_summary.merchantCount),
             style: TextStyle(
               fontSize: 10.5,
               letterSpacing: 1.2,
@@ -184,7 +213,9 @@ class _MerchantsScreenState extends State<MerchantsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        context.l10n.topMerchantLabel,
+                        widget.income
+                            ? context.l10n.topPayeeLabel
+                            : context.l10n.topMerchantLabel,
                         style: TextStyle(
                           fontSize: 11,
                           color: Colors.white.withValues(alpha: 0.6),
@@ -263,15 +294,19 @@ class _MerchantsScreenState extends State<MerchantsScreen> {
               shareOfTotal: _summary.share(_summary.merchants[i]),
               color: CustomTagService.colorFromName(_summary.merchants[i].name),
               isTop: i == 0,
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => MerchantDetailScreen(
-                    merchant: _summary.merchants[i].name,
-                    month: widget.month,
-                  ),
-                ),
-              ).then((_) => _load()),
+              shareLabel: widget.income ? context.l10n.ofIncome : null,
+              // Merchant detail is expense-scoped, so payee rows don't drill in.
+              onTap: widget.income
+                  ? null
+                  : () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => MerchantDetailScreen(
+                            merchant: _summary.merchants[i].name,
+                            month: widget.month,
+                          ),
+                        ),
+                      ).then((_) => _load()),
             ),
           ],
         ],
