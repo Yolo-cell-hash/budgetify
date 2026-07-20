@@ -15,25 +15,45 @@ void main() {
       expect(unlockedStreakRewards(0), isEmpty);
       expect(unlockedStreakRewards(2), isEmpty);
       expect(unlockedStreakRewards(3).map((r) => r.id), ['theme_smoky_ivory']);
+      // The first freeze pack sits at 5 days, between the first two themes.
       expect(
         unlockedStreakRewards(7).map((r) => r.id),
-        ['theme_smoky_ivory', 'theme_seashell_mauve'],
+        ['theme_smoky_ivory', 'freeze_pack_1', 'theme_seashell_mauve'],
       );
       // A royal pick sits at 10 days, between the 7- and 14-day themes.
       expect(
         unlockedStreakRewards(10).map((r) => r.id),
-        ['theme_smoky_ivory', 'theme_seashell_mauve', 'royal_pick_1'],
+        [
+          'theme_smoky_ivory',
+          'freeze_pack_1',
+          'theme_seashell_mauve',
+          'royal_pick_1',
+        ],
       );
       expect(
         unlockedStreakRewards(14).map((r) => r.id),
         [
           'theme_smoky_ivory',
+          'freeze_pack_1',
           'theme_seashell_mauve',
           'royal_pick_1',
           'theme_onyx_amber',
         ],
       );
       expect(unlockedStreakRewards(100).length, kStreakRewards.length);
+    });
+
+    test('freeze packs sit at 5, 18 and 36 days with positive grants', () {
+      final packs = kStreakRewards
+          .where((r) => r.kind == StreakRewardKind.freeze)
+          .toList();
+      expect(packs.map((r) => r.days), [5, 18, 36]);
+      expect(packs.map((r) => r.freezeCount), [1, 2, 2]);
+      // Only freeze packs grant freezes.
+      for (final r in kStreakRewards) {
+        expect(r.freezeCount > 0, r.kind == StreakRewardKind.freeze,
+            reason: '${r.id} freezeCount/kind mismatch');
+      }
     });
 
     test('royal picks are earned at the 10- and 24-day milestones', () {
@@ -241,11 +261,41 @@ void main() {
       expect(find.text('Soft Seashell & Dusty Mauve'), findsOneWidget);
       expect(find.textContaining('Reach a 3-day streak'), findsOneWidget);
       expect(find.text('More streak rewards on the way.'), findsOneWidget);
+      // The freeze packs appear on the road (5-, 18- and 36-day milestones).
+      expect(find.text('+1 Streak Freeze'), findsOneWidget);
+      expect(find.text('+2 Streak Freezes'), findsNWidgets(2));
       // Nothing unlocked yet, so no apply control is shown.
       expect(find.text('Apply theme'), findsNothing);
+      expect(find.text('Added to your freeze stash'), findsNothing);
       // The royal-pick milestones appear on the road, still locked.
       expect(find.text('Royal Unlock'), findsWidgets);
       expect(find.textContaining('Reach a 10-day streak'), findsOneWidget);
+    });
+
+    testWidgets('a reached freeze pack reads as added to the stash',
+        (tester) async {
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<ThemeProvider>.value(value: ThemeProvider()),
+            ChangeNotifierProvider<LocaleProvider>(
+                create: (_) => LocaleProvider()),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: StreakRewardRoad(currentStreak: 5, longestStreak: 5),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // The 5-day pack is claimed automatically; later packs stay locked.
+      expect(find.text('Added to your freeze stash'), findsOneWidget);
+      expect(find.textContaining('Reach an 18-day streak'), findsNothing);
+      expect(find.textContaining('Reach a 18-day streak'), findsOneWidget);
     });
 
     testWidgets('a reached royal-pick milestone points to the Royalty section',

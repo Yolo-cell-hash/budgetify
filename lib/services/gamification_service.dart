@@ -236,7 +236,11 @@ class GamificationService {
   /// When [freezeArmed] is set and exactly one day was missed (a gap of 2), the
   /// freeze bridges it — the streak continues instead of resetting — and
   /// [freezeUsed] is returned true so the caller can consume the freeze.
-  static ({int current, int longest, bool freezeUsed}) advanceStreak({
+  /// [restorable] flags the reset a freeze *could* have covered (exactly one
+  /// missed day, nothing armed) — the caller may then offer a retroactive
+  /// streak save on the return day.
+  static ({int current, int longest, bool freezeUsed, bool restorable})
+      advanceStreak({
     required DateTime? last,
     required int current,
     required int longest,
@@ -247,11 +251,17 @@ class GamificationService {
     if (last != null) {
       final l = DateTime(last.year, last.month, last.day);
       if (l == t) {
-        return (current: current, longest: longest, freezeUsed: false);
+        return (
+          current: current,
+          longest: longest,
+          freezeUsed: false,
+          restorable: false,
+        );
       }
       final gap = t.difference(l).inDays;
       final int newCurrent;
       var freezeUsed = false;
+      var restorable = false;
       if (gap == 1) {
         newCurrent = current + 1;
       } else if (gap == 2 && freezeArmed) {
@@ -259,14 +269,21 @@ class GamificationService {
         freezeUsed = true;
       } else {
         newCurrent = 1;
+        restorable = gap == 2; // one missed day — still saveable after the fact
       }
       return (
         current: newCurrent,
         longest: newCurrent > longest ? newCurrent : longest,
         freezeUsed: freezeUsed,
+        restorable: restorable,
       );
     }
-    return (current: 1, longest: longest < 1 ? 1 : longest, freezeUsed: false);
+    return (
+      current: 1,
+      longest: longest < 1 ? 1 : longest,
+      freezeUsed: false,
+      restorable: false,
+    );
   }
 
   /// Record that the app was opened today and roll the streak forward. Safe to
@@ -302,14 +319,132 @@ class GamificationService {
         result.current % freezeEarnInterval == 0) {
       freezes = (freezes + 1).clamp(0, maxFreezes);
     }
+    // One-time freeze packs from the Streak Reward Road.
+    freezes = _applyFreezePacks(blob, result.longest, freezes);
 
+    // Rebuilding the map wholesale also expires any previous day's
+    // streak-save offer (its keys simply aren't carried over).
     blob['streak'] = {
       'last': t.toIso8601String(),
       'current': result.current,
       'longest': result.longest,
       'freezes': freezes,
       'freezeArmed': stillArmed,
+      // A single missed day with nothing armed: keep what broke so the user
+      // can still save it — but only today, the day they came back.
+      if (result.restorable && prevCurrent >= 2) ...{
+        'restorePrev': prevCurrent,
+        'restoreDay': t.toIso8601String(),
+      },
     };
+    await _write(blob);
+  }
+
+  // ── Streak save (retroactive freeze) ─────────────────────────────────
+
+  /// The pending streak-save offer, if one stands right now: the streak that
+  /// broke can be revived for one freeze, on the return day only. Null when
+  /// there is nothing to save, the day has passed, or no freeze is banked.
+  Future<({int previous, int freezes})?> streakSaveOffer(
+      {DateTime? now}) async {
+    final s = ((await _read())['streak'] as Map?)?.cast<String, dynamic>() ??
+        {};
+    return _offerFrom(s, now ?? DateTime.now());
+  }
+
+  /// [streakSaveOffer], but at most once per offer — the auto-prompt uses this
+  /// so the save sheet appears a single time while the screen-level entry
+  /// point (the banner on Streak Rewards) keeps the offer reachable all day.
+  Future<({int previous, int freezes})?> popStreakSavePrompt(
+      {DateTime? now}) async {
+    final blob = await _read();
+    final s = (blob['streak'] as Map?)?.cast<String, dynamic>() ?? {};
+    final offer = _offerFrom(s, now ?? DateTime.now());
+    if (offer == null || s['restorePrompted'] == true) return null;
+    s['restorePrompted'] = true;
+    blob['streak'] = s;
+    await _write(blob);
+    return offer;
+  }
+
+  /// Spend one freeze to revive the streak that broke yesterday: the streak
+  /// continues as if the missed day were bridged (previous + today). Returns
+  /// the restored current streak, or null if the offer no longer stands.
+  Future<int?> restoreStreak({DateTime? now}) async {
+    final today = now ?? DateTime.now();
+    final blob = await _read();
+    final s = (blob['streak'] as Map?)?.cast<String, dynamic>() ?? {};
+    final offer = _offerFrom(s, today);
+    if (offer == null) return null;
+
+    final restored = offer.previous + 1; // today rejoins the revived streak
+    var freezes = offer.freezes - 1;
+    var longest = (s['longest'] as num?)?.toInt() ?? 0;
+    if (restored > longest) longest = restored;
+    // Same earn rule as a normal advance: landing on a multiple of N earns one.
+    if (restored % freezeEarnInterval == 0) {
+      freezes = (freezes + 1).clamp(0, maxFreezes);
+    }
+    freezes = _applyFreezePacks(blob, longest, freezes);
+
+    s
+      ..['current'] = restored
+      ..['longest'] = longest
+      ..['freezes'] = freezes
+      ..remove('restorePrev')
+      ..remove('restoreDay')
+      ..remove('restorePrompted');
+    blob['streak'] = s;
+    await _write(blob);
+    return restored;
+  }
+
+  ({int previous, int freezes})? _offerFrom(
+      Map<String, dynamic> s, DateTime now) {
+    final prev = (s['restorePrev'] as num?)?.toInt() ?? 0;
+    final dayIso = s['restoreDay'] as String?;
+    final freezes = (s['freezes'] as num?)?.toInt() ?? 0;
+    if (prev < 2 || dayIso == null || freezes <= 0) return null;
+    final day = DateTime.tryParse(dayIso);
+    if (day == null || _dateOnly(day) != _dateOnly(now)) return null;
+    return (previous: prev, freezes: freezes);
+  }
+
+  /// Grant any Road freeze packs earned by [longest] that haven't been granted
+  /// yet, recording them in the blob (mutated in place, caller writes).
+  /// Returns the new freeze count. Idempotent per pack — a pack grants once,
+  /// ever, and a broken streak never revokes it.
+  int _applyFreezePacks(Map<String, dynamic> blob, int longest, int freezes) {
+    final granted =
+        ((blob['grantedFreezePacks'] as List?)?.cast<String>() ?? const [])
+            .toSet();
+    var out = freezes;
+    for (final r in kStreakRewards) {
+      if (r.kind != StreakRewardKind.freeze || !r.isUnlocked(longest)) continue;
+      if (granted.add(r.id)) {
+        out = (out + r.freezeCount).clamp(0, maxFreezes);
+      }
+    }
+    blob['grantedFreezePacks'] = granted.toList();
+    return out;
+  }
+
+  /// Re-sync Road freeze packs outside the daily roll (e.g. right after a
+  /// backup restore raised the longest streak). Writes only when something
+  /// was actually granted.
+  Future<void> syncFreezePacks() async {
+    final blob = await _read();
+    final s = (blob['streak'] as Map?)?.cast<String, dynamic>() ?? {};
+    final before = (s['freezes'] as num?)?.toInt() ?? 0;
+    final grantedBefore = (blob['grantedFreezePacks'] as List?)?.length ?? 0;
+    final after = _applyFreezePacks(
+        blob, (s['longest'] as num?)?.toInt() ?? 0, before);
+    if (after == before &&
+        (blob['grantedFreezePacks'] as List).length == grantedBefore) {
+      return;
+    }
+    s['freezes'] = after;
+    blob['streak'] = s;
     await _write(blob);
   }
 

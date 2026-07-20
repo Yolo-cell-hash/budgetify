@@ -34,6 +34,7 @@ import '../widgets/permission_request_card.dart';
 import '../widgets/expense_chart.dart';
 import '../services/tutorial_service.dart';
 import '../widgets/spotlight.dart';
+import '../widgets/streak_save_sheet.dart';
 import 'transactions_screen.dart';
 import 'add_transaction_screen.dart';
 import 'goals_screen.dart';
@@ -98,8 +99,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     appDataRevision.addListener(_onExternalDataChange);
     // Roll the daily-usage streak forward (drives the gamified streak badges).
     // Runs regardless of whether the mode is enabled, so it's accurate if the
-    // user turns it on later. Fire-and-forget.
-    GamificationService().recordActiveDay();
+    // user turns it on later. Fire-and-forget; may surface the Streak Save
+    // sheet if the roll just broke a saveable streak.
+    _rollStreak();
     // Settings requests a spotlight here right after Gamified Budgets is
     // switched on (it also switches the shell back to this tab).
     homeSpotlightRequest.addListener(_onSpotlightRequest);
@@ -253,10 +255,38 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
+  /// Advance the daily streak, then — if that just revealed a saveable break
+  /// (one missed day, a freeze banked) — offer the Streak Save once. The offer
+  /// stays reachable all day from the Streak Rewards screen either way.
+  Future<void> _rollStreak() async {
+    final svc = GamificationService();
+    await svc.recordActiveDay();
+    final offer = await svc.popStreakSavePrompt();
+    if (offer == null || !mounted) return;
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _offerStreakSave(offer));
+  }
+
+  Future<void> _offerStreakSave(({int previous, int freezes}) offer) async {
+    if (!mounted) return;
+    final restored = await showStreakSaveSheet(
+      context,
+      previous: offer.previous,
+      available: offer.freezes,
+    );
+    if (restored == null || !mounted) return;
+    showAppToast(
+      context,
+      message: context.l10nRead.streakRestoredToast(restored),
+      type: AppToastType.success,
+    );
+    notifyAppDataChanged();
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      GamificationService().recordActiveDay();
+      _rollStreak();
       _checkPermission();
       // Auto-scan and reload on resume
       _autoScanSms();
