@@ -1347,6 +1347,109 @@ class DatabaseService {
     ];
   }
 
+  // ==================== INCOME ANALYTICS ====================
+  // Credit-side mirrors of the expense aggregates above, powering the
+  // Budgets → Overview "Income" analysis toggle. All three exclude the
+  // non-income categories (Self Transfer / Investments / Settlement) via the
+  // shared [_nonExpenseExclusion] — the same set [isIncomeCategory] uses — and
+  // use raw `amount` (credits are never split, so there is no split_share).
+
+  /// Income breakdown by category for a period (credits only). Drives the
+  /// income "Where it came from" donut.
+  Future<Map<String, double>> getIncomeByCategory({
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    final db = await database;
+    final (clause, exArgs) = _nonExpenseExclusion();
+    final result = await db.rawQuery(
+      '''
+      SELECT category, SUM(amount) as total FROM transactions
+      WHERE type = ? AND detected_at >= ? AND detected_at <= ?
+        AND category IS NOT NULL AND $clause
+      GROUP BY category ORDER BY total DESC
+    ''',
+      [
+        TransactionType.credit.index,
+        startDate.millisecondsSinceEpoch,
+        endDate.millisecondsSinceEpoch,
+        ...exArgs,
+      ],
+    );
+    return {
+      for (var row in result)
+        row['category'] as String: (row['total'] as num).toDouble(),
+    };
+  }
+
+  /// Daily income totals for a period (credits only). Drives the cumulative
+  /// "Daily Income" chart.
+  Future<Map<DateTime, double>> getDailyIncome({
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    final db = await database;
+    final (clause, exArgs) = _nonExpenseExclusion();
+    final result = await db.query(
+      'transactions',
+      columns: ['detected_at', 'amount'],
+      where: 'type = ? AND detected_at >= ? AND detected_at <= ? AND $clause',
+      whereArgs: [
+        TransactionType.credit.index,
+        startDate.millisecondsSinceEpoch,
+        endDate.millisecondsSinceEpoch,
+        ...exArgs,
+      ],
+      orderBy: 'detected_at ASC',
+    );
+    final Map<DateTime, double> daily = {};
+    for (final row in result) {
+      final date = DateTime.fromMillisecondsSinceEpoch(
+        row['detected_at'] as int,
+      );
+      final dayKey = DateTime(date.year, date.month, date.day);
+      daily[dayKey] = (daily[dayKey] ?? 0) + (row['amount'] as num).toDouble();
+    }
+    return daily;
+  }
+
+  /// Top payees by income for a period (credits only). `merchant_name` holds
+  /// the extracted payer/source for a credit, so this mirrors
+  /// [getMerchantBreakdown] exactly — same `merchant`/`total`/`count` shape,
+  /// same 'Other' catch-all — and feeds the same MerchantSummary / MerchantBar
+  /// UI as "Top payees". [limit] 0 = no limit.
+  Future<List<Map<String, dynamic>>> getPayeeBreakdown({
+    required DateTime startDate,
+    required DateTime endDate,
+    int limit = 0,
+  }) async {
+    final db = await database;
+    final (clause, exArgs) = _nonExpenseExclusion();
+    final result = await db.rawQuery(
+      '''
+      SELECT COALESCE(NULLIF(TRIM(merchant_name), ''), 'Other') as merchant,
+             SUM(amount) as total, COUNT(*) as cnt
+      FROM transactions
+      WHERE type = ? AND detected_at >= ? AND detected_at <= ? AND $clause
+      GROUP BY merchant ORDER BY total DESC${limit > 0 ? ' LIMIT $limit' : ''}
+    ''',
+      [
+        TransactionType.credit.index,
+        startDate.millisecondsSinceEpoch,
+        endDate.millisecondsSinceEpoch,
+        ...exArgs,
+      ],
+    );
+    return [
+      for (final row in result)
+        {
+          'merchant': row['merchant'] as String,
+          'total': (row['total'] as num).toDouble(),
+          'count': row['cnt'] as int,
+        },
+    ];
+  }
+
   /// Per-month spend at a single [merchant] for the last [months] months,
   /// oldest first. Each entry has `month` (DateTime), `total` (double) and
   /// `count` (int). Powers the merchant trend chart.
