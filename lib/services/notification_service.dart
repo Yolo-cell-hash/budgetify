@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import '../models/plus_products.dart';
 import '../models/transaction_model.dart';
 import '../screens/transactions_screen.dart';
 import '../screens/net_worth_screen.dart';
 import '../screens/recurring_screen.dart';
+import 'entitlement_service.dart';
 import 'sip_service.dart';
 import 'recurring_service.dart';
 import 'package:intl/intl.dart';
@@ -294,6 +296,13 @@ class NotificationService {
   }
 
   Future<void> showTransactionNotification(TransactionModel transaction) async {
+    // Plus gate (dormant during the free window; fail-open). These alerts are
+    // gated at THIS choke point so every caller — foreground scan, background
+    // isolate — inherits the rule without knowing about entitlements.
+    if (!await EntitlementService()
+        .allowsAsync(PlusFeature.spendingNotifications)) {
+      return;
+    }
     if (!_isInitialized) await initialize();
 
     final isCredit = transaction.type == TransactionType.credit;
@@ -329,6 +338,12 @@ class NotificationService {
     String? category,
     int? notificationId,
   }) async {
+    // Plus gate: only PER-CATEGORY budget alerts lock after the free window —
+    // the overall monthly budget (category == null) stays free forever.
+    if (category != null &&
+        !await EntitlementService().allowsAsync(PlusFeature.categoryBudgets)) {
+      return;
+    }
     if (!_isInitialized) await initialize();
 
     final fmt = NumberFormat.currency(
@@ -516,6 +531,11 @@ class NotificationService {
     required String periodKey,
     required bool evening,
   }) async {
+    // Plus gate (dormant during the free window; fail-open).
+    if (!await EntitlementService()
+        .allowsAsync(PlusFeature.investmentReminders)) {
+      return;
+    }
     if (!_isInitialized) await initialize();
 
     final fmt = NumberFormat.currency(
@@ -569,6 +589,11 @@ class NotificationService {
     required String periodKey,
     required bool overdue,
   }) async {
+    // Plus gate (dormant during the free window; fail-open).
+    if (!await EntitlementService()
+        .allowsAsync(PlusFeature.recurringNotifications)) {
+      return;
+    }
     if (!_isInitialized) await initialize();
 
     final fmt = NumberFormat.currency(
