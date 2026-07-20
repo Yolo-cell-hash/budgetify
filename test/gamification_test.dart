@@ -206,6 +206,42 @@ void main() {
       expect(r.current, 1);
       expect(r.freezeUsed, isFalse);
     });
+    test('a one-day break with nothing armed is flagged restorable', () {
+      final r = GamificationService.advanceStreak(
+          last: DateTime(2026, 6, 18), current: 5, longest: 5, today: today);
+      expect(r.restorable, isTrue);
+    });
+    test('longer gaps, bridged days and normal advances are not restorable',
+        () {
+      // Two days missed — too late for a single freeze.
+      expect(
+          GamificationService.advanceStreak(
+                  last: DateTime(2026, 6, 17),
+                  current: 5,
+                  longest: 5,
+                  today: today)
+              .restorable,
+          isFalse);
+      // Armed freeze already bridged it — nothing left to save.
+      expect(
+          GamificationService.advanceStreak(
+                  last: DateTime(2026, 6, 18),
+                  current: 5,
+                  longest: 5,
+                  today: today,
+                  freezeArmed: true)
+              .restorable,
+          isFalse);
+      // Plain next-day advance.
+      expect(
+          GamificationService.advanceStreak(
+                  last: DateTime(2026, 6, 19),
+                  current: 5,
+                  longest: 5,
+                  today: today)
+              .restorable,
+          isFalse);
+    });
   });
 
   group('Service persistence', () {
@@ -219,6 +255,110 @@ void main() {
       final blob = await svc.exportSettings();
       expect((blob['streak'] as Map)['current'], 2);
       expect((blob['streak'] as Map)['longest'], 2);
+    });
+
+    test('reaching day 5 earns the interval freeze plus the road pack',
+        () async {
+      final svc = GamificationService();
+      for (var d = 1; d <= 5; d++) {
+        await svc.recordActiveDay(now: DateTime(2026, 6, d));
+      }
+      final s = (await svc.exportSettings())['streak'] as Map;
+      // One from the every-5-days earn, one from the 5-day road pack.
+      expect(s['freezes'], 2);
+      // The pack granted once — later days don't re-grant it.
+      await svc.recordActiveDay(now: DateTime(2026, 6, 6));
+      expect(((await svc.exportSettings())['streak'] as Map)['freezes'], 2);
+    });
+
+    test('a saveable break offers a streak save on the return day only',
+        () async {
+      final svc = GamificationService();
+      for (var d = 1; d <= 5; d++) {
+        await svc.recordActiveDay(now: DateTime(2026, 6, d));
+      }
+      // Miss 6/6, come back 6/7: streak resets but the save offer stands.
+      await svc.recordActiveDay(now: DateTime(2026, 6, 7));
+      expect((await svc.streakInfo()).current, 1);
+      final offer = await svc.streakSaveOffer(now: DateTime(2026, 6, 7));
+      expect(offer, isNotNull);
+      expect(offer!.previous, 5);
+      expect(offer.freezes, 2);
+      // The auto-prompt pops exactly once; the offer itself keeps standing.
+      expect(await svc.popStreakSavePrompt(now: DateTime(2026, 6, 7)),
+          isNotNull);
+      expect(
+          await svc.popStreakSavePrompt(now: DateTime(2026, 6, 7)), isNull);
+      expect(
+          await svc.streakSaveOffer(now: DateTime(2026, 6, 7)), isNotNull);
+      // Next day the offer has melted.
+      expect(await svc.streakSaveOffer(now: DateTime(2026, 6, 8)), isNull);
+    });
+
+    test('restoreStreak revives the streak for one freeze', () async {
+      final svc = GamificationService();
+      for (var d = 1; d <= 5; d++) {
+        await svc.recordActiveDay(now: DateTime(2026, 6, d));
+      }
+      await svc.recordActiveDay(now: DateTime(2026, 6, 7)); // missed 6/6
+      final restored = await svc.restoreStreak(now: DateTime(2026, 6, 7));
+      // 5-day streak + the return day = 6, one of the two freezes spent.
+      expect(restored, 6);
+      expect((await svc.streakInfo()).current, 6);
+      expect((await svc.streakInfo()).longest, 6);
+      expect((await svc.freezeInfo()).available, 1);
+      // The offer is consumed — a second restore does nothing.
+      expect(await svc.restoreStreak(now: DateTime(2026, 6, 7)), isNull);
+      // And the streak keeps rolling normally afterwards.
+      await svc.recordActiveDay(now: DateTime(2026, 6, 8));
+      expect((await svc.streakInfo()).current, 7);
+    });
+
+    test('a break with an empty stash offers no save', () async {
+      final svc = GamificationService();
+      // Only a 3-day streak: no interval freeze, no pack yet.
+      for (var d = 1; d <= 3; d++) {
+        await svc.recordActiveDay(now: DateTime(2026, 6, d));
+      }
+      expect((await svc.freezeInfo()).available, 0);
+      await svc.recordActiveDay(now: DateTime(2026, 6, 5)); // missed 6/4
+      expect(await svc.streakSaveOffer(now: DateTime(2026, 6, 5)), isNull);
+      expect(await svc.restoreStreak(now: DateTime(2026, 6, 5)), isNull);
+    });
+
+    test('an armed freeze still bridges automatically with no offer',
+        () async {
+      final svc = GamificationService();
+      for (var d = 1; d <= 5; d++) {
+        await svc.recordActiveDay(now: DateTime(2026, 6, d));
+      }
+      expect(await svc.armFreeze(), isTrue);
+      await svc.recordActiveDay(now: DateTime(2026, 6, 7)); // missed 6/6
+      // Bridged: streak continues, armed slot spent, no save offer.
+      expect((await svc.streakInfo()).current, 6);
+      expect((await svc.freezeInfo()).armed, isFalse);
+      expect(await svc.streakSaveOffer(now: DateTime(2026, 6, 7)), isNull);
+    });
+
+    test('syncFreezePacks retrofits packs for an already-long streak',
+        () async {
+      final svc = GamificationService();
+      // Simulate a pre-update profile: long streak recorded, no pack grants.
+      await svc.importSettings({
+        'streak': {
+          'last': DateTime(2026, 6, 20).toIso8601String(),
+          'current': 20,
+          'longest': 20,
+          'freezes': 0,
+          'freezeArmed': false,
+        },
+      });
+      await svc.syncFreezePacks();
+      // 5-day (+1) and 18-day (+2) packs land; the 36-day pack stays locked.
+      expect((await svc.freezeInfo()).available, 3);
+      // Idempotent.
+      await svc.syncFreezePacks();
+      expect((await svc.freezeInfo()).available, 3);
     });
 
     test('profile saves and loads', () async {

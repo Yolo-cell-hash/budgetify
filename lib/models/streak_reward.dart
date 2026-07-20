@@ -5,8 +5,10 @@ import 'achievement.dart';
 
 /// What a streak milestone grants. [theme] applies a colour variant;
 /// [royalPick] grants one "royal pick" — a choice to unlock any one of the
-/// royal avatars from the ROYALTY section of the avatar picker.
-enum StreakRewardKind { theme, royalPick }
+/// royal avatars from the ROYALTY section of the avatar picker; [freeze] adds
+/// [StreakReward.freezeCount] Streak Freezes to the user's stash (granted
+/// once, automatically, by GamificationService).
+enum StreakRewardKind { theme, royalPick, freeze }
 
 /// One milestone on the Streak Reward Road: reach [days] consecutive days to
 /// unlock it. Unlock is evaluated against the user's *longest* streak, so it is
@@ -21,6 +23,7 @@ class StreakReward {
   final BadgeRarity rarity; // medallion treatment on the road
   final String emblem; // emoji at the medallion's centre
   final List<Color> swatch; // preview colours: [accent, canvas]
+  final int freezeCount; // freezes granted when kind == freeze
 
   const StreakReward({
     required this.id,
@@ -32,6 +35,7 @@ class StreakReward {
     required this.emblem,
     required this.swatch,
     this.themeVariant,
+    this.freezeCount = 0,
   });
 
   bool isUnlocked(int longestStreak) => longestStreak >= days;
@@ -51,6 +55,21 @@ const List<StreakReward> kStreakRewards = [
     rarity: BadgeRarity.bronze,
     emblem: '🎨',
     swatch: [Color(0xFF70798A), Color(0xFFEDDECB)],
+  ),
+  // Freeze packs sprinkle the road with stash top-ups: one-time grants on top
+  // of the interval-earned freezes, applied automatically when reached.
+  StreakReward(
+    id: 'freeze_pack_1',
+    days: 5,
+    name: '+1 Streak Freeze',
+    blurb:
+        'One extra Streak Freeze for your stash — insurance against a missed '
+        'day. Unlocked at a 5-day streak.',
+    kind: StreakRewardKind.freeze,
+    freezeCount: 1,
+    rarity: BadgeRarity.bronze,
+    emblem: '🧊',
+    swatch: [Color(0xFF27C0F5), Color(0xFF0D3B66)],
   ),
   StreakReward(
     id: 'theme_seashell_mauve',
@@ -88,6 +107,19 @@ const List<StreakReward> kStreakRewards = [
     emblem: '⚡',
     swatch: [Color(0xFFFF8C00), Color(0xFF202427)],
   ),
+  StreakReward(
+    id: 'freeze_pack_2',
+    days: 18,
+    name: '+2 Streak Freezes',
+    blurb:
+        'Two Streak Freezes at once — enough cover for a rough week. '
+        'Unlocked at an 18-day streak.',
+    kind: StreakRewardKind.freeze,
+    freezeCount: 2,
+    rarity: BadgeRarity.gold,
+    emblem: '🧊',
+    swatch: [Color(0xFF27C0F5), Color(0xFF0D3B66)],
+  ),
   // Second royal pick: choose another royal from the remaining five.
   StreakReward(
     id: 'royal_pick_2',
@@ -112,6 +144,19 @@ const List<StreakReward> kStreakRewards = [
     rarity: BadgeRarity.platinum,
     emblem: '👑',
     swatch: [Color(0xFF4530B3), Color(0xFFDDEAF6)],
+  ),
+  StreakReward(
+    id: 'freeze_pack_3',
+    days: 36,
+    name: '+2 Streak Freezes',
+    blurb:
+        'Two more Streak Freezes for the long haul — a full stash keeps a '
+        'month-long flame safe. Unlocked at a 36-day streak.',
+    kind: StreakRewardKind.freeze,
+    freezeCount: 2,
+    rarity: BadgeRarity.platinum,
+    emblem: '🧊',
+    swatch: [Color(0xFF27C0F5), Color(0xFF0D3B66)],
   ),
   StreakReward(
     id: 'theme_midnight_indigo',

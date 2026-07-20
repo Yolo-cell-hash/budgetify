@@ -284,9 +284,12 @@ class _RewardCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              reward.kind == StreakRewardKind.royalPick
-                  ? const _RoyalCrownPreview()
-                  : _SwatchPreview(colors: reward.swatch),
+              switch (reward.kind) {
+                StreakRewardKind.royalPick => const _RoyalCrownPreview(),
+                StreakRewardKind.freeze =>
+                  _FreezePackPreview(count: reward.freezeCount),
+                StreakRewardKind.theme => _SwatchPreview(colors: reward.swatch),
+              },
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -413,6 +416,27 @@ class _RewardCard extends StatelessWidget {
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
                 height: 1.3,
+                color: colors.accent,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Freeze packs are granted automatically the moment the milestone is
+    // reached — the card just confirms where they went.
+    if (reward.kind == StreakRewardKind.freeze) {
+      return Row(
+        children: [
+          Icon(Icons.check_circle_rounded, size: 16, color: colors.accent),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              context.l10n.freezePackAdded,
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
                 color: colors.accent,
               ),
             ),
@@ -548,6 +572,52 @@ class _RoyalCrownPreview extends StatelessWidget {
         border: Border.all(color: const Color(0xFFF2C14E).withValues(alpha: 0.5)),
       ),
       child: const Text('👑', style: TextStyle(fontSize: 18)),
+    );
+  }
+}
+
+/// An icy chip for freeze-pack milestones: frost gradient, ice cube, and a
+/// ×N count so a two-freeze pack reads at a glance.
+class _FreezePackPreview extends StatelessWidget {
+  final int count;
+  const _FreezePackPreview({required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 38,
+      height: 38,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        gradient: const LinearGradient(
+          colors: [Color(0xFF7FDBFF), Color(0xFF0D3B66)], // frost → deep ice
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(
+            color: const Color(0xFF27C0F5).withValues(alpha: 0.5)),
+      ),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          const Text('🧊', style: TextStyle(fontSize: 17)),
+          if (count > 1)
+            Positioned(
+              right: 1,
+              bottom: 0,
+              child: Text(
+                '×$count',
+                style: const TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                  shadows: [Shadow(color: Color(0xFF0D3B66), blurRadius: 3)],
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
