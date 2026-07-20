@@ -1,6 +1,7 @@
 import 'package:another_telephony/telephony.dart';
 import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/transaction_model.dart';
 import '../models/budget_model.dart';
 import 'database_service.dart';
@@ -161,9 +162,15 @@ Future<void> _checkOneBudget(
 /// Service for handling SMS reading and processing
 class SmsService {
   static final SmsService _instance = SmsService._internal();
-  final Telephony _telephony = Telephony.instance;
+  Telephony _telephony = Telephony.instance;
   final DatabaseService _dbService = DatabaseService();
   bool _isListening = false;
+
+  /// Swaps in a [Telephony] built against a fake platform. The real plugin
+  /// asserts it is running on Android, so the inbox-window tests — which check
+  /// that every query carries a date bound — cannot otherwise run off-device.
+  @visibleForTesting
+  set telephony(Telephony value) => _telephony = value;
 
   factory SmsService() => _instance;
 
@@ -299,84 +306,138 @@ class SmsService {
     // Listening stops when the app is disposed
   }
 
-  /// Get existing SMS from inbox (for initial scan)
+  // ------------------------------------------------------------------
+  // Inbox scanning
+  //
+  // Every scan is bounded by a date window that is pushed down into the
+  // content-provider query. That bound is the whole ballgame: the telephony
+  // plugin answers `getInboxSms` by walking the entire cursor and building one
+  // HashMap per row *on the Android main thread*, and the result then crosses
+  // the method channel to be decoded on the main isolate. An unbounded query
+  // therefore stalls the UI thread for as long as it takes to read every SMS
+  // the phone has ever received. On a cold start — app DB and the system SMS
+  // provider both off the page cache — that ran into seconds of frozen UI on a
+  // mid-range device with a few thousand messages, long enough for the platform
+  // to kill the process. A warm relaunch hid it, which is why the app "only
+  // crashed the first time". See [_watermarkKey] for how repeat scans stay cheap.
+  // ------------------------------------------------------------------
+
+  /// Epoch millis of the newest inbox message a completed scan has examined.
+  /// Later scans resume from here rather than from the start of the inbox.
+  static const String _watermarkKey = 'sms_scan_watermark';
+
+  /// How much already-examined inbox a routine scan re-reads.
+  ///
+  /// A message's DATE is when the carrier stamped it, not when it arrived, so a
+  /// delayed SMS can surface *below* the watermark after the fact. A couple of
+  /// days of overlap catches those; re-examined messages cost one dedup lookup
+  /// and are then dropped, so the overlap is cheap to keep generous.
+  static const Duration _watermarkOverlap = Duration(days: 2);
+
+  /// How far back a first-ever scan reaches, and the slice it walks in. The
+  /// slice is what keeps each individual provider query — and so each block of
+  /// the Android main thread — short.
+  static const Duration _historyWindow = Duration(days: 365);
+  static const Duration _historySlice = Duration(days: 30);
+
+  /// Ceiling on messages examined per window. A pathological inbox or a bad
+  /// watermark can never re-create the unbounded read; the scan just stops
+  /// early and the next one resumes from where it left off.
+  static const int _maxMessagesPerWindow = 400;
+
+  Future<DateTime?> _readWatermark() async {
+    final prefs = await SharedPreferences.getInstance();
+    final ms = prefs.getInt(_watermarkKey);
+    return ms == null ? null : DateTime.fromMillisecondsSinceEpoch(ms);
+  }
+
+  Future<void> _writeWatermark(DateTime seen) async {
+    final prefs = await SharedPreferences.getInstance();
+    final current = prefs.getInt(_watermarkKey) ?? 0;
+    if (seen.millisecondsSinceEpoch > current) {
+      await prefs.setInt(_watermarkKey, seen.millisecondsSinceEpoch);
+    }
+  }
+
+  /// Forget how far the inbox has been scanned so the next scan re-imports from
+  /// scratch. Call after a restore or a data wipe, where the database no longer
+  /// matches what the watermark claims was imported.
+  Future<void> resetScanWatermark() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_watermarkKey);
+  }
+
+  /// Bounds the provider query to `(since, until]`.
+  SmsFilter _dateFilter({required DateTime since, required DateTime until}) =>
+      SmsFilter.where(SmsColumn.DATE)
+          .greaterThan('${since.millisecondsSinceEpoch}')
+          .and(SmsColumn.DATE)
+          .lessThanOrEqualTo('${until.millisecondsSinceEpoch}');
+
+  /// Scan the inbox for transactions not yet imported.
+  ///
+  /// Walks forward from the watermark (or, on a first run, from
+  /// [_historyWindow] ago) in [_historySlice]-sized windows until it reaches
+  /// the present. Windows are walked oldest-first so the watermark only ever
+  /// advances over messages that were actually examined — a scan cut short by
+  /// [_maxMessagesPerWindow] resumes exactly where it stopped instead of
+  /// skipping the gap.
+  ///
+  /// [maxCount] caps insertions *per window*. The real bound on work is
+  /// [_maxMessagesPerWindow]; capping the scan as a whole would, in
+  /// oldest-first order, fill the first run with year-old transactions and
+  /// leave this week's behind until the next few launches.
   Future<List<TransactionModel>> scanExistingSms({int maxCount = 100}) async {
     final hasPermissions = await hasPermission();
     if (!hasPermissions) return [];
 
-    final List<TransactionModel> transactions = [];
+    final transactions = <TransactionModel>[];
 
     try {
-      final messages = await _telephony.getInboxSms(
-        columns: [SmsColumn.ADDRESS, SmsColumn.BODY, SmsColumn.DATE],
-        sortOrder: [OrderBy(SmsColumn.DATE, sort: Sort.DESC)],
-      );
+      final now = DateTime.now();
+      final watermark = await _readWatermark();
+      var cursor = watermark != null
+          ? watermark.subtract(_watermarkOverlap)
+          : now.subtract(_historyWindow);
 
-      int count = 0;
-      for (final message in messages) {
-        if (count >= maxCount) break;
+      // Carriers do stamp messages in the future, and device clocks jump. Either
+      // can park the watermark ahead of now, which would leave the loop below
+      // with nothing to do — silently, and on every launch from then on. Keep
+      // the start far enough back that a scan always covers the recent past.
+      final latestStart = now.subtract(_watermarkOverlap);
+      if (cursor.isAfter(latestStart)) cursor = latestStart;
 
-        var transaction = SmsParserService.parseTransaction(
-          message.address ?? 'Unknown',
-          message.body ?? '',
-          message.date != null
-              ? DateTime.fromMillisecondsSinceEpoch(message.date!)
-              : DateTime.now(),
+      while (cursor.isBefore(now)) {
+        var sliceEnd = cursor.add(_historySlice);
+        if (sliceEnd.isAfter(now)) sliceEnd = now;
+
+        final result = await _scanWindow(
+          since: cursor,
+          until: sliceEnd,
+          maxCount: maxCount,
         );
+        transactions.addAll(result.inserted);
 
-        if (transaction != null) {
-          // The user marked this message shape "not a transaction" — skip.
-          if (await _dbService.isMessageMuted(
-            message.address ?? 'Unknown',
-            message.body ?? '',
-          )) {
-            continue;
-          }
+        if (result.newest != null) await _writeWatermark(result.newest!);
 
-          // Swap in the user-taught payee name before rule matching; a
-          // recognised merchant behind the corrected name classifies
-          // instantly.
-          transaction = await _dbService.applyPayeeAlias(transaction);
-          transaction = SmsParserService.classifyFromMerchantName(transaction);
+        // The window hit a ceiling, so messages older than the ones examined
+        // are still unread. Stop here: the watermark sits at the newest message
+        // actually examined, and the next scan continues from there rather than
+        // jumping past the backlog.
+        if (result.truncated) break;
 
-          // A user-taught direction for this message shape wins over the
-          // parse. Must precede the fingerprint (it includes the type).
-          transaction = await _dbService.applyTypeOverride(transaction);
+        cursor = sliceEnd;
 
-          // Compute fingerprint for deduplication
-          transaction = transaction.withFingerprint();
-
-          // Check if already in database
-          final exists = await _dbService.transactionExists(
-            transaction.message,
-            transaction.detectedAt,
-            fingerprint: transaction.fingerprint,
-          );
-
-          if (!exists) {
-            // Try to auto-classify using rules (merchant name + type based)
-            var txnToSave = transaction;
-            final rule = await _dbService.findMatchingRule(
-              transaction.merchantName,
-              transaction.type,
-            );
-            if (rule != null) {
-              txnToSave = transaction.copyWith(
-                category: rule.category,
-                notes: rule.notes,
-                isClassified: true,
-              );
-            }
-
-            final id = await _dbService.insertTransaction(txnToSave);
-            // Only add if actually inserted (id > 0 means success)
-            if (id > 0) {
-              transactions.add(txnToSave.copyWith(id: id));
-              count++;
-            }
-          }
-        }
+        // Let the UI pump a frame between slices. Without this a multi-slice
+        // catch-up would monopolise the isolate exactly like the old
+        // whole-inbox read did.
+        await Future<void>.delayed(Duration.zero);
       }
+
+      // A scan that reached the present has, by definition, seen everything up
+      // to now — record that even when the last slice held no messages, so an
+      // idle inbox doesn't re-read the overlap window forever.
+      if (!cursor.isBefore(now)) await _writeWatermark(now);
 
       // After scanning, check budget thresholds
       if (transactions.any((t) => t.type == TransactionType.debit)) {
@@ -393,4 +454,121 @@ class SmsService {
 
     return transactions;
   }
+
+  /// One bounded pass over `(since, until]`.
+  ///
+  /// Reports the newest message date it examined so the caller can advance the
+  /// watermark even when nothing parsed — most SMS aren't transactions, and a
+  /// watermark that only moved on a successful parse would re-read the same
+  /// messages on every launch.
+  Future<_WindowResult> _scanWindow({
+    required DateTime since,
+    required DateTime until,
+    required int maxCount,
+  }) async {
+    final messages = await _telephony.getInboxSms(
+      columns: [SmsColumn.ADDRESS, SmsColumn.BODY, SmsColumn.DATE],
+      filter: _dateFilter(since: since, until: until),
+      sortOrder: [OrderBy(SmsColumn.DATE, sort: Sort.ASC)],
+    );
+
+    final inserted = <TransactionModel>[];
+    DateTime? newest;
+    var examined = 0;
+    var truncated = false;
+
+    for (final message in messages) {
+      // `maxCount` caps insertions; this caps the work done to find them. Only
+      // the former used to exist, so a scan that found nothing new — the common
+      // case, every single app open — still walked the entire inbox.
+      if (examined >= _maxMessagesPerWindow || inserted.length >= maxCount) {
+        truncated = true;
+        break;
+      }
+      examined++;
+
+      final sentAt = message.date != null
+          ? DateTime.fromMillisecondsSinceEpoch(message.date!)
+          : null;
+      if (sentAt != null && (newest == null || sentAt.isAfter(newest))) {
+        newest = sentAt;
+      }
+
+      var transaction = SmsParserService.parseTransaction(
+        message.address ?? 'Unknown',
+        message.body ?? '',
+        sentAt ?? DateTime.now(),
+      );
+      if (transaction == null) continue;
+
+      // The user marked this message shape "not a transaction" — skip.
+      if (await _dbService.isMessageMuted(
+        message.address ?? 'Unknown',
+        message.body ?? '',
+      )) {
+        continue;
+      }
+
+      // Swap in the user-taught payee name before rule matching; a recognised
+      // merchant behind the corrected name classifies instantly.
+      transaction = await _dbService.applyPayeeAlias(transaction);
+      transaction = SmsParserService.classifyFromMerchantName(transaction);
+
+      // A user-taught direction for this message shape wins over the parse.
+      // Must precede the fingerprint (it includes the type).
+      transaction = await _dbService.applyTypeOverride(transaction);
+
+      // Compute fingerprint for deduplication
+      transaction = transaction.withFingerprint();
+
+      // Check if already in database
+      final exists = await _dbService.transactionExists(
+        transaction.message,
+        transaction.detectedAt,
+        fingerprint: transaction.fingerprint,
+      );
+      if (exists) continue;
+
+      // Try to auto-classify using rules (merchant name + type based)
+      var txnToSave = transaction;
+      final rule = await _dbService.findMatchingRule(
+        transaction.merchantName,
+        transaction.type,
+      );
+      if (rule != null) {
+        txnToSave = transaction.copyWith(
+          category: rule.category,
+          notes: rule.notes,
+          isClassified: true,
+        );
+      }
+
+      final id = await _dbService.insertTransaction(txnToSave);
+      // Only add if actually inserted (id > 0 means success)
+      if (id > 0) inserted.add(txnToSave.copyWith(id: id));
+    }
+
+    return _WindowResult(
+      inserted: inserted,
+      newest: newest,
+      truncated: truncated,
+    );
+  }
+}
+
+/// Outcome of a single bounded inbox window.
+class _WindowResult {
+  final List<TransactionModel> inserted;
+
+  /// Newest message date examined, or null if the window held no messages.
+  final DateTime? newest;
+
+  /// Whether a cap stopped the pass with messages still unread in the window.
+  final bool truncated;
+
+  const _WindowResult({
+    required this.inserted,
+    required this.newest,
+    required this.truncated,
+  });
 }

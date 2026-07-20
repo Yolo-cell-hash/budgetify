@@ -267,6 +267,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     await _notificationService.initialize();
     await _checkPermission();
     await _loadData();
+    if (!mounted) return;
     setState(() => _isLoading = false);
 
     // Auto-scan SMS after initial load
@@ -279,6 +280,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final hasPermission = await _smsService.hasPermission();
     final isPermanentlyDenied = await _smsService
         .isPermissionPermanentlyDenied();
+    if (!mounted) return;
 
     setState(() {
       _hasPermission = hasPermission;
@@ -455,6 +457,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     final prefs = await SharedPreferences.getInstance();
     final isFirstScan = prefs.getBool('needs_initial_scan') ?? false;
+    if (!mounted) return;
 
     setState(() => _isScanning = true);
 
