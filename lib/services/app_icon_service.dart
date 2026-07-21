@@ -68,6 +68,22 @@ class AppIconService {
   /// Key holding the last variant we successfully applied (absent = default).
   static const String _currentKey = 'royal_app_icon_current';
 
+  /// In-memory copy of [_currentKey], so the splash can pick the matching gem
+  /// skin synchronously at cold start (no async gap, no flash). Populated by
+  /// [loadActiveVariant] in `main()` and kept current by [sync].
+  static String? _cachedCurrent;
+
+  /// The launcher icon variant currently applied (null = default Budgetify
+  /// icon). Synchronous — read [loadActiveVariant] once at startup first.
+  static String? get activeVariant => _cachedCurrent;
+
+  /// Warm [activeVariant] from disk. Call once before `runApp` so the very
+  /// first splash frame already knows which gem is active.
+  static Future<void> loadActiveVariant() async {
+    final prefs = await SharedPreferences.getInstance();
+    _cachedCurrent = prefs.getString(_currentKey);
+  }
+
   /// Reconcile the launcher icon to the [equippedSeed] avatar under the
   /// [enabled] toggle. No-op unless the target differs from what's already
   /// applied, so an ordinary avatar edit (or the feature staying off) never
@@ -77,10 +93,14 @@ class AppIconService {
     required bool enabled,
   }) async {
     if (!Platform.isAndroid) return;
-    final desired = RoyalAppIcon.desiredIcon(seed: equippedSeed, enabled: enabled);
+    final desired = RoyalAppIcon.desiredIcon(
+      seed: equippedSeed,
+      enabled: enabled,
+    );
     final prefs = await SharedPreferences.getInstance();
     if (desired == prefs.getString(_currentKey)) return; // already applied
     if (!await _apply(desired)) return; // failed — leave the record untouched
+    _cachedCurrent = desired;
     if (desired == null) {
       await prefs.remove(_currentKey);
     } else {
@@ -92,7 +112,9 @@ class AppIconService {
   /// it was applied; never throws.
   static Future<bool> _apply(String? variant) async {
     try {
-      final ok = await _channel.invokeMethod<bool>('setIcon', {'icon': variant});
+      final ok = await _channel.invokeMethod<bool>('setIcon', {
+        'icon': variant,
+      });
       return ok ?? true;
     } catch (_) {
       return false;

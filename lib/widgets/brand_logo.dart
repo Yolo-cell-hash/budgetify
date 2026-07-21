@@ -17,12 +17,21 @@ class BrandLogo extends StatelessWidget {
   final double size;
   final bool circular;
 
-  const BrandLogo({super.key, this.size = 48, this.circular = false});
+  /// Override the artwork — e.g. a royal gem variant on the splash. Defaults
+  /// to the standard gold-on-navy [kBrandLogoAsset].
+  final String? assetPath;
+
+  const BrandLogo({
+    super.key,
+    this.size = 48,
+    this.circular = false,
+    this.assetPath,
+  });
 
   @override
   Widget build(BuildContext context) {
     final image = Image.asset(
-      kBrandLogoAsset,
+      assetPath ?? kBrandLogoAsset,
       width: size,
       height: size,
       fit: BoxFit.cover,
