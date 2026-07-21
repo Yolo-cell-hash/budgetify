@@ -150,11 +150,26 @@ class InsightsService {
 
     SpendingForecast? forecast;
     if (spentThis > 0) {
-      final runRate = spentThis / daysElapsed * daysInMonth;
-      // Blend run-rate with history, trusting run-rate more as the month
-      // progresses, so an early big purchase doesn't over-project.
-      final w = daysElapsed / daysInMonth;
-      final projected = hasHistory ? w * runRate + (1 - w) * spentLast : runRate;
+      // Robust month-end projection. A naïve run-rate (spent ÷ elapsed ×
+      // daysInMonth) multiplies one big one-off purchase across the whole
+      // month and overshoots badly, so we hand per-day spend to
+      // CoachStats.projectedMonthEnd, which trims one-off spike days and leans
+      // on the typical month early. The prior is the robust typical month when
+      // there's enough history, falling back to last month otherwise.
+      final dailyMap = await _db.getDailySpending(
+        startDate: monthStart,
+        endDate: monthEnd,
+      );
+      final dailyTotals = [
+        for (int day = 1; day <= daysElapsed; day++)
+          dailyMap[DateTime(today.year, today.month, day)] ?? 0.0,
+      ];
+      final prior = typicalMonth ?? (spentLast > 0 ? spentLast : null);
+      final projected = CoachStats.projectedMonthEnd(
+        dailyTotals: dailyTotals,
+        daysInMonth: daysInMonth,
+        typicalMonth: prior,
+      );
 
       final budget = await _db.getActiveBudget();
       // Safe-to-spend works off a budget when one exists, else the user's own

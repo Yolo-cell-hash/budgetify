@@ -90,6 +90,23 @@ class CoachStats {
   /// …and the rupee gap must clear this floor either way.
   static const double paceFloor = 1500;
 
+  // ── Month-end projection (robust to one-off spikes) ──────────────────
+  /// A projection needs at least this many *spend days* before we trust this
+  /// month enough to trim spikes from its pace. Below this, the typical-month
+  /// prior carries the projection (see [projectedMonthEnd]) and a lone early
+  /// purchase can't blow it up because it's barely weighted yet.
+  static const int minProjActiveDays = 4;
+
+  /// A day is treated as carrying a one-off spike (its excess is counted once
+  /// but never extrapolated) when its total is at least this multiple of the
+  /// month's typical spend-day. This ratio also carries the decision when the
+  /// daily spread is flat (MAD = 0), mirroring [outlierRatio].
+  static const double projSpikeRatio = 3.0;
+
+  /// …and at least this many robust-sigma above the typical spend-day. Both
+  /// gates must clear, so an ordinarily busy day is never mistaken for a spike.
+  static const double projMadK = 4.0;
+
   // ── Robust estimators ────────────────────────────────────────────────
 
   /// Median of [xs] (0 for an empty list). Does not mutate the input.
@@ -157,6 +174,81 @@ class CoachStats {
       typical > 0 &&
       projected <= typical * paceUnderRatio &&
       (typical - projected) >= paceFloor;
+
+  // ── Month-end projection ─────────────────────────────────────────────
+
+  /// Robust month-end spending projection that a single huge transaction
+  /// cannot inflate.
+  ///
+  /// The naïve run-rate — `spent ÷ elapsedDays × daysInMonth` — multiplies
+  /// every rupee spent so far across the whole month. One 4×-normal purchase
+  /// early in the month therefore projects as if it recurred all month,
+  /// wildly overshooting reality. This estimator instead keeps the projection
+  /// data-driven but immune to that one lump:
+  ///
+  ///   1. **Trim one-off spike days.** Each elapsed day is split into a
+  ///      "typical" part and a one-off excess, using the same robust median +
+  ///      MAD outlier test the coach uses elsewhere. Only days that stand out
+  ///      *within this month* (≥ [projSpikeRatio]× and ≥ [projMadK]σ above the
+  ///      month's typical spend-day) are trimmed — a uniformly busier month is
+  ///      left untouched.
+  ///   2. **Project the typical pace.** The spike-free daily pace is spread
+  ///      over the whole month, blended with the user's [typicalMonth] and
+  ///      trusting this month's own pace more as it matures (weight
+  ///      `elapsed ÷ daysInMonth`). Early on, when a few days can't yet reveal
+  ///      a pace, the typical-month prior dominates, so an early spike barely
+  ///      moves the number.
+  ///   3. **Add the lump back once.** One-off excess is real money already
+  ///      spent, so it's added to the projection — but never extrapolated.
+  ///
+  /// [dailyTotals] is expense spend per elapsed day (index 0 = day 1),
+  /// including ₹0 no-spend days so the pace reflects the real cadence.
+  /// [typicalMonth] is the user's usual monthly spend (robust median of recent
+  /// completed months, else last month); null when there's no history, in
+  /// which case this month's own spike-free pace carries the projection.
+  ///
+  /// Guarantees `result ≥ sum(dailyTotals)` — a projection never undercuts what
+  /// is already spent.
+  static double projectedMonthEnd({
+    required List<double> dailyTotals,
+    required int daysInMonth,
+    double? typicalMonth,
+  }) {
+    final elapsed = dailyTotals.length;
+    final spentSoFar = dailyTotals.fold<double>(0, (a, b) => a + b);
+    final prior = (typicalMonth != null && typicalMonth > 0) ? typicalMonth : null;
+
+    if (elapsed <= 0) return prior ?? 0;
+    if (elapsed >= daysInMonth) return spentSoFar; // month done — nothing to project
+
+    // 1. Split off one-off spike days so they aren't extrapolated. We judge a
+    //    day against the median of *spend* days (₹0 days would drag the median
+    //    to zero and defeat the ratio test), but spread the surviving pace over
+    //    every elapsed day, ₹0 days included.
+    double cappedSum = spentSoFar; // no trimming until there's enough cadence
+    double lump = 0;
+    final active = dailyTotals.where((d) => d > 0).toList();
+    if (active.length >= minProjActiveDays) {
+      final med = median(active);
+      if (med > 0) {
+        final sigma = madScale * mad(active, med);
+        final cap = math.max(med * projSpikeRatio, med + projMadK * sigma);
+        cappedSum = dailyTotals.fold<double>(0, (a, d) => a + math.min(d, cap));
+        lump = spentSoFar - cappedSum; // one-off excess, counted once below
+      }
+    }
+
+    // 2. Blend this month's spike-free pace with the typical-month prior,
+    //    leaning on this month more as it matures.
+    final baseRate = cappedSum / elapsed;
+    final typicalDaily = prior != null ? prior / daysInMonth : baseRate;
+    final w = (elapsed / daysInMonth).clamp(0.0, 1.0);
+    final blendedRate = w * baseRate + (1 - w) * typicalDaily;
+
+    // 3. Project the pace across the month, then add the one-off lump back.
+    final projected = blendedRate * daysInMonth + lump;
+    return projected < spentSoFar ? spentSoFar : projected;
+  }
 
   /// Clamp a day-of-month [d] to the last valid day of a month that has
   /// [lastDayOfMonth] days, so a "by day 31" window still works in February.
