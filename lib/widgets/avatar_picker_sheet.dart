@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -5,6 +7,7 @@ import '../l10n/l10n.dart';
 
 import '../providers/app_preferences.dart';
 import '../providers/theme_provider.dart';
+import '../services/app_icon_service.dart';
 import '../services/gamification_service.dart';
 import 'app_toast.dart';
 import 'avatars.dart';
@@ -124,6 +127,14 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
   }
 
   void _save() {
+    // Keep the launcher icon in step with the equipped royal when the opt-in
+    // "match app icon" feature is on (a no-op otherwise, and deduped so an
+    // ordinary avatar edit never relaunches the app). Fire-and-forget — it's
+    // cosmetic and must never delay dismissing the sheet.
+    AppIconService.sync(
+      equippedSeed: int.tryParse(_value) ?? -1,
+      enabled: context.read<AppPreferences>().royalAppIcon,
+    );
     Navigator.pop(
       context,
       widget.initial.copyWith(
@@ -132,6 +143,17 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
         avatarValue: _value,
         applyRoyalTheme: _applyRoyalTheme,
       ),
+    );
+  }
+
+  /// Toggle the opt-in "match app icon to my royal" feature and apply it now
+  /// against the current selection (Android only; cosmetic).
+  Future<void> _onRoyalAppIconChanged(bool enabled) async {
+    final prefs = context.read<AppPreferences>();
+    await prefs.setRoyalAppIcon(enabled);
+    await AppIconService.sync(
+      equippedSeed: int.tryParse(_value) ?? -1,
+      enabled: enabled,
     );
   }
 
@@ -253,6 +275,11 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
                 );
               },
             ),
+            // Opt-in: make the Android launcher icon follow the equipped royal.
+            if (Platform.isAndroid) ...[
+              const SizedBox(height: 16),
+              _appIconToggle(colors),
+            ],
             const SizedBox(height: 22),
             SizedBox(
               width: double.infinity,
@@ -311,6 +338,52 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
     return Text(
       context.l10n.royalLockedHint,
       style: TextStyle(fontSize: 11.5, height: 1.35, color: colors.textTertiary),
+    );
+  }
+
+  /// The opt-in "match app icon to my royal" switch — a global preference
+  /// (distinct from the per-royal theme dress), shown in the ROYALTY section.
+  Widget _appIconToggle(AppColors colors) {
+    final enabled = context.watch<AppPreferences>().royalAppIcon;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 8, 6, 8),
+      decoration: BoxDecoration(
+        color: colors.brandAccent.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: colors.brandAccent.withValues(alpha: 0.28)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.apps_rounded, size: 18, color: colors.brandAccent),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  context.l10n.royalAppIconTitle,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: colors.text,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  context.l10n.royalAppIconDesc,
+                  style: TextStyle(
+                    fontSize: 11,
+                    height: 1.32,
+                    color: colors.textTertiary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 4),
+          Switch.adaptive(value: enabled, onChanged: _onRoyalAppIconChanged),
+        ],
+      ),
     );
   }
 
