@@ -7,6 +7,7 @@ import 'package:budget_tracker/screens/main_shell.dart';
 import 'package:budget_tracker/screens/lock_screen.dart';
 import 'package:budget_tracker/screens/onboarding_screen.dart';
 import 'package:budget_tracker/screens/splash_screen.dart';
+import 'package:budget_tracker/services/app_icon_service.dart';
 import 'package:budget_tracker/services/app_lock_service.dart';
 import 'package:budget_tracker/services/notification_service.dart';
 import 'package:budget_tracker/services/background_service.dart';
@@ -17,8 +18,7 @@ import 'package:budget_tracker/services/entitlement_service.dart';
 import 'package:budget_tracker/providers/theme_provider.dart';
 import 'package:budget_tracker/providers/app_preferences.dart';
 import 'package:budget_tracker/providers/locale_provider.dart';
-import 'package:budget_tracker/widgets/royal_avatars.dart'
-    show courtDressFor;
+import 'package:budget_tracker/widgets/royal_avatars.dart' show courtDressFor;
 import 'package:budget_tracker/widgets/royal_reactions.dart';
 
 void main() async {
@@ -49,6 +49,10 @@ void main() async {
   // Custom tags feed transaction icons synchronously during build, so the
   // cache is warmed before the first frame (a cheap cached-prefs read).
   await CustomTagService().initialize();
+
+  // Which royal launcher-icon is active (if any), so the very first splash
+  // frame can wear the matching gem skin instead of flashing the default.
+  await AppIconService.loadActiveVariant();
 
   // Restore the persisted developer-mode flag (stays on across restarts until
   // the user turns it off). While on, this also re-applies the persisted
@@ -96,14 +100,17 @@ Future<void> _initDeferredServices(ThemeProvider themeProvider) async {
   // splash covers the swap, so an equipped royal sees no flash.
   try {
     final profile = await GamificationService().loadProfile();
-    themeProvider.setThemeDress(profile.applyRoyalTheme
-        ? courtDressFor(profile.avatarKind, profile.avatarValue)
-        : null);
+    themeProvider.setThemeDress(
+      profile.applyRoyalTheme
+          ? courtDressFor(profile.avatarKind, profile.avatarValue)
+          : null,
+    );
   } catch (e) {
     debugPrint('GamificationService.loadProfile failed: $e');
   }
   GamificationService.onProfileSaved = (p) => themeProvider.setThemeDress(
-      p.applyRoyalTheme ? courtDressFor(p.avatarKind, p.avatarValue) : null);
+    p.applyRoyalTheme ? courtDressFor(p.avatarKind, p.avatarValue) : null,
+  );
 
   // Notification channels. HomeScreen also (re)initializes this before it posts
   // anything, so here it is just an early warm-up.
@@ -146,7 +153,14 @@ class MyApp extends StatelessWidget {
           // menu) is on top, so its cosmetic overlay never paints over one.
           navigatorObservers: [RoyalOverlayRouteObserver.instance],
           locale: localeProvider.locale,
-          supportedLocales: const [Locale('en'), Locale('hi'), Locale('mr'), Locale('bn'), Locale('te'), Locale('ta')],
+          supportedLocales: const [
+            Locale('en'),
+            Locale('hi'),
+            Locale('mr'),
+            Locale('bn'),
+            Locale('te'),
+            Locale('ta'),
+          ],
           localizationsDelegates: const [
             GlobalMaterialLocalizations.delegate,
             GlobalWidgetsLocalizations.delegate,
@@ -183,8 +197,7 @@ class AppLockGate extends StatefulWidget {
   State<AppLockGate> createState() => _AppLockGateState();
 }
 
-class _AppLockGateState extends State<AppLockGate>
-    with WidgetsBindingObserver {
+class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
   static const _relockAfter = Duration(seconds: 60);
 
   bool _splashing = true;
