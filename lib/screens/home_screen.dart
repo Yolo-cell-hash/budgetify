@@ -8,6 +8,7 @@ import '../models/transaction_model.dart';
 import '../providers/theme_provider.dart';
 import '../services/app_events.dart';
 import '../services/database_service.dart';
+import '../services/dev_mode.dart';
 import '../services/financial_health_service.dart';
 import '../services/gamification_service.dart';
 import '../services/sms_service.dart';
@@ -817,13 +818,49 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Budgetify',
-                      style: TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -0.6,
-                        color: colors.text,
+                    // Five quick taps on the wordmark opens the hidden
+                    // developer-mode gate (see DevMode).
+                    DevModeGate(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Budgetify',
+                            style: TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.6,
+                              color: colors.text,
+                            ),
+                          ),
+                          ValueListenableBuilder<bool>(
+                            valueListenable: DevMode.active,
+                            builder: (_, devOn, __) => devOn
+                                ? Container(
+                                    margin: const EdgeInsets.only(left: 8),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 7, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: colors.accent
+                                          .withValues(alpha: 0.14),
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(
+                                          color: colors.accent
+                                              .withValues(alpha: 0.5)),
+                                    ),
+                                    child: Text(
+                                      'DEV',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 0.8,
+                                        color: colors.accent,
+                                      ),
+                                    ),
+                                  )
+                                : const SizedBox.shrink(),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(height: 4),

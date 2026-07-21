@@ -48,6 +48,15 @@ class EntitlementService {
   /// Length of the free window.
   static const Duration trialDuration = Duration(days: 182); // ~6 months
 
+  /// Developer-mode hook (dev-mode branch only): when true, [trialActive]
+  /// reports false so the post-trial experience — locked gates, the Plus
+  /// paywall, suppressed Plus-only notifications — can be previewed on a
+  /// fresh install. Session-static like
+  /// [GamificationService.sessionAvatarOverride]: never persisted here (the
+  /// DevMode overlay owns persistence) and never consulted by trial STORAGE —
+  /// the real anchor keeps ticking untouched underneath.
+  static bool debugSimulateTrialExpired = false;
+
   static final EntitlementService _instance = EntitlementService._internal();
   factory EntitlementService() => _instance;
   EntitlementService._internal();
@@ -108,8 +117,8 @@ class EntitlementService {
   }
 
   /// Whether the free window is still open. Fail-open: unknown ⇒ true.
-  /// NOTHING gates on this in Phase 0 — it exists for later phases.
   bool get trialActive {
+    if (debugSimulateTrialExpired) return false;
     final first = _firstLaunch;
     if (first == null) return true;
     return _effectiveNow.difference(first) < trialDuration;
@@ -117,6 +126,7 @@ class EntitlementService {
 
   /// Whole days left in the free window (0 once elapsed). For later UI.
   int get trialDaysLeft {
+    if (debugSimulateTrialExpired) return 0;
     final first = _firstLaunch;
     if (first == null) return trialDuration.inDays;
     final left = trialDuration - _effectiveNow.difference(first);

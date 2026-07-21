@@ -11,6 +11,7 @@ import 'package:budget_tracker/services/app_lock_service.dart';
 import 'package:budget_tracker/services/notification_service.dart';
 import 'package:budget_tracker/services/background_service.dart';
 import 'package:budget_tracker/services/custom_tag_service.dart';
+import 'package:budget_tracker/services/dev_mode.dart';
 import 'package:budget_tracker/services/gamification_service.dart';
 import 'package:budget_tracker/services/entitlement_service.dart';
 import 'package:budget_tracker/providers/theme_provider.dart';
@@ -48,6 +49,14 @@ void main() async {
   // Custom tags feed transaction icons synchronously during build, so the
   // cache is warmed before the first frame (a cheap cached-prefs read).
   await CustomTagService().initialize();
+
+  // Restore the persisted developer-mode flag (stays on across restarts until
+  // the user turns it off). While on, this also re-applies the persisted
+  // preview overlay: the previewed theme (via themeProvider) and the equipped
+  // royal (via the session avatar override, read by the deferred loadProfile in
+  // _initDeferredServices). Kept in the pre-runApp path because it can change
+  // the previewed theme, which the very first frame must reflect.
+  await DevMode.initialize(themeProvider);
 
   runApp(
     MultiProvider(
