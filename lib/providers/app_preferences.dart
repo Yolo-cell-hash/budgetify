@@ -10,6 +10,7 @@ class AppPreferences extends ChangeNotifier {
       'financial_health_detailed';
   static const String _gamifiedModeKey = 'gamified_mode';
   static const String _royalCustomAnimationsKey = 'royal_custom_animations';
+  static const String _royalAppIconKey = 'royal_app_icon';
   static const String _dismissedBudgetSuggestionsKey =
       'dismissed_budget_suggestions';
 
@@ -50,6 +51,13 @@ class AppPreferences extends ChangeNotifier {
   // is something the user turns on deliberately from the avatar picker.
   bool _royalCustomAnimations = false;
 
+  // Match app icon to the equipped royal (default OFF). When on, the Android
+  // launcher icon follows the equipped royal avatar's court (Dark Prince →
+  // ruby, Empress → amethyst, …); a non-royal avatar restores the default
+  // Budgetify icon. Applying it lives with the equip flow (which knows the
+  // avatar); this flag only records the opt-in. See AppIconService.
+  bool _royalAppIcon = false;
+
   bool get isOnboardingComplete => _isOnboardingComplete;
   bool get isInitialized => _isInitialized;
   bool get privacyMode => _privacyMode;
@@ -57,6 +65,7 @@ class AppPreferences extends ChangeNotifier {
   bool get financialHealthDetailed => _financialHealthDetailed;
   bool get gamifiedMode => _gamifiedMode;
   bool get royalCustomAnimations => _royalCustomAnimations;
+  bool get royalAppIcon => _royalAppIcon;
 
   /// Whether amounts should currently render hidden: privacy mode is on and
   /// the user hasn't tapped to reveal this session.
@@ -75,6 +84,7 @@ class AppPreferences extends ChangeNotifier {
     _gamifiedMode = prefs.getBool(_gamifiedModeKey) ?? true;
     _royalCustomAnimations =
         prefs.getBool(_royalCustomAnimationsKey) ?? false;
+    _royalAppIcon = prefs.getBool(_royalAppIconKey) ?? false;
     _dismissedBudgetSuggestions =
         (prefs.getStringList(_dismissedBudgetSuggestionsKey) ?? const [])
             .toSet();
@@ -146,6 +156,15 @@ class AppPreferences extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_royalCustomAnimationsKey, enabled);
+  }
+
+  /// Turn "match app icon to my royal" on/off (persisted). Applying the actual
+  /// launcher icon is the caller's job (it knows the equipped avatar).
+  Future<void> setRoyalAppIcon(bool enabled) async {
+    _royalAppIcon = enabled;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_royalAppIconKey, enabled);
   }
 
   /// Mark onboarding as complete

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Adaptive-icon background colours for the royal launcher-icon variants
+     (see AndroidManifest activity-aliases). Each is the gem tile's deep ground. -->
+<resources>
+    <color name="ic_launcher_bronze_background">#0a141e</color>
+    <color name="ic_launcher_silver_background">#000a1e</color>
+    <color name="ic_launcher_emerald_background">#00140a</color>
+    <color name="ic_launcher_golden_background">#0a0a00</color>
+    <color name="ic_launcher_ruby_background">#140000</color>
+    <color name="ic_launcher_amethyst_background">#0a0014</color>
+</resources>

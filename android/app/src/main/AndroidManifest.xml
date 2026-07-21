@@ -61,6 +61,94 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+
+        <!-- Royal launcher-icon variants (opt-in "Match app icon to my royal").
+             Each alias re-skins the launcher icon for one royal avatar; all
+             target MainActivity and ship DISABLED. At runtime exactly one
+             launcher component is enabled: MainActivity (the default gold icon)
+             or one of these aliases — toggled from Kotlin via
+             PackageManager.setComponentEnabledSetting (see MainActivity.kt,
+             channel "budgetify/app_icon"). Switching briefly relaunches the app
+             (an Android limitation of alternate icons). No new permission. -->
+        <activity-alias
+            android:name=".MainActivityBronze"
+            android:enabled="false"
+            android:exported="true"
+            android:label="Budgetify"
+            android:icon="@mipmap/ic_launcher_bronze"
+            android:roundIcon="@mipmap/ic_launcher_bronze_round"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".MainActivitySilver"
+            android:enabled="false"
+            android:exported="true"
+            android:label="Budgetify"
+            android:icon="@mipmap/ic_launcher_silver"
+            android:roundIcon="@mipmap/ic_launcher_silver_round"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".MainActivityEmerald"
+            android:enabled="false"
+            android:exported="true"
+            android:label="Budgetify"
+            android:icon="@mipmap/ic_launcher_emerald"
+            android:roundIcon="@mipmap/ic_launcher_emerald_round"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".MainActivityGolden"
+            android:enabled="false"
+            android:exported="true"
+            android:label="Budgetify"
+            android:icon="@mipmap/ic_launcher_golden"
+            android:roundIcon="@mipmap/ic_launcher_golden_round"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".MainActivityRuby"
+            android:enabled="false"
+            android:exported="true"
+            android:label="Budgetify"
+            android:icon="@mipmap/ic_launcher_ruby"
+            android:roundIcon="@mipmap/ic_launcher_ruby_round"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".MainActivityAmethyst"
+            android:enabled="false"
+            android:exported="true"
+            android:label="Budgetify"
+            android:icon="@mipmap/ic_launcher_amethyst"
+            android:roundIcon="@mipmap/ic_launcher_amethyst_round"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
