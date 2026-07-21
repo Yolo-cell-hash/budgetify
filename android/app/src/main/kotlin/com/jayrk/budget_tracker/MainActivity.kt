@@ -1,6 +1,8 @@
 package com.jayrk.budget_tracker
 
+import android.content.ComponentName
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
@@ -38,6 +40,58 @@ class MainActivity : FlutterFragmentActivity() {
                     result.success(null)
                 }
             }
+
+        // Opt-in "Match app icon to my royal": swap the launcher icon by
+        // toggling activity-aliases (see AndroidManifest). Purely cosmetic — a
+        // failure must never crash the app, so errors resolve to false.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "budgetify/app_icon")
+            .setMethodCallHandler { call, result ->
+                if (call.method != "setIcon") {
+                    result.notImplemented()
+                    return@setMethodCallHandler
+                }
+                try {
+                    setLauncherIcon(call.argument<String>("icon"))
+                    result.success(true)
+                } catch (e: Exception) {
+                    result.success(false)
+                }
+            }
+    }
+
+    // ── Royal launcher-icon switching ──────────────────────────────────────
+    // Variant name (matches the Dart RoyalAppIcon) → activity-alias class.
+    private val iconAliases = mapOf(
+        "bronze" to "MainActivityBronze",
+        "silver" to "MainActivitySilver",
+        "emerald" to "MainActivityEmerald",
+        "golden" to "MainActivityGolden",
+        "ruby" to "MainActivityRuby",
+        "amethyst" to "MainActivityAmethyst",
+    )
+
+    /** Enable the launcher component for [icon] (a royal variant name) and
+     *  disable the others; a null/unknown name restores the default icon.
+     *  Exactly one launcher entry stays enabled so the icon never vanishes. */
+    private fun setLauncherIcon(icon: String?) {
+        val defaultComp = "$packageName.MainActivity"
+        val targetComp = iconAliases[icon]?.let { "$packageName.$it" } ?: defaultComp
+        val all = listOf(defaultComp) + iconAliases.values.map { "$packageName.$it" }
+        // Enable the target first, then disable the rest — never leave zero
+        // launcher components enabled (that would drop the icon entirely).
+        packageManager.setComponentEnabledSetting(
+            ComponentName(this, targetComp),
+            PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+            PackageManager.DONT_KILL_APP,
+        )
+        for (comp in all) {
+            if (comp == targetComp) continue
+            packageManager.setComponentEnabledSetting(
+                ComponentName(this, comp),
+                PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                PackageManager.DONT_KILL_APP,
+            )
+        }
     }
 
     private fun vibrator(): Vibrator =
