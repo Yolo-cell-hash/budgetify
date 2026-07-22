@@ -1,6 +1,7 @@
 import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show SystemNavigator;
 import 'package:provider/provider.dart';
 
 import '../l10n/l10n.dart';
@@ -9,6 +10,7 @@ import '../providers/app_preferences.dart';
 import '../providers/theme_provider.dart';
 import '../services/app_icon_service.dart';
 import '../services/gamification_service.dart';
+import 'app_dialog.dart';
 import 'app_toast.dart';
 import 'avatars.dart';
 import 'royal_avatars.dart';
@@ -41,6 +43,51 @@ Future<GamiProfile?> showAvatarPicker(
       scrollToRoyalty: scrollToRoyalty,
     ),
   );
+}
+
+/// After an avatar is saved, bring the Android launcher icon in step with the
+/// equipped royal — only when the "match app icon" opt-in is on and the swap
+/// would actually change the icon. Android swaps it by disabling the running
+/// launcher component, which closes the app; so we ask first and, on confirm,
+/// apply then close cleanly (reopening shows the new icon) so it reads as
+/// intentional rather than a crash. A no-op off-Android or when unchanged.
+///
+/// Call this *after* the profile is persisted, so the close can never lose the
+/// equip.
+Future<void> confirmRoyalAppIcon(
+  BuildContext context,
+  GamiProfile profile,
+) async {
+  if (!Platform.isAndroid) return;
+  final enabled = context.read<AppPreferences>().royalAppIcon;
+  final seed = int.tryParse(profile.avatarValue) ?? -1;
+  if (!await AppIconService.willChange(equippedSeed: seed, enabled: enabled)) {
+    return; // icon already matches — nothing to apply, no need to disturb.
+  }
+  if (!context.mounted) return;
+  final confirmed = await showAppDialog<bool>(
+    context,
+    builder: (ctx) => AppDialog(
+      icon: Icons.restart_alt_rounded,
+      title: ctx.l10nRead.royalAppIconRestartTitle,
+      subtitle: ctx.l10nRead.royalAppIconRestartBody,
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: Text(ctx.l10nRead.notNow),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          child: Text(ctx.l10nRead.royalAppIconRestartConfirm),
+        ),
+      ],
+    ),
+  );
+  if (confirmed != true) return;
+  await AppIconService.sync(equippedSeed: seed, enabled: enabled);
+  // Icon swapped — close so the app reopens wearing it (launchers refresh the
+  // icon on a fresh start). The user agreed and the profile is already saved.
+  await SystemNavigator.pop();
 }
 
 class _AvatarPickerSheet extends StatefulWidget {
@@ -128,14 +175,9 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
   }
 
   void _save() {
-    // Keep the launcher icon in step with the equipped royal when the opt-in
-    // "match app icon" feature is on (a no-op otherwise, and deduped so an
-    // ordinary avatar edit never relaunches the app). Fire-and-forget — it's
-    // cosmetic and must never delay dismissing the sheet.
-    AppIconService.sync(
-      equippedSeed: int.tryParse(_value) ?? -1,
-      enabled: context.read<AppPreferences>().royalAppIcon,
-    );
+    // Just hand the edited profile back; the caller persists it and then — if
+    // the "match app icon" opt-in wants a different launcher icon — asks before
+    // applying it (the swap closes the app). See [confirmRoyalAppIcon].
     Navigator.pop(
       context,
       widget.initial.copyWith(
@@ -571,18 +613,14 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
                       ),
                     ),
                     // Opt-in: match the Android launcher icon to this royal's
-                    // gem. Global + persisted immediately (like the animations
-                    // toggle above), applied to the current selection now. Shown
-                    // on every royal's sheet by design, even if repetitive.
+                    // gem. The switch only records the preference; the icon is
+                    // swapped (after a confirm, since it closes the app) when the
+                    // avatar is saved. Shown on every royal's sheet by design.
                     if (Platform.isAndroid)
                       SwitchListTile(
                         value: ctx.watch<AppPreferences>().royalAppIcon,
                         onChanged: (v) {
                           ctx.read<AppPreferences>().setRoyalAppIcon(v);
-                          AppIconService.sync(
-                            equippedSeed: int.tryParse(_value) ?? -1,
-                            enabled: v,
-                          );
                           setSheetState(() {});
                         },
                         activeThumbColor: accent,
