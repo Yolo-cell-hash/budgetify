@@ -149,7 +149,10 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
       onUnlockRoyal: _svc.unlockRoyal,
       scrollToRoyalty: scrollToRoyalty,
     );
-    if (edited != null) await _save(edited);
+    if (edited != null) {
+      await _save(edited);
+      if (mounted) await confirmRoyalAppIcon(context, edited);
+    }
     final unlockedRoyals = await _svc.unlockedRoyalIds();
     final picksSpent = (await _svc.streakPickedRoyalIds()).length;
     final royalPicks = await _svc.availableRoyalPicks();
