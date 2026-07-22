@@ -84,6 +84,22 @@ class AppIconService {
     _cachedCurrent = prefs.getString(_currentKey);
   }
 
+  /// Whether calling [sync] with these inputs would actually swap the launcher
+  /// icon (the target differs from what's applied). Lets the UI confirm before
+  /// a swap — which closes the app — instead of surprising the user with it.
+  static Future<bool> willChange({
+    required int equippedSeed,
+    required bool enabled,
+  }) async {
+    if (!Platform.isAndroid) return false;
+    final desired = RoyalAppIcon.desiredIcon(
+      seed: equippedSeed,
+      enabled: enabled,
+    );
+    final prefs = await SharedPreferences.getInstance();
+    return desired != prefs.getString(_currentKey);
+  }
+
   /// Reconcile the launcher icon to the [equippedSeed] avatar under the
   /// [enabled] toggle. No-op unless the target differs from what's already
   /// applied, so an ordinary avatar edit (or the feature staying off) never
@@ -99,13 +115,16 @@ class AppIconService {
     );
     final prefs = await SharedPreferences.getInstance();
     if (desired == prefs.getString(_currentKey)) return; // already applied
-    if (!await _apply(desired)) return; // failed — leave the record untouched
+    // Record the target *before* applying it: the swap disables the running
+    // launcher component and can tear the app down, so persisting first keeps
+    // the next launch from reading a stale gem (or re-triggering the swap).
     _cachedCurrent = desired;
     if (desired == null) {
       await prefs.remove(_currentKey);
     } else {
       await prefs.setString(_currentKey, desired);
     }
+    await _apply(desired); // cosmetic; may tear down / relaunch the app
   }
 
   /// Ask the platform to switch to [variant] (null → default). Returns whether
