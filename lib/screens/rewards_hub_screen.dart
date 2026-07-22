@@ -159,6 +159,7 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
         if (mounted) setState(() => _profile = edited);
       } else {
         await _save(edited);
+        if (mounted) await confirmRoyalAppIcon(context, edited);
       }
     }
     final unlockedRoyals = await _svc.unlockedRoyalIds();

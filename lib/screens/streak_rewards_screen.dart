@@ -98,6 +98,7 @@ class _StreakRewardsScreenState extends State<StreakRewardsScreen> {
     );
     if (edited != null && !await applyDevRoyalPreview(edited, _unlockedRoyals)) {
       await _svc.saveProfile(edited);
+      if (mounted) await confirmRoyalAppIcon(context, edited);
     }
     await _load();
   }
