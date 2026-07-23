@@ -62,6 +62,23 @@ autos to different people stay two transactions). Resolution is asymmetric:
 | SMS (or manual entry), then notification | notification is **dropped** — SMS is richer; the user's own manual entry always wins |
 | user deleted one copy, other arrives | dropped via **enriched tombstones** (v25 adds amount/type/sender to `deleted_transactions`) — deleted stays deleted across channels |
 
+**Placeholder payees are "unknown", not a conflict.** A real ₹40 payment
+reaches the app as *"Chai Point"* from the alert but as the uniform
+placeholder *"UPI Transfer"* from the bank SMS (pattern 10 in the SMS
+parser). Treating that placeholder as a competing name makes the payee guard
+veto a perfect match and double-count the payment — found on-device, fixed in
+`payeesCompatible` via the same convention `isAccountFallbackPayee` uses
+(`UPI Transfer` + masked-account shapes). `ATM` and `Bank Charges` stay
+*identifying* and still veto. The merge then uses `preferredPayee` so
+absorbing the SMS never downgrades a real merchant name to the placeholder.
+
+**Tombstone suppression is asymmetric on purpose.** The SMS side only defers
+to tombstones of deleted **`NOTIF-`** rows. A deleted *SMS* must never
+suppress a later, genuinely different SMS of the same amount — that would be
+silent data loss, strictly worse than a visible duplicate the user can delete
+again. The whole check sits behind `captureEverEnabled()`, so it cannot fire
+for a user who never turned capture on.
+
 Chosen over the earlier quarantine idea (hold notification ~90 s waiting for
 SMS): a quarantine loses payments when the process dies, and SMS can outwait
 any window — so the SMS-side absorb check is needed regardless, which makes
@@ -112,7 +129,12 @@ parses land in the existing review queue (`ReviewReasons.payeeUnknown`).
   `transaction_reconciler.dart`, `TxnNotificationListener.kt`.
 - Migration v25 is additive nullable columns on `deleted_transactions` only.
 - Verified: `flutter analyze` clean (no new warnings), full test suite green
-  (598 + 41 new), debug APK compiles.
+  (607 total, 48 new), debug APK compiles.
+- **Device-verified on a Pixel-class emulator (API 37)**: opt-in flow, the
+  privacy gate (a non-allowlisted app posting perfect payment copy produced no
+  queue file at all), capture with the app force-stopped, drain on launch and
+  on resume, both twin orders, repeated-rescan idempotency, cross-channel
+  tombstones, and an SMS-only clean install left completely unaffected.
 
 ## Known limits / deferred
 
