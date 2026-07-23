@@ -918,21 +918,37 @@ class DatabaseService {
   /// copy must not resurrect it. Only tombstones written since v25 carry
   /// the amount/type needed here; older ones never match, which fails safe
   /// (worst case a duplicate the user deletes again, never silent data).
+  ///
+  /// [notificationSourced] narrows which tombstones count: null accepts any,
+  /// true accepts only deleted app-alert rows ('NOTIF-…'). The SMS side
+  /// passes true so that suppressing a bank SMS needs an actual deleted
+  /// alert behind it — a deleted SMS must never silently swallow a later,
+  /// genuinely different SMS of the same amount.
   Future<bool> deletedTwinExists({
     required TransactionType type,
     required double amount,
     required DateTime around,
     required Duration window,
+    bool? notificationSourced,
   }) async {
     final db = await database;
     final fromMs = around.subtract(window).millisecondsSinceEpoch;
     final toMs = around.add(window).millisecondsSinceEpoch;
+    final senderClause = notificationSourced == null
+        ? ''
+        : ' AND sender ${notificationSourced ? '' : 'NOT '}LIKE ?';
     final rows = await db.query(
       'deleted_transactions',
       columns: ['id'],
       where: 'type = ? AND amount IS NOT NULL AND ABS(amount - ?) < 0.009 '
-          'AND detected_at BETWEEN ? AND ?',
-      whereArgs: [type.index, amount, fromMs, toMs],
+          'AND detected_at BETWEEN ? AND ?$senderClause',
+      whereArgs: [
+        type.index,
+        amount,
+        fromMs,
+        toMs,
+        if (notificationSourced != null) 'NOTIF-%',
+      ],
       limit: 1,
     );
     return rows.isNotEmpty;

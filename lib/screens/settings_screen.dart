@@ -93,7 +93,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// offered, not forced.
   Future<void> _toggleNotifCapture(bool value) async {
     final svc = NotificationCaptureService();
-    final l10n = context.l10n;
+    // Event handler, not build: `l10n` watches and would assert here.
+    final l10n = context.l10nRead;
 
     if (!value) {
       await svc.setEnabled(false);

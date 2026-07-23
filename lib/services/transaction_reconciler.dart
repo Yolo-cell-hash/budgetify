@@ -89,15 +89,52 @@ class TransactionReconciler {
   static String _normPayee(String s) =>
       s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
 
+  /// Whether [payee] actually names a counterparty, or is the parser saying
+  /// "I couldn't tell". Bank SMS for a nameless UPI debit yields the uniform
+  /// placeholder "UPI Transfer", and a template miss yields the masked
+  /// account ("XX7848") — mirroring
+  /// [DatabaseService.isAccountFallbackPayee], the codebase's existing
+  /// convention for exactly this question.
+  ///
+  /// Deliberately NOT included: "ATM" and "Bank Charges". Those *are*
+  /// identifying (a cash withdrawal, a bank fee) and must keep vetoing a
+  /// merge against a real merchant name.
+  static bool _isNonIdentifyingPayee(String payee) {
+    final p = payee.trim().toUpperCase();
+    if (p == 'UPI TRANSFER') return true;
+    return RegExp(r'^[X*]{2,}\d{4}$').hasMatch(p);
+  }
+
   /// Whether two payee names could describe the same counterparty. Unknown
-  /// (null/empty) on either side allows the match — the amount+time+type
-  /// test carries it; a containment check tolerates "Swiggy" vs "Swiggy
-  /// Limited". Two known, unrelated names veto the twin.
+  /// on either side allows the match — the amount+time+type test carries it;
+  /// a containment check tolerates "Swiggy" vs "Swiggy Limited". Two known,
+  /// unrelated names veto the twin.
+  ///
+  /// "Unknown" includes the parser's non-identifying placeholders, not just
+  /// null: a real ₹40 payment reaches the app as "Chai Point" from the
+  /// payment-app alert but as "UPI Transfer" from the bank SMS, and treating
+  /// that placeholder as a conflicting name would veto the merge and
+  /// double-count the payment.
   static bool payeesCompatible(String? a, String? b) {
     if (a == null || b == null) return true;
     final na = _normPayee(a), nb = _normPayee(b);
     if (na.isEmpty || nb.isEmpty) return true;
+    if (_isNonIdentifyingPayee(a) || _isNonIdentifyingPayee(b)) return true;
     return na.contains(nb) || nb.contains(na);
+  }
+
+  /// The better of two payees for a merged row: a real name always beats a
+  /// non-identifying placeholder, so absorbing a "UPI Transfer" SMS never
+  /// destroys the "Chai Point" the payment-app alert knew. Returns null only
+  /// when both sides are empty.
+  static String? preferredPayee(String? incoming, String? existing) {
+    final inGood =
+        incoming != null && incoming.isNotEmpty && !_isNonIdentifyingPayee(incoming);
+    final exGood =
+        existing != null && existing.isNotEmpty && !_isNonIdentifyingPayee(existing);
+    if (inGood) return incoming;
+    if (exGood) return existing;
+    return incoming ?? existing;
   }
 
   /// Pick the twin of a capture at [detectedAtMs] with payee [merchantName]
@@ -125,14 +162,32 @@ class TransactionReconciler {
   // ── SMS side: absorb into the notification twin ──────────────────────────
 
   /// Called from the SMS insert paths (after their own fingerprint-exists
-  /// check said "new"). When a notification-sourced twin exists, merge the
-  /// SMS identity into that row and report true so the caller skips its
-  /// insert — and its alert, which the notification already fired.
+  /// check said "new"). Returns true when the caller must NOT insert, for
+  /// either of two reasons:
+  ///
+  ///  - a notification-sourced twin exists, and the SMS identity has been
+  ///    merged into that row instead (its alert already fired), or
+  ///  - the user *deleted* the app-alert copy of this payment moments ago,
+  ///    so re-adding it through the other channel would resurrect exactly
+  ///    what they dismissed.
   ///
   /// First line is the global gate: for users who never enabled capture this
   /// returns false before touching the database.
   Future<bool> absorbIntoNotifTwin(TransactionModel smsTxn) async {
     if (!await captureEverEnabled()) return false;
+
+    // Deleted-alert guard. Scoped to NOTIF-sourced tombstones on purpose: a
+    // deleted *SMS* must never suppress a later, genuinely different SMS of
+    // the same amount, which would be silent data loss.
+    if (await _db.deletedTwinExists(
+      type: smsTxn.type,
+      amount: smsTxn.amount,
+      around: smsTxn.detectedAt,
+      window: twinWindow,
+      notificationSourced: true,
+    )) {
+      return true;
+    }
 
     final rows = await _db.findTwinCandidates(
       type: smsTxn.type,
@@ -163,18 +218,26 @@ class TransactionReconciler {
     // Merge: the row keeps its identity and every user edit; the SMS
     // contributes the richer capture. Taking the SMS fingerprint is the
     // load-bearing part — the next inbox rescan must find this payment.
+    // A row the user already classified keeps the payee they see; otherwise
+    // take whichever side actually names the counterparty. The bank SMS for
+    // a nameless UPI debit says only "UPI Transfer", so the alert's real
+    // merchant name must survive the merge rather than be overwritten by it.
+    final keepUserPayee = row.isClassified && row.merchantName != null;
+    final mergedPayee = keepUserPayee
+        ? row.merchantName
+        : preferredPayee(smsTxn.merchantName, row.merchantName);
+
     final merged = row.copyWith(
       sender: smsTxn.sender,
       message: smsTxn.message,
       accountInfo: smsTxn.accountInfo ?? row.accountInfo,
       fingerprint: smsTxn.fingerprint,
-      parseSource: smsTxn.parseSource,
-      // A payee the notification failed to extract (or that the user
-      // hasn't touched) upgrades to the SMS's; a user-classified row's
-      // stays put.
-      merchantName: (row.isClassified && row.merchantName != null)
-          ? row.merchantName
-          : (smsTxn.merchantName ?? row.merchantName),
+      merchantName: mergedPayee,
+      // Provenance follows the payee that won, so "Read by" never credits a
+      // reader with a name it didn't produce.
+      parseSource: mergedPayee == row.merchantName && !keepUserPayee
+          ? row.parseSource
+          : smsTxn.parseSource,
     );
     // copyWith can't null out review flags; a row the user already
     // confirmed (or that parsed clean) must not get re-flagged by the merge.
