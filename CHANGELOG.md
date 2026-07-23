@@ -4,6 +4,45 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.44.0] — 2026-07-23
+
+### Added
+
+- **Capture from payment apps (opt-in).** Banks are switching off SMS for
+  small UPI payments (HDFC already sends none under ₹100), which slowly
+  blinds an SMS-only tracker to exactly the everyday spends — chai, auto,
+  kirana — people most want tracked. Settings → **Payment App Alerts** now
+  lets Budgetify read the payment app's own notification ("₹40 paid to Chai
+  Point") as a second capture source next to bank SMS.
+  - **Only payment apps, enforced at the door.** A fixed allowlist — GPay,
+    PhonePe, Paytm, BHIM, CRED, Amazon Pay, MobiKwik, Freecharge — is
+    checked natively as the very first step; a notification from any other
+    app is discarded before it can be stored, parsed, or logged. WhatsApp is
+    deliberately excluded (it is a messaging app, WhatsApp Pay or not), and
+    so are bank apps (their payments already arrive as richer bank SMS).
+    The enable flow shows the exact list before handing over to the system's
+    notification-access screen. Off by default; off = nothing captured.
+  - **Strict grammar, so totals stay honest.** Only completed payments parse
+    ("paid", "sent", "received", "debited"…). Requests, failed/pending
+    payments, reminders, refunds, cashback, scratch cards, offers and wallet
+    top-ups are all rejected — a missed alert is recoverable, a false spend
+    is not.
+  - **Never counted twice.** When the same payment arrives as both an app
+    alert and a bank SMS, the two are recognised as one (same direction +
+    amount within half an hour, with a payee sanity check) and the SMS —
+    which knows the account and reference — upgrades the alert's row in
+    place, keeping every user edit. Your own manual entry always wins over
+    an alert, and a payment you deleted stays deleted no matter which
+    channel captures it again.
+  - **Works while the app sleeps.** Alerts queue on-device and are folded in
+    on open, on resume, and by the hourly background scan; with the app
+    running, capture is instant. Queued events survive restarts, and
+    replays de-duplicate by fingerprint.
+  - Transactions show their origin ("app alert · PhonePe") in the detail
+    fine print; alerts with no readable payee land in the existing review
+    queue for a one-tap name. Localised in EN/HI/MR/BN/TE/TA. As always: no
+    INTERNET permission — nothing about the privacy model changes.
+
 ## [1.22.0] — 2026-07-02
 
 ### Added

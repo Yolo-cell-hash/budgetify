@@ -7,6 +7,7 @@ import '../models/budget_model.dart';
 import 'database_service.dart';
 import 'sms_parser_service.dart';
 import 'notification_service.dart';
+import 'transaction_reconciler.dart';
 
 /// Top-level function for handling SMS in background
 @pragma('vm:entry-point')
@@ -48,6 +49,13 @@ Future<void> backgroundMessageHandler(SmsMessage message) async {
     );
 
     if (!exists) {
+      // A payment-app alert may have captured this same payment moments ago —
+      // fold the SMS into that row instead of inserting a twin. Inert (one
+      // memoised prefs read) until notification capture is first enabled.
+      if (await TransactionReconciler().absorbIntoNotifTwin(transaction)) {
+        return;
+      }
+
       // Try to auto-classify using rules (merchant name + type based)
       final rule = await dbService.findMatchingRule(
         transaction.merchantName,
@@ -265,6 +273,14 @@ class SmsService {
       );
 
       if (!exists) {
+        // A payment-app alert may have captured this same payment moments
+        // ago — fold the SMS into that row instead of inserting a twin (the
+        // notification already alerted). Live screens refresh via the
+        // reconciler's data-changed signal. Inert until capture is enabled.
+        if (await TransactionReconciler().absorbIntoNotifTwin(transaction)) {
+          return;
+        }
+
         // Try to auto-classify using rules (merchant name + type based)
         var txnToSave = transaction;
         final rule = await _dbService.findMatchingRule(
@@ -528,6 +544,13 @@ class SmsService {
         fingerprint: transaction.fingerprint,
       );
       if (exists) continue;
+
+      // Same payment may already sit here as its payment-app-notification
+      // twin — upgrade that row in place and move on (not counted as an
+      // insert: nothing new appeared). Inert until capture is enabled.
+      if (await TransactionReconciler().absorbIntoNotifTwin(transaction)) {
+        continue;
+      }
 
       // Try to auto-classify using rules (merchant name + type based)
       var txnToSave = transaction;

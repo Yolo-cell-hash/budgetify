@@ -164,6 +164,20 @@
             </intent-filter>
         </receiver>
 
+        <!-- Payment-app notification capture (opt-in). Bound by the system
+             only after the user grants notification access in system
+             settings; until then it is inert. The service itself drops
+             everything that isn't from the payment-app allowlist before it
+             is stored or parsed — see TxnNotificationListener. -->
+        <service android:name=".TxnNotificationListener"
+            android:label="Budgetify"
+            android:exported="false"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService"/>
+            </intent-filter>
+        </service>
+
         <!-- Home-screen budget widget -->
         <receiver android:name=".BudgetWidgetProvider"
             android:exported="true">

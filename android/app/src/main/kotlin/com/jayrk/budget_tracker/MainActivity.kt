@@ -57,6 +57,65 @@ class MainActivity : FlutterFragmentActivity() {
                     result.success(false)
                 }
             }
+
+        // Payment-app notification capture (see TxnNotificationListener).
+        // The channel only serves the foreground concerns — access status,
+        // the system-settings deep link, and the live "queue changed" nudge.
+        // Draining the queue itself is a direct file read from Dart, so the
+        // background WorkManager isolate needs no channel at all.
+        val notifChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger, "budgetify/notif_capture"
+        )
+        notifChannel.setMethodCallHandler { call, result ->
+            try {
+                when (call.method) {
+                    "isAccessGranted" ->
+                        result.success(NotifCapture.isAccessGranted(this))
+                    "openAccessSettings" -> {
+                        openNotificationAccessSettings()
+                        result.success(true)
+                    }
+                    else -> result.notImplemented()
+                }
+            } catch (e: Exception) {
+                // Settings screens vary by OEM; never let the lookup crash.
+                result.success(false)
+            }
+        }
+        NotifCapture.channel = notifChannel
+    }
+
+    override fun onDestroy() {
+        // Drop the live-nudge target; the queue file keeps working without it.
+        NotifCapture.channel = null
+        super.onDestroy()
+    }
+
+    /** Open the system's notification-access screen, scoped to this app on
+     *  API 30+ and falling back to the full list before that (or on OEMs
+     *  that don't resolve the scoped intent). */
+    private fun openNotificationAccessSettings() {
+        val component = ComponentName(this, TxnNotificationListener::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            try {
+                startActivity(
+                    android.content.Intent(
+                        android.provider.Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS
+                    ).putExtra(
+                        android.provider.Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME,
+                        component.flattenToString()
+                    )
+                )
+                return
+            } catch (_: Exception) {
+                // Fall through to the unscoped screen.
+            }
+        }
+        startActivity(
+            android.content.Intent(
+                android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS
+            )
+        )
     }
 
     // ── Royal launcher-icon switching ──────────────────────────────────────

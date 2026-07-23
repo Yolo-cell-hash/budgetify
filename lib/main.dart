@@ -9,6 +9,7 @@ import 'package:budget_tracker/screens/onboarding_screen.dart';
 import 'package:budget_tracker/screens/splash_screen.dart';
 import 'package:budget_tracker/services/app_icon_service.dart';
 import 'package:budget_tracker/services/app_lock_service.dart';
+import 'package:budget_tracker/services/notification_capture_service.dart';
 import 'package:budget_tracker/services/notification_service.dart';
 import 'package:budget_tracker/services/background_service.dart';
 import 'package:budget_tracker/services/custom_tag_service.dart';
@@ -117,6 +118,15 @@ Future<void> _initDeferredServices(ThemeProvider themeProvider) async {
     await NotificationService().handleLaunchPayload();
   } catch (e) {
     debugPrint('NotificationService.handleLaunchPayload failed: $e');
+  }
+
+  // Payment-app notification capture: hook the live-nudge channel, watch
+  // resumes, and drain anything queued while the app was closed. A no-op
+  // (one prefs read) until the user enables the feature in Settings.
+  try {
+    await NotificationCaptureService().attach();
+  } catch (e) {
+    debugPrint('NotificationCaptureService.attach failed: $e');
   }
 
   // Background service for scheduled SMS scans and reminders (WorkManager) —
