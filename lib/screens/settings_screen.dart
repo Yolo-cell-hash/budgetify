@@ -24,6 +24,8 @@ import '../services/export_service.dart';
 import '../services/gamification_service.dart';
 import '../services/statement_import_service.dart';
 import '../services/database_service.dart';
+import '../services/notification_capture_service.dart';
+import '../services/notification_parser_service.dart';
 import '../services/tutorial_service.dart';
 import '../widgets/app_bar_title.dart';
 import '../widgets/app_dialog.dart';
@@ -67,6 +69,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     _loadSettings();
+    // The user may arrive straight from the system notification-access
+    // screen; make the payment-app-alerts tile reflect reality.
+    NotificationCaptureService().refreshStatus();
     TutorialService.instance.addListener(_onTutorialTick);
     // Theme locks and the backup gate follow the dev-mode switch live.
     DevMode.active.addListener(_onDevModeChange);
@@ -87,6 +92,89 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   void _onTutorialTick() {
     if (mounted) _maybeShowTutorialTip();
+  }
+
+  /// Flip payment-app notification capture. Turning it ON goes through an
+  /// explainer dialog that names the exact apps read (and promises about
+  /// everything else) before deep-linking to the system access screen —
+  /// that grant is the OS's own scary toggle, so the user must never meet
+  /// it unprepared. Turning OFF is immediate; system access removal is
+  /// offered, not forced.
+  Future<void> _toggleNotifCapture(bool value) async {
+    final svc = NotificationCaptureService();
+    final l10n = context.l10n;
+
+    if (!value) {
+      await svc.setEnabled(false);
+      if (!mounted) return;
+      showAppToast(context, message: l10n.notifCaptureDisabledToast);
+      return;
+    }
+
+    final proceed = await showAppDialog<bool>(
+      context,
+      builder: (ctx) => AppDialog(
+        icon: Icons.notifications_active_outlined,
+        title: l10n.notifCaptureExplainTitle,
+        subtitle: l10n.notifCaptureExplainBody,
+        content: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              l10n.notifCaptureOnlyTheseApps,
+              style: const TextStyle(
+                  fontSize: 13, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final app
+                    in NotificationParserService.watchedPackages.values)
+                  Chip(
+                    label: Text(app,
+                        style: const TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.w600)),
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize:
+                        MaterialTapTargetSize.shrinkWrap,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              l10n.notifCaptureEverythingElse,
+              style: TextStyle(
+                fontSize: 12.5,
+                height: 1.4,
+                color: Theme.of(ctx).brightness == Brightness.dark
+                    ? const Color(0xFF8A8D96)
+                    : const Color(0xFF6E727C),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l10n.notifCaptureLaterButton),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(l10n.notifCaptureGrantButton),
+          ),
+        ],
+      ),
+    );
+    if (proceed != true) return;
+
+    final status = await svc.setEnabled(true);
+    // Access not granted yet → hand over to the system screen; the tile
+    // (and the resume hook) pick the result up when the user comes back.
+    if (status == NotifCaptureStatus.awaitingAccess) {
+      await svc.openAccessSettings();
+    }
   }
 
   /// The tour's last two stops: the Intelligence power-ups, then the
@@ -455,6 +543,69 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ],
                 ],
               ],
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // Payment-app notification capture — the SMS pipeline's sibling.
+          _buildSectionHeader(context.l10n.notifCaptureSection, isDark),
+          const SizedBox(height: 8),
+          _buildSettingsCard(
+            isDark: isDark,
+            child: ValueListenableBuilder<NotifCaptureStatus>(
+              valueListenable: NotificationCaptureService().status,
+              builder: (context, captureStatus, _) {
+                final on = captureStatus != NotifCaptureStatus.off;
+                final needsAccess =
+                    captureStatus == NotifCaptureStatus.awaitingAccess;
+                return Column(
+                  children: [
+                    SwitchListTile(
+                      secondary: Icon(
+                        Icons.notifications_active_outlined,
+                        color: captureStatus == NotifCaptureStatus.on
+                            ? const Color(0xFF2AA76F)
+                            : (needsAccess
+                                ? const Color(0xFFC98A2B)
+                                : const Color(0xFF8A8D96)),
+                      ),
+                      title: Text(context.l10n.notifCaptureTitle),
+                      subtitle: Text(
+                        needsAccess
+                            ? context.l10n.notifCaptureNeedsAccess
+                            : (on
+                                ? context.l10n.notifCaptureOnDesc
+                                : context.l10n.notifCaptureOffDesc),
+                        style: TextStyle(
+                          color: needsAccess
+                              ? const Color(0xFFC98A2B)
+                              : (isDark
+                                  ? const Color(0xFF8A8D96)
+                                  : const Color(0xFF6E727C)),
+                        ),
+                      ),
+                      value: on,
+                      onChanged: (value) => _toggleNotifCapture(value),
+                    ),
+                    if (needsAccess) ...[
+                      Divider(
+                        height: 1,
+                        color: isDark
+                            ? const Color(0xFF2E313A)
+                            : const Color(0xFFE9E9E4),
+                      ),
+                      ListTile(
+                        leading: const Icon(Icons.launch,
+                            color: Color(0xFFC98A2B)),
+                        title: Text(context.l10n.notifCaptureGrantButton),
+                        onTap: () =>
+                            NotificationCaptureService().openAccessSettings(),
+                      ),
+                    ],
+                  ],
+                );
+              },
             ),
           ),
 

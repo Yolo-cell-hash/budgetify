@@ -34,7 +34,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 24,
+      version: 25,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -173,7 +173,10 @@ class DatabaseService {
         fingerprint TEXT,
         message TEXT,
         detected_at INTEGER,
-        deleted_at INTEGER NOT NULL
+        deleted_at INTEGER NOT NULL,
+        amount REAL,
+        type INTEGER,
+        sender TEXT
       )
     ''';
 
@@ -695,6 +698,24 @@ class DatabaseService {
       await db.execute(_createMessageMutesTable);
       await db.execute(_createParseOverridesTable);
     }
+
+    if (oldVersion < 25) {
+      // Notification capture: tombstones grow amount/type/sender so a
+      // payment the user deleted can be recognised by its OTHER capture
+      // channel (the SMS twin of a deleted app-notification row and vice
+      // versa carry different fingerprints, so the fingerprint tombstone
+      // alone cannot stop the resurrection). Nullable, no backfill — old
+      // tombstones simply never fuzzy-match, exactly as before.
+      for (final col in ['amount REAL', 'type INTEGER', 'sender TEXT']) {
+        try {
+          await db.execute(
+            'ALTER TABLE deleted_transactions ADD COLUMN $col',
+          );
+        } catch (_) {
+          // Column already present (fresh install that raced an upgrade).
+        }
+      }
+    }
   }
 
   /// Internal backfill that works during migration (uses raw db handle)
@@ -854,10 +875,67 @@ class DatabaseService {
         'message': row['message'],
         'detected_at': row['detected_at'],
         'deleted_at': DateTime.now().millisecondsSinceEpoch,
+        // Fuzzy identity for the twin-capture guard: lets a deletion made
+        // via one channel (SMS or app notification) also block the same
+        // payment arriving through the other, whose fingerprint differs.
+        'amount': row['amount'],
+        'type': row['type'],
+        'sender': row['sender'],
       });
     }
 
     return await db.delete('transactions', where: 'id = ?', whereArgs: [id]);
+  }
+
+  /// Rows that could be the "other capture" of one real payment: same type,
+  /// same amount (float-tolerant), landing within [window] of [around].
+  /// [notificationSourced] selects which side is being looked for — true
+  /// returns only app-notification rows ('NOTIF-…' senders), false returns
+  /// only SMS/manual/import rows. Feeds [TransactionReconciler]; the actual
+  /// twin choice (nearest in time, payee guard) happens there.
+  Future<List<Map<String, Object?>>> findTwinCandidates({
+    required TransactionType type,
+    required double amount,
+    required DateTime around,
+    required Duration window,
+    required bool notificationSourced,
+  }) async {
+    final db = await database;
+    final fromMs = around.subtract(window).millisecondsSinceEpoch;
+    final toMs = around.add(window).millisecondsSinceEpoch;
+    return db.query(
+      'transactions',
+      columns: ['id', 'detected_at', 'merchant_name', 'is_manual'],
+      where: 'type = ? AND ABS(amount - ?) < 0.009 '
+          'AND detected_at BETWEEN ? AND ? '
+          'AND sender ${notificationSourced ? '' : 'NOT '}LIKE ?',
+      whereArgs: [type.index, amount, fromMs, toMs, 'NOTIF-%'],
+    );
+  }
+
+  /// Whether a recently deleted transaction fuzzy-matches this capture —
+  /// the user deleted the payment via its other capture channel, so this
+  /// copy must not resurrect it. Only tombstones written since v25 carry
+  /// the amount/type needed here; older ones never match, which fails safe
+  /// (worst case a duplicate the user deletes again, never silent data).
+  Future<bool> deletedTwinExists({
+    required TransactionType type,
+    required double amount,
+    required DateTime around,
+    required Duration window,
+  }) async {
+    final db = await database;
+    final fromMs = around.subtract(window).millisecondsSinceEpoch;
+    final toMs = around.add(window).millisecondsSinceEpoch;
+    final rows = await db.query(
+      'deleted_transactions',
+      columns: ['id'],
+      where: 'type = ? AND amount IS NOT NULL AND ABS(amount - ?) < 0.009 '
+          'AND detected_at BETWEEN ? AND ?',
+      whereArgs: [type.index, amount, fromMs, toMs],
+      limit: 1,
+    );
+    return rows.isNotEmpty;
   }
 
   /// Get all transactions, ordered by date descending
