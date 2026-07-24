@@ -4,6 +4,7 @@ import '../l10n/l10n.dart';
 import '../models/ledger_models.dart';
 import '../models/plus_products.dart';
 import '../models/recurring_payment.dart';
+import '../models/tax_bucket.dart';
 import '../models/transaction_model.dart';
 import '../models/transaction_rule_model.dart';
 import '../providers/theme_provider.dart';
@@ -11,9 +12,11 @@ import '../services/app_events.dart';
 import '../services/database_service.dart';
 import '../services/custom_tag_service.dart';
 import '../services/ledger_service.dart';
+import '../services/tax_service.dart';
 import '../services/tutorial_service.dart';
 import 'plus_screen.dart';
 import '../widgets/app_bar_title.dart';
+import '../widgets/app_dialog.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/recurring_editor_sheet.dart';
 import '../widgets/settlement_sheet.dart';
@@ -21,6 +24,10 @@ import '../widgets/split_transaction_sheet.dart';
 
 /// Parser corrections offered in the detail-screen overflow menu.
 enum _CorrectionAction { changeType, notATransaction }
+
+/// Sheet return value meaning "clear the tax bucket" — distinct from null,
+/// which means the sheet was dismissed. Can't collide with a real bucket id.
+const String _kTaxNoneSentinel = '__tax_none__';
 
 /// Screen for viewing and classifying a transaction
 class TransactionDetailScreen extends StatefulWidget {
@@ -37,6 +44,12 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   final DatabaseService _dbService = DatabaseService();
   late TransactionModel _transaction;
   String? _selectedCategory;
+  // The tax-deduction bucket (a second, orthogonal axis to the category). Saved
+  // immediately on pick, independent of the category Save button.
+  String? _taxBucket;
+  // A built-in / rule-based bucket suggestion for this payee, shown as a
+  // one-tap chip when the transaction has no bucket yet. Suggestion only.
+  String? _taxSuggestion;
   final TextEditingController _notesController = TextEditingController();
   bool _isSaving = false;
   // Set when a split/settlement is added/edited/removed here, so the back
@@ -58,9 +71,11 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     super.initState();
     _transaction = widget.transaction;
     _selectedCategory = _transaction.category;
+    _taxBucket = _transaction.taxBucket;
     _notesController.text = _transaction.notes ?? '';
     _maybeSuggestSettlement();
     _maybeSuggestTransferPair();
+    _maybeSuggestTaxBucket();
     // Guided tour: opening any detail completes the "open it up" step; the
     // in-screen tips (choose a tag → save it) take over from here.
     TutorialService.instance.advanceFrom(TutorialStep.openTransaction);
@@ -1286,6 +1301,12 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
 
             const SizedBox(height: 16),
 
+            // Tax section — a second, optional deduction label, orthogonal to
+            // the category. Saves immediately on pick.
+            _buildTaxSectionRow(colors, cardColor, textColor, subtextColor),
+
+            const SizedBox(height: 16),
+
             // Notes section
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -1599,6 +1620,249 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
         ),
       ),
     );
+  }
+
+  /// The "Tax section" row: shows the current bucket (or a prompt to add one)
+  /// and opens the picker. Tagging here is independent of the category Save
+  /// button — a tax bucket is a different axis and persists on its own.
+  Widget _buildTaxSectionRow(
+    AppColors colors,
+    Color cardColor,
+    Color textColor,
+    Color subtextColor,
+  ) {
+    final l10n = context.l10n;
+    final bucket = taxBucketById(_taxBucket);
+    final suggested = taxBucketById(_taxSuggestion);
+    // Only offer the suggestion chip while the row is still untagged.
+    final showSuggestion = bucket == null && suggested != null;
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: _transaction.id == null ? null : _pickTaxBucket,
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: colors.accent.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(Icons.receipt_long_rounded,
+                          color: colors.accent, size: 20),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            l10n.taxSection,
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: textColor,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            bucket == null
+                                ? l10n.taxAddSection
+                                : '${bucket.section} · ${bucket.shortLabel}',
+                            style:
+                                TextStyle(fontSize: 12.5, color: subtextColor),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.chevron_right_rounded,
+                        size: 20, color: colors.textTertiary),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          // One-tap suggestion: "Looks like Section 80C — tap to tag".
+          if (showSuggestion)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => _applyTaxBucket(suggested.id),
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: colors.accent.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                            color: colors.accent.withValues(alpha: 0.35)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.auto_awesome_rounded,
+                              size: 14, color: colors.accent),
+                          const SizedBox(width: 6),
+                          Text(
+                            l10n.taxSuggestChip(suggested.section),
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              color: colors.accent,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Bottom sheet to pick (or clear) the tax bucket. Persists immediately via
+  /// a targeted single-column write, so it never touches the category flow.
+  Future<void> _pickTaxBucket() async {
+    if (_transaction.id == null) return;
+    // Event handler, not build: `l10n` watches and would assert here.
+    final l10n = context.l10nRead;
+    final chosen = await showModalBottomSheet<String?>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) {
+        final colors = AppColors.of(ctx);
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 6),
+                child: Text(
+                  l10n.taxPickSection,
+                  style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: colors.text),
+                ),
+              ),
+              // "None" clears the bucket. Popped with a sentinel (not null) so
+              // it's distinguishable from dismissing the sheet.
+              ListTile(
+                onTap: () => Navigator.pop(ctx, _kTaxNoneSentinel),
+                title: Text(l10n.taxNone,
+                    style: TextStyle(color: colors.text)),
+                trailing: _taxBucket == null
+                    ? Icon(Icons.check_rounded, color: colors.accent)
+                    : null,
+              ),
+              for (final b in kTaxBuckets)
+                ListTile(
+                  onTap: () => Navigator.pop(ctx, b.id),
+                  title: Text(b.section,
+                      style: TextStyle(
+                          color: colors.text, fontWeight: FontWeight.w600)),
+                  subtitle: Text(b.shortLabel,
+                      style: TextStyle(color: colors.textSecondary)),
+                  trailing: _taxBucket == b.id
+                      ? Icon(Icons.check_rounded, color: colors.accent)
+                      : null,
+                ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (chosen == null) return; // dismissed without choosing
+    final newBucket = chosen == _kTaxNoneSentinel ? null : chosen;
+    if (newBucket == _taxBucket) return;
+    await _applyTaxBucket(newBucket);
+  }
+
+  /// Persist the chosen bucket (or clear with null), then — when a real bucket
+  /// was set on an identifying payee — offer "apply to all from {payee}".
+  Future<void> _applyTaxBucket(String? newBucket) async {
+    await _dbService.setTaxBucket(_transaction.id!, newBucket);
+    _changed = true;
+    if (!mounted) return;
+    setState(() {
+      _taxBucket = newBucket;
+      _taxSuggestion = null; // acted on; hide the chip
+      _transaction = newBucket == null
+          ? _transaction.clearedTaxBucket()
+          : _transaction.copyWith(taxBucket: newBucket);
+    });
+    if (newBucket != null) {
+      await _maybeOfferApplyToAll(newBucket);
+    }
+  }
+
+  /// Compute a bucket suggestion for this payee (built-in keyword or a
+  /// user-taught rule), shown as a one-tap chip while the row is untagged.
+  Future<void> _maybeSuggestTaxBucket() async {
+    if (_transaction.taxBucket != null) return;
+    final suggestion =
+        await TaxService().suggestionFor(_transaction.merchantName);
+    if (mounted && suggestion != null && _taxBucket == null) {
+      setState(() => _taxSuggestion = suggestion);
+    }
+  }
+
+  /// After tagging, offer to apply the same bucket to every other transaction
+  /// from this payee (and remember it for future ones) — but only for an
+  /// identifying payee, never a placeholder like "UPI Transfer".
+  Future<void> _maybeOfferApplyToAll(String bucket) async {
+    final payee = _transaction.merchantName;
+    if (payee == null || !isIdentifyingTaxPayee(payee)) return;
+    final b = taxBucketById(bucket);
+    if (b == null) return;
+    final l10n = context.l10nRead;
+
+    final apply = await showAppDialog<bool>(
+      context,
+      builder: (ctx) => AppDialog(
+        icon: Icons.receipt_long_rounded,
+        title: l10n.taxApplyAllTitle,
+        subtitle: l10n.taxApplyAllBody(payee, b.section),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l10n.taxApplyAllNo),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(l10n.taxApplyAllYes),
+          ),
+        ],
+      ),
+    );
+    if (apply != true) return;
+
+    final count = await TaxService().saveRuleAndApply(payee, bucket);
+    if (!mounted) return;
+    showAppToast(context,
+        message: l10n.taxApplyAllDone(count), type: AppToastType.success);
   }
 
   /// Tier-3 nudge banner: "looks like a known person settling up — mark as
