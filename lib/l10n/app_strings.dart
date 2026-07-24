@@ -726,6 +726,99 @@ class AppStrings {
   String get manageTags => _t('Manage Tags', 'टैग प्रबंधित करें', 'टॅग व्यवस्थापित करा', 'ট্যাগ পরিচালনা করুন', 'ట్యాగ్‌లను నిర్వహించు', 'குறிச்சொற்களை நிர்வகி');
   String get manageTagsDesc => _t("Delete tags you don't use",
       'जो टैग आप उपयोग नहीं करते उन्हें हटाएँ', 'तुम्ही वापरत नसलेले टॅग हटवा', 'আপনি যে ট্যাগ ব্যবহার করেন না সেগুলো মুছুন', 'మీరు ఉపయోగించని ట్యాగ్‌లను తొలగించండి', 'நீங்கள் பயன்படுத்தாத குறிச்சொற்களை நீக்கவும்');
+  // ── Tax buckets ────────────────────────────────────────────────────────────
+  // EN/HI/MR translated; BN/TE/TA fall back to English pending native review
+  // (the app ships partial translation incrementally — see class doc).
+  String get taxDeductions => _t('Tax Deductions', 'टैक्स कटौती', 'कर वजावट',
+      'Tax Deductions', 'Tax Deductions', 'Tax Deductions');
+  String get taxDeductionsDesc => _t(
+        'Tag deductible spends and total them for filing',
+        'कटौती योग्य खर्च टैग करें और फाइलिंग के लिए जोड़ें',
+        'वजावटयोग्य खर्च टॅग करा आणि भरण्यासाठी एकत्र करा',
+        'Tag deductible spends and total them for filing',
+        'Tag deductible spends and total them for filing',
+        'Tag deductible spends and total them for filing',
+      );
+  // The single most important string in the feature — it keeps "organiser, not
+  // advisor" explicit everywhere the totals appear.
+  String get taxDisclaimer => _t(
+        'This organises your records — it is not tax advice. Only amounts you tag are totalled here; your CA or the tax portal decides what is actually deductible.',
+        'यह आपके रिकॉर्ड व्यवस्थित करता है — यह टैक्स सलाह नहीं है। यहाँ केवल वही राशि जुड़ती है जो आप टैग करते हैं; क्या वास्तव में कटौती योग्य है, यह आपका CA या टैक्स पोर्टल तय करता है।',
+        'हे तुमचे रेकॉर्ड व्यवस्थित करते — हा कर सल्ला नाही. येथे फक्त तुम्ही टॅग केलेली रक्कमच जोडली जाते; प्रत्यक्षात काय वजावटयोग्य आहे हे तुमचा CA किंवा कर पोर्टल ठरवते.',
+        'This organises your records — it is not tax advice. Only amounts you tag are totalled here; your CA or the tax portal decides what is actually deductible.',
+        'This organises your records — it is not tax advice. Only amounts you tag are totalled here; your CA or the tax portal decides what is actually deductible.',
+        'This organises your records — it is not tax advice. Only amounts you tag are totalled here; your CA or the tax portal decides what is actually deductible.',
+      );
+  String get taxSection => _t('Tax section', 'टैक्स सेक्शन', 'कर विभाग',
+      'Tax section', 'Tax section', 'Tax section');
+  String get taxAddSection => _t('Add tax section', 'टैक्स सेक्शन जोड़ें',
+      'कर विभाग जोडा', 'Add tax section', 'Add tax section', 'Add tax section');
+  String get taxPickSection => _t('Tag a tax section', 'एक टैक्स सेक्शन टैग करें',
+      'एक कर विभाग टॅग करा', 'Tag a tax section', 'Tag a tax section', 'Tag a tax section');
+  String get taxNone => _t('None', 'कोई नहीं', 'काहीही नाही', 'None', 'None', 'None');
+  String taxUsedOfCap(String used, String cap) => _t(
+        '$used of $cap',
+        '$cap में से $used',
+        '$cap पैकी $used',
+        '$used of $cap',
+        '$used of $cap',
+        '$used of $cap',
+      );
+  String taxHeadroom(String amount) => _t(
+        '$amount headroom',
+        '$amount बाकी',
+        '$amount शिल्लक',
+        '$amount headroom',
+        '$amount headroom',
+        '$amount headroom',
+      );
+  String get taxCapReached => _t('Limit reached', 'सीमा पूरी', 'मर्यादा पूर्ण',
+      'Limit reached', 'Limit reached', 'Limit reached');
+  // Evidence-only buckets must never read as a settled deduction.
+  String get taxEvidenceRent => _t(
+        'Total rent paid — your employer or CA computes the HRA exemption',
+        'कुल चुकाया गया किराया — HRA छूट आपका नियोक्ता या CA गणना करता है',
+        'एकूण भरलेले भाडे — HRA सूट तुमचा नियोक्ता किंवा CA मोजतो',
+        'Total rent paid — your employer or CA computes the HRA exemption',
+        'Total rent paid — your employer or CA computes the HRA exemption',
+        'Total rent paid — your employer or CA computes the HRA exemption',
+      );
+  String get taxEvidenceDonation => _t(
+        'Total donations — the deductible share (50% or 100%) depends on the charity',
+        'कुल दान — कटौती योग्य हिस्सा (50% या 100%) संस्था पर निर्भर करता है',
+        'एकूण देणग्या — वजावटयोग्य हिस्सा (50% किंवा 100%) संस्थेवर अवलंबून',
+        'Total donations — the deductible share (50% or 100%) depends on the charity',
+        'Total donations — the deductible share (50% or 100%) depends on the charity',
+        'Total donations — the deductible share (50% or 100%) depends on the charity',
+      );
+  String get taxEmpty => _t(
+        "Nothing tagged for this year yet. Open a transaction and tap 'Tax section' to start.",
+        "इस वर्ष अभी कुछ भी टैग नहीं किया गया। शुरू करने के लिए कोई लेन-देन खोलें और 'टैक्स सेक्शन' टैप करें।",
+        "या वर्षासाठी अजून काहीही टॅग केलेले नाही. सुरू करण्यासाठी एखादा व्यवहार उघडा आणि 'कर विभाग' टॅप करा.",
+        "Nothing tagged for this year yet. Open a transaction and tap 'Tax section' to start.",
+        "Nothing tagged for this year yet. Open a transaction and tap 'Tax section' to start.",
+        "Nothing tagged for this year yet. Open a transaction and tap 'Tax section' to start.",
+      );
+  // Regime setting + the honest new-regime card.
+  String get taxRegime => _t('Tax regime', 'टैक्स व्यवस्था', 'कर प्रणाली',
+      'Tax regime', 'Tax regime', 'Tax regime');
+  String get taxRegimeOld => _t('Old regime', 'पुरानी व्यवस्था', 'जुनी प्रणाली',
+      'Old regime', 'Old regime', 'Old regime');
+  String get taxRegimeNew => _t('New regime', 'नई व्यवस्था', 'नवीन प्रणाली',
+      'New regime', 'New regime', 'New regime');
+  String get taxRegimeUnsure => _t('Not sure', 'पता नहीं', 'खात्री नाही',
+      'Not sure', 'Not sure', 'Not sure');
+  String get taxNewRegimeExplainer => _t(
+        'You file under the new regime, which does not allow most of these deductions (80C, 80D, HRA and so on). Tax buckets stay hidden to avoid implying savings you cannot claim. On the old regime? Change your tax regime to switch this on.',
+        'आप नई व्यवस्था के तहत फाइल करते हैं, जिसमें इनमें से अधिकांश कटौतियाँ (80C, 80D, HRA आदि) मान्य नहीं हैं। ऐसी बचत का भ्रम न हो जो आप ले नहीं सकते, इसलिए टैक्स बकेट छिपे रहते हैं। पुरानी व्यवस्था पर हैं? इसे चालू करने के लिए अपनी टैक्स व्यवस्था बदलें।',
+        'तुम्ही नवीन प्रणालीअंतर्गत भरता, ज्यात यांपैकी बहुतांश वजावटी (80C, 80D, HRA इ.) लागू होत नाहीत. न मिळणाऱ्या बचतीचा भास होऊ नये म्हणून कर बकेट लपवलेले असतात. जुन्या प्रणालीवर आहात? हे सुरू करण्यासाठी तुमची कर प्रणाली बदला.',
+        'You file under the new regime, which does not allow most of these deductions (80C, 80D, HRA and so on). Tax buckets stay hidden to avoid implying savings you cannot claim. On the old regime? Change your tax regime to switch this on.',
+        'You file under the new regime, which does not allow most of these deductions (80C, 80D, HRA and so on). Tax buckets stay hidden to avoid implying savings you cannot claim. On the old regime? Change your tax regime to switch this on.',
+        'You file under the new regime, which does not allow most of these deductions (80C, 80D, HRA and so on). Tax buckets stay hidden to avoid implying savings you cannot claim. On the old regime? Change your tax regime to switch this on.',
+      );
+  String get taxEditLimit => _t('Edit limit', 'सीमा बदलें', 'मर्यादा बदला',
+      'Edit limit', 'Edit limit', 'Edit limit');
+
   String get exportData => _t('Export Data', 'डेटा एक्सपोर्ट करें', 'डेटा एक्सपोर्ट करा', 'ডেটা এক্সপোর্ট করুন', 'డేటాను ఎగుమతి చేయి', 'தரவை ஏற்றுமதி செய்');
   String get exportDataDesc => _t(
         'Excel, CSV, PDF or text — filter by date, type, tag or payee',

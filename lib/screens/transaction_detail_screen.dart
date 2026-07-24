@@ -4,6 +4,7 @@ import '../l10n/l10n.dart';
 import '../models/ledger_models.dart';
 import '../models/plus_products.dart';
 import '../models/recurring_payment.dart';
+import '../models/tax_bucket.dart';
 import '../models/transaction_model.dart';
 import '../models/transaction_rule_model.dart';
 import '../providers/theme_provider.dart';
@@ -22,6 +23,10 @@ import '../widgets/split_transaction_sheet.dart';
 /// Parser corrections offered in the detail-screen overflow menu.
 enum _CorrectionAction { changeType, notATransaction }
 
+/// Sheet return value meaning "clear the tax bucket" — distinct from null,
+/// which means the sheet was dismissed. Can't collide with a real bucket id.
+const String _kTaxNoneSentinel = '__tax_none__';
+
 /// Screen for viewing and classifying a transaction
 class TransactionDetailScreen extends StatefulWidget {
   final TransactionModel transaction;
@@ -37,6 +42,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   final DatabaseService _dbService = DatabaseService();
   late TransactionModel _transaction;
   String? _selectedCategory;
+  // The tax-deduction bucket (a second, orthogonal axis to the category). Saved
+  // immediately on pick, independent of the category Save button.
+  String? _taxBucket;
   final TextEditingController _notesController = TextEditingController();
   bool _isSaving = false;
   // Set when a split/settlement is added/edited/removed here, so the back
@@ -58,6 +66,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     super.initState();
     _transaction = widget.transaction;
     _selectedCategory = _transaction.category;
+    _taxBucket = _transaction.taxBucket;
     _notesController.text = _transaction.notes ?? '';
     _maybeSuggestSettlement();
     _maybeSuggestTransferPair();
@@ -1286,6 +1295,12 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
 
             const SizedBox(height: 16),
 
+            // Tax section — a second, optional deduction label, orthogonal to
+            // the category. Saves immediately on pick.
+            _buildTaxSectionRow(colors, cardColor, textColor, subtextColor),
+
+            const SizedBox(height: 16),
+
             // Notes section
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -1599,6 +1614,144 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
         ),
       ),
     );
+  }
+
+  /// The "Tax section" row: shows the current bucket (or a prompt to add one)
+  /// and opens the picker. Tagging here is independent of the category Save
+  /// button — a tax bucket is a different axis and persists on its own.
+  Widget _buildTaxSectionRow(
+    AppColors colors,
+    Color cardColor,
+    Color textColor,
+    Color subtextColor,
+  ) {
+    final l10n = context.l10n;
+    final bucket = taxBucketById(_taxBucket);
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _transaction.id == null ? null : _pickTaxBucket,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: colors.accent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(Icons.receipt_long_rounded,
+                      color: colors.accent, size: 20),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l10n.taxSection,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: textColor,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        bucket == null
+                            ? l10n.taxAddSection
+                            : '${bucket.section} · ${bucket.shortLabel}',
+                        style: TextStyle(fontSize: 12.5, color: subtextColor),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right_rounded,
+                    size: 20, color: colors.textTertiary),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Bottom sheet to pick (or clear) the tax bucket. Persists immediately via
+  /// a targeted single-column write, so it never touches the category flow.
+  Future<void> _pickTaxBucket() async {
+    if (_transaction.id == null) return;
+    // Event handler, not build: `l10n` watches and would assert here.
+    final l10n = context.l10nRead;
+    final chosen = await showModalBottomSheet<String?>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) {
+        final colors = AppColors.of(ctx);
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 6),
+                child: Text(
+                  l10n.taxPickSection,
+                  style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: colors.text),
+                ),
+              ),
+              // "None" clears the bucket. Popped with a sentinel (not null) so
+              // it's distinguishable from dismissing the sheet.
+              ListTile(
+                onTap: () => Navigator.pop(ctx, _kTaxNoneSentinel),
+                title: Text(l10n.taxNone,
+                    style: TextStyle(color: colors.text)),
+                trailing: _taxBucket == null
+                    ? Icon(Icons.check_rounded, color: colors.accent)
+                    : null,
+              ),
+              for (final b in kTaxBuckets)
+                ListTile(
+                  onTap: () => Navigator.pop(ctx, b.id),
+                  title: Text(b.section,
+                      style: TextStyle(
+                          color: colors.text, fontWeight: FontWeight.w600)),
+                  subtitle: Text(b.shortLabel,
+                      style: TextStyle(color: colors.textSecondary)),
+                  trailing: _taxBucket == b.id
+                      ? Icon(Icons.check_rounded, color: colors.accent)
+                      : null,
+                ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (chosen == null) return; // dismissed without choosing
+    final newBucket = chosen == _kTaxNoneSentinel ? null : chosen;
+    if (newBucket == _taxBucket) return;
+
+    await _dbService.setTaxBucket(_transaction.id!, newBucket);
+    _changed = true;
+    if (!mounted) return;
+    setState(() {
+      _taxBucket = newBucket;
+      _transaction = newBucket == null
+          ? _transaction.clearedTaxBucket()
+          : _transaction.copyWith(taxBucket: newBucket);
+    });
   }
 
   /// Tier-3 nudge banner: "looks like a known person settling up — mark as

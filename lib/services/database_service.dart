@@ -34,7 +34,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 24,
+      version: 25,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -60,7 +60,8 @@ class DatabaseService {
         fingerprint TEXT,
         split_share REAL,
         review_reasons TEXT,
-        parse_source TEXT
+        parse_source TEXT,
+        tax_bucket TEXT
       )
     ''');
 
@@ -73,6 +74,9 @@ class DatabaseService {
     );
     await db.execute(
       'CREATE INDEX idx_transactions_merchant ON transactions(merchant_name)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_transactions_tax_bucket ON transactions(tax_bucket)',
     );
     await db.execute(
       'CREATE UNIQUE INDEX idx_transactions_fingerprint ON transactions(fingerprint)',
@@ -695,6 +699,24 @@ class DatabaseService {
       await db.execute(_createMessageMutesTable);
       await db.execute(_createParseOverridesTable);
     }
+
+    if (oldVersion < 25) {
+      // Tax buckets: a second, orthogonal deduction label on a transaction
+      // (see docs/tax-buckets-plan.md). Additive nullable column — every
+      // existing row simply has no bucket, and nothing outside the Tax screen
+      // reads it, so the upgrade is invisible to existing behaviour.
+      try {
+        await db.execute(
+          'ALTER TABLE transactions ADD COLUMN tax_bucket TEXT',
+        );
+      } catch (_) {
+        // Column already present (fresh install that raced an upgrade).
+      }
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_transactions_tax_bucket '
+        'ON transactions(tax_bucket)',
+      );
+    }
   }
 
   /// Internal backfill that works during migration (uses raw db handle)
@@ -831,6 +853,64 @@ class DatabaseService {
       where: 'id = ?',
       whereArgs: [transaction.id],
     );
+  }
+
+  /// Set (or clear, with null) the tax-deduction bucket on one transaction.
+  /// A targeted single-column write so tagging never rewrites the whole row.
+  Future<int> setTaxBucket(int transactionId, String? bucketId) async {
+    final db = await database;
+    return db.update(
+      'transactions',
+      {'tax_bucket': bucketId},
+      where: 'id = ?',
+      whereArgs: [transactionId],
+    );
+  }
+
+  /// Sum of transaction amounts per tax bucket within the half-open window
+  /// [start, endExclusive) — the FY window. Returns bucket id → total, only
+  /// for buckets that have at least one tagged transaction. Uses the full
+  /// [amount] (not split share): a deduction claim is the money that actually
+  /// left for that instrument, independent of any budget-split bookkeeping.
+  Future<Map<String, double>> sumByTaxBucket({
+    required DateTime start,
+    required DateTime endExclusive,
+  }) async {
+    final db = await database;
+    final rows = await db.rawQuery(
+      'SELECT tax_bucket AS bucket, SUM(amount) AS total '
+      'FROM transactions '
+      'WHERE tax_bucket IS NOT NULL '
+      'AND detected_at >= ? AND detected_at < ? '
+      'GROUP BY tax_bucket',
+      [start.millisecondsSinceEpoch, endExclusive.millisecondsSinceEpoch],
+    );
+    return {
+      for (final r in rows)
+        (r['bucket'] as String): ((r['total'] as num?)?.toDouble() ?? 0),
+    };
+  }
+
+  /// The transactions tagged to [bucketId] within [start, endExclusive),
+  /// newest first — the contributing rows a bucket's detail view (and the
+  /// Phase-3 export) lists.
+  Future<List<TransactionModel>> transactionsForTaxBucket({
+    required String bucketId,
+    required DateTime start,
+    required DateTime endExclusive,
+  }) async {
+    final db = await database;
+    final maps = await db.query(
+      'transactions',
+      where: 'tax_bucket = ? AND detected_at >= ? AND detected_at < ?',
+      whereArgs: [
+        bucketId,
+        start.millisecondsSinceEpoch,
+        endExclusive.millisecondsSinceEpoch,
+      ],
+      orderBy: 'detected_at DESC',
+    );
+    return maps.map(TransactionModel.fromMap).toList();
   }
 
   /// Delete a transaction.
