@@ -33,6 +33,7 @@ import '../widgets/import_options_sheet.dart';
 import 'manage_tags_screen.dart';
 import 'statement_import_screen.dart';
 import 'streak_rewards_screen.dart';
+import 'tax_screen.dart';
 
 /// Settings screen with theme toggle and auto-scan configuration
 class SettingsScreen extends StatefulWidget {
@@ -648,6 +649,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const ManageTagsScreen()),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          // Tax deductions: tag deductible spends into 80C/80D/… buckets and
+          // total them for the filing season. An organiser, not tax advice.
+          _buildSettingsCard(
+            isDark: isDark,
+            child: ListTile(
+              leading:
+                  const Icon(Icons.receipt_long_outlined, color: Color(0xFF2AA76F)),
+              title: Text(context.l10n.taxDeductions),
+              subtitle: Text(
+                context.l10n.taxDeductionsDesc,
+                style: TextStyle(
+                  color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
+                ),
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const TaxScreen()),
               ),
             ),
           ),

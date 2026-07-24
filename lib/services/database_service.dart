@@ -34,7 +34,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 24,
+      version: 26,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -60,7 +60,8 @@ class DatabaseService {
         fingerprint TEXT,
         split_share REAL,
         review_reasons TEXT,
-        parse_source TEXT
+        parse_source TEXT,
+        tax_bucket TEXT
       )
     ''');
 
@@ -73,6 +74,9 @@ class DatabaseService {
     );
     await db.execute(
       'CREATE INDEX idx_transactions_merchant ON transactions(merchant_name)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_transactions_tax_bucket ON transactions(tax_bucket)',
     );
     await db.execute(
       'CREATE UNIQUE INDEX idx_transactions_fingerprint ON transactions(fingerprint)',
@@ -165,7 +169,20 @@ class DatabaseService {
     // transaction — ignore similar") and direction overrides.
     await db.execute(_createMessageMutesTable);
     await db.execute(_createParseOverridesTable);
+
+    // "Apply to all from LIC → 80C": user-taught payee→bucket tax rules.
+    await db.execute(_createTaxBucketRulesTable);
   }
+
+  static const String _createTaxBucketRulesTable = '''
+      CREATE TABLE IF NOT EXISTS tax_bucket_rules(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        payee TEXT NOT NULL,
+        bucket TEXT NOT NULL,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        created_at INTEGER NOT NULL
+      )
+    ''';
 
   static const String _createDeletedTransactionsTable = '''
       CREATE TABLE IF NOT EXISTS deleted_transactions(
@@ -695,6 +712,30 @@ class DatabaseService {
       await db.execute(_createMessageMutesTable);
       await db.execute(_createParseOverridesTable);
     }
+
+    if (oldVersion < 25) {
+      // Tax buckets: a second, orthogonal deduction label on a transaction
+      // (see docs/tax-buckets-plan.md). Additive nullable column — every
+      // existing row simply has no bucket, and nothing outside the Tax screen
+      // reads it, so the upgrade is invisible to existing behaviour.
+      try {
+        await db.execute(
+          'ALTER TABLE transactions ADD COLUMN tax_bucket TEXT',
+        );
+      } catch (_) {
+        // Column already present (fresh install that raced an upgrade).
+      }
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_transactions_tax_bucket '
+        'ON transactions(tax_bucket)',
+      );
+    }
+
+    if (oldVersion < 26) {
+      // Tax-buckets Phase 2: user-taught payee→bucket rules ("apply to all
+      // from LIC → 80C"). Additive; absent for anyone who never uses it.
+      await db.execute(_createTaxBucketRulesTable);
+    }
   }
 
   /// Internal backfill that works during migration (uses raw db handle)
@@ -831,6 +872,171 @@ class DatabaseService {
       where: 'id = ?',
       whereArgs: [transaction.id],
     );
+  }
+
+  /// Set (or clear, with null) the tax-deduction bucket on one transaction.
+  /// A targeted single-column write so tagging never rewrites the whole row.
+  Future<int> setTaxBucket(int transactionId, String? bucketId) async {
+    final db = await database;
+    return db.update(
+      'transactions',
+      {'tax_bucket': bucketId},
+      where: 'id = ?',
+      whereArgs: [transactionId],
+    );
+  }
+
+  /// Sum of transaction amounts per tax bucket within the half-open window
+  /// [start, endExclusive) — the FY window. Returns bucket id → total, only
+  /// for buckets that have at least one tagged transaction. Uses the full
+  /// [amount] (not split share): a deduction claim is the money that actually
+  /// left for that instrument, independent of any budget-split bookkeeping.
+  Future<Map<String, double>> sumByTaxBucket({
+    required DateTime start,
+    required DateTime endExclusive,
+  }) async {
+    final db = await database;
+    final rows = await db.rawQuery(
+      'SELECT tax_bucket AS bucket, SUM(amount) AS total '
+      'FROM transactions '
+      'WHERE tax_bucket IS NOT NULL '
+      'AND detected_at >= ? AND detected_at < ? '
+      'GROUP BY tax_bucket',
+      [start.millisecondsSinceEpoch, endExclusive.millisecondsSinceEpoch],
+    );
+    return {
+      for (final r in rows)
+        (r['bucket'] as String): ((r['total'] as num?)?.toDouble() ?? 0),
+    };
+  }
+
+  /// The transactions tagged to [bucketId] within [start, endExclusive),
+  /// newest first — the contributing rows a bucket's detail view (and the
+  /// Phase-3 export) lists.
+  Future<List<TransactionModel>> transactionsForTaxBucket({
+    required String bucketId,
+    required DateTime start,
+    required DateTime endExclusive,
+  }) async {
+    final db = await database;
+    final maps = await db.query(
+      'transactions',
+      where: 'tax_bucket = ? AND detected_at >= ? AND detected_at < ?',
+      whereArgs: [
+        bucketId,
+        start.millisecondsSinceEpoch,
+        endExclusive.millisecondsSinceEpoch,
+      ],
+      orderBy: 'detected_at DESC',
+    );
+    return maps.map(TransactionModel.fromMap).toList();
+  }
+
+  // ── Tax-bucket rules (payee → bucket, user-taught) ──────────────────────────
+
+  /// Active payee→bucket tax rules as raw maps ({payee, bucket}).
+  Future<List<Map<String, Object?>>> getActiveTaxRules() async {
+    final db = await database;
+    return db.query('tax_bucket_rules',
+        columns: ['payee', 'bucket'], where: 'is_active = 1');
+  }
+
+  /// Upsert a payee→bucket rule. Matching is by normalised payee, so
+  /// re-tagging the same payee updates its rule rather than duplicating it.
+  Future<void> upsertTaxRule(String payee, String bucket) async {
+    final db = await database;
+    final norm = _normTaxPayee(payee);
+    final existing = await db.query('tax_bucket_rules');
+    for (final row in existing) {
+      if (_normTaxPayee(row['payee'] as String? ?? '') == norm) {
+        await db.update(
+          'tax_bucket_rules',
+          {'bucket': bucket, 'is_active': 1},
+          where: 'id = ?',
+          whereArgs: [row['id']],
+        );
+        return;
+      }
+    }
+    await db.insert('tax_bucket_rules', {
+      'payee': payee,
+      'bucket': bucket,
+      'is_active': 1,
+      'created_at': DateTime.now().millisecondsSinceEpoch,
+    });
+  }
+
+  static String _normTaxPayee(String s) =>
+      s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+
+  /// The bucket a user rule assigns to [payee], or null. Normalised
+  /// containment either way, mirroring the category-rules matcher.
+  Future<String?> findMatchingTaxRule(String? payee) async {
+    if (payee == null || payee.isEmpty) return null;
+    final norm = _normTaxPayee(payee);
+    if (norm.isEmpty) return null;
+    for (final rule in await getActiveTaxRules()) {
+      final rp = _normTaxPayee(rule['payee'] as String? ?? '');
+      if (rp.isEmpty) continue;
+      if (norm.contains(rp) || rp.contains(norm)) {
+        return rule['bucket'] as String?;
+      }
+    }
+    return null;
+  }
+
+  /// Tag every transaction matching [payee] that has NO tax bucket yet with
+  /// [bucket] — the "apply to all from LIC" bulk action. Never overwrites a
+  /// bucket the user set explicitly. Returns the number of rows tagged.
+  Future<int> bulkSetTaxBucketByPayee(String payee, String bucket) async {
+    final db = await database;
+    final norm = _normTaxPayee(payee);
+    if (norm.isEmpty) return 0;
+    final rows = await db.query('transactions',
+        columns: ['id', 'merchant_name'], where: 'tax_bucket IS NULL');
+    var tagged = 0;
+    for (final row in rows) {
+      final m = row['merchant_name'] as String?;
+      if (m == null) continue;
+      final nm = _normTaxPayee(m);
+      if (nm.isEmpty) continue;
+      if (nm.contains(norm) || norm.contains(nm)) {
+        await db.update('transactions', {'tax_bucket': bucket},
+            where: 'id = ?', whereArgs: [row['id']]);
+        tagged++;
+      }
+    }
+    return tagged;
+  }
+
+  /// Apply every active tax rule to transactions with no bucket yet — the
+  /// lazy "forever" sweep, run when the Tax screen opens (and after a restore),
+  /// so a rule taught once keeps tagging future matching transactions without
+  /// touching the SMS insert path. Returns the number newly tagged.
+  Future<int> applyTaxRulesToUntagged() async {
+    final rules = await getActiveTaxRules();
+    if (rules.isEmpty) return 0;
+    final db = await database;
+    final rows = await db.query('transactions',
+        columns: ['id', 'merchant_name'], where: 'tax_bucket IS NULL');
+    var applied = 0;
+    for (final row in rows) {
+      final m = row['merchant_name'] as String?;
+      if (m == null) continue;
+      final nm = _normTaxPayee(m);
+      if (nm.isEmpty) continue;
+      for (final rule in rules) {
+        final rp = _normTaxPayee(rule['payee'] as String? ?? '');
+        if (rp.isEmpty) continue;
+        if (nm.contains(rp) || rp.contains(nm)) {
+          await db.update('transactions', {'tax_bucket': rule['bucket']},
+              where: 'id = ?', whereArgs: [row['id']]);
+          applied++;
+          break;
+        }
+      }
+    }
+    return applied;
   }
 
   /// Delete a transaction.
@@ -2745,6 +2951,7 @@ class DatabaseService {
       'payee_aliases': await db.query('payee_aliases'),
       'message_mutes': await db.query('message_mutes'),
       'parse_overrides': await db.query('parse_overrides'),
+      'tax_bucket_rules': await db.query('tax_bucket_rules'),
     };
   }
 
@@ -2871,6 +3078,17 @@ class DatabaseService {
           conflictAlgorithm: ConflictAlgorithm.ignore,
         );
       }
+    }
+
+    // Tax payee→bucket rules: upsert by normalised payee so a restore never
+    // duplicates a rule the device already learned.
+    for (final raw in (data['tax_bucket_rules'] as List? ?? const [])) {
+      final row = Map<String, dynamic>.from(raw as Map);
+      final payee = row['payee'] as String?;
+      final bucket = row['bucket'] as String?;
+      if (payee == null || bucket == null) continue;
+      if ((row['is_active'] as int? ?? 1) == 0) continue;
+      await upsertTaxRule(payee, bucket);
     }
 
     for (final raw in (data['holdings'] as List? ?? const [])) {
