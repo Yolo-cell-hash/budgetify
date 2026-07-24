@@ -2,6 +2,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/financial_year.dart';
 import '../models/tax_bucket.dart';
+import '../models/tax_export.dart';
 import '../models/transaction_model.dart';
 import 'database_service.dart';
 
@@ -194,4 +195,33 @@ class TaxService {
         start: year.start,
         endExclusive: year.endExclusive,
       );
+
+  /// Assemble the self-contained payload the Tax Summary export renders — every
+  /// bucket with its total, cap and contributing rows for [year]. Sections with
+  /// no tagged transactions are still included (as empty) so the export shows
+  /// the full picture; the caller checks [TaxSummaryInput.hasAnyEntries].
+  Future<TaxSummaryInput> buildTaxSummaryInput(FinancialYear year) async {
+    final summary = await summaryForYear(year);
+    final sections = <TaxSummarySection>[];
+    for (final s in summary.buckets) {
+      final txns = await transactionsFor(s.bucket.id, year);
+      sections.add(TaxSummarySection(
+        id: s.bucket.id,
+        section: s.bucket.section,
+        shortLabel: s.bucket.shortLabel,
+        isCapped: s.bucket.isCapped,
+        total: s.total,
+        cap: s.cap,
+        entries: [
+          for (final t in txns)
+            TaxSummaryEntry(
+              date: t.detectedAt,
+              payee: t.merchantName ?? t.sender,
+              amount: t.amount,
+            ),
+        ],
+      ));
+    }
+    return TaxSummaryInput(fyLabel: year.label, sections: sections);
+  }
 }

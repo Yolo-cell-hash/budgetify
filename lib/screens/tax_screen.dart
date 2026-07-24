@@ -1,13 +1,19 @@
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:open_filex/open_filex.dart';
 
 import '../l10n/app_strings.dart';
 import '../l10n/l10n.dart';
 import '../models/financial_year.dart';
 import '../models/tax_bucket.dart';
 import '../providers/theme_provider.dart';
+import '../services/export_service.dart';
 import '../services/tax_service.dart';
 import '../widgets/app_bar_title.dart';
+import '../widgets/app_toast.dart';
 
 final NumberFormat _inr =
     NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
@@ -117,7 +123,95 @@ class _TaxScreenState extends State<TaxScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(onRefresh: _load, child: _body(colors)),
+      // Export only makes sense with buckets shown and something tagged.
+      floatingActionButton: (!_loading &&
+              (_summary?.regime.showsBuckets ?? false) &&
+              (_summary?.hasAnyTagged ?? false))
+          ? FloatingActionButton.extended(
+              onPressed: _export,
+              icon: const Icon(Icons.ios_share_rounded),
+              label: Text(context.l10n.taxExport),
+            )
+          : null,
     );
+  }
+
+  /// Pick a format, build the summary for the selected FY, and save it through
+  /// the system file picker (SAF) — no storage permission, like every other
+  /// export and the encrypted backup.
+  Future<void> _export() async {
+    final l10n = context.l10nRead;
+    final format = await showModalBottomSheet<ExportFormat>(
+      context: context,
+      builder: (ctx) {
+        final colors = AppColors.of(ctx);
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 6),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(l10n.taxExport,
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: colors.text)),
+                ),
+              ),
+              ListTile(
+                leading: Icon(Icons.picture_as_pdf_rounded, color: colors.accent),
+                title: Text(l10n.taxExportPdf,
+                    style: TextStyle(color: colors.text)),
+                subtitle: Text(l10n.taxExportPdfDesc,
+                    style: TextStyle(color: colors.textSecondary)),
+                onTap: () => Navigator.pop(ctx, ExportFormat.pdf),
+              ),
+              ListTile(
+                leading: Icon(Icons.table_chart_rounded, color: colors.accent),
+                title: Text(l10n.taxExportExcel,
+                    style: TextStyle(color: colors.text)),
+                subtitle: Text(l10n.taxExportExcelDesc,
+                    style: TextStyle(color: colors.textSecondary)),
+                onTap: () => Navigator.pop(ctx, ExportFormat.excel),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+    if (format == null || !mounted) return;
+
+    try {
+      final input = await _svc.buildTaxSummaryInput(_year);
+      final bundle =
+          await ExportService().buildTaxSummary(format: format, input: input);
+      if (!mounted) return;
+      if (bundle == null) {
+        showAppToast(context, message: l10n.taxEmpty, type: AppToastType.info);
+        return;
+      }
+      final path = await FilePicker.saveFile(
+        dialogTitle: l10n.taxExport,
+        fileName: bundle.filename,
+        bytes: Uint8List.fromList(bundle.bytes),
+      );
+      if (path == null || !mounted) return; // cancelled
+      showAppToast(
+        context,
+        message: l10n.taxExportSaved,
+        type: AppToastType.success,
+        actionLabel: l10n.open,
+        onAction: () => OpenFilex.open(path),
+      );
+    } catch (e) {
+      if (mounted) {
+        showAppToast(context,
+            message: l10n.exportFailed('$e'), type: AppToastType.error);
+      }
+    }
   }
 
   Widget _body(AppColors colors) {

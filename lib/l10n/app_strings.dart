@@ -849,6 +849,37 @@ class AppStrings {
         'Tagged $count more',
         'Tagged $count more',
       );
+  // Phase 3 — Tax Summary export.
+  String get taxExport => _t('Export summary', 'सारांश एक्सपोर्ट करें',
+      'सारांश एक्सपोर्ट करा', 'Export summary', 'Export summary', 'Export summary');
+  String get taxExportPdf =>
+      _t('PDF', 'PDF', 'PDF', 'PDF', 'PDF', 'PDF');
+  String get taxExportPdfDesc => _t(
+        'A printable report to hand your CA',
+        'CA को देने के लिए प्रिंट-योग्य रिपोर्ट',
+        'CA ला देण्यासाठी प्रिंट करण्याजोगा अहवाल',
+        'A printable report to hand your CA',
+        'A printable report to hand your CA',
+        'A printable report to hand your CA',
+      );
+  String get taxExportExcel =>
+      _t('Excel', 'Excel', 'Excel', 'Excel', 'Excel', 'Excel');
+  String get taxExportExcelDesc => _t(
+        'A spreadsheet to transcribe into the ITR portal',
+        'ITR पोर्टल में भरने के लिए स्प्रेडशीट',
+        'ITR पोर्टलमध्ये भरण्यासाठी स्प्रेडशीट',
+        'A spreadsheet to transcribe into the ITR portal',
+        'A spreadsheet to transcribe into the ITR portal',
+        'A spreadsheet to transcribe into the ITR portal',
+      );
+  String get taxExportSaved => _t(
+        'Tax summary saved',
+        'टैक्स सारांश सहेजा गया',
+        'कर सारांश जतन केले',
+        'Tax summary saved',
+        'Tax summary saved',
+        'Tax summary saved',
+      );
 
   String get exportData => _t('Export Data', 'डेटा एक्सपोर्ट करें', 'डेटा एक्सपोर्ट करा', 'ডেটা এক্সপোর্ট করুন', 'డేటాను ఎగుమతి చేయి', 'தரவை ஏற்றுமதி செய்');
   String get exportDataDesc => _t(

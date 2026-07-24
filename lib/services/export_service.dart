@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/material.dart' show DateTimeRange;
 import 'package:intl/intl.dart';
 import '../app_info.dart';
+import '../models/tax_export.dart';
 import '../models/transaction_model.dart';
 import '../widgets/brand_logo.dart';
 import 'database_service.dart';
@@ -127,6 +128,274 @@ class ExportService {
       case ExportFormat.pdf:
         return ExportBundle(await _buildPdfBytes(txns), '$base.pdf');
     }
+  }
+
+  // ── Tax Summary export (Phase 3) ────────────────────────────────────
+
+  /// The standing "organiser, not tax advice" line, carried on every tax
+  /// export so the document can never be mistaken for a computed return.
+  static const String taxExportDisclaimer =
+      'This is an organiser, not tax advice. The amounts below are only those '
+      'you tagged; your CA or the tax portal decides what is actually '
+      'deductible. HRA and 80G show the total you paid as evidence, not the '
+      'deductible amount.';
+
+  /// Build a filing-season Tax Summary in [format] (PDF or Excel only) from a
+  /// pre-assembled [input]. Returns null when nothing is tagged for the year.
+  Future<ExportBundle?> buildTaxSummary({
+    required ExportFormat format,
+    required TaxSummaryInput input,
+  }) async {
+    if (!input.hasAnyEntries) return null;
+    final base = 'budgetify_tax_summary_${input.fileSlug}';
+    switch (format) {
+      case ExportFormat.pdf:
+        return ExportBundle(await _buildTaxPdf(input), '$base.pdf');
+      case ExportFormat.excel:
+        return ExportBundle(_buildTaxWorkbook(input), '$base.xlsx');
+      case ExportFormat.csv:
+      case ExportFormat.text:
+        // The tax summary is a filing document — only the two formats a CA or
+        // the portal actually consume.
+        throw ArgumentError('Tax summary supports PDF and Excel only');
+    }
+  }
+
+  @visibleForTesting
+  Future<List<int>> buildTaxPdfForTest(TaxSummaryInput input) =>
+      _buildTaxPdf(input);
+
+  @visibleForTesting
+  List<int> buildTaxWorkbookForTest(TaxSummaryInput input) =>
+      _buildTaxWorkbook(input);
+
+  Future<List<int>> _buildTaxPdf(TaxSummaryInput input) async {
+    const headerColor = PdfColor.fromInt(0xFF1B1E28);
+    const brandGold = PdfColor.fromInt(0xFFC8A75E);
+
+    pw.MemoryImage? logo;
+    try {
+      logo = pw.MemoryImage(await loadBrandLogoBytes());
+    } catch (_) {
+      logo = null;
+    }
+
+    final doc = pw.Document();
+    doc.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(28),
+        footer: (context) => pw.Container(
+          margin: const pw.EdgeInsets.only(top: 8),
+          padding: const pw.EdgeInsets.only(top: 5),
+          decoration: const pw.BoxDecoration(
+            border:
+                pw.Border(top: pw.BorderSide(color: brandGold, width: 0.6)),
+          ),
+          child: pw.Row(children: [
+            // Middot, not em-dash: the built-in Helvetica lacks the em-dash
+            // glyph and renders it as a tofu box.
+            pw.Text('Budgetify · $kAppMotto',
+                style:
+                    const pw.TextStyle(fontSize: 7.5, color: PdfColors.grey600)),
+            pw.Spacer(),
+            pw.Text('Page ${context.pageNumber} of ${context.pagesCount}',
+                style:
+                    const pw.TextStyle(fontSize: 7.5, color: PdfColors.grey600)),
+          ]),
+        ),
+        build: (context) => [
+          // Brand header + report title.
+          pw.Row(
+            crossAxisAlignment: pw.CrossAxisAlignment.center,
+            children: [
+              if (logo != null) ...[
+                pw.ClipRRect(
+                  horizontalRadius: 7.5,
+                  verticalRadius: 7.5,
+                  child: pw.Image(logo, width: 34, height: 34),
+                ),
+                pw.SizedBox(width: 10),
+              ],
+              pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text('Budgetify',
+                      style: pw.TextStyle(
+                          fontSize: 19,
+                          fontWeight: pw.FontWeight.bold,
+                          color: headerColor)),
+                  pw.SizedBox(height: 1),
+                  pw.Text('Tax Deductions Summary · ${input.fyLabel}',
+                      style: const pw.TextStyle(
+                          fontSize: 9, color: PdfColors.grey700)),
+                ],
+              ),
+              pw.Spacer(),
+              pw.Text('Generated: ${_dateFmt.format(DateTime.now())}',
+                  style:
+                      const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
+            ],
+          ),
+          pw.SizedBox(height: 10),
+          pw.Container(height: 1.6, color: brandGold),
+          pw.SizedBox(height: 12),
+          // Disclaimer — first thing on the page, boxed.
+          pw.Container(
+            padding: const pw.EdgeInsets.all(8),
+            decoration: pw.BoxDecoration(
+              color: const PdfColor.fromInt(0xFFF6F1E7),
+              borderRadius: pw.BorderRadius.circular(4),
+            ),
+            child: pw.Text(taxExportDisclaimer,
+                style:
+                    const pw.TextStyle(fontSize: 8, color: PdfColors.grey800)),
+          ),
+          pw.SizedBox(height: 14),
+          // Totals overview.
+          pw.Text('Sections',
+              style:
+                  pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
+          pw.Divider(thickness: 0.5),
+          for (final s in input.sections)
+            pw.Padding(
+              padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
+              child: pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('${s.section} · ${s.shortLabel}',
+                      style: const pw.TextStyle(fontSize: 10)),
+                  pw.Text(
+                    s.isCapped && s.cap != null
+                        ? '${_rs(s.total)} / ${_rs(s.cap!.toDouble())}'
+                        : _rs(s.total),
+                    style: pw.TextStyle(
+                        fontSize: 10, fontWeight: pw.FontWeight.bold),
+                  ),
+                ],
+              ),
+            ),
+          pw.SizedBox(height: 6),
+          // Per-section detail tables (skip empty sections).
+          for (final s in input.sections)
+            if (s.hasEntries) ...[
+              pw.SizedBox(height: 14),
+              pw.Text(
+                s.isCapped
+                    ? '${s.section} · ${s.shortLabel}'
+                    : '${s.section} · ${s.shortLabel} (evidence)',
+                style:
+                    pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
+              ),
+              pw.SizedBox(height: 4),
+              pw.TableHelper.fromTextArray(
+                headerStyle: pw.TextStyle(
+                    fontSize: 9,
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfColors.white),
+                headerDecoration:
+                    const pw.BoxDecoration(color: headerColor),
+                cellStyle: const pw.TextStyle(fontSize: 9),
+                cellAlignments: const {2: pw.Alignment.centerRight},
+                columnWidths: const {
+                  0: pw.FlexColumnWidth(1.6),
+                  1: pw.FlexColumnWidth(3.4),
+                  2: pw.FlexColumnWidth(2.0),
+                },
+                headers: const ['Date', 'Payee', 'Amount'],
+                data: [
+                  for (final e in s.entries)
+                    [
+                      _dateFmt.format(e.date),
+                      e.payee,
+                      _currencyFmt.format(e.amount),
+                    ],
+                ],
+              ),
+              pw.SizedBox(height: 3),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.end,
+                children: [
+                  pw.Text('Subtotal: ${_rs(s.total)}',
+                      style: pw.TextStyle(
+                          fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
+                ],
+              ),
+            ],
+        ],
+      ),
+    );
+    return doc.save();
+  }
+
+  List<int> _buildTaxWorkbook(TaxSummaryInput input) {
+    final excel = Excel.createExcel();
+    final defaultSheet = excel.getDefaultSheet()!;
+    final sheet = excel['Tax Summary'];
+
+    final titleStyle = CellStyle(bold: true, fontSize: 14);
+    final headerStyle = CellStyle(
+      bold: true,
+      fontColorHex: ExcelColor.fromHexString('#FFFFFF'),
+      backgroundColorHex: ExcelColor.fromHexString('#1B1E28'),
+    );
+    final sectionStyle = CellStyle(bold: true, fontSize: 12);
+
+    sheet.appendRow(<CellValue?>[
+      TextCellValue('Budgetify Tax Deductions Summary · ${input.fyLabel}'),
+    ]);
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0))
+        .cellStyle = titleStyle;
+    sheet.appendRow(<CellValue?>[TextCellValue(taxExportDisclaimer)]);
+    sheet.appendRow(<CellValue?>[]);
+
+    for (final s in input.sections) {
+      if (!s.hasEntries) continue;
+      final header = s.isCapped && s.cap != null
+          ? '${s.section} — ${s.shortLabel}  (${_currencyFmt.format(s.total)} of ${_currencyFmt.format(s.cap!.toDouble())})'
+          : '${s.section} — ${s.shortLabel}  (evidence: ${_currencyFmt.format(s.total)})';
+      final sr = sheet.maxRows;
+      sheet.appendRow(<CellValue?>[TextCellValue(header)]);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: sr))
+          .cellStyle = sectionStyle;
+
+      final hr = sheet.maxRows;
+      sheet.appendRow(<CellValue?>[
+        TextCellValue('Date'),
+        TextCellValue('Payee'),
+        TextCellValue('Amount'),
+      ]);
+      for (var c = 0; c < 3; c++) {
+        sheet.cell(CellIndex.indexByColumnRow(columnIndex: c, rowIndex: hr))
+            .cellStyle = headerStyle;
+      }
+      for (final e in s.entries) {
+        sheet.appendRow(<CellValue?>[
+          DateTimeCellValue(
+              year: e.date.year,
+              month: e.date.month,
+              day: e.date.day,
+              hour: 0,
+              minute: 0),
+          TextCellValue(e.payee),
+          DoubleCellValue(e.amount),
+        ]);
+      }
+      sheet.appendRow(<CellValue?>[
+        TextCellValue('Subtotal'),
+        TextCellValue(''),
+        DoubleCellValue(s.total),
+      ]);
+      sheet.appendRow(<CellValue?>[]);
+    }
+
+    sheet.setColumnWidth(0, 16.0);
+    sheet.setColumnWidth(1, 30.0);
+    sheet.setColumnWidth(2, 14.0);
+
+    if (defaultSheet != 'Tax Summary') excel.delete(defaultSheet);
+    excel.setDefaultSheet('Tax Summary');
+    return excel.save()!;
   }
 
   // ── Excel (.xlsx) ───────────────────────────────────────────────────
