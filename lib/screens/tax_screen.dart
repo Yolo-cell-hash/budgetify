@@ -38,6 +38,9 @@ class _TaxScreenState extends State<TaxScreen> {
 
   Future<void> _load() async {
     setState(() => _loading = true);
+    // Lazy "forever" sweep: catch any new transactions a user rule covers
+    // before totalling, so a rule taught once keeps working over time.
+    await _svc.applyRulesToUntagged();
     final summary = await _svc.summaryForYear(_year);
     if (!mounted) return;
     setState(() {

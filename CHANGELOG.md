@@ -26,12 +26,16 @@ without adding any network access.
   - **Regime-aware.** A one-time regime setting (Old / New / Not sure); under
     the new regime — which disallows most of these — the screen shows a short
     explainer instead of buckets, so it never implies savings you can't claim.
+  - **Suggests the section for you.** Budgetify recognises common payees —
+    LIC and other life insurers → 80C, health insurers → 80D, NPS →
+    80CCD(1B) — and offers a one-tap "Looks like Section 80D" chip
+    (suggestion only; you always confirm). Tag one and choose **Apply to
+    all** to tag every payment to that payee, now and in future.
   - **An organiser, not tax advice.** It totals only what you tag; your CA or
     the tax portal decides what's deductible. A standing disclaimer says so.
   - Fully on-device, included in encrypted backups, no new permissions.
-    English/Hindi/Marathi UI (Bengali/Telugu/Tamil follow). *Coming next:
-    auto-suggest from the payee, a filing-season summary export, and a Jan–Mar
-    home reminder.*
+    English/Hindi/Marathi UI (Bengali/Telugu/Tamil follow). *Coming next: a
+    filing-season summary export and a Jan–Mar home reminder.*
 
 ## [1.22.0] — 2026-07-02
 

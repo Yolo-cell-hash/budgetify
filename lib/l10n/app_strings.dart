@@ -818,6 +818,37 @@ class AppStrings {
       );
   String get taxEditLimit => _t('Edit limit', 'सीमा बदलें', 'मर्यादा बदला',
       'Edit limit', 'Edit limit', 'Edit limit');
+  // Phase 2 — auto-suggest + apply-to-all.
+  String taxSuggestChip(String section) => _t(
+        'Looks like $section — tap to tag',
+        'लगता है $section — टैग करने के लिए टैप करें',
+        '$section वाटतं — टॅग करण्यासाठी टॅप करा',
+        'Looks like $section — tap to tag',
+        'Looks like $section — tap to tag',
+        'Looks like $section — tap to tag',
+      );
+  String get taxApplyAllTitle => _t('Apply to all?', 'सभी पर लागू करें?',
+      'सर्वांना लागू करायचं?', 'Apply to all?', 'Apply to all?', 'Apply to all?');
+  String taxApplyAllBody(String payee, String section) => _t(
+        'Tag every payment to $payee as $section — now and in future?',
+        '$payee को हर भुगतान को $section के रूप में टैग करें — अभी और आगे भी?',
+        '$payee ला होणारे प्रत्येक पेमेंट $section म्हणून टॅग करायचे — आता आणि पुढेही?',
+        'Tag every payment to $payee as $section — now and in future?',
+        'Tag every payment to $payee as $section — now and in future?',
+        'Tag every payment to $payee as $section — now and in future?',
+      );
+  String get taxApplyAllYes => _t('Apply to all', 'सभी पर लागू करें',
+      'सर्वांना लागू करा', 'Apply to all', 'Apply to all', 'Apply to all');
+  String get taxApplyAllNo => _t('Just this one', 'सिर्फ़ यही', 'फक्त हेच',
+      'Just this one', 'Just this one', 'Just this one');
+  String taxApplyAllDone(int count) => _t(
+        'Tagged $count more',
+        '$count और टैग किए',
+        '$count अधिक टॅग केले',
+        'Tagged $count more',
+        'Tagged $count more',
+        'Tagged $count more',
+      );
 
   String get exportData => _t('Export Data', 'डेटा एक्सपोर्ट करें', 'डेटा एक्सपोर्ट करा', 'ডেটা এক্সপোর্ট করুন', 'డేటాను ఎగుమతి చేయి', 'தரவை ஏற்றுமதி செய்');
   String get exportDataDesc => _t(

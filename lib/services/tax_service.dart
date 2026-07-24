@@ -130,6 +130,32 @@ class TaxService {
     return TaxYearSummary(year: year, regime: regime, buckets: summaries);
   }
 
+  // ── Auto-suggest (Phase 2) ──────────────────────────────────────────────────
+
+  /// The bucket to suggest for [payee], or null. A user-taught rule wins (it's
+  /// an explicit choice); otherwise the built-in keyword map. Suggestion only —
+  /// the caller confirms before tagging.
+  Future<String?> suggestionFor(String? payee) async {
+    if (payee == null || payee.isEmpty) return null;
+    final rule = await _db.findMatchingTaxRule(payee);
+    if (rule != null && taxBucketById(rule) != null) return rule;
+    return suggestTaxBucketFromPayee(payee);
+  }
+
+  /// "Apply to all from [payee] → [bucket]": remember the rule and tag every
+  /// existing untagged transaction from that payee. Returns how many rows were
+  /// bulk-tagged (excluding the one the user just tagged, which is already
+  /// set). Only call for an identifying payee ([isIdentifyingTaxPayee]).
+  Future<int> saveRuleAndApply(String payee, String bucket) async {
+    await _db.upsertTaxRule(payee, bucket);
+    return _db.bulkSetTaxBucketByPayee(payee, bucket);
+  }
+
+  /// The lazy "forever" sweep: apply user rules to any transaction that has no
+  /// bucket yet. Run when the Tax screen opens, so a rule taught once keeps
+  /// catching future transactions without touching the SMS insert path.
+  Future<int> applyRulesToUntagged() => _db.applyTaxRulesToUntagged();
+
   // ── Backup ──────────────────────────────────────────────────────────────────
 
   /// Regime + cap overrides for the encrypted backup payload. (Transaction
