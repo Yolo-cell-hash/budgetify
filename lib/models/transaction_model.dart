@@ -33,6 +33,12 @@ class TransactionModel {
   /// screen, and the raw material for debugging user reports.
   final String? parseSource;
 
+  /// Optional tax-deduction bucket id (e.g. '80C', 'HRA'), orthogonal to
+  /// [category] — a second axis for tax organising. Null for the vast
+  /// majority of transactions. See `tax_bucket.dart`. Purely a record-keeping
+  /// label; it feeds only the Tax screen and never any spend/income total.
+  final String? taxBucket;
+
   TransactionModel({
     this.id,
     required this.amount,
@@ -50,6 +56,7 @@ class TransactionModel {
     this.splitShare,
     this.reviewReasons,
     this.parseSource,
+    this.taxBucket,
   });
 
   /// The amount that counts as the user's real spend: their split share when
@@ -169,6 +176,7 @@ class TransactionModel {
       splitShare: (map['split_share'] as num?)?.toDouble(),
       reviewReasons: map['review_reasons'] as String?,
       parseSource: map['parse_source'] as String?,
+      taxBucket: map['tax_bucket'] as String?,
     );
   }
 
@@ -191,10 +199,12 @@ class TransactionModel {
       'split_share': splitShare,
       'review_reasons': reviewReasons,
       'parse_source': parseSource,
+      'tax_bucket': taxBucket,
     };
   }
 
-  /// Copy with the tag removed (copyWith can't null out the category).
+  /// Copy with the spending tag removed (copyWith can't null out the
+  /// category). The tax bucket is a different axis and is preserved.
   TransactionModel untagged() {
     return TransactionModel(
       id: id,
@@ -213,6 +223,31 @@ class TransactionModel {
       splitShare: splitShare,
       reviewReasons: reviewReasons,
       parseSource: parseSource,
+      taxBucket: taxBucket,
+    );
+  }
+
+  /// Copy with the tax bucket cleared (copyWith can't null it out). Leaves the
+  /// spending category and everything else untouched.
+  TransactionModel clearedTaxBucket() {
+    return TransactionModel(
+      id: id,
+      amount: amount,
+      type: type,
+      sender: sender,
+      message: message,
+      detectedAt: detectedAt,
+      isClassified: isClassified,
+      category: category,
+      notes: notes,
+      accountInfo: accountInfo,
+      merchantName: merchantName,
+      isManual: isManual,
+      fingerprint: fingerprint,
+      splitShare: splitShare,
+      reviewReasons: reviewReasons,
+      parseSource: parseSource,
+      taxBucket: null,
     );
   }
 
@@ -234,6 +269,7 @@ class TransactionModel {
     double? splitShare,
     String? reviewReasons,
     String? parseSource,
+    String? taxBucket,
   }) {
     return TransactionModel(
       id: id ?? this.id,
@@ -252,6 +288,7 @@ class TransactionModel {
       splitShare: splitShare ?? this.splitShare,
       reviewReasons: reviewReasons ?? this.reviewReasons,
       parseSource: parseSource ?? this.parseSource,
+      taxBucket: taxBucket ?? this.taxBucket,
     );
   }
 }

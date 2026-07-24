@@ -9,6 +9,7 @@ import 'custom_tag_service.dart';
 import 'database_service.dart';
 import 'entitlement_service.dart';
 import 'gamification_service.dart';
+import 'tax_service.dart';
 
 /// Result of a restore operation.
 class RestoreResult {
@@ -154,6 +155,9 @@ class BackupService {
     // Trial anchor (first-use timestamp) so the free-window clock survives a
     // reinstall + restore. Silent — never surfaced to the user.
     data['entitlement'] = await EntitlementService().exportSettings();
+    // Tax buckets: regime + cap overrides (the per-transaction tags themselves
+    // ride the transactions table dump above).
+    data['tax_settings'] = await TaxService().exportSettings();
 
     final payloadJson = jsonEncode({
       'magic': _magic,
@@ -220,6 +224,11 @@ class BackupService {
     // trial). Kept out of RestoreResult so nothing is surfaced to the user.
     await EntitlementService().importSettings(
       (data['entitlement'] as Map?)?.cast<String, dynamic>(),
+    );
+
+    // Restore tax regime + cap overrides (absent in pre-feature backups → no-op).
+    await TaxService().importSettings(
+      (data['tax_settings'] as Map?)?.cast<String, dynamic>(),
     );
 
     // Now that classification rules are back, auto-tag any past

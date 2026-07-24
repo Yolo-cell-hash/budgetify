@@ -4,6 +4,35 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.44.0] — 2026-07-24
+
+### Added
+
+- **Tax deductions (Phase 1).** A second, optional label on any transaction —
+  its tax-deduction section — next to the spending category. Open a
+  transaction → **Tax section** and file it under **80C**, **80CCD(1B)**,
+  **80D**, **24(b)**, **HRA** or **80G**; a new **Settings → Data → Tax
+  Deductions** screen totals each section for a financial year (Apr–Mar) so
+  filing season isn't a scramble to reconstruct a year of insurance, ELSS,
+  rent and donations.
+  - **Fills toward the legal cap.** 80C/80CCD(1B)/80D/24(b) show a used-vs-cap
+    bar and remaining headroom ("₹90,000 of ₹1,50,000 — ₹60,000 left"), so you
+    can see before year-end whether investing a little more would still save
+    tax. Caps are editable — statutory limits change.
+  - **Honest about what it can't sum.** HRA and 80G are shown as *evidence*
+    (total rent paid / total donations) with a plain note that the actual
+    deductible figure depends on your salary or the charity — never presented
+    as a settled deduction.
+  - **Regime-aware.** A one-time regime setting (Old / New / Not sure); under
+    the new regime — which disallows most of these — the screen shows a short
+    explainer instead of buckets, so it never implies savings you can't claim.
+  - **An organiser, not tax advice.** It totals only what you tag; your CA or
+    the tax portal decides what's deductible. A standing disclaimer says so.
+  - Fully on-device, included in encrypted backups, no new permissions.
+    English/Hindi/Marathi UI (Bengali/Telugu/Tamil follow). *Coming next:
+    auto-suggest from the payee, a filing-season summary export, and a Jan–Mar
+    home reminder.*
+
 ## [1.22.0] — 2026-07-02
 
 ### Added
