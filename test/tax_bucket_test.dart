@@ -83,4 +83,57 @@ void main() {
       expect(s.total, 120000);
     });
   });
+
+  group('keyword suggestions (Phase 2)', () {
+    test('life insurers suggest 80C', () {
+      expect(suggestTaxBucketFromPayee('LIC of India'), '80C');
+      expect(suggestTaxBucketFromPayee('HDFC Life'), '80C');
+      expect(suggestTaxBucketFromPayee('SBI Life Insurance'), '80C');
+    });
+
+    test('health insurers suggest 80D', () {
+      expect(suggestTaxBucketFromPayee('Star Health'), '80D');
+      expect(suggestTaxBucketFromPayee('Niva Bupa'), '80D');
+      expect(suggestTaxBucketFromPayee('HDFC Ergo'), '80D');
+    });
+
+    test('NPS suggests 80CCD1B', () {
+      expect(suggestTaxBucketFromPayee('National Pension System'), '80CCD1B');
+      expect(suggestTaxBucketFromPayee('Protean NPS'), '80CCD1B');
+    });
+
+    test('matching is punctuation/spacing-insensitive', () {
+      expect(suggestTaxBucketFromPayee('h.d.f.c-life'), '80C');
+    });
+
+    test('unknown payee and non-identifying input suggest nothing', () {
+      expect(suggestTaxBucketFromPayee('Swiggy'), isNull);
+      expect(suggestTaxBucketFromPayee('UPI Transfer'), isNull);
+      expect(suggestTaxBucketFromPayee(''), isNull);
+      expect(suggestTaxBucketFromPayee(null), isNull);
+    });
+
+    test('every suggested bucket id is a real bucket', () {
+      for (final id in kTaxSuggestionKeywords.values) {
+        expect(kTaxBucketIds.contains(id), isTrue, reason: '$id must exist');
+      }
+    });
+  });
+
+  group('isIdentifyingTaxPayee (apply-to-all guard)', () {
+    test('real names qualify', () {
+      expect(isIdentifyingTaxPayee('LIC of India'), isTrue);
+      expect(isIdentifyingTaxPayee('Star Health'), isTrue);
+    });
+
+    test('placeholders and masked accounts do not', () {
+      expect(isIdentifyingTaxPayee('UPI Transfer'), isFalse);
+      expect(isIdentifyingTaxPayee('ATM'), isFalse);
+      expect(isIdentifyingTaxPayee('Bank Charges'), isFalse);
+      expect(isIdentifyingTaxPayee('XX7848'), isFalse);
+      expect(isIdentifyingTaxPayee('**1234'), isFalse);
+      expect(isIdentifyingTaxPayee(null), isFalse);
+      expect(isIdentifyingTaxPayee(''), isFalse);
+    });
+  });
 }

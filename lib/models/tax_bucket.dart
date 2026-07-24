@@ -138,3 +138,77 @@ TaxBucket? taxBucketById(String? id) {
 
 /// Valid bucket ids, for validation at the tagging boundary.
 final Set<String> kTaxBucketIds = {for (final b in kTaxBuckets) b.id};
+
+/// High-confidence payee keywords → the bucket they usually belong to, for the
+/// built-in **suggestion** (never auto-applied — a keyword can be wrong, so the
+/// user always confirms). Keys are pre-normalised (lowercase, alphanumerics
+/// only) so matching is a plain normalised-substring test.
+///
+/// Deliberately conservative: only cases with little ambiguity. Home-loan EMIs
+/// (principal is 80C, interest is 24b) and rent (landlord names vary) are left
+/// out — the user tags those, and their choice becomes a rule.
+const Map<String, String> kTaxSuggestionKeywords = {
+  // Life insurance premiums → 80C
+  'lifeinsurancecorp': '80C',
+  'lickharcha': '80C',
+  'licofindia': '80C',
+  'hdfclife': '80C',
+  'sbilife': '80C',
+  'iciciprulife': '80C',
+  'iciciprudential': '80C',
+  'maxlife': '80C',
+  'bajajallianzlife': '80C',
+  'tataaialife': '80C',
+  'kotaklife': '80C',
+  'ppf': '80C',
+  'publicprovidentfund': '80C',
+  'sukanyasamriddhi': '80C',
+  // NPS → 80CCD(1B)
+  'nationalpension': '80CCD1B',
+  'npstrust': '80CCD1B',
+  'nsdlnps': '80CCD1B',
+  'proteannps': '80CCD1B',
+  // Health insurance → 80D
+  'starhealth': '80D',
+  'nivabupa': '80D',
+  'maxbupa': '80D',
+  'carehealth': '80D',
+  'careinsurance': '80D',
+  'hdfcergo': '80D',
+  'religarehealth': '80D',
+  'manipalcigna': '80D',
+  'adityabirlahealth': '80D',
+  'orientalinsurance': '80D',
+};
+
+/// Normalise a payee the same way the keyword keys are stored (and the way the
+/// category-rules engine normalises), so suggestion matching and user-rule
+/// matching agree.
+String normalizeTaxPayee(String s) =>
+    s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+
+/// The built-in bucket suggestion for [payee], or null when nothing matches.
+/// Suggestion only — the caller must let the user confirm before tagging.
+String? suggestTaxBucketFromPayee(String? payee) {
+  if (payee == null) return null;
+  final norm = normalizeTaxPayee(payee);
+  if (norm.isEmpty) return null;
+  for (final entry in kTaxSuggestionKeywords.entries) {
+    if (norm.contains(entry.key)) return entry.value;
+  }
+  return null;
+}
+
+/// Whether [payee] actually names a counterparty rather than being a parser
+/// placeholder ("UPI Transfer") or a masked account ("XX7848"). Only
+/// identifying payees earn an "apply to all" rule — a rule on "UPI Transfer"
+/// would wrongly tag every nameless UPI debit. Mirrors the reconciler's guard.
+bool isIdentifyingTaxPayee(String? payee) {
+  if (payee == null) return false;
+  final p = payee.trim().toUpperCase();
+  if (p.isEmpty || p == 'UPI TRANSFER' || p == 'ATM' || p == 'BANK CHARGES') {
+    return false;
+  }
+  if (RegExp(r'^[X*]{2,}\d{3,}$').hasMatch(p)) return false; // masked account
+  return normalizeTaxPayee(payee).length >= 2;
+}
