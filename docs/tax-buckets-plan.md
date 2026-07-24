@@ -83,13 +83,15 @@ class TaxBucket {
 
 **Two kinds, because honesty requires it:**
 
+**Six buckets in Phase 1** (owner decision — the most-used only). Four capped +
+two evidence-only:
+
 - **cappedDeduction** — a flat statutory ceiling the app can sum against:
   | id | Section | Default cap |
   |---|---|---|
   | `80C` | 80C (ELSS, PPF, LIC, tuition, home-loan principal…) | ₹1,50,000 |
   | `80CCD1B` | 80CCD(1B) — NPS, over 80C | ₹50,000 |
   | `80D` | 80D — health insurance | ₹25,000 / ₹50,000¹ |
-  | `80E` | 80E — education-loan interest | no cap |
   | `24B` | 24(b) — home-loan interest | ₹2,00,000 |
 
 - **evidenceOnly** — the deductible figure is *not* the sum of payments, so the
@@ -103,6 +105,11 @@ class TaxBucket {
   exemption" rather than a filled-vs-cap bar.
 
   ¹ 80D's cap depends on senior-citizen status; ship ₹25,000 default, editable.
+
+  **Cut to reach six:** `80E` (education-loan interest) is dropped from the
+  earlier seven-bucket draft — it's the narrowest of the set (only filers with
+  an active education loan). It's the obvious first add later: a single catalog
+  row, no schema change.
 
 **Caps are editable and dated.** Statutory limits change most budgets. Store
 user overrides in prefs (`tax_caps` map, keyed by bucket id) and show the
@@ -145,8 +152,8 @@ from a date so this logic lives in one place.
 1. **Transaction detail** — a new "Tax section" row under Category: unset by
    default; tapping opens a bucket picker (with the auto-suggested bucket, if
    any, pre-highlighted and an "apply to all from *LIC*" toggle).
-2. **Tax screen** (new, reachable from Settings → Data, or a Home card in
-   Jan–Mar) —
+2. **Tax screen** (new, reachable from Settings → Data, and from the seasonal
+   Home card) —
    - FY selector,
    - per capped-bucket: a filled-vs-cap bar ("80C: ₹90,000 of ₹1,50,000 —
      ₹60,000 headroom"),
@@ -179,16 +186,20 @@ portal). Reuses the existing brand header/footer and per-section table layout.
 
 ## Phasing
 
-1. **Phase 1 — core.** Bucket catalog, `tax_bucket` column + model wiring,
-   migration v25, manual tagging on transaction detail, the Tax screen (FY
-   totals vs caps + evidence-only totals), regime gate, disclaimer,
+All four phases are **free** (owner decision — no Plus-gating on any of this).
+
+1. **Phase 1 — core.** Bucket catalog (the six above), `tax_bucket` column +
+   model wiring, migration v25, manual tagging on transaction detail, the Tax
+   screen (FY totals vs caps + evidence-only totals), regime gate, disclaimer,
    localization. Shippable on its own.
 2. **Phase 2 — auto-suggest.** `tax_bucket_rules` table, seeded keyword map,
    apply-to-all, suggestion chips on detail.
 3. **Phase 3 — export.** Tax Summary PDF/Excel.
-4. **Phase 4 — delight (optional).** A Jan–Mar Home card ("₹60,000 of 80C
-   headroom before 31 Mar"); optional Plus-gating (fits "monetise depth, not
-   utility").
+4. **Phase 4 — seasonal Home card (confirmed).** A card that appears **Jan–Mar
+   only** — "₹60,000 of 80C headroom before 31 Mar" — deep-linking to the Tax
+   screen. Hides itself outside the window, when no bucket is tagged, and under
+   the new regime. Needs only Phase-1 totals, so it can land any time after
+   Phase 1; placed last as the polish pass.
 
 ## Testing
 
@@ -205,11 +216,11 @@ portal). Reuses the existing brand header/footer and per-section table layout.
   and carries the disclaimer.
 - Full suite green + `flutter analyze` clean before any merge.
 
-## Open questions for the owner
+## Decisions (owner-confirmed)
 
-1. **Plus-gated or free?** Fits the "charge for depth" idea; also a natural
-   seasonal upsell. Default assumption: free in Phase 1, revisit at Phase 4.
-2. **Entry point** — Settings → Data only, or also a seasonal Home card? (I'd
-   do Settings first, add the card in Phase 4.)
-3. **Bucket set** — start with the six above, or include 80TTA/80TTB (savings
-   interest) and 80CCD(2) from day one? (I'd keep Phase 1 to the six most-used.)
+1. **Bucket set** — the **six most-used only** for now: 80C, 80CCD(1B), 80D,
+   24(b) (capped) + HRA, 80G (evidence-only). 80E and 80TTA/80TTB/80CCD(2) are
+   out of Phase 1.
+2. **Free across all four phases** — no Plus-gating anywhere in this feature.
+3. **Entry points** — Settings → Data **and** the Jan–Mar seasonal Home card
+   (Phase 4).
