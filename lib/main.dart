@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:budget_tracker/screens/main_shell.dart';
@@ -22,6 +23,16 @@ import 'package:budget_tracker/widgets/royal_reactions.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Draw behind the status and navigation bars — the Flutter equivalent of
+  // Android's `enableEdgeToEdge()`. Android 15 (SDK 35) forces this on every
+  // app that targets it, so on new phones the app already ran this way; asking
+  // for it explicitly is what extends the same look back to Android 14 and
+  // below, which is exactly what Play Console's "Edge-to-edge may not display
+  // for all users" is about. Safe here because the chrome that meets the
+  // system bars — AppBar, BottomNavigationBar, and the SafeArea every screen
+  // wraps its body in — already pads itself by the window insets.
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
   // Only first-frame-critical state is awaited before runApp. The three
   // providers and the custom-tag cache are each just a few SharedPreferences

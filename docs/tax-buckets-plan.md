@@ -133,7 +133,7 @@ carry both a category rule *and* a tax rule independently):
 
 | Piece | Reuse |
 |---|---|
-| Tagging gesture | The transaction-detail category UI — add a compact "Tax section" row below it |
+| Tagging gesture | The transaction-detail quick-action row — a fourth tile beside Split / Recurring / Settle up |
 | Auto-suggest | The `findMatchingRule` / apply-to-all mechanic, on the new rule table |
 | Totals | A new `sumByTaxBucket(fyStart, fyEnd)` query on `DatabaseService`, indexed on `tax_bucket` |
 | Export | `ExportService.buildExport` gains a `taxSummary` mode + brand header/footer already in place |
@@ -149,9 +149,12 @@ from a date so this logic lives in one place.
 
 ## UI surfaces
 
-1. **Transaction detail** — a new "Tax section" row under Category: unset by
-   default; tapping opens a bucket picker (with the auto-suggested bucket, if
-   any, pre-highlighted and an "apply to all from *LIC*" toggle).
+1. **Transaction detail** — a **Tax** tile in the quick-action row, alongside
+   Split / Recurring / Settle up: unset by default, wearing the tagged section
+   ("80C") and the accent treatment once set; tapping opens a bucket picker
+   (with the auto-suggested bucket, if any, pre-highlighted and an "apply to
+   all from *LIC*" toggle). Credits and settlements have no quick-action row,
+   so they keep the full-width "Tax section" card under the settlement card.
 2. **Tax screen** (new, reachable from Settings → Data, and from the seasonal
    Home card) —
    - FY selector,
