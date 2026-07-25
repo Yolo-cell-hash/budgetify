@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// The set of selectable app themes. [light] and [dark] are always available;
@@ -174,6 +175,7 @@ class AppTheme {
         centerTitle: true,
         elevation: 0,
         scrolledUnderElevation: 0,
+        systemOverlayStyle: _systemOverlayStyle(Brightness.light),
         backgroundColor: c.background,
         foregroundColor: c.text,
         surfaceTintColor: Colors.transparent,
@@ -309,6 +311,7 @@ class AppTheme {
         centerTitle: true,
         elevation: 0,
         scrolledUnderElevation: 0,
+        systemOverlayStyle: _systemOverlayStyle(Brightness.dark),
         backgroundColor: c.background,
         foregroundColor: c.text,
         surfaceTintColor: Colors.transparent,
@@ -511,6 +514,7 @@ class AppTheme {
         centerTitle: true,
         elevation: 0,
         scrolledUnderElevation: 0,
+        systemOverlayStyle: _systemOverlayStyle(Brightness.light),
         backgroundColor: c.background,
         foregroundColor: c.text,
         surfaceTintColor: Colors.transparent,
@@ -648,6 +652,7 @@ class AppTheme {
         centerTitle: true,
         elevation: 0,
         scrolledUnderElevation: 0,
+        systemOverlayStyle: _systemOverlayStyle(Brightness.dark),
         backgroundColor: c.background,
         foregroundColor: c.text,
         surfaceTintColor: Colors.transparent,
@@ -756,6 +761,33 @@ class AppTheme {
           borderRadius: BorderRadius.circular(10),
         ),
       ),
+    );
+  }
+
+  /// System-bar styling for an edge-to-edge app, deliberately setting only
+  /// *icon brightness* and no colours.
+  ///
+  /// Android 15 deprecated `Window.setStatusBarColor`,
+  /// `setNavigationBarColor`, `setNavigationBarDividerColor` and the two
+  /// contrast-enforced setters, and Play Console flags apps that still drive
+  /// them ("Your app uses deprecated APIs or parameters for edge-to-edge").
+  /// Flutter's engine calls each of those setters only when the matching field
+  /// on [SystemUiOverlayStyle] is non-null — so leaving them null is what keeps
+  /// the app off the deprecated path. Icon brightness is unaffected: it goes
+  /// through `WindowInsetsController`, which is the modern API.
+  ///
+  /// This has to be set explicitly on every [AppBarTheme], because an AppBar
+  /// with no `systemOverlayStyle` falls back to [SystemUiOverlayStyle.light] /
+  /// `.dark`, and both of those hardcode `systemNavigationBarColor: black`.
+  static SystemUiOverlayStyle _systemOverlayStyle(Brightness brightness) {
+    final isLight = brightness == Brightness.light;
+    return SystemUiOverlayStyle(
+      // Dark icons on a light app bar, light icons on a dark one.
+      statusBarIconBrightness: isLight ? Brightness.dark : Brightness.light,
+      systemNavigationBarIconBrightness:
+          isLight ? Brightness.dark : Brightness.light,
+      // iOS-only knob; inverted by convention (it names the *background*).
+      statusBarBrightness: isLight ? Brightness.light : Brightness.dark,
     );
   }
 

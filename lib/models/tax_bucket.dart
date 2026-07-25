@@ -75,6 +75,13 @@ class TaxBucket {
   });
 
   bool get isCapped => kind == TaxBucketKind.cappedDeduction;
+
+  /// [section] without its "Section " prefix — "80C", "80CCD(1B)", "24(b)".
+  /// For the quarter-width tax tile on the transaction screen, where the
+  /// prefix costs a whole line and carries no information the number doesn't.
+  String get compactSection => section.startsWith('Section ')
+      ? section.substring('Section '.length)
+      : section;
 }
 
 /// The Phase-1 catalog: the six most-used deductions (owner decision). 80E
