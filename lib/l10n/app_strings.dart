@@ -751,6 +751,9 @@ class AppStrings {
       );
   String get taxSection => _t('Tax section', 'टैक्स सेक्शन', 'कर विभाग',
       'Tax section', 'Tax section', 'Tax section');
+  /// Short label for the tax quick-action tile. It shares a row with Split /
+  /// Recurring / Settle up, so it has to stay one short word in every language.
+  String get taxTile => _t('Tax', 'टैक्स', 'कर', 'কর', 'పన్ను', 'வரி');
   String get taxAddSection => _t('Add tax section', 'टैक्स सेक्शन जोड़ें',
       'कर विभाग जोडा', 'Add tax section', 'Add tax section', 'Add tax section');
   String get taxPickSection => _t('Tag a tax section', 'एक टैक्स सेक्शन टैग करें',

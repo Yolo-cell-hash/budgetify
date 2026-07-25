@@ -811,6 +811,11 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     // own share (what counts toward budgets), with the full amount struck out.
     final isSplit = _transaction.splitShare != null;
     final isSettlement = _transaction.category == 'Settlement';
+    // The debit branch hangs this loose under the quick-action row, since the
+    // tax *tile* has no room for a subtitle to carry it. Hoisted up here
+    // because the `...[]` spread it lives in can't declare a local; the
+    // credit/settlement branch's tax card builds its own.
+    final taxSuggestionChip = _buildTaxSuggestionChip(colors);
     final headlineAmount = _transaction.effectiveAmount;
     final formatter = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
     final dateFormatter = DateFormat('EEEE, MMMM d, y • h:mm a');
@@ -1127,14 +1132,29 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
 
             // Quick actions — a single compact row instead of a tall stack of
             // cards, so the category tags sit higher and need less scrolling to
-            // reach. Debits (that aren't already settlements) get all three
-            // actions; every other case has just "settle", which keeps its
-            // roomier descriptive card since there's no stacking to compress.
+            // reach. Debits (that aren't already settlements) get all four
+            // actions, tax included: tagging a deduction is a per-transaction
+            // action like the other three, and burying it under the tag grid
+            // meant nobody scrolled far enough to find it. Every other case has
+            // "settle", which keeps its roomier descriptive card since there's
+            // no stacking to compress, with the tax row directly beneath it.
             if (!isCredit && !isSettlement) ...[
               _buildQuickActions(colors, isSplit),
+              if (taxSuggestionChip != null) ...[
+                const SizedBox(height: 10),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: taxSuggestionChip,
+                  ),
+                ),
+              ],
               const SizedBox(height: 16),
             ] else ...[
               _buildSettlementCard(colors, isSettlement),
+              const SizedBox(height: 12),
+              _buildTaxSectionRow(colors, cardColor, textColor, subtextColor),
               const SizedBox(height: 16),
             ],
 
@@ -1301,12 +1321,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
 
             const SizedBox(height: 16),
 
-            // Tax section — a second, optional deduction label, orthogonal to
-            // the category. Saves immediately on pick.
-            _buildTaxSectionRow(colors, cardColor, textColor, subtextColor),
-
-            const SizedBox(height: 16),
-
             // Notes section
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -1407,11 +1421,13 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   }
 
   /// Compact horizontal action row for debit transactions: Split · Recurring ·
-  /// Settle, laid out as three equal tiles instead of a tall stack of cards.
-  /// This keeps the category tags high on the screen so they're reachable with
-  /// far less scrolling. Themed via [AppColors] so it adapts to every theme.
+  /// Settle · Tax, laid out as four equal tiles instead of a tall stack of
+  /// cards. This keeps the category tags high on the screen so they're
+  /// reachable with far less scrolling. Themed via [AppColors] so it adapts to
+  /// every theme.
   Widget _buildQuickActions(AppColors colors, bool isSplit) {
     final l10n = context.l10n;
+    final bucket = taxBucketById(_taxBucket);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       // IntrinsicHeight bounds the row's cross-axis so the tiles can share a
@@ -1433,7 +1449,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                 isActive: isSplit,
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
             Expanded(
               child: _buildActionTile(
                 colors,
@@ -1442,13 +1458,28 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                 onTap: _trackAsRecurring,
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
             Expanded(
               child: _buildActionTile(
                 colors,
                 icon: Icons.handshake_rounded,
                 label: l10n.settleUp,
                 onTap: () => _openSettlement(),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildActionTile(
+                colors,
+                icon: Icons.receipt_long_rounded,
+                // Once tagged the tile *is* the readout — there's no subtitle
+                // here — so it wears the section itself ("80C") rather than the
+                // generic word.
+                label: bucket?.compactSection ?? l10n.taxTile,
+                // A transaction with no row id can't be tagged (nothing to
+                // write to); the tile goes inert rather than disappearing.
+                onTap: _transaction.id == null ? null : _pickTaxBucket,
+                isActive: bucket != null,
               ),
             ),
           ],
@@ -1458,12 +1489,15 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   }
 
   /// One quick-action tile: an icon above a short label on a themed card
-  /// surface. [isActive] gives it an accent-tinted, accent-bordered treatment.
+  /// surface. [isActive] gives it an accent-tinted, accent-bordered treatment;
+  /// a null [onTap] makes the tile inert. Sized for four across a phone, so
+  /// the metrics are deliberately tight and the label may wrap to two lines
+  /// (Bengali "নিষ্পত্তি করুন" and Telugu "పునరావృతం" need it).
   Widget _buildActionTile(
     AppColors colors, {
     required IconData icon,
     required String label,
-    required VoidCallback onTap,
+    required VoidCallback? onTap,
     bool isActive = false,
   }) {
     return Material(
@@ -1472,7 +1506,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 5),
           decoration: BoxDecoration(
             color: isActive
                 ? colors.accent.withValues(alpha: 0.10)
@@ -1486,27 +1520,30 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
+            // Top-aligned, not centred: a two-line label on one tile would
+            // otherwise push its icon out of line with the other three.
+            mainAxisAlignment: MainAxisAlignment.start,
             children: [
               // Accent chip behind the icon — the app's signature treatment,
               // and what gives the tile a clear anchor on low-contrast dark
               // surfaces where card and page background sit close together.
               Container(
-                padding: const EdgeInsets.all(9),
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: colors.accent.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(11),
                 ),
-                child: Icon(icon, color: colors.accent, size: 22),
+                child: Icon(icon, color: colors.accent, size: 20),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               Text(
                 label,
-                maxLines: 1,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 12.5,
+                  fontSize: 11.5,
+                  height: 1.15,
                   fontWeight: FontWeight.w600,
                   color: colors.text,
                 ),
@@ -1633,9 +1670,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   ) {
     final l10n = context.l10n;
     final bucket = taxBucketById(_taxBucket);
-    final suggested = taxBucketById(_taxSuggestion);
-    // Only offer the suggestion chip while the row is still untagged.
-    final showSuggestion = bucket == null && suggested != null;
+    final suggestionChip = _buildTaxSuggestionChip(colors);
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
@@ -1694,47 +1729,53 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
             ),
           ),
           // One-tap suggestion: "Looks like Section 80C — tap to tag".
-          if (showSuggestion)
+          if (suggestionChip != null)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
               child: Align(
                 alignment: Alignment.centerLeft,
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () => _applyTaxBucket(suggested.id),
-                    borderRadius: BorderRadius.circular(20),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: colors.accent.withValues(alpha: 0.10),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                            color: colors.accent.withValues(alpha: 0.35)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.auto_awesome_rounded,
-                              size: 14, color: colors.accent),
-                          const SizedBox(width: 6),
-                          Text(
-                            l10n.taxSuggestChip(suggested.section),
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w600,
-                              color: colors.accent,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
+                child: suggestionChip,
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  /// The one-tap auto-suggest chip ("Looks like Section 80C — tap to tag"),
+  /// or null when there's nothing to suggest. Only offered while the
+  /// transaction is still untagged; acting on it tags and dismisses.
+  Widget? _buildTaxSuggestionChip(AppColors colors) {
+    final suggested = taxBucketById(_taxSuggestion);
+    if (_taxBucket != null || suggested == null) return null;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _applyTaxBucket(suggested.id),
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: colors.accent.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: colors.accent.withValues(alpha: 0.35)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.auto_awesome_rounded, size: 14, color: colors.accent),
+              const SizedBox(width: 6),
+              Text(
+                context.l10n.taxSuggestChip(suggested.section),
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: colors.accent,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
