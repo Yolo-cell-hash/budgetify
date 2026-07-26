@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../l10n/l10n.dart';
 import '../providers/theme_provider.dart';
 import '../services/app_lock_service.dart';
@@ -83,70 +84,91 @@ class _LockScreenState extends State<LockScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: AppColors.heroGradient,
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        child: SafeArea(
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(22),
-                  decoration: BoxDecoration(
-                    color: AppColors.gold.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: AppColors.gold.withOpacity(0.35)),
-                  ),
-                  child: const Icon(
-                    Icons.lock_outline_rounded,
-                    size: 44,
-                    color: AppColors.gold,
-                  ),
-                ),
-                const SizedBox(height: 28),
-                Text(
-                  context.l10n.appLockedTitle,
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: -0.4,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  context.l10n.appLockOnDesc,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.white.withOpacity(0.6),
-                  ),
-                ),
-                const SizedBox(height: 36),
-                // Always tappable: if an attempt is (or appears) in flight it
-                // is cancelled and re-issued, so a dismissed/hung prompt can
-                // never lock the user out of retrying.
-                ElevatedButton.icon(
-                  onPressed: () => _tryUnlock(force: true),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.gold,
-                    foregroundColor: const Color(0xFF15110A),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 32,
-                      vertical: 16,
+    // The lock screen is the app's front door, so it wears the same hero
+    // surface as the marquee cards rather than a hardcoded midnight gradient —
+    // that stayed dark-and-gold under every light theme, every reward theme,
+    // and every royal court dress (which re-skins the hero through the
+    // AppPalette extension this reads).
+    final hero = HeroStyle.of(context);
+    // On-accent ink: reward accents range from near-black indigo to pale rose,
+    // so pick by the accent's own luminance instead of by theme brightness.
+    final onAccent = hero.accent.computeLuminance() > 0.5
+        ? const Color(0xFF15110A)
+        : Colors.white;
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      // No AppBar here to publish an overlay style, and a light hero would
+      // otherwise keep the white status-bar icons it inherited from the screen
+      // underneath. Icon brightness only — colours stay null so the engine
+      // never touches the setters Android 15 deprecated (see AppTheme).
+      value: SystemUiOverlayStyle(
+        statusBarIconBrightness:
+            hero.onDark ? Brightness.light : Brightness.dark,
+        systemNavigationBarIconBrightness:
+            hero.onDark ? Brightness.light : Brightness.dark,
+        statusBarBrightness: hero.onDark ? Brightness.dark : Brightness.light,
+      ),
+      child: Scaffold(
+        body: Container(
+          decoration: BoxDecoration(gradient: hero.gradient),
+          child: SafeArea(
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(22),
+                    decoration: BoxDecoration(
+                      color: hero.accent.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                          color: hero.accent.withValues(alpha: 0.35)),
+                    ),
+                    child: Icon(
+                      Icons.lock_outline_rounded,
+                      size: 44,
+                      color: hero.accent,
                     ),
                   ),
-                  icon: const Icon(Icons.fingerprint),
-                  label: Text(
-                      _authenticating ? context.l10n.waiting : context.l10n.unlock),
-                ),
-              ],
+                  const SizedBox(height: 28),
+                  Text(
+                    context.l10n.appLockedTitle,
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.4,
+                      color: hero.foreground,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    context.l10n.appLockOnDesc,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: hero.foregroundAlpha(0.6),
+                    ),
+                  ),
+                  const SizedBox(height: 36),
+                  // Always tappable: if an attempt is (or appears) in flight it
+                  // is cancelled and re-issued, so a dismissed/hung prompt can
+                  // never lock the user out of retrying.
+                  ElevatedButton.icon(
+                    onPressed: () => _tryUnlock(force: true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: hero.accent,
+                      foregroundColor: onAccent,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 32,
+                        vertical: 16,
+                      ),
+                    ),
+                    icon: const Icon(Icons.fingerprint),
+                    label: Text(_authenticating
+                        ? context.l10n.waiting
+                        : context.l10n.unlock),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
