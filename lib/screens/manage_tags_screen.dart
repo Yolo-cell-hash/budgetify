@@ -8,6 +8,7 @@ import '../services/database_service.dart';
 import '../widgets/app_bar_title.dart';
 import '../widgets/app_dialog.dart';
 import '../widgets/app_toast.dart';
+import '../widgets/create_tag_sheet.dart';
 
 /// Settings screen for managing tags: review every category and delete the
 /// ones you don't use. Deleting a tag that has tagged transactions warns
@@ -98,6 +99,21 @@ class _ManageTagsScreenState extends State<ManageTagsScreen> {
     }
   }
 
+  /// Create a tag from the management screen itself. Managing tags means
+  /// adding as well as deleting, and the alternative was opening a transaction
+  /// just to reach the "+ New Tag" chip. Same sheet as that chip, so a tag made
+  /// here is identical to one made there.
+  Future<void> _newTag() async {
+    final created = await showCreateTagSheet(context);
+    if (created == null) return;
+    await _load();
+    if (mounted) {
+      showAppToast(context,
+          message: context.l10nRead.createdTag(created),
+          type: AppToastType.success);
+    }
+  }
+
   Future<void> _restore(String tag) async {
     await _tags.restoreTag(tag);
     await _load();
@@ -115,6 +131,13 @@ class _ManageTagsScreenState extends State<ManageTagsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: AppBarTitle(context.l10n.manageTags, icon: Icons.sell_rounded),
+      ),
+      // Matches how every other list screen offers its "add" (goals, splits,
+      // transactions), and stays reachable once the tag list is scrolled.
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _newTag,
+        icon: const Icon(Icons.add_rounded),
+        label: Text(context.l10n.newTag),
       ),
       body: SafeArea(child: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -168,7 +191,8 @@ class _ManageTagsScreenState extends State<ManageTagsScreen> {
                     ],
                   ),
                 ],
-                const SizedBox(height: 32),
+                // Clears the extended FAB so the last tag stays tappable.
+                const SizedBox(height: 96),
               ],
             ),
       ),
