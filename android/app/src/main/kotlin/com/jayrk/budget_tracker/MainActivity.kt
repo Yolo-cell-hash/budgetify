@@ -41,6 +41,49 @@ class MainActivity : FlutterFragmentActivity() {
                 }
             }
 
+        // Wrapped "animated share": encode the captured card frames into an
+        // H.264/MP4 (see WrappedVideoEncoder). Instagram flattens a shared GIF
+        // to a still and a GIF's 256-colour palette can't hold the card's
+        // gradients — video is what both platforms animate, in full colour.
+        // Runs on a worker thread (seconds of CPU) and replies on the main
+        // thread, as the Flutter channel requires.
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger, "budgetify/wrapped_video")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "isSupported" -> result.success(WrappedVideoEncoder.isSupported())
+                    "encode" -> {
+                        @Suppress("UNCHECKED_CAST")
+                        val frames = call.argument<List<String>>("frames") ?: emptyList()
+                        val outPath = call.argument<String>("outPath")
+                        val width = call.argument<Int>("width") ?: 0
+                        val height = call.argument<Int>("height") ?: 0
+                        val fps = call.argument<Int>("fps") ?: 10
+                        val loops = call.argument<Int>("loops") ?: 1
+                        val bitRate = call.argument<Int>("bitRate") ?: 8_000_000
+                        if (outPath == null || frames.isEmpty() ||
+                            width <= 0 || height <= 0) {
+                            result.error("bad_args", "missing frames or size", null)
+                            return@setMethodCallHandler
+                        }
+                        Thread {
+                            try {
+                                WrappedVideoEncoder.encode(
+                                    frames, outPath, width, height, fps, loops, bitRate)
+                                runOnUiThread { result.success(outPath) }
+                            } catch (e: Exception) {
+                                // Caller falls back to the GIF path, so a failed
+                                // encode is a soft failure, never a crash.
+                                runOnUiThread {
+                                    result.error("encode_failed", e.message, null)
+                                }
+                            }
+                        }.start()
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+
         // Opt-in "Match app icon to my royal": swap the launcher icon by
         // toggling activity-aliases (see AndroidManifest). Purely cosmetic — a
         // failure must never crash the app, so errors resolve to false.
