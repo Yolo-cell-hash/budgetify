@@ -15,6 +15,7 @@ import '../providers/theme_provider.dart';
 import '../services/gamification_service.dart';
 import '../services/recap_service.dart';
 import '../services/wrapped_gif.dart';
+import '../services/wrapped_video.dart';
 import '../widgets/app_bar_title.dart';
 import '../widgets/app_dialog.dart';
 import '../widgets/app_toast.dart';
@@ -25,8 +26,13 @@ import '../widgets/wrapped_card.dart';
 
 /// Monthly "Wrapped": a privacy-safe, shareable recap of any month with at
 /// least [MonthlyRecap.minDays] days of activity. Pick a month, then share
-/// the card — as a living animated GIF or a crisp still — to WhatsApp /
+/// the card — as a living animated clip or a crisp still — to WhatsApp /
 /// Instagram / anywhere via the system share sheet.
+///
+/// The animated share encodes an MP4 (see [WrappedVideo]); it used to be a GIF,
+/// which Instagram flattens to a still and whose 256-colour palette made
+/// WhatsApp's re-encode look blurry. GIF remains the fallback where no
+/// platform encoder exists.
 class WrappedScreen extends StatefulWidget {
   /// Month to open on first (defaults to the current month).
   final DateTime? initialMonth;
@@ -45,13 +51,32 @@ class _WrappedScreenState extends State<WrappedScreen>
   final GlobalKey _cardKey = GlobalKey();
 
   // ── Animated share tuning ──
-  // One loop of the card's motion; the GIF captures exactly one period so it
-  // loops seamlessly. 24 frames at 10 fps = the same 2.4 s the live card
-  // takes, and 1.2× pixel ratio keeps the GIF sharp but chat-friendly.
+  // Frames span exactly one period of the card's motion, so the clip loops
+  // seamlessly: 24 frames at 10 fps = the same 2.4 s the live card takes.
   static const Duration _loopPeriod = Duration(milliseconds: 2400);
-  static const int _gifFrames = 24;
-  static const int _gifFps = 10;
-  static const double _gifPixelRatio = 1.2;
+  static const int _animFrames = 24;
+  static const int _animFps = 10;
+
+  /// Capture scale for the video path. The card is a fixed 360×640, so 3.0
+  /// lands on exactly 1080×1920 — Instagram Story size, both dimensions even
+  /// for H.264, and the same scale the still PNG already used. The old GIF
+  /// captured at 1.2× (432×768) and *that* was the "blurry on WhatsApp"
+  /// report: WhatsApp re-encodes what it's given, so it was upscaling a
+  /// third-resolution source.
+  static const double _videoPixelRatio = 3.0;
+
+  /// Two periods (4.8 s) — long enough to read as a loop, and under the ~6 s
+  /// where WhatsApp still offers to play a clip as an auto-looping GIF.
+  static const int _videoLoops = 2;
+
+  /// 1080×1920 at 10 fps of mostly-static card: generous enough that gradients
+  /// don't band, small enough (~2-4 MB) to send anywhere.
+  static const int _videoBitRate = 8000000;
+
+  /// The GIF fallback (iOS, or a device with no usable encoder) stays a GIF,
+  /// but at 2.0× (720×1280) instead of 1.2× — 2.8× the pixels of the old one.
+  /// Not 3.0×: a 1080×1920 GIF is tens of MB and the Dart encoder would crawl.
+  static const double _gifPixelRatio = 2.0;
 
   late List<DateTime> _months;
   late DateTime _selected;
@@ -127,35 +152,103 @@ class _WrappedScreenState extends State<WrappedScreen>
     }
   }
 
-  /// Step the loop through one full period, capturing each frame, then
-  /// encode a seamlessly looping GIF off the UI thread.
+  /// Step the loop through one full period, handing each rendered frame to
+  /// [onFrame]. The card's motion is periodic in `_loop`, so stepping it by
+  /// hand (rather than sampling the live animation) is what makes the captured
+  /// sequence line up end-to-end.
+  Future<ui.Size?> _captureFrames(
+    double pixelRatio,
+    Future<void> Function(int index, ui.Image image) onFrame,
+  ) async {
+    final boundary = _boundary;
+    if (boundary == null) return null;
+    ui.Size? size;
+    _loop.stop();
+    try {
+      for (var i = 0; i < _animFrames; i++) {
+        _loop.value = i / _animFrames;
+        await WidgetsBinding.instance.endOfFrame;
+        final image = await boundary.toImage(pixelRatio: pixelRatio);
+        size = ui.Size(image.width.toDouble(), image.height.toDouble());
+        try {
+          await onFrame(i, image);
+        } finally {
+          image.dispose();
+        }
+      }
+    } finally {
+      _loop.repeat();
+    }
+    return size;
+  }
+
+  /// Capture the card as PNG frames and encode them to a looping MP4 through
+  /// the platform encoder. Returns null when the platform can't do it, which
+  /// sends the caller to [_captureGif].
+  Future<File?> _captureVideo() async {
+    final dir = await getTemporaryDirectory();
+    final frameDir = Directory('${dir.path}/wrapped_frames');
+    try {
+      if (await frameDir.exists()) await frameDir.delete(recursive: true);
+      await frameDir.create(recursive: true);
+
+      final paths = <String>[];
+      final size = await _captureFrames(_videoPixelRatio, (i, image) async {
+        final data = await image.toByteData(format: ui.ImageByteFormat.png);
+        if (data == null) return;
+        final path =
+            '${frameDir.path}/f${i.toString().padLeft(3, '0')}.png';
+        await File(path)
+            .writeAsBytes(data.buffer.asUint8List(
+                data.offsetInBytes, data.lengthInBytes));
+        paths.add(path);
+      });
+      if (size == null || paths.length != _animFrames) return null;
+
+      final period = DateFormat('yyyy-MM').format(_selected);
+      return await WrappedVideo.encode(
+        framePaths: paths,
+        outPath: '${dir.path}/budgetify_wrapped_$period.mp4',
+        // Even dimensions are an H.264 requirement; 360×640 logical at an
+        // integer pixel ratio always is, but floor to be certain.
+        width: size.width.toInt() & ~1,
+        height: size.height.toInt() & ~1,
+        fps: _animFps,
+        loops: _videoLoops,
+        bitRate: _videoBitRate,
+      );
+    } catch (e) {
+      return null;
+    } finally {
+      // Frames are pure scratch — several MB of PNG that must not linger.
+      try {
+        if (await frameDir.exists()) await frameDir.delete(recursive: true);
+      } catch (e) {
+        // Best effort; the OS clears the temp dir anyway.
+      }
+    }
+  }
+
+  /// GIF fallback for platforms without the video encoder. Encoded off the UI
+  /// thread because ~24 frames of palette quantisation takes seconds of CPU.
   Future<File?> _captureGif() async {
     try {
-      final boundary = _boundary!;
       final frames = <Uint8List>[];
-      var w = 0, h = 0;
-      _loop.stop();
-      try {
-        for (var i = 0; i < _gifFrames; i++) {
-          _loop.value = i / _gifFrames;
-          await WidgetsBinding.instance.endOfFrame;
-          final image = await boundary.toImage(pixelRatio: _gifPixelRatio);
-          final data =
-              await image.toByteData(format: ui.ImageByteFormat.rawRgba);
-          w = image.width;
-          h = image.height;
-          image.dispose();
-          if (data == null) return null;
-          frames.add(
-              data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
-        }
-      } finally {
-        _loop.repeat();
-      }
+      final size = await _captureFrames(_gifPixelRatio, (i, image) async {
+        final data = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+        if (data == null) return;
+        frames.add(
+            data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
+      });
+      if (size == null || frames.length != _animFrames) return null;
       final gif = await compute(
         buildWrappedGif,
         WrappedGifRequest(
-            width: w, height: h, fps: _gifFps, rgbaFrames: frames),
+          width: size.width.toInt(),
+          height: size.height.toInt(),
+          fps: _animFps,
+          rgbaFrames: frames,
+        ),
       );
       final dir = await getTemporaryDirectory();
       final period = DateFormat('yyyy-MM').format(_selected);
@@ -173,17 +266,27 @@ class _WrappedScreenState extends State<WrappedScreen>
     setState(() => _sharing = kind);
     final l10n = context.l10nRead;
     try {
-      final file = await (kind == _ShareKind.animated
-          ? _captureGif()
-          : _capturePng());
+      File? file;
+      var mimeType = 'image/png';
+      if (kind == _ShareKind.animated) {
+        // Video first: it's the only animated format Instagram honours, and
+        // it's sharper than a GIF everywhere else. GIF stays as the fallback
+        // so the feature still works where the encoder doesn't exist.
+        if (await WrappedVideo.isSupported()) {
+          file = await _captureVideo();
+          if (file != null) mimeType = 'video/mp4';
+        }
+        if (file == null) {
+          file = await _captureGif();
+          mimeType = 'image/gif';
+        }
+      } else {
+        file = await _capturePng();
+      }
       if (file == null) throw Exception('Capture failed');
       final monthName = l10n.monthYear(_selected);
       await Share.shareXFiles(
-        [
-          XFile(file.path,
-              mimeType:
-                  kind == _ShareKind.animated ? 'image/gif' : 'image/png'),
-        ],
+        [XFile(file.path, mimeType: mimeType)],
         text: l10n.wrappedShareText(monthName),
       );
     } catch (e) {
