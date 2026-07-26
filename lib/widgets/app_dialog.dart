@@ -36,7 +36,11 @@ class AppDialog extends StatelessWidget {
         borderRadius: BorderRadius.circular(22),
         side: BorderSide(color: colors.border),
       ),
-      child: Padding(
+      // Scrolls rather than overflows. A dialog with a subtitle, a couple of
+      // option rows and actions runs out of room on a 360x640 phone once the
+      // text scale is turned up or a long-script language is selected — and a
+      // dialog that overflows silently hides its own buttons.
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(22),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -47,7 +51,7 @@ class AppDialog extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(9),
                   decoration: BoxDecoration(
-                    color: a.withOpacity(0.14),
+                    color: a.withValues(alpha: 0.14),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(icon, color: a, size: 22),

@@ -452,6 +452,172 @@ class AppStrings {
         'ఇంకా ఏమీ విస్మరించలేదు',
         'இன்னும் எதுவும் புறக்கணிக்கப்படவில்லை',
       );
+  // ── Removal fork ──────────────────────────────────────────────────────
+  // Shown wherever the user removes an SMS-derived row. Deleting only
+  // tombstones that one message, so the same promo template returns next month
+  // with a new amount; muting the shape ends it. Both options therefore state
+  // their consequence outright — that difference is the whole point.
+  String get removeEntryTitle => _t(
+        'Remove this entry?',
+        'यह प्रविष्टि हटाएँ?',
+        'ही नोंद काढायची?',
+        'এই এন্ট্রি সরাবেন?',
+        'ఈ ఎంట్రీని తీసివేయాలా?',
+        'இந்தப் பதிவை நீக்கவா?',
+      );
+  String get removeEntryQuestion => _t(
+        'Was this a real transaction?',
+        'क्या यह असली लेन-देन था?',
+        'हा खरा व्यवहार होता का?',
+        'এটি কি সত্যিকারের লেনদেন ছিল?',
+        'ఇది నిజమైన లావాదేవీనా?',
+        'இது உண்மையான பரிவர்த்தனையா?',
+      );
+  String notATransactionOptionBody(String sender) => _t(
+        'Also skips future messages like this from $sender',
+        '$sender के ऐसे आगामी संदेश भी छोड़ दिए जाएँगे',
+        '$sender चे असे पुढील संदेशही वगळले जातील',
+        '$sender-এর এমন ভবিষ্যৎ বার্তাও বাদ যাবে',
+        '$sender నుండి ఇలాంటి భవిష్యత్ సందేశాలూ దాటవేయబడతాయి',
+        '$sender இன் இதுபோன்ற வரும் செய்திகளும் தவிர்க்கப்படும்',
+      );
+  String get justRemoveThisOne => _t(
+        'Just remove this one',
+        'सिर्फ़ यही हटाएँ',
+        'फक्त हीच काढा',
+        'শুধু এটিই সরান',
+        'ఇది ఒక్కటే తీసివేయి',
+        'இதை மட்டும் நீக்கு',
+      );
+  String get justRemoveThisOneBody => _t(
+        'Similar messages can show up again later',
+        'ऐसे संदेश आगे फिर आ सकते हैं',
+        'असे संदेश पुन्हा येऊ शकतात',
+        'এমন বার্তা পরে আবার আসতে পারে',
+        'ఇలాంటి సందేశాలు మళ్ళీ రావచ్చు',
+        'இதுபோன்ற செய்திகள் மீண்டும் வரலாம்',
+      );
+  String get commonUndo =>
+      _t('Undo', 'वापस लें', 'पूर्ववत', 'ফেরান', 'రద్దు చేయి', 'மீட்டெடு');
+  String get entryRemovedMuted => _t(
+        'Removed — messages like this will be skipped',
+        'हटाया गया — ऐसे संदेश आगे छोड़ दिए जाएँगे',
+        'काढले — असे संदेश पुढे वगळले जातील',
+        'সরানো হয়েছে — এমন বার্তা বাদ যাবে',
+        'తీసివేయబడింది — ఇలాంటి సందేశాలు దాటవేయబడతాయి',
+        'நீக்கப்பட்டது — இதுபோன்ற செய்திகள் தவிர்க்கப்படும்',
+      );
+  String get muteLifted => _t(
+        'Restored — messages like this are allowed again',
+        'बहाल किया गया — ऐसे संदेश फिर से आएँगे',
+        'पुन्हा आणले — असे संदेश पुन्हा येतील',
+        'ফেরানো হয়েছে — এমন বার্তা আবার আসবে',
+        'పునరుద్ధరించబడింది — ఇలాంటి సందేశాలు మళ్ళీ వస్తాయి',
+        'மீட்கப்பட்டது — இதுபோன்ற செய்திகள் மீண்டும் வரும்',
+      );
+  String get cannotUndo => _t(
+        "This one can't be restored",
+        'इसे बहाल नहीं किया जा सकता',
+        'हे पुन्हा आणता येत नाही',
+        'এটি ফেরানো যাবে না',
+        'ఇది పునరుద్ధరించలేము',
+        'இதை மீட்க முடியாது',
+      );
+
+  // ── Tidy up (review triage) ───────────────────────────────────────────
+  String get tidyUp => _t('Tidy up', 'व्यवस्थित करें', 'नीटनेटके करा',
+      'গোছান', 'చక్కబెట్టు', 'ஒழுங்குபடுத்து');
+  String get tidyUpTagline => _t(
+        'Check the entries the reader was unsure about',
+        'जिन प्रविष्टियों पर संदेह था उन्हें जाँचें',
+        'ज्या नोंदींबद्दल शंका होती त्या तपासा',
+        'যেগুলি নিয়ে সংশয় ছিল সেগুলি যাচাই করুন',
+        'సందేహం ఉన్న ఎంట్రీలను తనిఖీ చేయండి',
+        'சந்தேகம் இருந்த பதிவுகளைச் சரிபார்க்கவும்',
+      );
+  String tidyUpProgress(int done, int total) => _t(
+        '$done of $total',
+        '$total में से $done',
+        '$total पैकी $done',
+        '$total-এর মধ্যে $done',
+        '$totalలో $done',
+        '$total இல் $done',
+      );
+  String get tidyUpAllSet => _t('All set', 'सब हो गया', 'सर्व झाले',
+      'সব ঠিক আছে', 'అంతా సిద్ధం', 'அனைத்தும் தயார்');
+  String get tidyUpAllSetBody => _t(
+        'Nothing left to check. The reader learns from every fix you made.',
+        'जाँचने को कुछ नहीं बचा। आपके हर सुधार से ऐप सीखता है।',
+        'तपासण्यासारखे काही उरले नाही. तुमच्या प्रत्येक सुधारणेतून ॲप शिकते.',
+        'যাচাই করার কিছু নেই। আপনার প্রতিটি সংশোধন থেকে অ্যাপ শেখে।',
+        'తనిఖీ చేయడానికి ఏమీ లేదు. మీ ప్రతి సరిదిద్దుడి నుండి యాప్ నేర్చుకుంటుంది.',
+        'சரிபார்க்க எதுவும் இல்லை. உங்கள் ஒவ்வொரு திருத்தத்திலும் ஆப் கற்கிறது.',
+      );
+
+  // ── Bulk selection ────────────────────────────────────────────────────
+  String nSelected(int n) => _t('$n selected', '$n चुने गए', '$n निवडले',
+      '$n নির্বাচিত', '$n ఎంచుకున్నారు', '$n தேர்ந்தெடுக்கப்பட்டது');
+  String get selectAll => _t('Select all', 'सभी चुनें', 'सर्व निवडा',
+      'সব নির্বাচন করুন', 'అన్నీ ఎంచుకో', 'அனைத்தையும் தேர்');
+  String removeNEntriesTitle(int n) => _t(
+        'Remove $n entries?',
+        '$n प्रविष्टियाँ हटाएँ?',
+        '$n नोंदी काढायच्या?',
+        '$n এন্ট্রি সরাবেন?',
+        '$n ఎంట్రీలను తీసివేయాలా?',
+        '$n பதிவுகளை நீக்கவா?',
+      );
+  String notATransactionNBody(int n) => _t(
+        'Also skips future messages like these $n',
+        'इन $n जैसे आगामी संदेश भी छोड़ दिए जाएँगे',
+        'या $n सारखे पुढील संदेशही वगळले जातील',
+        'এই $n-এর মতো ভবিষ্যৎ বার্তাও বাদ যাবে',
+        'ఈ $n లాంటి భవిష్యత్ సందేశాలూ దాటవేయబడతాయి',
+        'இந்த $n போன்ற வரும் செய்திகளும் தவிர்க்கப்படும்',
+      );
+  String nEntriesRemoved(int n) => _t(
+        '$n removed',
+        '$n हटाए गए',
+        '$n काढले',
+        '$n সরানো হয়েছে',
+        '$n తీసివేయబడ్డాయి',
+        '$n நீக்கப்பட்டது',
+      );
+
+  // ── Repeat-deletion nudge ─────────────────────────────────────────────
+  String get repeatDeleteTipTitle => _t(
+        'Seeing this one again?',
+        'यह फिर दिख रहा है?',
+        'हे पुन्हा दिसत आहे?',
+        'এটি আবার দেখছেন?',
+        'ఇది మళ్ళీ కనిపిస్తోందా?',
+        'இது மீண்டும் தெரிகிறதா?',
+      );
+  String get repeatDeleteTipBody => _t(
+        "You've removed this kind of message before. Choose "
+            '"Not a transaction" instead and the app will skip every one of '
+            'them from now on.',
+        'आपने ऐसा संदेश पहले भी हटाया था। इसके बजाय "यह लेन-देन नहीं है" '
+            'चुनें और ऐप आगे ऐसे सभी संदेश छोड़ देगा।',
+        'तुम्ही असा संदेश आधीही काढला होता. त्याऐवजी "हा व्यवहार नाही" '
+            'निवडा आणि ॲप पुढे असे सर्व संदेश वगळेल.',
+        'আপনি এমন বার্তা আগেও সরিয়েছেন। বদলে "এটি লেনদেন নয়" বেছে নিন, '
+            'অ্যাপ এরপর এমন সব বার্তা বাদ দেবে।',
+        'మీరు ఇలాంటి సందేశాన్ని ఇంతకుముందే తీసివేశారు. దానికి బదులు '
+            '"ఇది లావాదేవీ కాదు" ఎంచుకోండి, యాప్ ఇకపై ఇలాంటివన్నీ దాటవేస్తుంది.',
+        'இதுபோன்ற செய்தியை ஏற்கனவே நீக்கியுள்ளீர்கள். அதற்குப் பதிலாக '
+            '"இது பரிவர்த்தனை அல்ல" தேர்ந்தெடுத்தால் ஆப் இனி இவை '
+            'அனைத்தையும் தவிர்க்கும்.',
+      );
+  String nMutedShapes(int n) => _t(
+        '$n muted',
+        '$n अनदेखे',
+        '$n दुर्लक्षित',
+        '$n উপেক্ষিত',
+        '$n విస్మరించినవి',
+        '$n புறக்கணிக்கப்பட்டது',
+      );
+
   String get fixThis =>
       _t('Fix this', 'ठीक करें', 'दुरुस्त करा', 'ঠিক করুন', 'సరిచేయి', 'சரிசெய்');
   String get changeToCredit => _t(
@@ -1713,13 +1879,18 @@ class AppStrings {
   String get filtersTitle => _t('Filters', 'फ़िल्टर', 'फिल्टर', 'ফিল্টার', 'ఫిల్టర్‌లు', 'வடிகட்டிகள்');
   String lastNDays(int n) => _t('Last $n days', 'पिछले $n दिन', 'मागील $n दिवस', 'গত $n দিন', 'గత $n రోజులు', 'கடந்த $n நாட்கள்');
   String get summaryWord => _t('Summary', 'सारांश', 'सारांश', 'সারসংক্ষেপ', 'సారాంశం', 'சுருக்கம்');
+  // Deliberately narrower than it used to be. The old wording ("it won't
+  // return on the next scan") let users believe a delete had solved the
+  // problem, when only *this* message is tombstoned — a similar message from
+  // the same template still logs. Say what actually happened, and let the
+  // removal fork be where the permanent option is offered.
   String get txnDeletedToast => _t(
-        "Transaction deleted — it won't return on the next scan",
-        'लेन-देन हटाया गया — यह अगली स्कैन में वापस नहीं आएगा',
-        'व्यवहार हटवला — हे पुढील स्कॅनमध्ये परत येणार नाही',
-        'লেনদেন মুছে ফেলা হয়েছে — এটি পরবর্তী স্ক্যানে আর ফিরবে না',
-        'లావాదేవీ తొలగించబడింది — ఇది తదుపరి స్కాన్‌లో తిరిగి రాదు',
-        'பரிவர்த்தனை நீக்கப்பட்டது — இது அடுத்த ஸ்கேனில் திரும்பி வராது',
+        'Transaction removed',
+        'लेन-देन हटाया गया',
+        'व्यवहार काढला',
+        'লেনদেন সরানো হয়েছে',
+        'లావాదేవీ తీసివేయబడింది',
+        'பரிவர்த்தனை நீக்கப்பட்டது',
       );
   String allOfFilter(String hint) => _t('All $hint', 'सभी $hint', 'सर्व $hint', 'সব $hint', 'అన్నీ $hint', 'அனைத்து $hint');
 

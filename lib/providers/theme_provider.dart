@@ -824,6 +824,13 @@ class AppColors {
   static const dangerLight = Color(0xFFC94A50);
   static const dangerDark = Color(0xFFE8888C);
 
+  /// "Needs attention" — weaker than [danger]: nothing is wrong, something is
+  /// unconfirmed (an unclassified row, a parse the reader wasn't sure about).
+  /// The amber the review banner has always used, plus a lifted companion that
+  /// stays legible on the near-black cards of the dark-brightness themes.
+  static const warningLight = Color(0xFFC05621);
+  static const warningDark = Color(0xFFE9A76B);
+
   // Hero card gradient — the dark "luxury card" used in both modes
   static const heroGradient = [Color(0xFF23273A), Color(0xFF131520)];
 
@@ -847,6 +854,11 @@ class AppColors {
   final Color success;
   final Color danger;
 
+  /// Attention state (review flags, unclassified rows). Semantic, so the royal
+  /// dress deliberately leaves it alone — "needs a look" must read the same
+  /// whoever is equipped.
+  final Color warning;
+
   const AppColors._({
     required this.background,
     required this.surface,
@@ -861,6 +873,7 @@ class AppColors {
     required this.brandAccentDeep,
     required this.success,
     required this.danger,
+    required this.warning,
   });
 
   /// A palette with selected slots replaced — used by the app-wide royal
@@ -885,6 +898,7 @@ class AppColors {
         brandAccentDeep: brandAccentDeep ?? this.brandAccentDeep,
         success: success,
         danger: danger,
+        warning: warning,
       );
 
   static const light = AppColors._(
@@ -901,6 +915,7 @@ class AppColors {
     brandAccentDeep: Color(0xFF8A6B2E),
     success: successLight,
     danger: dangerLight,
+    warning: warningLight,
   );
 
   static const dark = AppColors._(
@@ -917,6 +932,7 @@ class AppColors {
     brandAccentDeep: goldDeep,
     success: successDark,
     danger: dangerDark,
+    warning: warningDark,
   );
 
   // ── Streak-reward palettes (both light-brightness) ──────────────────────
@@ -935,6 +951,7 @@ class AppColors {
     brandAccentDeep: Color(0xFF5C6675),
     success: successLight,
     danger: dangerLight,
+    warning: warningLight,
   );
 
   // "Soft Seashell & Dusty Mauve": blush seashell canvas, dusty-mauve accent.
@@ -952,6 +969,7 @@ class AppColors {
     brandAccentDeep: Color(0xFF8A645E),
     success: successLight,
     danger: dangerLight,
+    warning: warningLight,
   );
 
   // "Onyx & Amber" (dark-brightness): deep onyx canvas, elevated gunmetal-grey
@@ -970,6 +988,9 @@ class AppColors {
     brandAccentDeep: Color(0xFFE07B00),
     success: successDark,
     danger: dangerDark,
+    // Amber is this theme's *accent*, so the usual amber warning would read as
+    // decoration. A yellower gold keeps "needs a look" separable from it.
+    warning: Color(0xFFF2C14E),
   );
 
   // "Royal Indigo" (light-brightness, 30-day pinnacle): a frosted-lavender
@@ -989,6 +1010,7 @@ class AppColors {
     brandAccentDeep: Color(0xFF4530B3),
     success: successLight,
     danger: dangerLight,
+    warning: warningLight,
   );
 
   // "Midnight Indigo" (dark-brightness, 45-day): the dark twin of Royal Indigo
@@ -1008,6 +1030,7 @@ class AppColors {
     brandAccentDeep: Color(0xFF1BA6E0),
     success: successDark,
     danger: dangerDark,
+    warning: warningDark,
   );
 
   /// The palette backing a given [AppThemeVariant].
