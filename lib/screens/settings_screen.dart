@@ -62,13 +62,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final GlobalKey _tutBackupKey = GlobalKey();
   final GlobalKey _tutAppearanceKey = GlobalKey();
 
+  /// How many message shapes are currently muted, shown beside "Ignored
+  /// messages" so the effect of "Not a transaction" is visible after the fact.
+  int _mutedShapeCount = 0;
+
   @override
   void initState() {
     super.initState();
     _loadSettings();
+    _loadMutedShapeCount();
     TutorialService.instance.addListener(_onTutorialTick);
     WidgetsBinding.instance
         .addPostFrameCallback((_) => _maybeShowTutorialTip());
+  }
+
+  Future<void> _loadMutedShapeCount() async {
+    final n = await DatabaseService().countMessageMutes();
+    if (mounted) setState(() => _mutedShapeCount = n);
   }
 
   @override
@@ -689,7 +699,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
                 ),
               ),
-              trailing: const Icon(Icons.chevron_right),
+              // The count makes the mute visible after the fact: choosing
+              // "Not a transaction" silently changes what gets logged, so the
+              // user should be able to see how many shapes they've muted —
+              // and undo one — without opening the list to find out.
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_mutedShapeCount > 0)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.of(context)
+                            .warning
+                            .withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        context.l10n.nMutedShapes(_mutedShapeCount),
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.of(context).warning,
+                        ),
+                      ),
+                    ),
+                  const Icon(Icons.chevron_right),
+                ],
+              ),
               onTap: _openIgnoredMessagesSheet,
             ),
           ),
@@ -1134,6 +1172,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// Bottom sheet listing message shapes the user muted via "Not a
   /// transaction — ignore similar". Deleting a row un-mutes that shape.
   Future<void> _openIgnoredMessagesSheet() async {
+    // Un-muting inside the sheet changes the count behind it.
+    await _showIgnoredMessagesSheet();
+    await _loadMutedShapeCount();
+  }
+
+  Future<void> _showIgnoredMessagesSheet() async {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardColor = isDark ? const Color(0xFF16181E) : Colors.white;
     final textColor = isDark ? Colors.white : Colors.black87;
