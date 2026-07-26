@@ -3243,12 +3243,6 @@ class AppStrings {
       _t('Active days', 'सक्रिय दिन', 'सक्रिय दिवस', 'সক্রিয় দিন', 'యాక్టివ్ రోజులు', 'செயலில் இருந்த நாட்கள்');
   String wPctOfSpend(int pct) =>
       _t('$pct% of spend', 'खर्च का $pct%', 'खर्चाच्या $pct%', 'খরচের $pct%', 'ఖర్చులో $pct%', 'செலவில் $pct%');
-  String get shareAnimatedWrapped => _t(
-      'Share animated card', 'एनिमेटेड कार्ड साझा करें', 'ॲनिमेटेड कार्ड शेअर करा', 'অ্যানিমেটেড কার্ড শেয়ার করুন', 'యానిమేటెడ్ కార్డ్ షేర్ చేయండి', 'அசையும் அட்டையைப் பகிர்');
-  String get shareStillImage => _t(
-      'Share as still image', 'स्थिर छवि के रूप में साझा करें', 'स्थिर प्रतिमा म्हणून शेअर करा', 'স্থির ছবি হিসেবে শেয়ার করুন', 'స్టిల్ ఇమేజ్‌గా షేర్ చేయండి', 'நிலைப் படமாகப் பகிர்');
-  String get creatingAnimation => _t(
-      'Weaving the animation…', 'एनीमेशन बन रहा है…', 'ॲनिमेशन तयार होत आहे…', 'অ্যানিমেশন তৈরি হচ্ছে…', 'యానిమేషన్ సిద్ధమవుతోంది…', 'அனிமேஷன் உருவாகிறது…');
   String get wrappedAmountsOnNote => _t(
         'Amounts are showing — anything you share will include your real ₹ figures.',
         'राशियाँ दिख रही हैं — आप जो भी साझा करेंगे उसमें आपके असली ₹ आँकड़े होंगे।',
