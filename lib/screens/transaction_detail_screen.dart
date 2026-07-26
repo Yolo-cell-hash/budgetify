@@ -18,6 +18,7 @@ import 'plus_screen.dart';
 import '../widgets/app_bar_title.dart';
 import '../widgets/app_dialog.dart';
 import '../widgets/app_toast.dart';
+import '../widgets/create_tag_sheet.dart';
 import '../widgets/recurring_editor_sheet.dart';
 import '../widgets/settlement_sheet.dart';
 import '../widgets/split_transaction_sheet.dart';
@@ -533,12 +534,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     }
   }
 
-  static const List<String> _emojiChoices = [
-    '🏠', '🎮', '💊', '🎁', '🐾', '🍕', '🏋️', '📱', '☕', '🎵',
-    '💇', '🧹', '🚕', '🎓', '👶', '💍', '🏦', '⛽', '🅿️', '📦',
-    '🛒', '🍿', '🏥', '✂️', '🧾', '💻', '📸', '🎂', '🌐', '🔧',
-  ];
-
   /// Long-press on a category chip: pick a custom emoji for that tag
   /// (works for predefined categories and custom tags alike).
   Future<void> _showEmojiPickerForTag(String category, bool isDark) async {
@@ -574,9 +569,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                   mainAxisSpacing: 8,
                   crossAxisSpacing: 8,
                 ),
-                itemCount: _emojiChoices.length,
+                itemCount: kTagEmojiChoices.length,
                 itemBuilder: (_, i) => GestureDetector(
-                  onTap: () => Navigator.pop(ctx, _emojiChoices[i]),
+                  onTap: () => Navigator.pop(ctx, kTagEmojiChoices[i]),
                   child: Container(
                     decoration: BoxDecoration(
                       color: isDark
@@ -586,7 +581,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                     ),
                     child: Center(
                       child: Text(
-                        _emojiChoices[i],
+                        kTagEmojiChoices[i],
                         style: const TextStyle(fontSize: 22),
                       ),
                     ),
@@ -606,200 +601,13 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     }
   }
 
-  Future<void> _showCreateTagDialog(bool isDark) async {
-    final nameController = TextEditingController();
-    String selectedEmoji = '🏷️';
-
-    const emojis = _emojiChoices;
-
-    final cardColor = isDark ? const Color(0xFF16181E) : Colors.white;
-    final textColor = isDark ? Colors.white : Colors.black87;
-    final subtextColor = isDark ? Color(0xFF9A9DA6) : Color(0xFF6E727C);
-    final inputBg = isDark ? const Color(0xFF262931) : Color(0xFFFAFAF8);
-
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: cardColor,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setDialogState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 24,
-                right: 24,
-                top: 24,
-                bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Color(0xFF9A9DA6),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    context.l10nRead.createCustomTag,
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: textColor,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    context.l10nRead.createTagDesc,
-                    style: TextStyle(color: subtextColor),
-                  ),
-                  const SizedBox(height: 20),
-                  // Tag name input
-                  TextField(
-                    controller: nameController,
-                    style: TextStyle(color: textColor),
-                    decoration: InputDecoration(
-                      hintText: context.l10nRead.tagNameHint,
-                      hintStyle: TextStyle(color: subtextColor),
-                      filled: true,
-                      fillColor: inputBg,
-                      prefixIcon: Container(
-                        width: 48,
-                        alignment: Alignment.center,
-                        child: Text(
-                          selectedEmoji,
-                          style: const TextStyle(fontSize: 20),
-                        ),
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 14,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  // Emoji picker grid
-                  Text(
-                    context.l10nRead.pickAnEmoji,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: subtextColor,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    height: 180,
-                    child: GridView.builder(
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 6,
-                            mainAxisSpacing: 8,
-                            crossAxisSpacing: 8,
-                          ),
-                      itemCount: emojis.length,
-                      itemBuilder: (_, i) {
-                        final emoji = emojis[i];
-                        final isSelected = emoji == selectedEmoji;
-                        return GestureDetector(
-                          onTap: () {
-                            setDialogState(() => selectedEmoji = emoji);
-                          },
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? Color(0xFF4A6489).withAlpha(40)
-                                  : (isDark
-                                        ? const Color(0xFF262931)
-                                        : Color(0xFFF6F6F3)),
-                              borderRadius: BorderRadius.circular(10),
-                              border: isSelected
-                                  ? Border.all(
-                                      color: Color(0xFF8FA9C7),
-                                      width: 2,
-                                    )
-                                  : null,
-                            ),
-                            child: Center(
-                              child: Text(
-                                emoji,
-                                style: const TextStyle(fontSize: 22),
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  // Create button
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        final l10n = context.l10nRead;
-                        final name = nameController.text.trim();
-                        if (name.isEmpty) {
-                          showAppToast(context,
-                              message: l10n.enterTagName,
-                              type: AppToastType.warning);
-                          return;
-                        }
-                        final success = await CustomTagService().addCustomTag(
-                          name,
-                          selectedEmoji,
-                        );
-                        if (!success) {
-                          if (context.mounted) {
-                            showAppToast(context,
-                                message: l10n.tagExists,
-                                type: AppToastType.warning);
-                          }
-                          return;
-                        }
-                        if (ctx.mounted) Navigator.pop(ctx);
-                        setState(() {
-                          _selectedCategory = name;
-                        });
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Color(0xFF4A6489),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        elevation: 0,
-                      ),
-                      child: Text(
-                        context.l10nRead.createTag,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
+  /// "+ New Tag" on the category grid. The sheet itself is shared with
+  /// Settings → Manage tags (see [showCreateTagSheet]); all this screen adds is
+  /// selecting the tag it just created.
+  Future<void> _showCreateTagDialog() async {
+    final created = await showCreateTagSheet(context);
+    if (created == null || !mounted) return;
+    setState(() => _selectedCategory = created);
   }
 
   @override
@@ -1273,7 +1081,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                       }),
                       // Create new tag button
                       GestureDetector(
-                        onTap: () => _showCreateTagDialog(isDark),
+                        onTap: _showCreateTagDialog,
                         child: Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,

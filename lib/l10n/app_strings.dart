@@ -3002,6 +3002,8 @@ class AppStrings {
         '"$tag" நீக்கப்பட்டது மற்றும் $count பரிவர்த்தனைகளிலிருந்து குறிச்சொல் அகற்றப்பட்டது',
       );
   String deletedTag(String tag) => _t('Deleted "$tag"', '"$tag" हटाया', '"$tag" हटवला', '"$tag" মুছে ফেলা হয়েছে', '"$tag" తొలగించబడింది', '"$tag" நீக்கப்பட்டது');
+  String createdTag(String tag) =>
+      _t('Created "$tag"', '"$tag" बनाया', '"$tag" तयार केला', '"$tag" তৈরি করা হয়েছে', '"$tag" సృష్టించబడింది', '"$tag" உருவாக்கப்பட்டது');
   String restoredTag(String tag) =>
       _t('Restored "$tag"', '"$tag" पुनर्स्थापित किया', '"$tag" पुनर्संचयित केला', '"$tag" পুনরুদ্ধার করা হয়েছে', '"$tag" పునరుద్ధరించబడింది', '"$tag" மீட்டமைக்கப்பட்டது');
   String tagMeta(bool isCustom, int count) {
