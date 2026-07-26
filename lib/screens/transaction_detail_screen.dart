@@ -8,10 +8,10 @@ import '../models/tax_bucket.dart';
 import '../models/transaction_model.dart';
 import '../models/transaction_rule_model.dart';
 import '../providers/theme_provider.dart';
-import '../services/app_events.dart';
 import '../services/database_service.dart';
 import '../services/custom_tag_service.dart';
 import '../services/ledger_service.dart';
+import '../services/removal_service.dart';
 import '../services/tax_service.dart';
 import '../services/tutorial_service.dart';
 import 'plus_screen.dart';
@@ -20,6 +20,7 @@ import '../widgets/app_dialog.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/create_tag_sheet.dart';
 import '../widgets/recurring_editor_sheet.dart';
+import '../widgets/removal_choice_dialog.dart';
 import '../widgets/settlement_sheet.dart';
 import '../widgets/split_transaction_sheet.dart';
 
@@ -1810,62 +1811,30 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     }
   }
 
-  /// Remove a false positive: delete + tombstone, and optionally mute the
-  /// message shape so similar messages from this sender never log again.
+  /// Remove a false positive. Shares the removal fork with the swipe gesture
+  /// and bulk selection — one dialog, one set of consequences, one place where
+  /// the mute decision is explained — rather than the bespoke checkbox dialog
+  /// this used to own. Picking "Not a transaction" mutes the message shape;
+  /// picking "Just remove this one" keeps the old delete-only behaviour.
   Future<void> _notATransaction() async {
-    var muteSimilar = true;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: Text(ctx.l10n.notATransaction),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(ctx.l10n.notATransactionTagline),
-              const SizedBox(height: 12),
-              CheckboxListTile(
-                value: muteSimilar,
-                onChanged: (v) =>
-                    setDialogState(() => muteSimilar = v ?? false),
-                title: Text(
-                  ctx.l10n.ignoreSimilarMessages,
-                  style: const TextStyle(fontSize: 13),
-                ),
-                contentPadding: EdgeInsets.zero,
-                controlAffinity: ListTileControlAffinity.leading,
-                dense: true,
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(ctx.l10n.commonCancel),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: Text(ctx.l10n.notATransaction),
-            ),
-          ],
-        ),
-      ),
+    if (_transaction.id == null) return;
+
+    final choice = await showRemovalChoiceDialog(
+      context,
+      sender: _transaction.merchantName?.trim().isNotEmpty == true
+          ? _transaction.merchantName!
+          : _transaction.sender,
+      canMute: RemovalService.canMute(_transaction),
     );
-    if (confirmed != true || _transaction.id == null) return;
-    if (muteSimilar && !_transaction.isManual) {
-      await _dbService.addMessageMute(
-        _transaction.sender,
-        _transaction.message,
-      );
-    }
-    await _dbService.deleteTransaction(_transaction.id!);
-    // Cosmetic only: an equipped royal "vanquishes" the removed entry.
-    requestRoyalReaction(RoyalReaction.strike);
+    if (choice == null || !mounted) return;
+
+    await RemovalService.instance.remove([_transaction], choice);
     if (!mounted) return;
     showAppToast(
       context,
-      message: context.l10nRead.entryRemoved,
+      message: choice == TransactionRemoval.notATransaction
+          ? context.l10nRead.entryRemovedMuted
+          : context.l10nRead.entryRemoved,
       type: AppToastType.info,
     );
     Navigator.pop(context, true);
@@ -1937,14 +1906,30 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
               ),
             ),
             const SizedBox(height: 4),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: _confirmLooksRight,
-                icon: const Icon(Icons.check_rounded, size: 18),
-                label: Text(l10n.looksRight),
-                style: TextButton.styleFrom(foregroundColor: amber),
-              ),
+            // Both answers to "is this right?" live here, side by side. The
+            // banner only appears when the reader was unsure — precisely when a
+            // false positive is likely — so this is where "Not a transaction"
+            // earns its place in the open, instead of only in the overflow menu
+            // where nobody found it.
+            Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 4,
+              children: [
+                TextButton.icon(
+                  onPressed: _notATransaction,
+                  icon: const Icon(Icons.playlist_remove_rounded, size: 18),
+                  label: Text(l10n.notATransaction),
+                  style: TextButton.styleFrom(
+                    foregroundColor: colors.textSecondary,
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: _confirmLooksRight,
+                  icon: const Icon(Icons.check_rounded, size: 18),
+                  label: Text(l10n.looksRight),
+                  style: TextButton.styleFrom(foregroundColor: amber),
+                ),
+              ],
             ),
           ],
         ),

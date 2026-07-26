@@ -40,6 +40,13 @@ enum RoyalReaction {
 
   /// A happy flourish — e.g. when financial health turns healthy.
   cheer,
+
+  /// The user taught the parser something ("not a transaction", a direction
+  /// fix) rather than just deleting a row. Deliberately *not* [strike]: a plain
+  /// delete is a dead end that comes back next month, while a correction fixes
+  /// the whole message template for good, and the royal should not celebrate
+  /// both the same way. Plays the approving flourish, no new sprite art.
+  taught,
 }
 
 /// A reaction plus a monotonic nonce, so the SAME reaction firing twice in a
