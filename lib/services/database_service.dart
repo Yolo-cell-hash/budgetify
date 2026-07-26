@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/transaction_model.dart';
@@ -34,7 +36,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 26,
+      version: 27,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -190,7 +192,8 @@ class DatabaseService {
         fingerprint TEXT,
         message TEXT,
         detected_at INTEGER,
-        deleted_at INTEGER NOT NULL
+        deleted_at INTEGER NOT NULL,
+        payload TEXT
       )
     ''';
 
@@ -736,6 +739,22 @@ class DatabaseService {
       // from LIC → 80C"). Additive; absent for anyone who never uses it.
       await db.execute(_createTaxBucketRulesTable);
     }
+
+    if (oldVersion < 27) {
+      // Undo for a removed transaction. The tombstone used to record only
+      // enough to stop a re-import (fingerprint + message + timestamp), which
+      // cannot rebuild a row. It now also carries the full row as JSON, so
+      // "Undo" survives an app restart instead of living in memory.
+      // Additive and nullable: tombstones written before this upgrade simply
+      // have no payload and are reported as not restorable.
+      try {
+        await db.execute(
+          'ALTER TABLE deleted_transactions ADD COLUMN payload TEXT',
+        );
+      } catch (_) {
+        // Column already present (fresh install that raced an upgrade).
+      }
+    }
   }
 
   /// Internal backfill that works during migration (uses raw db handle)
@@ -1041,10 +1060,18 @@ class DatabaseService {
 
   /// Delete a transaction.
   ///
-  /// SMS-derived transactions get a tombstone first so the same SMS is not
-  /// re-imported by the next inbox scan. Manual transactions don't need
-  /// one — nothing re-creates them.
-  Future<int> deleteTransaction(int id) async {
+  /// Every deletion writes a tombstone. For SMS-derived rows the fingerprint
+  /// stops the next inbox scan re-importing the same message; for every row,
+  /// manual included, the tombstone also carries the full record as JSON so
+  /// [restoreTransaction] can put it back. Manual rows have no fingerprint, so
+  /// their tombstones never match an incoming SMS.
+  Future<int> deleteTransaction(int id) async =>
+      (await deleteTransactionForUndo(id)).$1;
+
+  /// [deleteTransaction] plus the tombstone's row id, so a caller can offer an
+  /// Undo. Returns `(rowsDeleted, tombstoneId)`; the tombstone id is null when
+  /// there was nothing to delete.
+  Future<(int, int?)> deleteTransactionForUndo(int id) async {
     final db = await database;
 
     final rows = await db.query(
@@ -1053,17 +1080,78 @@ class DatabaseService {
       whereArgs: [id],
       limit: 1,
     );
-    if (rows.isNotEmpty && (rows.first['is_manual'] as int? ?? 0) == 0) {
-      final row = rows.first;
-      await db.insert('deleted_transactions', {
-        'fingerprint': row['fingerprint'],
-        'message': row['message'],
-        'detected_at': row['detected_at'],
-        'deleted_at': DateTime.now().millisecondsSinceEpoch,
-      });
+    if (rows.isEmpty) return (0, null);
+
+    final row = rows.first;
+    final isManual = (row['is_manual'] as int? ?? 0) == 1;
+    final tombstoneId = await db.insert('deleted_transactions', {
+      // Manual rows deliberately store no fingerprint/message key: nothing
+      // re-creates them, so their tombstone exists only to power Undo.
+      'fingerprint': isManual ? null : row['fingerprint'],
+      'message': isManual ? null : row['message'],
+      'detected_at': isManual ? null : row['detected_at'],
+      'deleted_at': DateTime.now().millisecondsSinceEpoch,
+      'payload': jsonEncode(row),
+    });
+
+    final n = await db.delete('transactions', where: 'id = ?', whereArgs: [id]);
+    return (n, tombstoneId);
+  }
+
+  /// Put a deleted transaction back from its tombstone and drop the tombstone,
+  /// so a later inbox scan treats the row as present rather than deleted.
+  ///
+  /// Returns the restored row, or null when the tombstone is gone or predates
+  /// the payload column (schema < 27) and therefore can't be rebuilt.
+  Future<TransactionModel?> restoreTransaction(int tombstoneId) async {
+    final db = await database;
+
+    final rows = await db.query(
+      'deleted_transactions',
+      where: 'id = ?',
+      whereArgs: [tombstoneId],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    final payload = rows.first['payload'] as String?;
+    if (payload == null || payload.isEmpty) return null;
+
+    final map = Map<String, Object?>.from(
+      jsonDecode(payload) as Map<String, dynamic>,
+    );
+
+    // Keep the original id where it is still free, so anything that referenced
+    // this transaction keeps pointing at it. If it has since been taken, fall
+    // back to a fresh id rather than clobbering an unrelated row.
+    final id = map['id'];
+    if (id != null) {
+      final clash = await db.query(
+        'transactions',
+        columns: ['id'],
+        where: 'id = ?',
+        whereArgs: [id],
+        limit: 1,
+      );
+      if (clash.isNotEmpty) map.remove('id');
     }
 
-    return await db.delete('transactions', where: 'id = ?', whereArgs: [id]);
+    final newId = await db.insert('transactions', map);
+    await db.delete(
+      'deleted_transactions',
+      where: 'id = ?',
+      whereArgs: [tombstoneId],
+    );
+
+    final restored = await db.query(
+      'transactions',
+      where: 'id = ?',
+      whereArgs: [map['id'] ?? newId],
+      limit: 1,
+    );
+    notifyAppDataChanged();
+    return restored.isEmpty
+        ? null
+        : TransactionModel.fromMap(restored.first);
   }
 
   /// Get all transactions, ordered by date descending
@@ -1106,6 +1194,29 @@ class DatabaseService {
       orderBy: 'detected_at DESC',
     );
     return maps.map((map) => TransactionModel.fromMap(map)).toList();
+  }
+
+  /// Rows the parser flagged for a human look, oldest first — the tidy-up
+  /// queue works through the backlog rather than the newest arrival.
+  Future<List<TransactionModel>> getNeedsReviewTransactions() async {
+    final db = await database;
+    final maps = await db.query(
+      'transactions',
+      where: "review_reasons IS NOT NULL AND review_reasons != ''",
+      orderBy: 'detected_at ASC',
+    );
+    return maps.map((map) => TransactionModel.fromMap(map)).toList();
+  }
+
+  /// How many rows still carry review flags. Drives the Home tidy-up prompt,
+  /// which stays hidden at zero.
+  Future<int> countNeedsReview() async {
+    final db = await database;
+    final rows = await db.rawQuery(
+      "SELECT COUNT(*) AS n FROM transactions "
+      "WHERE review_reasons IS NOT NULL AND review_reasons != ''",
+    );
+    return (rows.first['n'] as int?) ?? 0;
   }
 
   /// Get transactions by category
@@ -2276,6 +2387,75 @@ class DatabaseService {
     );
     notifyAppDataChanged();
     return n;
+  }
+
+  /// Lift the mute this message's shape created — the undo half of
+  /// [addMessageMute], used when the user takes back a "not a transaction".
+  Future<int> removeMessageMuteFor(String sender, String message) async {
+    final db = await database;
+    final n = await db.delete(
+      'message_mutes',
+      where: 'sender_core = ? AND signature = ?',
+      whereArgs: [
+        SmsParserService.normalizeSender(sender),
+        messageSignature(message),
+      ],
+    );
+    notifyAppDataChanged();
+    return n;
+  }
+
+  /// How many message shapes the user has muted — drives the Settings row's
+  /// count so "Ignored messages" isn't a silent, unexplained list.
+  Future<int> countMessageMutes() async {
+    final db = await database;
+    final rows = await db.rawQuery(
+      'SELECT COUNT(*) AS n FROM message_mutes',
+    );
+    return (rows.first['n'] as int?) ?? 0;
+  }
+
+  /// Whether an earlier deletion already tombstoned this same message shape
+  /// from this same sender. True means the user is deleting a repeat of
+  /// something they removed before — the moment worth pointing out that
+  /// "Not a transaction" would have stopped the whole template.
+  ///
+  /// Matches on the payload's sender + signature. Tombstones written before
+  /// schema 27 have no payload, so they fall back to a signature-only match on
+  /// the stored message.
+  Future<bool> hasEarlierDeletionOfShape(String sender, String message) async {
+    final db = await database;
+    final target = messageSignature(message);
+    final senderCore = SmsParserService.normalizeSender(sender);
+
+    final rows = await db.query(
+      'deleted_transactions',
+      columns: ['message', 'payload'],
+      orderBy: 'deleted_at DESC',
+      limit: 400,
+    );
+
+    for (final row in rows) {
+      final payload = row['payload'] as String?;
+      if (payload != null && payload.isNotEmpty) {
+        try {
+          final map = jsonDecode(payload) as Map<String, dynamic>;
+          final m = map['message'] as String?;
+          final s = map['sender'] as String?;
+          if (m == null || s == null) continue;
+          if (messageSignature(m) == target &&
+              SmsParserService.normalizeSender(s) == senderCore) {
+            return true;
+          }
+        } catch (_) {
+          // Unreadable payload — fall through to the message-only check.
+        }
+        continue;
+      }
+      final m = row['message'] as String?;
+      if (m != null && messageSignature(m) == target) return true;
+    }
+    return false;
   }
 
   /// Teach the parser that this message shape's direction is [correctType]:

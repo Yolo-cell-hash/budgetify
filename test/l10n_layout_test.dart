@@ -1,8 +1,11 @@
 import 'package:budget_tracker/l10n/app_strings.dart';
+import 'package:budget_tracker/models/transaction_model.dart';
 import 'package:budget_tracker/providers/app_preferences.dart';
 import 'package:budget_tracker/providers/locale_provider.dart';
+import 'package:budget_tracker/providers/theme_provider.dart';
 import 'package:budget_tracker/screens/onboarding_screen.dart';
 import 'package:budget_tracker/widgets/language_picker_sheet.dart';
+import 'package:budget_tracker/widgets/transaction_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -135,6 +138,109 @@ void main() {
       expect(lp.language, AppLanguage.tamil);
       expect(find.byType(ListTile), findsNothing,
           reason: 'selection closes the sheet');
+    });
+  });
+
+  group('Transaction card state badges', () {
+    // The badge strip was a plain Row of intrinsic-width children inside a
+    // bounded parent, so a row that was both unclassified and flagged for
+    // review overflowed and clipped its LAST badge — "Check", the only on-card
+    // pointer into the parser-correction flow. Release builds clip silently,
+    // so on narrow phones that badge was simply never seen.
+    TransactionModel txn({required bool classified, required bool review}) =>
+        TransactionModel(
+          id: 1,
+          amount: 12345.00,
+          type: TransactionType.debit,
+          sender: 'HDFCBK',
+          message: 'Rs.12345.00 debited from a/c XX1234 to VPA foo@ybl',
+          detectedAt: DateTime(2026, 7, 1, 14, 30),
+          isClassified: classified,
+          category: classified ? 'Food' : null,
+          reviewReasons: review ? 'direction,payee_unknown' : null,
+          accountInfo: 'XX1234',
+        );
+
+    testWidgets('no badge is clipped in any language, in either theme '
+        'brightness, on a small phone at large text scale', (tester) async {
+      for (final lang in AppLanguage.values) {
+        for (final variant in [AppThemeVariant.light, AppThemeVariant.dark]) {
+          useSmallPhone(tester); // 360x640 @ textScale 1.2
+          final (lp, prefs) = await providers();
+          await lp.setLanguage(lang);
+          final strings = AppStrings(lang);
+
+          await tester.pumpWidget(
+            MultiProvider(
+              providers: [
+                ChangeNotifierProvider.value(value: lp),
+                ChangeNotifierProvider.value(value: prefs),
+              ],
+              child: MaterialApp(
+                key: ValueKey('$lang-$variant'),
+                theme: AppTheme.of(variant),
+                home: Scaffold(
+                  body: ListView(
+                    children: [
+                      TransactionCard(
+                        transaction: txn(classified: false, review: true),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+          await tester.pump();
+
+          final where = '$lang/$variant';
+          expect(tester.takeException(), isNull,
+              reason: '$where: badge strip must not overflow');
+
+          // Both badges present *and* fully inside the viewport — the point of
+          // the fix is that neither is silently cut off the right edge.
+          for (final label in [strings.unclassified, strings.needsReviewBadge]) {
+            final badge = find.text(label);
+            expect(badge, findsOneWidget, reason: '$where: "$label" missing');
+            expect(tester.getRect(badge).right, lessThanOrEqualTo(360.0),
+                reason: '$where: "$label" is clipped off the right edge');
+          }
+        }
+      }
+    });
+
+    testWidgets('a long localised category name ellipsizes instead of '
+        'overflowing', (tester) async {
+      for (final lang in AppLanguage.values) {
+        useSmallPhone(tester);
+        final (lp, prefs) = await providers();
+        await lp.setLanguage(lang);
+
+        await tester.pumpWidget(
+          MultiProvider(
+            providers: [
+              ChangeNotifierProvider.value(value: lp),
+              ChangeNotifierProvider.value(value: prefs),
+            ],
+            child: MaterialApp(
+              key: ValueKey(lang),
+              theme: AppTheme.of(AppThemeVariant.light),
+              home: Scaffold(
+                body: ListView(
+                  children: [
+                    TransactionCard(
+                      transaction: txn(classified: true, review: false),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+        expect(tester.takeException(), isNull,
+            reason: '$lang: category chip must not overflow');
+      }
     });
   });
 }

@@ -1,28 +1,50 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../l10n/l10n.dart';
 import '../models/transaction_model.dart';
 import '../providers/theme_provider.dart';
-import 'app_dialog.dart';
+import '../services/removal_service.dart';
 import 'category_icon.dart';
 import 'privacy_amount.dart';
+import 'removal_choice_dialog.dart';
 
 /// Card widget to display a transaction item with enhanced UI.
 ///
-/// Swipe-to-delete is made discoverable in two ways, both themed via
-/// [AppColors] so they track all four app themes:
-///  1. A **progressive delete reveal** — as you drag the card left, a rounded
+/// Swipe-to-remove is made discoverable in two ways, both themed via
+/// [AppColors] so they track every app theme:
+///  1. A **progressive reveal** — as you drag the card left, a rounded
 ///     danger-coloured panel slides out with a "Delete" label and a trash chip
 ///     that scales and firms up as you cross the dismiss threshold (with a
 ///     haptic tick), so the gesture reads as intentional, not accidental.
 ///  2. A **one-time hint** — the first card briefly peeks open on first view
 ///     ([animateSwipeHint]) to teach the gesture, then springs back and never
 ///     repeats (the owner persists that it has been shown).
+///
+/// The gesture completes in the *removal fork* (see [showRemovalChoiceDialog]),
+/// not a bare delete confirmation: all that effort spent teaching this swipe was
+/// previously funnelling users into a dead end that re-logs the same promo next
+/// month, while the correction that actually fixes it sat behind an overflow
+/// menu on another screen. Long-press ([onLongPress]) is the non-gesture
+/// alternative, for selection mode and for accessibility.
 class TransactionCard extends StatefulWidget {
   final TransactionModel transaction;
   final VoidCallback? onTap;
-  final VoidCallback? onDelete;
+
+  /// Called after the user confirms removal, with the choice they made in the
+  /// removal fork — a plain delete, or "not a transaction" (which also mutes
+  /// the message shape). The owner performs the removal so it can offer Undo.
+  final void Function(TransactionRemoval choice)? onRemove;
+
+  /// Long-press. The non-gesture route into selection mode, and the
+  /// accessibility-visible alternative to swiping.
+  final VoidCallback? onLongPress;
+
+  /// Selection-mode state. When [selectable] is true a tap toggles selection
+  /// instead of opening the row, and swipe-to-remove is suppressed.
+  final bool selectable;
+  final bool selected;
 
   /// When true, this card plays a one-time "peek" on first build to reveal the
   /// swipe-to-delete affordance, then calls [onSwipeHintShown]. The owner is
@@ -34,7 +56,10 @@ class TransactionCard extends StatefulWidget {
     super.key,
     required this.transaction,
     this.onTap,
-    this.onDelete,
+    this.onRemove,
+    this.onLongPress,
+    this.selectable = false,
+    this.selected = false,
     this.animateSwipeHint = false,
     this.onSwipeHintShown,
   });
@@ -96,8 +121,29 @@ class _TransactionCardState extends State<TransactionCard>
     super.dispose();
   }
 
+  /// Swipe and the accessibility "remove" action share this, so the fork is
+  /// never bypassed by either route.
+  Future<bool> _askAndRemove() async {
+    final choice = await showRemovalChoiceDialog(
+      context,
+      sender: widget.transaction.merchantName?.trim().isNotEmpty == true
+          ? widget.transaction.merchantName!
+          : widget.transaction.sender,
+      canMute: RemovalService.canMute(widget.transaction),
+    );
+    if (choice == null) return false;
+    widget.onRemove?.call(choice);
+    return true;
+  }
+
   @override
   Widget build(BuildContext context) {
+    // In selection mode the row is a checkbox target, so swiping it away would
+    // fight the gesture the user is actually making.
+    if (widget.selectable || widget.onRemove == null) {
+      return _semantic(child: _cardBody(context));
+    }
+
     return Dismissible(
       key: Key(widget.transaction.id?.toString() ?? widget.transaction.message),
       direction: DismissDirection.endToStart,
@@ -112,33 +158,13 @@ class _TransactionCardState extends State<TransactionCard>
           _dragReached = details.reached;
         });
       },
-      confirmDismiss: (direction) async {
-        return await showAppDialog<bool>(
-              context,
-              builder: (context) => AppDialog(
-                icon: Icons.delete_outline_rounded,
-                accent: AppColors.of(context).danger,
-                title: context.l10nRead.deleteTransactionTitle,
-                subtitle: context.l10nRead.deleteTransactionConfirm,
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context, false),
-                    child: Text(context.l10nRead.commonCancel),
-                  ),
-                  ElevatedButton(
-                    onPressed: () => Navigator.pop(context, true),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.of(context).danger,
-                      foregroundColor: Colors.white,
-                    ),
-                    child: Text(context.l10nRead.commonDelete),
-                  ),
-                ],
-              ),
-            ) ??
-            false;
-      },
-      onDismissed: (_) => widget.onDelete?.call(),
+      // The fork, not a bare delete confirmation: this is the one moment we know
+      // the user wants the row gone, which makes it the right place to offer the
+      // mute that stops the whole template.
+      confirmDismiss: (_) => _askAndRemove(),
+      // onRemove already fired from _askAndRemove, so the owner has begun the
+      // removal by the time the card animates out.
+      onDismissed: (_) {},
       // The one-time hint peeks the card open over its own copy of the reveal
       // panel; real drags use Dismissible's [background] instead (the hint is
       // idle by then), so the two never paint at once.
@@ -159,14 +185,56 @@ class _TransactionCardState extends State<TransactionCard>
             ],
           );
         },
-        child: _cardBody(context),
+        child: _semantic(child: _cardBody(context)),
       ),
+    );
+  }
+
+  /// Announces the row as one sentence a screen reader can actually use
+  /// ("Paid 1,250 rupees to Swiggy, Food, 3 July") instead of the raw glyph
+  /// soup of badges and separate Text nodes, and exposes removal as a real
+  /// accessibility action — swipe alone was unreachable with TalkBack on.
+  Widget _semantic({required Widget child}) {
+    final t = widget.transaction;
+    final l10n = context.l10n;
+    final isCredit = t.type == TransactionType.credit;
+    final money = NumberFormat.currency(
+      locale: 'en_IN',
+      symbol: '₹',
+      decimalDigits: 0,
+    ).format(t.amount);
+
+    final parts = <String>[
+      '${l10n.txnTypeName(isCredit)} $money',
+      if (t.merchantName != null && t.merchantName!.trim().isNotEmpty)
+        t.merchantName!
+      else
+        t.sender,
+      if (t.category != null) l10n.categoryName(t.category!),
+      if (!t.isClassified) l10n.unclassified,
+      if (t.needsReview) l10n.needsReviewBadge,
+      DateFormat('MMM d').format(t.detectedAt),
+    ];
+
+    return Semantics(
+      container: true,
+      button: widget.onTap != null,
+      selected: widget.selectable ? widget.selected : null,
+      label: parts.join(', '),
+      customSemanticsActions: widget.onRemove == null || widget.selectable
+          ? null
+          : {
+              CustomSemanticsAction(label: l10n.commonDelete): () {
+                _askAndRemove();
+              },
+            },
+      child: ExcludeSemantics(child: child),
     );
   }
 
   /// The rounded danger panel revealed under the card as it slides left.
   /// Sized/inset to match the card so it reads as a single premium reveal,
-  /// and themed via [AppColors] so it adapts to all four themes.
+  /// and themed via [AppColors] so it adapts to every theme.
   Widget _deleteReveal({required double progress, required bool reached}) {
     final danger = AppColors.of(context).danger;
     final p = progress.clamp(0.0, 1.0);
@@ -230,17 +298,32 @@ class _TransactionCardState extends State<TransactionCard>
     final dateFormatter = DateFormat('MMM d, h:mm a');
     final typeColor = isCredit ? const Color(0xFF2AA76F) : const Color(0xFFD25A5F);
 
+    final colors = AppColors.of(context);
+    final isSelected = widget.selectable && widget.selected;
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF16181E) : Colors.white,
+        color: isSelected
+            ? Color.alphaBlend(
+                colors.accent.withValues(alpha: 0.10),
+                isDark ? const Color(0xFF16181E) : Colors.white,
+              )
+            : isDark
+                ? const Color(0xFF16181E)
+                : Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isDark ? const Color(0xFF262931) : const Color(0xFFE9E9E4),
+          color: isSelected
+              ? colors.accent.withValues(alpha: 0.55)
+              : isDark
+                  ? const Color(0xFF262931)
+                  : const Color(0xFFE9E9E4),
+          width: isSelected ? 1.5 : 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -250,21 +333,45 @@ class _TransactionCardState extends State<TransactionCard>
         color: Colors.transparent,
         child: InkWell(
           onTap: widget.onTap,
+          onLongPress: widget.onLongPress,
           borderRadius: BorderRadius.circular(16),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                // Type indicator with icon
-                TransactionLeadingIcon(transaction: widget.transaction, size: 48),
-                const SizedBox(width: 14),
+                // In selection mode the leading art gives way to a tick, so the
+                // row's state is unmistakable at a glance.
+                if (widget.selectable) ...[
+                  Icon(
+                    isSelected
+                        ? Icons.check_circle_rounded
+                        : Icons.radio_button_unchecked_rounded,
+                    size: 26,
+                    color: isSelected ? colors.accent : colors.textTertiary,
+                  ),
+                  const SizedBox(width: 14),
+                ] else ...[
+                  TransactionLeadingIcon(
+                      transaction: widget.transaction, size: 48),
+                  const SizedBox(width: 14),
+                ],
 
                 // Details
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
+                      // Wrap, not Row: three badges plus a long amount used to
+                      // overflow the bounded width and silently clip whichever
+                      // came last — which was "Check", the one badge that
+                      // invites the user into the correction flow. Wrapping to
+                      // a second line keeps every badge visible on narrow
+                      // phones, in long-script languages, and at large text
+                      // scales.
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           // Transaction type badge
                           Container(
@@ -273,7 +380,7 @@ class _TransactionCardState extends State<TransactionCard>
                               vertical: 3,
                             ),
                             decoration: BoxDecoration(
-                              color: typeColor.withOpacity(0.1),
+                              color: typeColor.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
@@ -288,80 +395,24 @@ class _TransactionCardState extends State<TransactionCard>
                               ),
                             ),
                           ),
-                          if (!widget.transaction.isClassified) ...[
-                            const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 3,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFFAF1E0),
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(
-                                  color: const Color(0xFFEED3A4),
-                                  width: 1,
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(
-                                    Icons.pending_outlined,
-                                    size: 10,
-                                    color: Color(0xFFB57A22),
-                                  ),
-                                  const SizedBox(width: 3),
-                                  Text(
-                                    context.l10n.unclassified,
-                                    style: const TextStyle(
-                                      fontSize: 9,
-                                      color: Color(0xFFB57A22),
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                          // Not tagged yet — a pending user action, so it wears
+                          // the brand gold rather than the warning amber.
+                          if (!widget.transaction.isClassified)
+                            _attentionBadge(
+                              context,
+                              icon: Icons.pending_outlined,
+                              label: context.l10n.unclassified,
+                              color: AppColors.of(context).brandAccent,
                             ),
-                          ],
                           // The parser guessed something in this message —
                           // one tap on the detail screen confirms or fixes.
-                          if (widget.transaction.needsReview) ...[
-                            const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 3,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFFDEDE3),
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(
-                                  color: const Color(0xFFF2C6A5),
-                                  width: 1,
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(
-                                    Icons.help_outline,
-                                    size: 10,
-                                    color: Color(0xFFC05621),
-                                  ),
-                                  const SizedBox(width: 3),
-                                  Text(
-                                    context.l10n.needsReviewBadge,
-                                    style: const TextStyle(
-                                      fontSize: 9,
-                                      color: Color(0xFFC05621),
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                          if (widget.transaction.needsReview)
+                            _attentionBadge(
+                              context,
+                              icon: Icons.help_outline,
+                              label: context.l10n.needsReviewBadge,
+                              color: AppColors.of(context).warning,
                             ),
-                          ],
                         ],
                       ),
                       const SizedBox(height: 6),
@@ -399,44 +450,66 @@ class _TransactionCardState extends State<TransactionCard>
                   ),
                 ),
 
-                // Amount
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    PrivacyAmount(
-                      '${isCredit ? '+' : '-'} ${formatter.format(widget.transaction.amount)}',
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w700,
-                        color: typeColor,
-                      ),
-                    ),
-                    if (widget.transaction.accountInfo != null) ...[
-                      const SizedBox(height: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? const Color(0xFF2E313A)
-                              : const Color(0xFFF6F6F3),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          widget.transaction.accountInfo!,
+                // Amount. Deliberately NOT Flexible: a Flexible defaults to
+                // flex 1, which makes the Row split the free space evenly with
+                // the details column, and since the amount only uses its
+                // intrinsic width the unused half collapses into dead space on
+                // the right of every card. Left non-flexible, this column takes
+                // exactly the width it needs and Expanded above absorbs the
+                // rest — the original layout.
+                //
+                // The capped width is what keeps a lakh-scale amount at a large
+                // accessibility text scale from pushing past the card: the cap
+                // bounds the FittedBox, which then scales the figure down
+                // instead of clipping it. Below the cap nothing changes.
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: MediaQuery.sizeOf(context).width * 0.42,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerRight,
+                        child: PrivacyAmount(
+                          '${isCredit ? '+' : '-'} ${formatter.format(widget.transaction.amount)}',
                           style: TextStyle(
-                            fontSize: 10,
-                            color: isDark
-                                ? const Color(0xFF9A9DA6)
-                                : const Color(0xFF6E727C),
-                            fontWeight: FontWeight.w500,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
+                            color: typeColor,
                           ),
                         ),
                       ),
+                      if (widget.transaction.accountInfo != null) ...[
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? const Color(0xFF2E313A)
+                                : const Color(0xFFF6F6F3),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            widget.transaction.accountInfo!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: isDark
+                                  ? const Color(0xFF9A9DA6)
+                                  : const Color(0xFF6E727C),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ],
             ),
@@ -446,8 +519,50 @@ class _TransactionCardState extends State<TransactionCard>
     );
   }
 
+  /// A small state chip ("Unclassified", "Check"). Tinted from a single theme
+  /// colour so it sits correctly on every variant's card — these used to be
+  /// opaque light-mode creams that painted unchanged on the dark themes.
+  Widget _attentionBadge(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.34)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 10, color: color),
+          const SizedBox(width: 3),
+          // Degrades by ellipsis rather than clipping: at the extremes (a long
+          // Indic label on a 360dp phone at a large text scale) the chip may
+          // not get its full intrinsic width, and losing a tail is far better
+          // than throwing away the whole badge.
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 9,
+                color: color,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// Small "÷ your share ₹X" chip shown when only part of this transaction
-  /// counts toward the user's spending. Themed via [AppColors] (4 themes).
+  /// counts toward the user's spending. Themed via [AppColors] (all variants).
   Widget _buildSplitChip(BuildContext context) {
     final colors = AppColors.of(context);
     final fmt =
@@ -482,33 +597,37 @@ class _TransactionCardState extends State<TransactionCard>
     final color = ExpenseCategories.getColor(category);
     final icon = ExpenseCategories.getIcon(category);
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: color.withOpacity(0.3), width: 1),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(icon, style: const TextStyle(fontSize: 12)),
-              const SizedBox(width: 4),
-              Text(
+    // Aligned left and allowed to shrink: a long localised category name (or a
+    // long custom tag) used to overflow this chip's inner Row and clip.
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(icon, style: const TextStyle(fontSize: 12)),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
                 context.l10n.categoryName(category),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontSize: 12,
                   color: color,
                   fontWeight: FontWeight.w600,
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }

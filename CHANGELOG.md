@@ -4,6 +4,51 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.49.0] — 2026-07-26
+
+### Changed
+
+- **Removing an entry now asks what kind of removal you meant.** Swiping a
+  transaction away used to offer only *Delete*, which quietly tombstones that
+  one message — so a recurring promo came back the next month with a new amount
+  and had to be deleted again. The confirmation now offers **Not a
+  transaction** (which also skips every future message matching that template
+  from that sender) alongside **Just remove this one**, and each option says
+  what it will do. The same choice appears from the detail screen, from bulk
+  selection, and in Tidy up, so every route behaves identically.
+- **Removals can be undone.** The toast after a removal carries **Undo**, which
+  restores the entry — and lifts the mute if one was added. Undo survives an
+  app restart: the deleted entry is kept whole until you move on.
+
+### Added
+
+- **Tidy up.** Entries the reader wasn't sure about are gathered into one
+  short pass — **Looks right**, **change the direction**, or **Not a
+  transaction** — with a plain finish when the queue is empty. A prompt appears
+  on Home only when something is waiting, and disappears once it isn't.
+- **Select several at once.** Long-press any transaction to start selecting,
+  then remove the lot in one go. Long-press is also a non-gesture alternative
+  to swiping, for anyone who can't swipe reliably.
+- **Screen-reader support on the transaction list.** Each row is announced as a
+  single sentence — direction, amount, payee, category, date — and removal is
+  exposed as a proper accessibility action rather than being swipe-only.
+- **Ignored messages shows how many.** Settings → Ignored messages now carries
+  a count, so muting a message shape is visible after the fact and easy to
+  reverse.
+
+### Fixed
+
+- **State badges no longer get cut off.** On narrower phones — and in Hindi,
+  Marathi, Bengali, Telugu and Tamil — the "Check" badge could be clipped off
+  the right edge of a card, which hid the one on-card pointer toward fixing a
+  misread entry. Badges now wrap instead of overflowing, and a large amount at
+  a big text size shrinks to fit rather than being clipped.
+- **Attention badges follow the theme.** "Unclassified" and "Check" were fixed
+  light-mode colours that painted unchanged on Dark, Onyx & Amber, Royal Indigo
+  and Midnight Indigo. They now use the theme's own palette.
+- **Dialogs scroll instead of overflowing** at large text sizes, where a long
+  dialog could previously push its own buttons out of reach.
+
 ## [1.44.0] — 2026-07-24
 
 ### Added
