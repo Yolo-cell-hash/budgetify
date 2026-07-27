@@ -9,6 +9,7 @@ import 'package:open_filex/open_filex.dart';
 import '../app_info.dart';
 import '../l10n/app_strings.dart';
 import '../l10n/l10n.dart';
+import '../models/plus_products.dart';
 import '../models/statement_import_models.dart';
 import '../models/streak_reward.dart';
 import '../providers/theme_provider.dart';
@@ -960,6 +961,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// Same hand-off for AI Prediction Mode: cross-fade Home and spotlight the
   /// Insights card that just appeared. Turning it off is silent.
   Future<void> _onAiPredictionChanged(bool enabled) async {
+    // Plus gate (dormant during the free window): turning the mode ON is
+    // Plus-only. Turning it OFF is never gated — a lapsed user must always be
+    // able to undo a setting, even one they can no longer re-enable.
+    if (enabled &&
+        !await PlusScreen.maybePush(context, PlusFeature.aiPredictionMode)) {
+      return;
+    }
+    if (!mounted) return;
     await context.read<AppPreferences>().setAiPredictionMode(enabled);
     if (!enabled) return;
     homeSpotlightRequest.value = 'insights';

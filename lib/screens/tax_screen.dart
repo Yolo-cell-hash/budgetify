@@ -8,12 +8,14 @@ import 'package:open_filex/open_filex.dart';
 import '../l10n/app_strings.dart';
 import '../l10n/l10n.dart';
 import '../models/financial_year.dart';
+import '../models/plus_products.dart';
 import '../models/tax_bucket.dart';
 import '../providers/theme_provider.dart';
 import '../services/export_service.dart';
 import '../services/tax_service.dart';
 import '../widgets/app_bar_title.dart';
 import '../widgets/app_toast.dart';
+import 'plus_screen.dart';
 
 final NumberFormat _inr =
     NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
@@ -140,6 +142,14 @@ class _TaxScreenState extends State<TaxScreen> {
   /// the system file picker (SAF) — no storage permission, like every other
   /// export and the encrypted backup.
   Future<void> _export() async {
+    // Plus gate (dormant during the free window): only the EXPORT locks —
+    // bucket tagging and the on-screen summary stay free, so the numbers are
+    // always readable even after the wall comes up. Checked before the format
+    // sheet so a locked user never picks a format that goes nowhere.
+    if (!await PlusScreen.maybePush(context, PlusFeature.taxDeductionsExport)) {
+      return;
+    }
+    if (!mounted) return;
     final l10n = context.l10nRead;
     final format = await showModalBottomSheet<ExportFormat>(
       context: context,
