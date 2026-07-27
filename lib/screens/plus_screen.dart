@@ -265,6 +265,8 @@ class _PlusScreenState extends State<PlusScreen>
       l10n.plusFeatRecurring,
       l10n.plusFeatInvestments,
       l10n.plusFeatTagging,
+      l10n.plusFeatAiPredictions,
+      l10n.plusFeatTaxExport,
     ];
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
