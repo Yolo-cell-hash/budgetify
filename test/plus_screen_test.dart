@@ -96,4 +96,66 @@ void main() {
     expect(await allowed, isTrue);
     expect(find.byType(PlusScreen), findsNothing);
   });
+
+  testWidgets('the paywall lists the AI prediction and tax export gates',
+      (tester) async {
+    await tester.pumpWidget(host());
+    await tester.pump(const Duration(seconds: 1));
+
+    final en = AppStrings(AppLanguage.english);
+    expect(find.text(en.plusFeatAiPredictions), findsOneWidget);
+    expect(find.text(en.plusFeatTaxExport), findsOneWidget);
+  });
+
+  /// The two newest gates are the only ones attached to a feature that was
+  /// free-and-visible before the wall existed, so prove the whole chain —
+  /// enum entry → gate → paywall — actually bites once the window closes.
+  for (final feature in [
+    PlusFeature.aiPredictionMode,
+    PlusFeature.taxDeductionsExport,
+  ]) {
+    testWidgets('maybePush opens the paywall for ${feature.name} once the '
+        'free window closed', (tester) async {
+      // Seed through the live instance (not setMockInitialValues) — the
+      // prefs singleton is already resolved by this point in the run.
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(
+          'entitlement_first_launch_at',
+          DateTime.now()
+              .subtract(const Duration(days: 200))
+              .millisecondsSinceEpoch);
+      await prefs.setInt(
+          'entitlement_last_seen_at', DateTime.now().millisecondsSinceEpoch);
+      EntitlementService().resetForTest();
+
+      late Future<bool> allowed;
+      await tester.pumpWidget(
+        ChangeNotifierProvider(
+          create: (_) => LocaleProvider(),
+          child: MaterialApp(
+            home: Builder(
+              builder: (context) => TextButton(
+                onPressed: () =>
+                    allowed = PlusScreen.maybePush(context, feature),
+                child: const Text('go'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('go'));
+      // The gate resolves across real async gaps (prefs read) before the route
+      // is pushed, so step the loop a few times — pumpAndSettle would hang on
+      // the paywall's forever-repeating shimmer.
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+
+      // The wall is up, and the caller is told the feature stayed locked.
+      expect(find.byType(PlusScreen), findsOneWidget);
+      Navigator.of(tester.element(find.byType(PlusScreen))).pop();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(await allowed, isFalse);
+    });
+  }
 }
