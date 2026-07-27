@@ -21,6 +21,11 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
     svc.resetForTest();
+    // The production restart is dated in the future, which would put every
+    // seeded install back inside its free window. Neutralised here so the
+    // suite can exercise expired trials; trial_notice_test.dart drives the
+    // restart itself.
+    EntitlementService.debugTrialRestartAt = DateTime.utc(2000);
   });
 
   int daysAgo(int d) =>
