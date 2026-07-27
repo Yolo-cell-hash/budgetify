@@ -4765,6 +4765,56 @@ class AppStrings {
         'Plus యాక్టివ్‌గా ఉంది — ధన్యవాదాలు!',
         'Plus செயலில் உள்ளது — நன்றி!',
       );
+  // ── Offer windows (welcome week + festive campaigns) ──────────────────
+  String get plusOfferWelcomeTitle => _t(
+        'Welcome offer',
+        'स्वागत ऑफ़र',
+        'स्वागत ऑफर',
+        'স্বাগত অফার',
+        'స్వాగత ఆఫర్',
+        'வரவேற்பு சலுகை',
+      );
+  String get plusOfferFestiveTitle => _t(
+        'Festive offer',
+        'त्योहार ऑफ़र',
+        'सणासुदीची ऑफर',
+        'উৎসব অফার',
+        'పండుగ ఆఫర్',
+        'பண்டிகை சலுகை',
+      );
+  String get plusOfferEndsToday => _t(
+        'Ends today',
+        'आज समाप्त',
+        'आज संपेल',
+        'আজ শেষ',
+        'ఈరోజు ముగుస్తుంది',
+        'இன்று முடிகிறது',
+      );
+  String plusOfferEndsInDays(int n) => _t(
+        n == 1 ? 'Ends tomorrow' : 'Ends in $n days',
+        n == 1 ? 'कल समाप्त' : '$n दिन में समाप्त',
+        n == 1 ? 'उद्या संपेल' : '$n दिवसांत संपेल',
+        n == 1 ? 'আগামীকাল শেষ' : '$n দিনে শেষ',
+        n == 1 ? 'రేపు ముగుస్తుంది' : '$n రోజుల్లో ముగుస్తుంది',
+        n == 1 ? 'நாளை முடிகிறது' : '$n நாட்களில் முடிகிறது',
+      );
+  String plusOfferSave(int pct) => _t(
+        'SAVE $pct%',
+        '$pct% बचत',
+        '$pct% बचत',
+        '$pct% সাশ্রয়',
+        '$pct% ఆదా',
+        '$pct% சேமிப்பு',
+      );
+  String get plusOfferFootnote => _t(
+        'Offer price for a limited time. Plus goes back to its regular price when the offer ends.',
+        'सीमित समय के लिए ऑफ़र कीमत। ऑफ़र खत्म होने पर Plus अपनी सामान्य कीमत पर लौट आता है।',
+        'मर्यादित काळासाठी ऑफर किंमत. ऑफर संपल्यावर Plus नेहमीच्या किंमतीवर परत येते.',
+        'সীমিত সময়ের জন্য অফার মূল্য। অফার শেষ হলে Plus তার নিয়মিত দামে ফিরে যায়।',
+        'పరిమిత కాలానికి ఆఫర్ ధర. ఆఫర్ ముగిసిన తర్వాత Plus సాధారణ ధరకు తిరిగి వస్తుంది.',
+        'குறுகிய காலத்திற்கு சலுகை விலை. சலுகை முடிந்ததும் Plus வழக்கமான விலைக்குத் திரும்பும்.',
+      );
+
   String get plusFootnote => _t(
         'Billed once through Google Play. No account, no sign-up — purchases stay with your Google account and restore on any reinstall.',
         'Google Play से एक बार बिलिंग। कोई खाता नहीं, कोई साइन-अप नहीं — खरीदारी आपके Google खाते से जुड़ी रहती है और री-इंस्टॉल पर बहाल हो जाती है।',

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/services.dart' show MethodChannel;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/plus_offers.dart';
 import '../models/plus_products.dart';
 
 /// Owns the local "trial clock" — the timestamp of first app use plus a
@@ -49,7 +50,18 @@ class EntitlementService {
   static const String _ownedRoyalsKey = 'entitlement_owned_royals';
 
   /// Length of the free window.
-  static const Duration trialDuration = Duration(days: 182); // ~6 months
+  ///
+  /// Shortened from 182 days on 2026-07-27. The binding constraint is feedback
+  /// latency, not conversion: with no analytics of any kind (the release
+  /// manifest strips INTERNET, so there is no telemetry SDK), Play Console
+  /// revenue is the only conversion signal there is — and a six-month window
+  /// meant one pricing experiment per year. Ninety days is still long enough
+  /// for the habit and the history to form, which is what the paywall is
+  /// actually selling back.
+  static const Duration trialDuration = Duration(days: 90); // 3 months
+
+  /// How long the one-shot welcome offer runs once the free window closes.
+  static const Duration welcomeOfferDuration = Duration(days: 7);
 
   /// Android's package install record (see MainActivity.kt). Read-only, no
   /// permission, absent everywhere else — callers must tolerate null.
@@ -175,6 +187,51 @@ class EntitlementService {
     final left = trialDuration - _effectiveNow.difference(first);
     return left.isNegative ? 0 : left.inDays;
   }
+
+  /// When the free window closes, or null if first launch was never stamped.
+  DateTime? get trialEndsAt => _firstLaunch?.add(trialDuration);
+
+  // ── Offer windows ─────────────────────────────────────────────────────
+
+  /// The discount running right now, or null at the everyday price.
+  ///
+  /// The welcome week takes precedence over a festive window that happens to
+  /// overlap it. They carry the same prices, so this only picks which label
+  /// the paywall shows — and a user's one-shot welcome offer is the more
+  /// specific, more urgent story.
+  ///
+  /// Uses the rollback-guarded clock, so winding the device clock backwards
+  /// can't re-open a window that has already closed. Winding it *forwards*
+  /// into a festive window is possible, and deliberately not defended against:
+  /// the displayed price is only ever a display, Play charges whatever the
+  /// Console has configured, and the same tampering also burns the user's own
+  /// trial.
+  PlusOffer? get activeOffer => offerAt(_effectiveNow);
+
+  /// [activeOffer] against an explicit clock. Production reads the getter,
+  /// which supplies the rollback-guarded now; tests pin [now] so a suite run
+  /// during Diwali doesn't see different prices than one run in July.
+  PlusOffer? offerAt(DateTime now) {
+    final ends = trialEndsAt;
+    // Post-trial welcome week. Guarded on trialActive rather than on the date
+    // alone so a simulated expiry (dev mode) previews the offer too.
+    if (ends != null && !trialActive) {
+      final welcomeEnds = ends.add(welcomeOfferDuration);
+      if (now.isBefore(welcomeEnds)) {
+        return PlusOffer(
+          id: 'welcome',
+          kind: PlusOfferKind.welcome,
+          startsAt: ends,
+          endsAt: welcomeEnds,
+        );
+      }
+    }
+    return activeFestiveOffer(now);
+  }
+
+  /// Whether any discount is live. Convenience for pricing call sites that
+  /// don't care which campaign it is.
+  bool get offerActive => activeOffer != null;
 
   // ── Plus entitlement (dormant until billing ships) ────────────────────
 

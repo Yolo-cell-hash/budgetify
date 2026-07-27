@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../l10n/app_strings.dart';
 import '../l10n/l10n.dart';
+import '../models/plus_offers.dart';
 import '../models/plus_products.dart';
 import '../providers/theme_provider.dart';
 import '../services/billing_service.dart';
@@ -19,7 +20,12 @@ import '../widgets/brand_logo.dart';
 /// unavailable-store stub until Play billing is approved; buying/restoring
 /// here today lands on the calm "purchases open soon" toast.
 class PlusScreen extends StatefulWidget {
-  const PlusScreen({super.key});
+  const PlusScreen({super.key, this.nowSource});
+
+  /// Injectable clock. Prices depend on the calendar (festive windows), so a
+  /// test must be able to pin the date — otherwise the same suite would show
+  /// different prices in November than in July. Null in production.
+  final DateTime Function()? nowSource;
 
   /// The gate-keeper entry point: pushes the paywall only when the free
   /// window is over AND Plus isn't owned. Returns whether the caller's
@@ -52,6 +58,17 @@ class _PlusScreenState extends State<PlusScreen>
   /// Lifetime leads — the anti-subscription offer is the brand's headline.
   PlusPlan _selected = PlusPlan.lifetime;
   bool _busy = false;
+
+  late final DateTime? _nowOverride = widget.nowSource?.call();
+
+  /// The discount running when this screen opened, or null at the everyday
+  /// price. Read once: the screen is short-lived, and a window flipping
+  /// mid-session would swap prices under the user's finger.
+  late final PlusOffer? _offer = _nowOverride == null
+      ? EntitlementService().activeOffer
+      : EntitlementService().offerAt(_nowOverride);
+
+  bool get _onOffer => _offer != null;
 
   late final AnimationController _entrance = AnimationController(
     vsync: this,
@@ -100,9 +117,15 @@ class _PlusScreenState extends State<PlusScreen>
     );
   }
 
+  static final NumberFormat _inr =
+      NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
+
+  String _rupees(int amount) => _inr.format(amount);
+
+  /// What [plan] costs right now — the offer price during a campaign, the
+  /// everyday price otherwise.
   String _price(PlusPlan plan) =>
-      NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0)
-          .format(plan.priceInr);
+      _rupees(plan.priceFor(onOffer: _onOffer));
 
   Future<void> _buy() async {
     if (_busy) return;
@@ -179,6 +202,10 @@ class _PlusScreenState extends State<PlusScreen>
                   children: [
                     _staggered(0, _hero(colors, l10n)),
                     const SizedBox(height: 22),
+                    if (_offer != null) ...[
+                      _staggered(1, _offerBanner(colors, l10n, _offer)),
+                      const SizedBox(height: 14),
+                    ],
                     _staggered(2, _featureList(colors, l10n)),
                     const SizedBox(height: 22),
                     for (final (i, plan) in const [
@@ -251,6 +278,60 @@ class _PlusScreenState extends State<PlusScreen>
               fontSize: 12.5,
               height: 1.5,
               color: Colors.white.withValues(alpha: 0.78),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// The live-campaign strip: which offer is running, how much the selected
+  /// plan saves, and when it closes. Only built while [_offer] is non-null.
+  Widget _offerBanner(AppColors colors, AppStrings l10n, PlusOffer offer) {
+    final welcome = offer.kind == PlusOfferKind.welcome;
+    final daysLeft = offer.daysLeftFrom(_nowOverride ?? DateTime.now());
+    final title = welcome
+        ? l10n.plusOfferWelcomeTitle
+        : l10n.plusOfferFestiveTitle;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: colors.brandAccent.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.brandAccentDeep.withValues(alpha: 0.5)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            welcome ? Icons.card_giftcard_rounded : Icons.celebration_rounded,
+            size: 20,
+            color: colors.brandAccentDeep,
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$title · ${l10n.plusOfferSave(_selected.offerSavingPercent)}',
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w800,
+                    color: colors.brandAccentDeep,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  daysLeft == 0
+                      ? l10n.plusOfferEndsToday
+                      : l10n.plusOfferEndsInDays(daysLeft),
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: colors.textSecondary,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -417,13 +498,31 @@ class _PlusScreenState extends State<PlusScreen>
                   ],
                 ),
               ),
-              Text(
-                _price(plan),
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  color: selected ? colors.brandAccentDeep : colors.text,
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  // The everyday price, struck through. Honest because it is
+                  // what this plan actually costs once the window closes.
+                  if (_onOffer)
+                    Text(
+                      _rupees(plan.priceInr),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: colors.textTertiary,
+                        decoration: TextDecoration.lineThrough,
+                        decorationColor: colors.textTertiary,
+                      ),
+                    ),
+                  Text(
+                    _price(plan),
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: selected ? colors.brandAccentDeep : colors.text,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -459,7 +558,9 @@ class _PlusScreenState extends State<PlusScreen>
             ),
           ),
           Text(
-            l10n.plusFootnote,
+            _onOffer
+                ? '${l10n.plusOfferFootnote}\n${l10n.plusFootnote}'
+                : l10n.plusFootnote,
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 10.5,
