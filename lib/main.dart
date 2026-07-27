@@ -95,9 +95,14 @@ void main() async {
 /// step is isolated in its own try/catch so one failure never blocks the rest.
 Future<void> _initDeferredServices(ThemeProvider themeProvider) async {
   // Trial anchor (first-use timestamp). Silent — nothing is gated on it yet —
-  // so stamping it just after first paint is fine.
+  // so stamping it just after first paint is fine. The install-record floor
+  // follows it here, and only here: it crosses a platform channel, so it must
+  // stay off the gate path (allowsAsync runs in the background isolate, which
+  // has no channel bound). It only ever pulls the anchor back, so no one needs
+  // to wait on it before reading the trial.
   try {
     await EntitlementService().initialize();
+    await EntitlementService().applyInstallRecordFloor();
   } catch (e) {
     debugPrint('EntitlementService.initialize failed: $e');
   }

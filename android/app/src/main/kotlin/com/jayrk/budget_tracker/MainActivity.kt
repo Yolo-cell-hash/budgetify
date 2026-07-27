@@ -57,6 +57,27 @@ class MainActivity : FlutterFragmentActivity() {
                     result.success(false)
                 }
             }
+
+        // When this package was FIRST installed on this device. Unlike
+        // SharedPreferences this is not app data, so it survives "Clear data"
+        // (and app updates); it resets only on uninstall or factory reset.
+        // The silent trial clock uses it as a floor on its first-launch
+        // anchor, so wiping app data can't hand out a fresh free window.
+        // No permission required — we only ever ask about our own package.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "budgetify/install_info")
+            .setMethodCallHandler { call, result ->
+                if (call.method != "firstInstallTime") {
+                    result.notImplemented()
+                    return@setMethodCallHandler
+                }
+                try {
+                    result.success(packageManager.getPackageInfo(packageName, 0).firstInstallTime)
+                } catch (e: Exception) {
+                    // Null means "unknown" on the Dart side: the anchor simply
+                    // stands as stored. Never worth crashing over.
+                    result.success(null)
+                }
+            }
     }
 
     // ── Royal launcher-icon switching ──────────────────────────────────────

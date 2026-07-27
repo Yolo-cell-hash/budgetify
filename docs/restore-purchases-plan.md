@@ -75,6 +75,10 @@ Trigger points for a silent restore pass:
 entitlement cache) ride Google's device-to-device / cloud restore. A restored
 device often arrives *already entitled* before Play is even queried.
 
+**Don't over-trust this layer.** Auto Backup restores during device setup and
+D2D migration — a plain uninstall→reinstall on the *same* device generally does
+not trigger it. Treat it as a bonus on new devices, never as the mechanism.
+
 ### Layer 3 — Budgetify's own encrypted backup
 `EntitlementService.exportSettings()` now includes the paid cache
 (`plus_lifetime`, `plus_until`, `owned_royals`) alongside the trial anchor.
@@ -83,6 +87,14 @@ Import rules are asymmetric on purpose:
   trial.
 * **Paid cache: add-only union / max** — a backup can only ever ADD ownership,
   mirroring what a Play restore could prove anyway.
+
+The trial anchor takes **two** independent witnesses from a backup, both
+floors, earliest wins:
+1. `entitlement.first_launch_at` — the anchor the backup carries.
+2. The envelope's own `createdAt` — when the file was *written*. This one sits
+   outside the entitlement block, so deleting that block from a decrypted
+   backup no longer buys a clean trial: a file written five months in still
+   dates the install five months back.
 
 Yes, a crafted backup could claim `plus_lifetime`. Accepted: the app is fully
 client-side (no server to verify against), the backup is encrypted, and the
@@ -116,6 +128,9 @@ No server ⇒ no Real-Time Developer Notifications. Instead:
 | Pending UPI payment | `BillingOutcome.pending`: grant nothing; the next queryPurchases pass grants it once it settles. |
 | Play Store app missing/ancient | Gateway reports unavailable → gates stay… whatever the cache says; fail-open covers the rest. |
 | Clock wound back to fake trial/sub | Monotonic `entitlement_last_seen_at` guard already blocks it. |
+| "Clear data" to reset the trial | Blocked. `EntitlementService.applyInstallRecordFloor()` re-ages the anchor from Android's package install record, which is not app data and survives the wipe. |
+| Reinstall, then restore a backup | Trial continues correctly — the anchor rides in the backup, earliest-wins, and the file's own `createdAt` backs it up. |
+| Reinstall and start FRESH (no restore) | **Genuinely resets the free window — accepted.** No server, no accounts, no INTERNET: nothing client-side can outlive an uninstall. The price is their entire history — transactions, tags, rules, budgets, streak, earned royals — paid twice a year, forever. That is a steeper toll than ₹699 for anyone the app is actually for. Do not ship a "start fresh but keep my data" path; that would be the exploit's front door. |
 
 ## 6. Billing-day checklist (when bank + Play approval land)
 
