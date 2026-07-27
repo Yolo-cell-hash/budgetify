@@ -52,6 +52,15 @@ LinearGradient _paintedGradient(WidgetTester tester) {
 Color _titleColor(WidgetTester tester, String title) =>
     tester.widget<Text>(find.text(title)).style!.color!;
 
+/// The unlock CTA. Deliberately NOT `find.byType(ElevatedButton)`: the screen
+/// builds it with the `ElevatedButton.icon` factory, whose widget is the
+/// private subclass `_ElevatedButtonWithIcon`, and `byType` matches on exact
+/// runtime type — so it would silently find nothing.
+ElevatedButton _unlockButton(WidgetTester tester) =>
+    tester.widget<ElevatedButton>(
+      find.byWidgetPredicate((w) => w is ElevatedButton),
+    );
+
 void main() {
   const title = 'Budgetify is locked';
 
@@ -68,9 +77,8 @@ void main() {
       expect(_titleColor(tester, title), hero.foreground,
           reason: '$variant title should use its hero foreground');
       // The unlock CTA carries the theme accent, not a fixed gold.
-      final button = tester.widget<ElevatedButton>(find.byType(ElevatedButton));
       expect(
-        button.style!.backgroundColor!.resolve({}),
+        _unlockButton(tester).style!.backgroundColor!.resolve({}),
         hero.accent,
         reason: '$variant unlock button should use its hero accent',
       );
