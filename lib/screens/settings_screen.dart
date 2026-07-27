@@ -894,9 +894,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                       title: const Text('Simulate trial expired'),
                       subtitle: Text(
-                        'Preview the post-6-months experience: Plus gates '
+                        'Preview the post-3-months experience: Plus gates '
                         'lock (category budgets, bulk tagging, premium '
-                        'notifications) and the subscription screen appears. '
+                        'notifications) and the subscription screen appears '
+                        'in its welcome-offer state (₹29 / ₹299 / ₹999). '
                         'Your real trial clock is untouched.',
                         style: TextStyle(
                           color: isDark

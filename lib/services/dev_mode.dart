@@ -56,9 +56,9 @@ class DevMode {
 
   static bool get isActive => active.value;
 
-  /// Whether the post-trial (6-months-elapsed) experience is being simulated.
+  /// Whether the post-trial (3-months-elapsed) experience is being simulated.
   /// While on, [EntitlementService.trialActive] reports false, so every Plus
-  /// gate bites exactly as it will on day 183: category-budget creation and
+  /// gate bites exactly as it will on day 91: category-budget creation and
   /// tag bulk-apply open the paywall, Plus-only notifications go quiet, and
   /// the subscription screen becomes reachable. The REAL trial anchor is
   /// never touched — flipping this off restores the true state instantly.
@@ -282,7 +282,7 @@ Future<void> showDevModeDialog(BuildContext context) {
               'Developer mode is ON.\n\n'
               'All themes and royal characters are unlocked for preview, '
               'and backups are disabled. Settings › Developer can also '
-              'simulate the post-trial (6-months) state. Your previewed look '
+              'simulate the post-trial (3-months) state. Your previewed look '
               'is kept while developer mode stays on — turn it off to return '
               'to your real, earned state.',
             ),
