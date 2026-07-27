@@ -179,6 +179,14 @@ class BackupService {
     );
   }
 
+  /// The envelope's `createdAt` as ms since epoch, or null when it is absent
+  /// or unparseable — a hand-stripped field lands here and simply leaves the
+  /// trial anchor to the other witnesses. Written as a local-time ISO-8601
+  /// string; a cross-timezone restore can be hours off, which is noise against
+  /// a 182-day window.
+  static int? _createdAtMs(Object? raw) =>
+      raw is String ? DateTime.tryParse(raw)?.millisecondsSinceEpoch : null;
+
   /// Let the user pick a backup file, decrypt it, and merge its contents.
   /// Returns null if the user cancelled the file picker.
   Future<RestoreResult?> restoreBackup(String passphrase) async {
@@ -221,9 +229,13 @@ class BackupService {
     );
 
     // Restore the trial anchor (earliest first-use wins; never extends the
-    // trial). Kept out of RestoreResult so nothing is surfaced to the user.
+    // trial). The envelope's own createdAt rides along as a second witness to
+    // the install's age — it sits outside the entitlement block, so dropping
+    // that block no longer resets the free window. Kept out of RestoreResult
+    // so nothing is surfaced to the user.
     await EntitlementService().importSettings(
       (data['entitlement'] as Map?)?.cast<String, dynamic>(),
+      backupCreatedAtMs: _createdAtMs(decoded['createdAt']),
     );
 
     // Restore tax regime + cap overrides (absent in pre-feature backups → no-op).

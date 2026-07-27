@@ -61,8 +61,9 @@ String? royalIdFromProduct(String productId) =>
 /// Features that lock behind Plus once the free window (6 months from first
 /// launch) has elapsed. Everything NOT listed here stays free forever — most
 /// notably the overall monthly budget and its alerts, SMS transaction
-/// detection itself, manual tagging of a single transaction, and tagging
-/// transactions into tax buckets (only the tax EXPORT locks).
+/// detection itself, manual tagging of a single transaction, applying a tag to
+/// all existing transactions for a merchant, and tagging transactions into tax
+/// buckets (only the tax EXPORT locks).
 enum PlusFeature {
   /// Per-category budgets: creating new ones and their threshold alerts.
   /// Existing budget DATA is never deleted on lock — it just goes quiet.
@@ -77,11 +78,9 @@ enum PlusFeature {
   /// "Investment Alert" prompts for SIP/RD instalments.
   investmentReminders,
 
-  /// Tagging: "Apply to All" (future + existing for a merchant).
+  /// Tagging: "Apply to All" (future + existing for a merchant). "Apply to All
+  /// Existing" and "Only this one" both stay free.
   tagApplyToAll,
-
-  /// Tagging: "Apply to All Existing". "Only this one" stays free.
-  tagApplyToExisting,
 
   /// AI Prediction Mode: the Insights card on Home and the forecasts feeding
   /// it. Gated at BOTH ends — turning the setting on opens the paywall, and

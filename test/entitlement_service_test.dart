@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:budget_tracker/models/plus_products.dart';
@@ -26,6 +27,19 @@ void main() {
       DateTime.now().subtract(Duration(days: d)).millisecondsSinceEpoch;
   int daysAhead(int d) =>
       DateTime.now().add(Duration(days: d)).millisecondsSinceEpoch;
+
+  // Stand in for Android's package install record. Null unsets the handler,
+  // which is what every non-Android platform looks like from Dart.
+  const installChannel = MethodChannel('budgetify/install_info');
+  void mockFirstInstall(int? ms) {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+      installChannel,
+      ms == null ? null : (call) async => ms,
+    );
+  }
+
+  tearDown(() => mockFirstInstall(null));
 
   group('trial anchor', () {
     test('stamps first-launch once and does not move it on re-init', () async {
@@ -56,6 +70,80 @@ void main() {
 
       expect(svc.trialActive, isFalse);
       expect(svc.trialDaysLeft, 0);
+    });
+  });
+
+  group('install-record floor', () {
+    test('a data wipe cannot buy a fresh window', () async {
+      // "Clear data" leaves no anchor, so initialize() stamps today — but the
+      // package record still knows the app went on 200 days ago.
+      mockFirstInstall(daysAgo(200));
+      await svc.initialize();
+      expect(svc.trialActive, isTrue); // the wipe appeared to work…
+      await svc.applyInstallRecordFloor();
+
+      expect(svc.trialActive, isFalse); // …until the install record spoke
+      expect(svc.firstLaunchAt!.millisecondsSinceEpoch,
+          closeTo(daysAgo(200), 1000));
+    });
+
+    test('the floor persists, so it only has to be read once', () async {
+      mockFirstInstall(daysAgo(200));
+      await svc.initialize();
+      await svc.applyInstallRecordFloor();
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getInt('entitlement_first_launch_at'),
+          closeTo(daysAgo(200), 1000));
+    });
+
+    test('a later install record never moves the anchor forward', () async {
+      // Reinstall-then-restore order: the anchor is already older than the
+      // (fresh) package record, and must survive untouched.
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('entitlement_first_launch_at', daysAgo(200));
+      mockFirstInstall(DateTime.now().millisecondsSinceEpoch);
+      await svc.initialize();
+      await svc.applyInstallRecordFloor();
+
+      expect(svc.trialActive, isFalse);
+      expect(svc.firstLaunchAt!.millisecondsSinceEpoch,
+          closeTo(daysAgo(200), 1000));
+    });
+
+    test('no channel (non-Android, isolate) leaves the anchor alone', () async {
+      mockFirstInstall(null);
+      await svc.initialize();
+      await svc.applyInstallRecordFloor();
+
+      expect(svc.trialActive, isTrue);
+      expect(svc.firstLaunchAt, isNotNull);
+    });
+
+    test('a nonsense install time is ignored', () async {
+      mockFirstInstall(0);
+      await svc.initialize();
+      await svc.applyInstallRecordFloor();
+
+      expect(svc.trialActive, isTrue);
+      expect(svc.trialDaysLeft, greaterThanOrEqualTo(180));
+    });
+
+    test('the gate path never touches the channel', () async {
+      // allowsAsync runs in the background isolate, where an unbound channel
+      // would stall a notification. It must resolve on prefs alone.
+      mockFirstInstall(null);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('entitlement_first_launch_at', daysAgo(200));
+      await prefs.setInt(
+          'entitlement_last_seen_at', DateTime.now().millisecondsSinceEpoch);
+
+      expect(
+        await svc
+            .allowsAsync(PlusFeature.spendingNotifications)
+            .timeout(const Duration(seconds: 2)),
+        isFalse,
+      );
     });
   });
 
@@ -105,8 +193,36 @@ void main() {
       await svc.importSettings(null);
       await svc.importSettings({'first_launch_at': 'not-an-int'});
       await svc.importSettings({});
+      await svc.importSettings({}, backupCreatedAtMs: 0);
 
       expect(svc.firstLaunchAt, before);
+    });
+
+    test('the backup file stamp ages the anchor on its own', () async {
+      // The tamper case: entitlement block stripped out of a decrypted
+      // backup, but the file was written 200 days ago and says so.
+      await svc.initialize(); // stamps ~now
+      await svc.importSettings(null, backupCreatedAtMs: daysAgo(200));
+
+      expect(svc.trialActive, isFalse);
+    });
+
+    test('the file stamp never moves the anchor forward', () async {
+      await svc.initialize();
+      final before = svc.firstLaunchAt!.millisecondsSinceEpoch;
+      await svc.importSettings({}, backupCreatedAtMs: daysAhead(200));
+
+      expect(svc.firstLaunchAt!.millisecondsSinceEpoch, before);
+    });
+
+    test('the earliest of the two witnesses wins', () async {
+      await svc.initialize();
+      // File written recently, but it carries a much older anchor.
+      await svc.importSettings({'first_launch_at': daysAgo(200)},
+          backupCreatedAtMs: daysAgo(3));
+
+      expect(svc.firstLaunchAt!.millisecondsSinceEpoch,
+          closeTo(daysAgo(200), 1000));
     });
   });
 

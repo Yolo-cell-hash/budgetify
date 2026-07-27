@@ -362,18 +362,16 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     TutorialService.instance.advanceFrom(TutorialStep.applyOptions);
 
     if (result != null && mounted) {
-      // Plus gate (dormant during the free window): the bulk options —
-      // Apply to All (1) and Apply to All Existing (2) — lock after the free
-      // window; "Only this one" (3) stays free forever. When locked, the
-      // paywall opens and, unless Plus was bought right there, the save
+      // Plus gate (dormant during the free window): only "Apply to All" (1) —
+      // the future+existing sweep — locks after the free window. "Apply to All
+      // Existing" (2) and "Only this one" (3) stay free forever. When locked,
+      // the paywall opens and, unless Plus was bought right there, the save
       // gracefully degrades to the free single-transaction path. The
       // transaction itself was already saved above — nothing is lost.
       var effective = result;
-      if (result == 1 || result == 2) {
-        final feature = result == 1
-            ? PlusFeature.tagApplyToAll
-            : PlusFeature.tagApplyToExisting;
-        final allowed = await PlusScreen.maybePush(context, feature);
+      if (result == 1) {
+        final allowed =
+            await PlusScreen.maybePush(context, PlusFeature.tagApplyToAll);
         if (!allowed) effective = 3;
       }
       if (!mounted) return;

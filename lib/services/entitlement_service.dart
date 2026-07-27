@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:flutter/services.dart' show MethodChannel;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/plus_products.dart';
@@ -48,6 +51,11 @@ class EntitlementService {
   /// Length of the free window.
   static const Duration trialDuration = Duration(days: 182); // ~6 months
 
+  /// Android's package install record (see MainActivity.kt). Read-only, no
+  /// permission, absent everywhere else — callers must tolerate null.
+  static const MethodChannel _installChannel =
+      MethodChannel('budgetify/install_info');
+
   static final EntitlementService _instance = EntitlementService._internal();
   factory EntitlementService() => _instance;
   EntitlementService._internal();
@@ -94,6 +102,51 @@ class EntitlementService {
         (prefs.getStringList(_ownedRoyalsKey) ?? const <String>[]).toSet();
 
     _initialized = true;
+  }
+
+  /// Pull the trial anchor back to Android's package install record when that
+  /// is older than whatever we have stamped.
+  ///
+  /// Why this closes a hole: SharedPreferences is app data, so "Clear data"
+  /// wipes the anchor and the next launch would stamp today — a free window,
+  /// no uninstall required. The package install record is NOT app data. It
+  /// survives a wipe (and app updates) and resets only on uninstall or factory
+  /// reset, so it still knows the true origin date.
+  ///
+  /// Deliberate limit: it does NOT survive an uninstall, because a reinstall
+  /// starts a fresh record. This closes the "Clear data" reset, not the
+  /// "uninstall and start over" one — the latter is priced in the user's own
+  /// history, which a fresh install doesn't have.
+  ///
+  /// Kept OUT of [initialize] on purpose. This reaches over a platform
+  /// channel, and [initialize] is on the gate path — [allowsAsync] runs in the
+  /// background isolate, where no channel is bound and the call would stall a
+  /// notification. Call it once from `main()` after [initialize]; nothing
+  /// needs to await the result. Purely a floor, so a missing or wrong value
+  /// can shorten the free window but never extend it.
+  Future<void> applyInstallRecordFloor() async {
+    final installMs = await _platformFirstInstallMs();
+    if (installMs == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    final current = prefs.getInt(_firstLaunchKey);
+    if (current != null && installMs >= current) return;
+    await prefs.setInt(_firstLaunchKey, installMs);
+    _firstLaunch = DateTime.fromMillisecondsSinceEpoch(installMs);
+  }
+
+  /// When Android first installed this package (ms since epoch), or null when
+  /// unavailable — every non-Android platform, an unbound channel, a platform
+  /// error, or a channel that doesn't answer promptly. The timeout matters:
+  /// an unanswered channel future would otherwise hang whoever awaited it.
+  Future<int?> _platformFirstInstallMs() async {
+    try {
+      final ms = await _installChannel
+          .invokeMethod<int>('firstInstallTime')
+          .timeout(const Duration(seconds: 5));
+      return (ms != null && ms > 0) ? ms : null;
+    } catch (_) {
+      return null; // unknown here — the stored anchor stands
+    }
   }
 
   /// First recorded app use, or null if not yet stamped. Fail-open callers
@@ -229,31 +282,48 @@ class EntitlementService {
   /// forward to extend the trial. Paid entitlements merge additively (union /
   /// max), mirroring how a Play restore can only ever ADD ownership.
   /// Idempotent and null-safe.
-  Future<void> importSettings(Map<String, dynamic>? settings) async {
-    if (settings == null) return;
+  ///
+  /// [backupCreatedAtMs] is when the backup FILE was written — a second,
+  /// independent witness to the same fact, supplied by BackupService from the
+  /// envelope. It counts because it lives OUTSIDE this payload: deleting the
+  /// entitlement block from a decrypted backup no longer buys a clean trial,
+  /// since a file written five months in still dates the install five months
+  /// back. Not tamper-proof (nothing client-side is) — just no longer a
+  /// one-line edit.
+  Future<void> importSettings(Map<String, dynamic>? settings,
+      {int? backupCreatedAtMs}) async {
+    if (settings == null && backupCreatedAtMs == null) return;
     final prefs = await SharedPreferences.getInstance();
 
-    final restored = settings['first_launch_at'];
-    if (restored is int) {
-      final current = prefs.getInt(_firstLaunchKey);
-      final earliest =
-          (current == null || restored < current) ? restored : current;
-      if (earliest != current) {
-        await prefs.setInt(_firstLaunchKey, earliest);
-        _firstLaunch = DateTime.fromMillisecondsSinceEpoch(earliest);
+    // Every witness is a floor; the earliest one wins. Garbage and
+    // forward-dated values fall through untouched.
+    final current = prefs.getInt(_firstLaunchKey);
+    var earliest = current;
+    for (final witness in <Object?>[
+      settings?['first_launch_at'],
+      backupCreatedAtMs,
+    ]) {
+      if (witness is int &&
+          witness > 0 &&
+          (earliest == null || witness < earliest)) {
+        earliest = witness;
       }
     }
+    if (earliest != null && earliest != current) {
+      await prefs.setInt(_firstLaunchKey, earliest);
+      _firstLaunch = DateTime.fromMillisecondsSinceEpoch(earliest);
+    }
 
-    if (settings['plus_lifetime'] == true && !_plusLifetime) {
+    if (settings?['plus_lifetime'] == true && !_plusLifetime) {
       _plusLifetime = true;
       await prefs.setBool(_plusLifetimeKey, true);
     }
-    final until = settings['plus_until'];
+    final until = settings?['plus_until'];
     if (until is int && until > _plusUntilMs) {
       _plusUntilMs = until;
       await prefs.setInt(_plusUntilKey, until);
     }
-    final royals = settings['owned_royals'];
+    final royals = settings?['owned_royals'];
     if (royals is List) {
       final merged = {..._ownedRoyals, ...royals.map((e) => e.toString())};
       if (merged.length != _ownedRoyals.length) {
