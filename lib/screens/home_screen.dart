@@ -4,11 +4,13 @@ import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../l10n/l10n.dart';
+import '../models/plus_products.dart';
 import '../models/transaction_model.dart';
 import '../providers/theme_provider.dart';
 import '../services/app_events.dart';
 import '../services/database_service.dart';
 import '../services/dev_mode.dart';
+import '../services/entitlement_service.dart';
 import '../services/financial_health_service.dart';
 import '../services/gamification_service.dart';
 import '../services/sms_service.dart';
@@ -679,11 +681,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             const SizedBox(height: 12),
                             FadeSlideIn(order: 3, child: _buildSipAlert()),
                           ],
-                          // Gated behind AI Prediction Mode — when off, nothing
-                          // here is built and the dashboard is unchanged.
+                          // Gated behind AI Prediction Mode AND the Plus
+                          // entitlement — when either is off, nothing here is
+                          // built and the dashboard is unchanged. On lock the
+                          // card just goes quiet: the stored setting is left
+                          // alone, so buying Plus brings it straight back.
                           if (context
-                              .watch<AppPreferences>()
-                              .aiPredictionMode) ...[
+                                  .watch<AppPreferences>()
+                                  .aiPredictionMode &&
+                              EntitlementService()
+                                  .allows(PlusFeature.aiPredictionMode)) ...[
                             const SizedBox(height: 12),
                             FadeSlideIn(
                               order: 2,
