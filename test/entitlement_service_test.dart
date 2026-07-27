@@ -57,8 +57,8 @@ void main() {
     test('trial is active immediately after first launch', () async {
       await svc.initialize();
       expect(svc.trialActive, isTrue);
-      expect(svc.trialDaysLeft, greaterThanOrEqualTo(180));
-      expect(svc.trialDaysLeft, lessThanOrEqualTo(182));
+      expect(svc.trialDaysLeft, greaterThanOrEqualTo(88));
+      expect(svc.trialDaysLeft, lessThanOrEqualTo(90));
     });
 
     test('trial is inactive once the window has elapsed', () async {
@@ -126,7 +126,7 @@ void main() {
       await svc.applyInstallRecordFloor();
 
       expect(svc.trialActive, isTrue);
-      expect(svc.trialDaysLeft, greaterThanOrEqualTo(180));
+      expect(svc.trialDaysLeft, greaterThanOrEqualTo(88));
     });
 
     test('the gate path never touches the channel', () async {
@@ -229,17 +229,23 @@ void main() {
   group('product catalog', () {
     test('Plus SKUs carry the agreed ids and prices', () {
       expect(PlusPlan.monthly.productId, 'plus_monthly');
-      expect(PlusPlan.monthly.priceInr, 29);
+      expect(PlusPlan.monthly.priceInr, 49);
+      expect(PlusPlan.monthly.offerPriceInr, 29);
       expect(PlusPlan.yearly.productId, 'plus_yearly');
-      expect(PlusPlan.yearly.priceInr, 299);
+      expect(PlusPlan.yearly.priceInr, 499);
+      expect(PlusPlan.yearly.offerPriceInr, 299);
       expect(PlusPlan.lifetime.productId, 'plus_lifetime');
-      expect(PlusPlan.lifetime.priceInr, 699);
+      expect(PlusPlan.lifetime.priceInr, 1499);
+      expect(PlusPlan.lifetime.offerPriceInr, 999);
       expect(PlusPlan.byProductId('plus_lifetime'), PlusPlan.lifetime);
       expect(PlusPlan.byProductId('nope'), isNull);
     });
 
-    test('royal products are ₹49 and round-trip their royal id', () {
+    test('royal products are ₹49 (₹29 on offer) and round-trip their id', () {
       expect(kRoyalAvatarPriceInr, 49);
+      expect(kRoyalAvatarOfferPriceInr, 29);
+      expect(royalAvatarPriceInr(onOffer: false), 49);
+      expect(royalAvatarPriceInr(onOffer: true), 29);
       expect(royalProductId('sovereign'), 'royal_sovereign');
       expect(royalIdFromProduct('royal_darkprince'), 'darkprince');
       expect(royalIdFromProduct('plus_monthly'), isNull);
