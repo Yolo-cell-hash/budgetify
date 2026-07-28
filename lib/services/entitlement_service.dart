@@ -216,6 +216,55 @@ class EntitlementService {
     }
   }
 
+  /// Read the anchor back from the one file Android's automatic backup is
+  /// allowed to carry, then write the current one into it.
+  ///
+  /// This is the only witness that survives an UNINSTALL. The other three all
+  /// die with the app: preferences and the anchor file are app data, and the
+  /// package install record resets on reinstall. Android restores this file
+  /// from the user's own Google Drive before first launch, so someone who
+  /// uninstalls and reinstalls resumes the window they were in.
+  ///
+  /// Scope is the whole point. `res/xml/backup_rules.xml` whitelists this file
+  /// and nothing else, so what travels is one timestamp — never a
+  /// transaction, a message or a balance. See the privacy policy, which says
+  /// so in as many words.
+  ///
+  /// Read AND write, because the file has to stay true: the anchor can be
+  /// pulled back later by the install record or a restored backup, and a
+  /// stale copy here would quietly undo that on the next reinstall.
+  ///
+  /// A floor like the rest — it can only ever move the anchor earlier. Kept
+  /// out of [initialize] for the same reason as [applyInstallRecordFloor]:
+  /// this reaches over a platform channel, and the gate path runs in the
+  /// background isolate where no channel is bound. Call it from `main()`;
+  /// nothing needs to await the result, and every failure is silent.
+  Future<void> syncPortableAnchor() async {
+    try {
+      final restored = await _installChannel
+          .invokeMethod<int>('readTrialAnchor')
+          .timeout(const Duration(seconds: 5));
+      final prefs = await SharedPreferences.getInstance();
+      final current = prefs.getInt(_firstLaunchKey);
+
+      if (restored != null && restored > 0 &&
+          (current == null || restored < current)) {
+        await prefs.setInt(_firstLaunchKey, restored);
+        _firstLaunch = DateTime.fromMillisecondsSinceEpoch(restored);
+      }
+
+      final anchor = prefs.getInt(_firstLaunchKey);
+      if (anchor != null && anchor > 0 && anchor != restored) {
+        await _installChannel
+            .invokeMethod<void>('writeTrialAnchor', {'ms': anchor})
+            .timeout(const Duration(seconds: 5));
+      }
+    } catch (_) {
+      // Unavailable everywhere but Android, and never worth a crash: the
+      // stored anchor simply stands.
+    }
+  }
+
   /// First recorded app use, or null if not yet stamped. Fail-open callers
   /// (later phases) should treat null as "still in trial".
   DateTime? get firstLaunchAt => _firstLaunch;
@@ -489,27 +538,61 @@ class EntitlementService {
   /// envelope. It counts because it lives OUTSIDE this payload: deleting the
   /// entitlement block from a decrypted backup no longer buys a clean trial,
   /// since a file written five months in still dates the install five months
-  /// back. Not tamper-proof (nothing client-side is) — just no longer a
-  /// one-line edit.
-  Future<void> importSettings(Map<String, dynamic>? settings,
-      {int? backupCreatedAtMs}) async {
-    if (settings == null && backupCreatedAtMs == null) return;
+  /// back.
+  ///
+  /// [carriesHistory] says the payload brought real transaction history with
+  /// it, and closes the last way out: strip BOTH witnesses and the restore
+  /// used to fall open to a clean 90 days with every tagged transaction
+  /// intact. A backup this app wrote always stamps `createdAt` on the
+  /// envelope, unconditionally, so a payload that restores a year of history
+  /// while claiming no age at all was assembled by hand. That case now fails
+  /// CLOSED — the window is treated as already elapsed — which inverts the
+  /// economics: tampering costs the remaining trial instead of buying one.
+  ///
+  /// Still not tamper-proof; nothing client-side is. A plain reinstall with no
+  /// restore keeps giving a fresh window on purpose, since re-tagging
+  /// everything by hand is its own price.
+  Future<void> importSettings(
+    Map<String, dynamic>? settings, {
+    int? backupCreatedAtMs,
+    bool carriesHistory = false,
+  }) async {
+    if (settings == null && backupCreatedAtMs == null && !carriesHistory) {
+      return;
+    }
     final prefs = await SharedPreferences.getInstance();
 
     // Every witness is a floor; the earliest one wins. Garbage and
     // forward-dated values fall through untouched.
     final current = prefs.getInt(_firstLaunchKey);
     var earliest = current;
+    var sawWitness = false;
     for (final witness in <Object?>[
       settings?['first_launch_at'],
       backupCreatedAtMs,
     ]) {
-      if (witness is int &&
-          witness > 0 &&
-          (earliest == null || witness < earliest)) {
-        earliest = witness;
+      if (witness is int && witness > 0) {
+        sawWitness = true;
+        if (earliest == null || witness < earliest) earliest = witness;
       }
     }
+
+    // History with no age at all: date the install a full window back, so the
+    // free period reads as spent. Folded in as one more floor rather than a
+    // special case, which keeps the whole method monotonic — every path here
+    // can only ever move the anchor EARLIER, so no input, however hostile,
+    // can lengthen a free window.
+    //
+    // Note [trialRestartAt] sits above this: while the restart is still in the
+    // future, EVERY anchor — this one included — is clamped up to it, so the
+    // rule cannot be observed until that date passes. That is the restart
+    // doing its job for the testing cohort, not this failing.
+    if (carriesHistory && !sawWitness) {
+      final spent =
+          _effectiveNow.subtract(trialDuration).millisecondsSinceEpoch;
+      if (earliest == null || spent < earliest) earliest = spent;
+    }
+
     if (earliest != null && earliest != current) {
       await prefs.setInt(_firstLaunchKey, earliest);
       _firstLaunch = DateTime.fromMillisecondsSinceEpoch(earliest);

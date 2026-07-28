@@ -100,9 +100,14 @@ Future<void> _initDeferredServices(ThemeProvider themeProvider) async {
   // stay off the gate path (allowsAsync runs in the background isolate, which
   // has no channel bound). It only ever pulls the anchor back, so no one needs
   // to wait on it before reading the trial.
+  // The portable anchor follows both: it is the one witness that outlives an
+  // uninstall, since Android's automatic backup restores it — and only it —
+  // from the user's own Drive. Runs last so it writes back whatever the
+  // install-record floor may have just pulled the anchor to.
   try {
     await EntitlementService().initialize();
     await EntitlementService().applyInstallRecordFloor();
+    await EntitlementService().syncPortableAnchor();
   } catch (e) {
     debugPrint('EntitlementService.initialize failed: $e');
   }
