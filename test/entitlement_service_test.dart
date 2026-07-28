@@ -33,18 +33,48 @@ void main() {
   int daysAhead(int d) =>
       DateTime.now().add(Duration(days: d)).millisecondsSinceEpoch;
 
-  // Stand in for Android's package install record. Null unsets the handler,
-  // which is what every non-Android platform looks like from Dart.
+  // Stand in for MainActivity: the package install record, plus the one-value
+  // preferences file Android's automatic backup is allowed to carry.
   const installChannel = MethodChannel('budgetify/install_info');
-  void mockFirstInstall(int? ms) {
+  int? fakeInstallMs;
+  int? fakeAnchorMs;
+  var anchorWrites = <int>[];
+
+  /// Bind the channel. [anchorMs] seeds the backed-up file — non-null is what
+  /// a reinstall looks like once Android has restored it.
+  void mockChannel({int? installMs, int? anchorMs}) {
+    fakeInstallMs = installMs;
+    fakeAnchorMs = anchorMs;
+    anchorWrites = [];
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(
-      installChannel,
-      ms == null ? null : (call) async => ms,
-    );
+        .setMockMethodCallHandler(installChannel, (call) async {
+      switch (call.method) {
+        case 'firstInstallTime':
+          return fakeInstallMs;
+        case 'readTrialAnchor':
+          return fakeAnchorMs;
+        case 'writeTrialAnchor':
+          final ms = (call.arguments as Map)['ms'] as int;
+          anchorWrites.add(ms);
+          fakeAnchorMs = ms;
+          return null;
+        default:
+          return null;
+      }
+    });
   }
 
-  tearDown(() => mockFirstInstall(null));
+  /// Unbind it entirely — what every non-Android platform, and the background
+  /// isolate, look like from Dart.
+  void unbindChannel() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(installChannel, null);
+  }
+
+  void mockFirstInstall(int? ms) =>
+      ms == null ? unbindChannel() : mockChannel(installMs: ms);
+
+  tearDown(unbindChannel);
 
   group('trial anchor', () {
     test('stamps first-launch once and does not move it on re-init', () async {
@@ -163,6 +193,90 @@ void main() {
       await svc.initialize();
 
       expect(svc.trialActive, isFalse);
+    });
+  });
+
+  group('portable anchor (the witness that outlives an uninstall)', () {
+    // Android's automatic backup carries exactly one file — a single
+    // timestamp, whitelisted in res/xml/backup_rules.xml — and puts it back
+    // before first launch. Everything else the app owns, the transactions
+    // database above all, is excluded and never leaves the phone.
+
+    test('a restored file older than this install wins', () async {
+      // The reinstall case: fresh install stamps today, Drive hands back a
+      // file saying the real start was 200 days ago. The timestamp is pinned
+      // in a local — daysAgo() reads the wall clock, so recomputing it at
+      // assertion time makes the test fail whenever a millisecond ticks
+      // mid-test.
+      final restored = daysAgo(200);
+      mockChannel(anchorMs: restored);
+      await svc.initialize();
+      expect(svc.trialActive, isTrue, reason: 'fresh stamp, before the sync');
+
+      await svc.syncPortableAnchor();
+
+      expect(svc.firstLaunchAt!.millisecondsSinceEpoch, restored);
+      expect(svc.trialActive, isFalse);
+    });
+
+    test('a restored file cannot push the anchor forward', () async {
+      // Same monotonic rule as every other witness: later is ignored.
+      final stored = daysAgo(200);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('entitlement_first_launch_at', stored);
+      mockChannel(anchorMs: daysAgo(5));
+      await svc.initialize();
+
+      await svc.syncPortableAnchor();
+
+      expect(svc.firstLaunchAt!.millisecondsSinceEpoch, stored);
+      expect(svc.trialActive, isFalse);
+    });
+
+    test('the anchor is written back so the file stays true', () async {
+      // Nothing restored — a genuinely first install. The file has to be
+      // seeded now, or there is nothing to survive the uninstall later.
+      mockChannel();
+      await svc.initialize();
+      final anchor = svc.firstLaunchAt!.millisecondsSinceEpoch;
+
+      await svc.syncPortableAnchor();
+
+      expect(anchorWrites, [anchor]);
+    });
+
+    test('a pulled-back anchor is written back, not the value it replaced',
+        () async {
+      // Order matters: the install-record floor runs first, and the file must
+      // end up holding the older date it just produced. A stale copy here
+      // would quietly undo that on the next reinstall.
+      final installed = daysAgo(200);
+      mockChannel(installMs: installed);
+      await svc.initialize();
+      await svc.applyInstallRecordFloor();
+
+      await svc.syncPortableAnchor();
+
+      expect(anchorWrites, [installed]);
+    });
+
+    test('a file already holding the anchor is not rewritten', () async {
+      mockChannel(anchorMs: daysAgo(200));
+      await svc.initialize();
+      await svc.syncPortableAnchor();
+      await svc.syncPortableAnchor();
+
+      expect(anchorWrites, isEmpty, reason: 'idempotent, no pointless writes');
+    });
+
+    test('no channel leaves the anchor alone and never throws', () async {
+      unbindChannel();
+      await svc.initialize();
+      final before = svc.firstLaunchAt;
+
+      await svc.syncPortableAnchor();
+
+      expect(svc.firstLaunchAt, before);
     });
   });
 

@@ -216,6 +216,55 @@ class EntitlementService {
     }
   }
 
+  /// Read the anchor back from the one file Android's automatic backup is
+  /// allowed to carry, then write the current one into it.
+  ///
+  /// This is the only witness that survives an UNINSTALL. The other three all
+  /// die with the app: preferences and the anchor file are app data, and the
+  /// package install record resets on reinstall. Android restores this file
+  /// from the user's own Google Drive before first launch, so someone who
+  /// uninstalls and reinstalls resumes the window they were in.
+  ///
+  /// Scope is the whole point. `res/xml/backup_rules.xml` whitelists this file
+  /// and nothing else, so what travels is one timestamp — never a
+  /// transaction, a message or a balance. See the privacy policy, which says
+  /// so in as many words.
+  ///
+  /// Read AND write, because the file has to stay true: the anchor can be
+  /// pulled back later by the install record or a restored backup, and a
+  /// stale copy here would quietly undo that on the next reinstall.
+  ///
+  /// A floor like the rest — it can only ever move the anchor earlier. Kept
+  /// out of [initialize] for the same reason as [applyInstallRecordFloor]:
+  /// this reaches over a platform channel, and the gate path runs in the
+  /// background isolate where no channel is bound. Call it from `main()`;
+  /// nothing needs to await the result, and every failure is silent.
+  Future<void> syncPortableAnchor() async {
+    try {
+      final restored = await _installChannel
+          .invokeMethod<int>('readTrialAnchor')
+          .timeout(const Duration(seconds: 5));
+      final prefs = await SharedPreferences.getInstance();
+      final current = prefs.getInt(_firstLaunchKey);
+
+      if (restored != null && restored > 0 &&
+          (current == null || restored < current)) {
+        await prefs.setInt(_firstLaunchKey, restored);
+        _firstLaunch = DateTime.fromMillisecondsSinceEpoch(restored);
+      }
+
+      final anchor = prefs.getInt(_firstLaunchKey);
+      if (anchor != null && anchor > 0 && anchor != restored) {
+        await _installChannel
+            .invokeMethod<void>('writeTrialAnchor', {'ms': anchor})
+            .timeout(const Duration(seconds: 5));
+      }
+    } catch (_) {
+      // Unavailable everywhere but Android, and never worth a crash: the
+      // stored anchor simply stands.
+    }
+  }
+
   /// First recorded app use, or null if not yet stamped. Fail-open callers
   /// (later phases) should treat null as "still in trial".
   DateTime? get firstLaunchAt => _firstLaunch;

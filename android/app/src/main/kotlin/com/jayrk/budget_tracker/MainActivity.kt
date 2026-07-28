@@ -66,18 +66,56 @@ class MainActivity : FlutterFragmentActivity() {
         // No permission required — we only ever ask about our own package.
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "budgetify/install_info")
             .setMethodCallHandler { call, result ->
-                if (call.method != "firstInstallTime") {
-                    result.notImplemented()
-                    return@setMethodCallHandler
-                }
                 try {
-                    result.success(packageManager.getPackageInfo(packageName, 0).firstInstallTime)
+                    when (call.method) {
+                        "firstInstallTime" ->
+                            result.success(
+                                packageManager.getPackageInfo(packageName, 0).firstInstallTime
+                            )
+                        "readTrialAnchor" -> {
+                            val ms = anchorPrefs().getLong(TRIAL_ANCHOR_KEY, 0L)
+                            result.success(if (ms > 0L) ms else null)
+                        }
+                        "writeTrialAnchor" -> {
+                            val ms = call.argument<Number>("ms")?.toLong() ?: 0L
+                            if (ms > 0L) {
+                                anchorPrefs().edit().putLong(TRIAL_ANCHOR_KEY, ms).apply()
+                            }
+                            result.success(null)
+                        }
+                        else -> result.notImplemented()
+                    }
                 } catch (e: Exception) {
                     // Null means "unknown" on the Dart side: the anchor simply
                     // stands as stored. Never worth crashing over.
                     result.success(null)
                 }
             }
+    }
+
+    /**
+     * The install date, and nothing else, in a file of its own.
+     *
+     * Every other preference the app owns lives in Flutter's shared blob,
+     * which `res/xml/backup_rules.xml` excludes from Android's automatic
+     * backup. This file is the sole inclusion, so the only thing that ever
+     * reaches the user's Google Drive is one timestamp — never a transaction,
+     * a message, or a balance. Separating it is what makes that promise
+     * expressible at all: Android's backup rules select whole files, so an
+     * anchor sharing a file with everything else could not be backed up
+     * alone.
+     *
+     * Being restored on reinstall is the entire point. Android puts this file
+     * back before the app's first launch, so a reinstall resumes the free
+     * window instead of starting a new one.
+     */
+    private fun anchorPrefs() =
+        getSharedPreferences(TRIAL_ANCHOR_PREFS, Context.MODE_PRIVATE)
+
+    private companion object {
+        /** Must match `backup_rules.xml` / `data_extraction_rules.xml`. */
+        const val TRIAL_ANCHOR_PREFS = "budgetify_trial_anchor"
+        const val TRIAL_ANCHOR_KEY = "first_launch_at"
     }
 
     // ── Royal launcher-icon switching ──────────────────────────────────────
