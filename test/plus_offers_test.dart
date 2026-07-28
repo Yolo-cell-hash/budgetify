@@ -24,17 +24,80 @@ void main() {
       expect(activeFestiveOffer(DateTime(2028, 6, 1)), isNull);
     });
 
-    test('Diwali opens a week either side of the anchor', () {
-      // Diwali 2026 falls on 8 Nov, so ±7 days spans 1–15 Nov.
+    test('Diwali runs for exactly one week around the anchor', () {
+      // Diwali 2026 falls on 8 Nov: four days of run-up, the day itself, two
+      // days after — 4–10 Nov inclusive.
       expect(activeFestiveOffer(DateTime(2026, 11, 8))?.id, 'diwali');
-      expect(activeFestiveOffer(DateTime(2026, 11, 1))?.id, 'diwali');
-      expect(activeFestiveOffer(DateTime(2026, 11, 15))?.id, 'diwali');
+      expect(activeFestiveOffer(DateTime(2026, 11, 4))?.id, 'diwali');
+      expect(activeFestiveOffer(DateTime(2026, 11, 10))?.id, 'diwali');
       // …and stays shut outside it.
-      expect(activeFestiveOffer(DateTime(2026, 10, 31)), isNull);
-      expect(activeFestiveOffer(DateTime(2026, 11, 16)), isNull);
+      expect(activeFestiveOffer(DateTime(2026, 11, 3)), isNull);
+      expect(activeFestiveOffer(DateTime(2026, 11, 11)), isNull);
     });
 
-    test('the buffer absorbs a panchang date that shifts by a day or two', () {
+    test('festivals run a week, national holidays a long weekend', () {
+      // The whole point of the shape: a festival sale that outlasts the
+      // festival stops reading as one, and stops making the base price real.
+      const national = {'republic', 'independence'};
+      for (var year = 2026; year <= 2032; year++) {
+        for (final offer in festiveOffersAnchoredIn(year)) {
+          expect(
+            offer.endsAt.difference(offer.startsAt),
+            national.contains(offer.id)
+                ? kNationalOfferDuration
+                : kFestiveOfferDuration,
+            reason: '${offer.id} $year',
+          );
+        }
+      }
+    });
+
+    test('Republic Day and Independence Day are three fixed days', () {
+      // No almanac, no drift — the eve, the day, the day after.
+      for (final (id, month, day) in [
+        ('republic', 1, 26),
+        ('independence', 8, 15),
+      ]) {
+        expect(activeFestiveOffer(DateTime(2028, month, day - 1))?.id, id);
+        expect(activeFestiveOffer(DateTime(2028, month, day))?.id, id);
+        expect(activeFestiveOffer(DateTime(2028, month, day + 1))?.id, id);
+        expect(activeFestiveOffer(DateTime(2028, month, day - 2)), isNull);
+        expect(activeFestiveOffer(DateTime(2028, month, day + 2)), isNull);
+      }
+    });
+
+    test('Dussehra opens three weeks before Diwali, and the two never touch',
+        () {
+      // Both hang off the same lunar month, so the gap is fixed at ~20 days —
+      // comfortably more than the fourteen their two windows occupy.
+      expect(activeFestiveOffer(DateTime(2026, 10, 20))?.id, 'dussehra');
+      expect(activeFestiveOffer(DateTime(2027, 10, 9))?.id, 'dussehra');
+      for (var year = 2026; year <= 2032; year++) {
+        final windows = {
+          for (final o in festiveOffersAnchoredIn(year)) o.id: o,
+        };
+        expect(windows['dussehra']!.endsAt.isBefore(windows['diwali']!.startsAt),
+            isTrue,
+            reason: 'Dussehra and Diwali windows collide in $year');
+      }
+    });
+
+    test('Eid al-Fitr walks backwards through the calendar, and is tabled for '
+        'it', () {
+      // Purely lunar: ~11 days earlier each year, March in 2027 → January by
+      // 2031. A rule cannot express that, which is why the table exists.
+      expect(activeFestiveOffer(DateTime(2027, 3, 10))?.id, 'eid');
+      expect(activeFestiveOffer(DateTime(2029, 2, 15))?.id, 'eid');
+      expect(activeFestiveOffer(DateTime(2032, 1, 15))?.id, 'eid');
+      // A moon sighting that lands a day either side is still inside.
+      expect(activeFestiveOffer(DateTime(2027, 3, 9))?.id, 'eid');
+      expect(activeFestiveOffer(DateTime(2027, 3, 11))?.id, 'eid');
+      // 2031 is the year Eid falls on Republic Day. The festival wins the
+      // label; either way the user sees one offer, not two.
+      expect(activeFestiveOffer(DateTime(2031, 1, 26))?.id, 'eid');
+    });
+
+    test('the window still contains a panchang date that shifts by a day', () {
       // The anchors are approximate by design. Whether Diwali 2027 lands on
       // 28, 29 or 30 October, the window is open.
       for (final day in [28, 29, 30]) {
@@ -42,43 +105,85 @@ void main() {
       }
     });
 
-    test('Christmas runs through to New Year, across the year boundary', () {
-      expect(activeFestiveOffer(DateTime(2026, 12, 24))?.id, 'newyear');
+    test('the New Year week runs Boxing Day to New Year\'s Day, across the '
+        'year boundary', () {
+      expect(activeFestiveOffer(DateTime(2026, 12, 26))?.id, 'newyear');
       expect(activeFestiveOffer(DateTime(2026, 12, 31))?.id, 'newyear');
       expect(activeFestiveOffer(DateTime(2027, 1, 1))?.id, 'newyear');
-      // Closes on 2 Jan; 23 Dec is still the everyday price.
+      // Closes on 2 Jan; Christmas Day itself is still the everyday price.
       expect(activeFestiveOffer(DateTime(2027, 1, 2)), isNull);
-      expect(activeFestiveOffer(DateTime(2026, 12, 23)), isNull);
+      expect(activeFestiveOffer(DateTime(2026, 12, 25)), isNull);
     });
 
     test('Holi opens a window too', () {
-      expect(activeFestiveOffer(DateTime(2027, 3, 23))?.id, 'holi');
+      expect(activeFestiveOffer(DateTime(2027, 3, 22))?.id, 'holi');
       expect(activeFestiveOffer(DateTime(2028, 3, 11))?.id, 'holi');
+    });
+
+    test('every festival is preloaded for the next five years', () {
+      // A missing year fails CLOSED — no window at all — so the depth of the
+      // table IS the feature. The app ships knowing its own sale calendar,
+      // with no network call, no update and no almanac at runtime.
+      for (var year = 2027; year <= 2031; year++) {
+        expect(
+          festiveOffersAnchoredIn(year).map((o) => o.id).toSet(),
+          containsAll(<String>[
+            'holi',
+            'eid',
+            'dussehra',
+            'diwali',
+            'republic',
+            'independence',
+            'newyear',
+          ]),
+          reason: 'festival anchors missing for $year',
+        );
+      }
+      // 2026 carries no Holi and no Eid on purpose: both fell in March 2026,
+      // before any of this shipped.
+      expect(festiveOffersAnchoredIn(2026).map((o) => o.id),
+          isNot(contains('holi')));
+      expect(festiveOffersAnchoredIn(2026).map((o) => o.id),
+          isNot(contains('eid')));
     });
 
     test('a year with no anchor falls back to the base price, not a discount',
         () {
-      // The tables stop after 2030/2031. Running past them must fail CLOSED —
+      // The lunar tables stop after 2032. Running past them must fail CLOSED —
       // showing full price is recoverable, advertising a discount Play is not
       // running is not.
       expect(activeFestiveOffer(DateTime(2040, 10, 25)), isNull);
       expect(activeFestiveOffer(DateTime(2040, 3, 15)), isNull);
-      // The fixed New Year window still works, since it needs no table.
+      // The fixed-date windows still work, since none of them needs a table.
       expect(activeFestiveOffer(DateTime(2040, 12, 26))?.id, 'newyear');
+      expect(activeFestiveOffer(DateTime(2040, 1, 26))?.id, 'republic');
+      expect(activeFestiveOffer(DateTime(2040, 8, 15))?.id, 'independence');
     });
 
     test('offers cover only a small slice of the year', () {
       // The strikethrough is only honest while the base price is what
-      // normally applies. Sample every day of 2027 and assert the discount
-      // runs well under a fifth of it.
-      var discounted = 0;
-      for (var d = DateTime(2027, 1, 1);
-          d.year == 2027;
-          d = d.add(const Duration(days: 1))) {
-        if (activeFestiveOffer(d) != null) discounted++;
+      // normally applies. Sample every day of 2027 and 2031 — the second
+      // being the year Eid collides with Republic Day, so it can only ever
+      // come in lower.
+      int discountedDaysIn(int year) {
+        var days = 0;
+        for (var d = DateTime(year, 1, 1);
+            d.year == year;
+            d = d.add(const Duration(days: 1))) {
+          if (activeFestiveOffer(d) != null) days++;
+        }
+        return days;
       }
-      expect(discounted, lessThan(60)); // ~40 days: Diwali + Holi + New Year
-      expect(discounted, greaterThan(20)); // …but the campaigns do run
+
+      // Holi + Eid + Dussehra + Diwali + New Year at seven days apiece, plus
+      // Republic Day and Independence Day at three. Not one day more.
+      expect(discountedDaysIn(2027), 41);
+      expect(discountedDaysIn(2031), lessThanOrEqualTo(41));
+      // A budget, not a coincidence: past ~50 days a year the base price
+      // stops being the price and the strikethrough stops being true.
+      for (var year = 2027; year <= 2032; year++) {
+        expect(discountedDaysIn(year), lessThan(50), reason: '$year');
+      }
     });
   });
 
@@ -107,6 +212,29 @@ void main() {
       expect(offer, isNotNull);
       expect(offer!.id, 'welcome');
       expect(offer.kind, PlusOfferKind.welcome);
+      // Seven days from the day the free window closed — no more.
+      expect(offer.endsAt.difference(offer.startsAt),
+          EntitlementService.welcomeOfferDuration);
+      expect(offer.daysLeftFrom(DateTime.now()), lessThanOrEqualTo(7));
+    });
+
+    test('a simulated expiry gets a real week, not a countdown to the trial '
+        'end it skipped', () async {
+      // Regression: dev mode expires the trial WITHOUT touching the anchor,
+      // so the real end is still ~89 days out. Anchoring the welcome week on
+      // that end advertised an offer "ending in 114 days" — neither a week
+      // nor a believable preview of one.
+      SharedPreferences.setMockInitialValues({
+        'entitlement_first_launch_at': daysAgo(1),
+      });
+      await svc.initialize();
+      EntitlementService.debugSimulateTrialExpired = true;
+      addTearDown(() => EntitlementService.debugSimulateTrialExpired = false);
+
+      final now = DateTime.now();
+      final offer = svc.offerAt(now);
+      expect(offer?.id, 'welcome');
+      expect(offer!.daysLeftFrom(now), 7);
     });
 
     test('has closed by the time the trial is long over', () async {

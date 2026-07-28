@@ -21,6 +21,7 @@ import '../services/axio_import_service.dart';
 import '../services/backup_service.dart';
 import '../services/dev_mode.dart';
 import '../services/background_service.dart';
+import '../services/entitlement_service.dart';
 import '../services/export_service.dart';
 import '../services/gamification_service.dart';
 import '../services/statement_import_service.dart';
@@ -252,6 +253,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: SafeArea(child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // Budgetify Plus Section — the answer to "where do I actually buy
+          // this?", and absent for as long as that question has no answer.
+          _buildPlusSection(isDark),
+
           // Appearance Section
           KeyedSubtree(
             key: _tutAppearanceKey,
@@ -877,7 +882,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 8),
             // Post-trial simulation: flips EntitlementService.trialActive to
             // false via the DevMode overlay so every Plus gate bites exactly
-            // as it will on day 183 — category-budget creation and tag
+            // as it will on day 91 — category-budget creation and tag
             // bulk-apply open the paywall, Plus-only notifications go quiet.
             // The real trial anchor is never touched.
             _buildSettingsCard(
@@ -1109,6 +1114,75 @@ class _SettingsScreenState extends State<SettingsScreen> {
         AppThemeVariant.royalIndigo => context.l10n.themeNameRoyalIndigo,
         AppThemeVariant.midnightIndigo => context.l10n.themeNameMidnightIndigo,
       };
+
+  /// The Budgetify Plus section — where a lapsed user goes to buy.
+  ///
+  /// Deliberately ABSENT while the free window runs and nothing is owned: no
+  /// gate has bitten yet, so an upgrade row would be selling the user
+  /// something they already have. It appears the day access lapses — and,
+  /// because [EntitlementService.trialActive] honours the dev-mode override,
+  /// the instant *Simulate trial expired* is switched on. That is the whole
+  /// point of the simulator: the preview has to include the way back in, not
+  /// just the locks. Listening to the notifier (rather than reading it once)
+  /// is what makes the section appear without leaving the screen.
+  Widget _buildPlusSection(bool isDark) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: DevMode.simulateTrialExpired,
+      builder: (context, _, __) {
+        final entitlements = EntitlementService();
+        final owned = entitlements.hasPlus;
+        if (entitlements.trialActive && !owned) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildSectionHeader(context.l10n.plusTitle, isDark),
+            const SizedBox(height: 8),
+            _buildSettingsCard(
+              isDark: isDark,
+              child: _buildPlusTile(isDark, owned: owned),
+            ),
+            const SizedBox(height: 24),
+          ],
+        );
+      },
+    );
+  }
+
+  /// The row itself. Two states:
+  ///
+  ///   * **owned** — a plain confirmation with no chevron and no tap. Sending
+  ///     a paying user back to a screen that sells what they already own is
+  ///     the one version of this row that would feel like a shakedown.
+  ///   * **lapsed** — the ask, named in terms of what comes back rather than
+  ///     what was taken away.
+  Widget _buildPlusTile(bool isDark, {required bool owned}) {
+    return ListTile(
+      leading: Icon(
+        owned ? Icons.workspace_premium_rounded : Icons.auto_awesome_rounded,
+        color: Theme.of(context).colorScheme.primary,
+      ),
+      title: Text(context.l10n.plusTitle),
+      subtitle: Text(
+        owned
+            ? context.l10n.plusSettingsOwnedDesc
+            : context.l10n.plusSettingsLockedDesc,
+        style: TextStyle(
+          color: isDark ? const Color(0xFF8A8D96) : const Color(0xFF6E727C),
+        ),
+      ),
+      trailing: owned ? null : const Icon(Icons.chevron_right, size: 20),
+      onTap: owned ? null : _openPlusScreen,
+    );
+  }
+
+  /// Open the paywall, then rebuild — a purchase or a restore made on that
+  /// screen changes what this row should say.
+  Future<void> _openPlusScreen() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const PlusScreen()),
+    );
+    if (mounted) setState(() {});
+  }
 
   Widget _buildSectionHeader(String title, bool isDark) {
     return Padding(

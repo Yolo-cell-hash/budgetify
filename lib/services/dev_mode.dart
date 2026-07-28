@@ -70,8 +70,12 @@ class DevMode {
   /// it survives a relaunch while dev mode stays on), and nudge listening
   /// surfaces to refresh their gate state.
   static Future<void> setSimulateTrialExpired(bool on) async {
-    simulateTrialExpired.value = on;
+    // Gate state FIRST, then the notifier. A listener that rebuilds on this
+    // notification asks EntitlementService what it is allowed to show — the
+    // Settings → Budgetify Plus section does exactly that — and must not be
+    // able to read the old answer.
     EntitlementService.debugSimulateTrialExpired = on;
+    simulateTrialExpired.value = on;
     final prefs = await SharedPreferences.getInstance();
     if (on) {
       await prefs.setBool(_prefsTrialExpiredKey, true);
@@ -100,8 +104,8 @@ class DevMode {
     // Re-apply the simulated post-trial state (only ever set while dev mode
     // is on; a stale key with dev mode off never reaches here).
     final simExpired = prefs.getBool(_prefsTrialExpiredKey) ?? false;
+    EntitlementService.debugSimulateTrialExpired = simExpired; // gate first
     simulateTrialExpired.value = simExpired;
-    EntitlementService.debugSimulateTrialExpired = simExpired;
 
     // Re-apply the persisted theme overlay over the real variant.
     final themeName = prefs.getString(_prefsThemeKey);

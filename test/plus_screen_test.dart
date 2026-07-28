@@ -91,6 +91,54 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('the struck-through base price is drawn to be read',
+      (tester) async {
+    await tester.pumpWidget(host(now: () => DateTime(2026, 11, 8)));
+    await tester.pump(const Duration(seconds: 1));
+
+    // A saving the eye slides past is not a saving. The rule has to be
+    // heavier than the font's hairline default and the text large enough to
+    // carry it, or the discount only exists in the copy.
+    final style = tester.widget<Text>(find.text('₹1,499')).style!;
+    expect(style.decoration, TextDecoration.lineThrough);
+    expect(style.decorationThickness, greaterThan(1.5));
+    expect(style.decorationColor, style.color);
+    expect(style.fontSize, greaterThanOrEqualTo(13.0));
+    expect(style.fontWeight, FontWeight.w700);
+  });
+
+  testWidgets('mid-trial the hero speaks in the present tense', (tester) async {
+    // Reachable from Settings on day one now, so it must not claim the free
+    // months are behind the user while they are still in them.
+    await tester.pumpWidget(host());
+    await tester.pump(const Duration(seconds: 1));
+
+    final en = AppStrings(AppLanguage.english);
+    expect(find.text(en.plusHeroBodyTrial), findsOneWidget);
+    expect(find.text(en.plusHeroBody), findsNothing);
+  });
+
+  testWidgets('once the free window has closed it switches to the past tense',
+      (tester) async {
+    // Seed through the live instance: by this point in the run the prefs
+    // singleton is already resolved.
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(
+        'entitlement_first_launch_at',
+        DateTime.now()
+            .subtract(const Duration(days: 200))
+            .millisecondsSinceEpoch);
+    EntitlementService().resetForTest();
+    await EntitlementService().initialize();
+
+    await tester.pumpWidget(host());
+    await tester.pump(const Duration(seconds: 1));
+
+    final en = AppStrings(AppLanguage.english);
+    expect(find.text(en.plusHeroBody), findsOneWidget);
+    expect(find.text(en.plusHeroBodyTrial), findsNothing);
+  });
+
   testWidgets('the welcome week discounts the paywall too', (tester) async {
     // Free window closed yesterday: 91 days since first launch.
     SharedPreferences.setMockInitialValues({
