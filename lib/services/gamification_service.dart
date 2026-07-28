@@ -231,6 +231,18 @@ class GamificationService {
   /// Most freezes a user can stockpile at once.
   static const int maxFreezes = 5;
 
+  /// Whole calendar days from [from] to [to], both read as dates.
+  ///
+  /// Counted on UTC-normalised dates on purpose. Subtracting two *local*
+  /// midnights measures elapsed time, and a daylight-saving day is not 24
+  /// hours: the spring-forward day is 23, which truncates to zero and makes a
+  /// consecutive day look like no day passed at all. Normalising to UTC drops
+  /// the offset from both sides so only the calendar difference remains.
+  static int _calendarDaysBetween(DateTime from, DateTime to) =>
+      DateTime.utc(to.year, to.month, to.day)
+          .difference(DateTime.utc(from.year, from.month, from.day))
+          .inDays;
+
   /// Pure streak transition, exposed for testing. Returns the new
   /// (current, longest) given the last-active date and today (date-only).
   /// When [freezeArmed] is set and exactly one day was missed (a gap of 2), the
@@ -258,7 +270,7 @@ class GamificationService {
           restorable: false,
         );
       }
-      final gap = t.difference(l).inDays;
+      final gap = _calendarDaysBetween(l, t);
       final int newCurrent;
       var freezeUsed = false;
       var restorable = false;
