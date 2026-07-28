@@ -230,40 +230,87 @@ void main() {
     });
   });
 
-  // ── Known defects ───────────────────────────────────────────────────────
-  // These reproduce bugs that are still open; un-skip them with the fix.
+  // ── Daylight saving ─────────────────────────────────────────────────────
+  // The day gap has to be a calendar count, not elapsed time. A local
+  // spring-forward day is 23 hours and a fall-back day is 25, so subtracting
+  // two local midnights used to read a consecutive day as no day at all —
+  // resetting the streak, skipping the armed freeze and writing no save offer.
+  // These dates are the US transitions; run under TZ=America/New_York to
+  // exercise the shift (they pass in a no-DST zone like IST either way).
 
-  group('DST: a 23-hour local day breaks the gap arithmetic', () {
-    // advanceStreak measures the gap as `today.difference(last).inDays` over
-    // two local wall-clock midnights. On the spring-forward day that span is
-    // 23 hours, which truncates to 0 — so a *consecutive* day is read as
-    // "same day or earlier" and falls through to the reset branch. Run under
-    // TZ=America/New_York to see it (2026-03-08 is the US transition).
-    test('consecutive days across spring-forward keep the streak', () {
+  group('DST transitions', () {
+    test('a consecutive day across spring-forward advances the streak', () {
       final r = GamificationService.advanceStreak(
-        last: DateTime(2026, 3, 8),
+        last: DateTime(2026, 3, 8), // the 23-hour day
         current: 9,
         longest: 9,
         today: DateTime(2026, 3, 9),
       );
       expect(r.current, 10);
+      expect(r.longest, 10);
+      expect(r.freezeUsed, isFalse); // nothing was missed, nothing to spend
+      expect(r.restorable, isFalse);
     });
 
-    test('an armed freeze still protects the day after spring-forward', () {
+    test('an armed freeze bridges a missed day across spring-forward', () {
       final r = GamificationService.advanceStreak(
         last: DateTime(2026, 3, 8),
         current: 9,
         longest: 9,
-        today: DateTime(2026, 3, 9),
+        today: DateTime(2026, 3, 10), // missed 3/9
         freezeArmed: true,
       );
-      // Whether it bridges or simply advances, the streak must not reset —
-      // and the user must not silently lose the armed freeze's protection.
-      expect(r.current, greaterThan(1));
+      expect(r.current, 10);
+      expect(r.freezeUsed, isTrue);
     });
-  },
-      skip: 'Open bug: inDays() truncates the 23-hour DST day to 0, resetting '
-          'the streak on a consecutive day with no freeze and no save offer.');
+
+    test('a missed day across spring-forward is still saveable, not free', () {
+      final r = GamificationService.advanceStreak(
+        last: DateTime(2026, 3, 8),
+        current: 9,
+        longest: 9,
+        today: DateTime(2026, 3, 10), // missed 3/9, nothing armed
+      );
+      // It must read as a real break — not silently wave the day through.
+      expect(r.current, 1);
+      expect(r.restorable, isTrue);
+    });
+
+    test('fall-back days count the same way', () {
+      // 2026-11-01 is the 25-hour day.
+      expect(
+        GamificationService.advanceStreak(
+          last: DateTime(2026, 11, 1),
+          current: 4,
+          longest: 4,
+          today: DateTime(2026, 11, 2),
+        ).current,
+        5,
+      );
+      expect(
+        GamificationService.advanceStreak(
+          last: DateTime(2026, 11, 1),
+          current: 4,
+          longest: 4,
+          today: DateTime(2026, 11, 3),
+        ).restorable,
+        isTrue,
+      );
+    });
+
+    test('the same day is still a no-op across a transition', () {
+      final r = GamificationService.advanceStreak(
+        last: DateTime(2026, 3, 8, 1), // before the 2am shift
+        current: 9,
+        longest: 9,
+        today: DateTime(2026, 3, 8, 23), // after it
+      );
+      expect(r.current, 9);
+    });
+  });
+
+  // ── Known defects ───────────────────────────────────────────────────────
+  // These reproduce bugs that are still open; un-skip them with the fix.
 
   group('Lost update: the blob is read-modify-written without a lock', () {
     setUp(() => SharedPreferences.setMockInitialValues({}));
