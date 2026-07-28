@@ -4630,13 +4630,26 @@ class AppStrings {
         'మీకు నచ్చినవన్నీ ఉంచుకోండి',
         'நீங்கள் விரும்பும் அனைத்தையும் வைத்திருங்கள்',
       );
+  /// Hero copy once the free window has closed — past tense, because the
+  /// features have just stopped.
   String get plusHeroBody => _t(
-        'Your 6 free months included every premium feature. Plus keeps them running — still private, still offline, still yours.',
-        'आपके 6 मुफ़्त महीनों में हर प्रीमियम फ़ीचर शामिल था। Plus उन्हें चालू रखता है — उतना ही निजी, ऑफ़लाइन और आपका।',
-        'तुमच्या 6 मोफत महिन्यांत प्रत्येक प्रीमियम फीचर होते. Plus ते सुरू ठेवते — तितकेच खाजगी, ऑफलाइन आणि तुमचे.',
-        'আপনার ৬টি ফ্রি মাসে প্রতিটি প্রিমিয়াম ফিচার ছিল। Plus সেগুলো চালু রাখে — তেমনই প্রাইভেট, অফলাইন, আপনার।',
-        'మీ 6 ఉచిత నెలల్లో ప్రతి ప్రీమియం ఫీచర్ ఉంది. Plus వాటిని కొనసాగిస్తుంది — అంతే ప్రైవేట్, ఆఫ్‌లైన్, మీదే.',
-        'உங்கள் 6 இலவச மாதங்களில் எல்லா பிரீமியம் அம்சங்களும் இருந்தன. Plus அவற்றைத் தொடரவைக்கிறது — அதே தனியுரிமை, ஆஃப்லைன், உங்களுடையது.',
+        'Your 3 free months included every premium feature. Plus keeps them running — still private, still offline, still yours.',
+        'आपके 3 मुफ़्त महीनों में हर प्रीमियम फ़ीचर शामिल था। Plus उन्हें चालू रखता है — उतना ही निजी, ऑफ़लाइन और आपका।',
+        'तुमच्या 3 मोफत महिन्यांत प्रत्येक प्रीमियम फीचर होते. Plus ते सुरू ठेवते — तितकेच खाजगी, ऑफलाइन आणि तुमचे.',
+        'আপনার ৩টি ফ্রি মাসে প্রতিটি প্রিমিয়াম ফিচার ছিল। Plus সেগুলো চালু রাখে — তেমনই প্রাইভেট, অফলাইন, আপনার।',
+        'మీ 3 ఉచిత నెలల్లో ప్రతి ప్రీమియం ఫీచర్ ఉంది. Plus వాటిని కొనసాగిస్తుంది — అంతే ప్రైవేట్, ఆఫ్‌లైన్, మీదే.',
+        'உங்கள் 3 இலவச மாதங்களில் எல்லா பிரீமியம் அம்சங்களும் இருந்தன. Plus அவற்றைத் தொடரவைக்கிறது — அதே தனியுரிமை, ஆஃப்லைன், உங்களுடையது.',
+      );
+
+  /// Hero copy while the free window is still open — reached from the Settings
+  /// entry, so it must not imply anything has been taken away yet.
+  String get plusHeroBodyTrial => _t(
+        'Every premium feature is on right now, free for 3 months. Plus keeps them running after that — still private, still offline, still yours.',
+        'अभी हर प्रीमियम फ़ीचर चालू है — 3 महीने मुफ़्त। उसके बाद Plus उन्हें चालू रखता है — उतना ही निजी, ऑफ़लाइन और आपका।',
+        'सध्या प्रत्येक प्रीमियम फीचर सुरू आहे — 3 महिने मोफत. त्यानंतर Plus ते सुरू ठेवते — तितकेच खाजगी, ऑफलाइन आणि तुमचे.',
+        'এখন প্রতিটি প্রিমিয়াম ফিচার চালু আছে — ৩ মাস ফ্রি। এরপর Plus সেগুলো চালু রাখে — তেমনই প্রাইভেট, অফলাইন, আপনার।',
+        'ప్రస్తుతం ప్రతి ప్రీమియం ఫీచర్ ఆన్‌లో ఉంది — 3 నెలలు ఉచితం. ఆ తర్వాత Plus వాటిని కొనసాగిస్తుంది — అంతే ప్రైవేట్, ఆఫ్‌లైన్, మీదే.',
+        'இப்போது எல்லா பிரீமியம் அம்சங்களும் இயங்குகின்றன — 3 மாதங்கள் இலவசம். அதன் பிறகு Plus அவற்றைத் தொடரவைக்கிறது — அதே தனியுரிமை, ஆஃப்லைன், உங்களுடையது.',
       );
   String get plusFeaturesHeader => _t(
         'Everything in Plus',
@@ -4756,6 +4769,26 @@ class AppStrings {
         '$n কেনাকাটা পুনরুদ্ধার হয়েছে। ফিরে আসায় স্বাগতম!',
         '$n కొనుగోళ్లు పునరుద్ధరించబడ్డాయి. తిరిగి స్వాగతం!',
         '$n வாங்கியவை மீட்டெடுக்கப்பட்டன. மீண்டும் வரவேற்கிறோம்!',
+      );
+  // ── The Settings doorway (the route to the paywall once access lapses) ─
+  //
+  // Two states, one row, and no mention of time: the row simply isn't there
+  // while the free window runs, so it never has a countdown to hide.
+  String get plusSettingsLockedDesc => _t(
+        'Bring back budgets, alerts and exports.',
+        'बजट, अलर्ट और एक्सपोर्ट वापस पाएँ।',
+        'बजेट, अलर्ट आणि एक्सपोर्ट परत मिळवा.',
+        'বাজেট, অ্যালার্ট ও এক্সপোর্ট ফিরিয়ে আনুন।',
+        'బడ్జెట్‌లు, అలర్ట్‌లు, ఎగుమతులను తిరిగి పొందండి.',
+        'பட்ஜெட்கள், எச்சரிக்கைகள், ஏற்றுமதிகளை மீண்டும் பெறுங்கள்.',
+      );
+  String get plusSettingsOwnedDesc => _t(
+        'Plus is active — everything stays unlocked.',
+        'Plus सक्रिय है — सब कुछ अनलॉक रहेगा।',
+        'Plus सक्रिय आहे — सर्व काही अनलॉक राहील.',
+        'Plus সক্রিয় — সবকিছু আনলক থাকবে।',
+        'Plus యాక్టివ్‌గా ఉంది — అన్నీ అన్‌లాక్‌గా ఉంటాయి.',
+        'Plus செயலில் உள்ளது — அனைத்தும் திறந்தே இருக்கும்.',
       );
   String get plusActive => _t(
         'Plus is active — thank you!',
