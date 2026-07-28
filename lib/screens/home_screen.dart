@@ -35,6 +35,7 @@ import '../widgets/permission_request_card.dart';
 import '../widgets/expense_chart.dart';
 import '../services/tutorial_service.dart';
 import '../widgets/spotlight.dart';
+import '../widgets/trial_notice_card.dart';
 import '../widgets/streak_save_sheet.dart';
 import 'tidy_up_screen.dart';
 import 'transactions_screen.dart';
@@ -639,6 +640,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         FadeSlideIn(order: 0, child: _buildHeader()),
+
+                        // Silent for all but the last fortnight of the free
+                        // window, then dismissible. Sits above the dashboard
+                        // because it is time-critical, and renders as nothing
+                        // at all the rest of the time.
+                        const TrialNoticeCard(),
 
                         if (!_hasPermission)
                           FadeSlideIn(

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/services.dart' show MethodChannel;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/plus_offers.dart';
 import '../models/plus_products.dart';
 
 /// Owns the local "trial clock" — the timestamp of first app use plus a
@@ -12,11 +13,16 @@ import '../models/plus_products.dart';
 /// owns Plus (either lifetime or a still-valid subscription window) and which
 /// royal avatars they've bought.
 ///
-/// GATES ARE WIRED BUT DORMANT. Every gate resolves through [allows], which is
-/// `trialActive || hasPlus` — and the 6-month trial makes every check pass on
-/// every current install. Nothing user-visible changes until a trial actually
-/// expires, and the trial clock itself stays invisible (no countdown, no
-/// toast) by explicit product decision.
+/// Every gate resolves through [allows], which is `trialActive || hasPlus`, so
+/// nothing user-visible changes until a free window actually expires.
+///
+/// The COUNTDOWN stays invisible by product decision — no badge, no timer, no
+/// nagging. The ENDING does not: [pendingTrialNotice] surfaces two dismissible
+/// heads-ups in the last fortnight, and [shouldSendLapseNotice] arms the single
+/// notification that fires when Plus-only alerts first go quiet. Without that
+/// last one the gates fail silently, and four of the seven Plus features are
+/// notifications — they would simply stop, teaching the user the app is broken
+/// rather than that there is something to buy.
 ///
 /// Ownership recorded here is a CACHE, not the truth. Once Play Billing is
 /// wired (see BillingService), the truth is Play's `queryPurchases()` answer;
@@ -49,7 +55,56 @@ class EntitlementService {
   static const String _ownedRoyalsKey = 'entitlement_owned_royals';
 
   /// Length of the free window.
-  static const Duration trialDuration = Duration(days: 182); // ~6 months
+  ///
+  /// Shortened from 182 days on 2026-07-27. The binding constraint is feedback
+  /// latency, not conversion: with no analytics of any kind (the release
+  /// manifest strips INTERNET, so there is no telemetry SDK), Play Console
+  /// revenue is the only conversion signal there is — and a six-month window
+  /// meant one pricing experiment per year. Ninety days is still long enough
+  /// for the habit and the history to form, which is what the paywall is
+  /// actually selling back.
+  static const Duration trialDuration = Duration(days: 90); // 3 months
+
+  /// How long the one-shot welcome offer runs once the free window closes.
+  static const Duration welcomeOfferDuration = Duration(days: 7);
+
+  /// No free window is treated as having started before this instant.
+  ///
+  /// A one-line restart for the closed-testing cohort: an install whose anchor
+  /// predates this gets its full 90 days from here, while a newer install
+  /// keeps its own, later anchor. Deliberately NOT a migration flag — a
+  /// "have I reset yet?" pref would live in app data, so clearing data would
+  /// buy a fresh trial every single time. Clamping is idempotent instead: a
+  /// wipe re-derives the SAME restart, never a new one, and the install-record
+  /// floor keeps working underneath it untouched.
+  ///
+  /// SHIPPING NOTE: testers get their 90 days from THIS instant, not from when
+  /// they install the update. Move it forward if the release slips past it.
+  static final DateTime trialRestartAt = DateTime.utc(2026, 8, 15);
+
+  /// Test-only override for [trialRestartAt]. A restart dated in the future
+  /// puts every install inside its free window, which is the whole point in
+  /// production and useless in a suite that needs to exercise an expired one —
+  /// tests set this to a date in the deep past to make the clamp inert, or to
+  /// a specific instant to exercise the restart itself. Mirrors dev mode's
+  /// `debugSimulateTrialExpired`. Set it in `setUp`; nothing clears it.
+  @visibleForTesting
+  static DateTime? debugTrialRestartAt;
+
+  DateTime get _restartFloor => debugTrialRestartAt ?? trialRestartAt;
+
+  /// Days-left marks at which the paywall heads-up appears. Two, and only two:
+  /// the countdown itself stays hidden by design, so these are the whole of
+  /// the warning a user gets before their alerts go quiet.
+  static const List<int> trialNoticeThresholds = [14, 3];
+
+  /// Heads-ups the user has dismissed, tagged with the trial end they belong
+  /// to — so any change to the window (a restart, a purchase) re-arms them.
+  static const String _noticeDismissedKey =
+      'entitlement_trial_notice_dismissed';
+
+  /// The trial end for which the "alerts are paused" notice has been sent.
+  static const String _lapseNoticeKey = 'entitlement_lapse_notice_for';
 
   /// Android's package install record (see MainActivity.kt). Read-only, no
   /// permission, absent everywhere else — callers must tolerate null.
@@ -65,6 +120,7 @@ class EntitlementService {
   bool _plusLifetime = false;
   int _plusUntilMs = 0;
   Set<String> _ownedRoyals = <String>{};
+  Set<String> _dismissedNotices = <String>{};
   bool _initialized = false;
 
   /// Stamp first-launch once (ever) and advance the monotonic clock. Safe to
@@ -100,6 +156,8 @@ class EntitlementService {
     _plusUntilMs = prefs.getInt(_plusUntilKey) ?? 0;
     _ownedRoyals =
         (prefs.getStringList(_ownedRoyalsKey) ?? const <String>[]).toSet();
+    _dismissedNotices =
+        (prefs.getStringList(_noticeDismissedKey) ?? const <String>[]).toSet();
 
     _initialized = true;
   }
@@ -160,21 +218,153 @@ class EntitlementService {
     return (seen != null && seen.isAfter(now)) ? seen : now;
   }
 
-  /// Whether the free window is still open. Fail-open: unknown ⇒ true.
-  /// NOTHING gates on this in Phase 0 — it exists for later phases.
-  bool get trialActive {
+  /// When this install's free window is considered to have begun — its own
+  /// anchor, or [trialRestartAt] for anyone who was already here before it.
+  DateTime? get _trialStart {
     final first = _firstLaunch;
-    if (first == null) return true;
-    return _effectiveNow.difference(first) < trialDuration;
+    if (first == null) return null;
+    final floor = _restartFloor;
+    return first.isBefore(floor) ? floor : first;
   }
 
-  /// Whole days left in the free window (0 once elapsed). For later UI.
-  int get trialDaysLeft {
-    final first = _firstLaunch;
-    if (first == null) return trialDuration.inDays;
-    final left = trialDuration - _effectiveNow.difference(first);
-    return left.isNegative ? 0 : left.inDays;
+  /// Whether the free window is still open. Fail-open: unknown ⇒ true.
+  bool get trialActive {
+    final start = _trialStart;
+    if (start == null) return true;
+    return _effectiveNow.difference(start) < trialDuration;
   }
+
+  /// Whole days left in the free window (0 once elapsed).
+  int get trialDaysLeft {
+    final start = _trialStart;
+    if (start == null) return trialDuration.inDays;
+    final left = trialDuration - _effectiveNow.difference(start);
+    if (left.isNegative) return 0;
+    // A restart dated in the future would otherwise report more than a full
+    // window remaining.
+    return left > trialDuration ? trialDuration.inDays : left.inDays;
+  }
+
+  /// When the free window closes, or null if first launch was never stamped.
+  DateTime? get trialEndsAt => _trialStart?.add(trialDuration);
+
+  // ── Telling the user the free window is ending ────────────────────────
+  //
+  // The countdown stays hidden — no badge, no timer, no nagging. What does
+  // NOT stay hidden is the ending: four of the seven Plus features are
+  // notifications, and a notification that stops firing teaches the user the
+  // app is broken, not that there is something to buy. So: silence until the
+  // last fortnight, two dismissible heads-ups, and one notice when alerts
+  // actually go quiet.
+
+  String _noticeTag(DateTime trialEnd, int threshold) =>
+      '${trialEnd.millisecondsSinceEpoch}:$threshold';
+
+  /// The heads-up that should be on screen right now, as its days-left
+  /// threshold, or null for the great majority of a trial. The most urgent
+  /// applicable mark wins, and dismissing it means silence rather than
+  /// falling back to a gentler one.
+  int? get pendingTrialNotice {
+    if (hasPlus || !trialActive) return null;
+    final ends = trialEndsAt;
+    if (ends == null) return null;
+    final left = trialDaysLeft;
+    for (final threshold in [...trialNoticeThresholds]..sort()) {
+      if (left <= threshold) {
+        return _dismissedNotices.contains(_noticeTag(ends, threshold))
+            ? null
+            : threshold;
+      }
+    }
+    return null;
+  }
+
+  /// Put the current heads-up away. Idempotent.
+  Future<void> dismissTrialNotice(int threshold) async {
+    final ends = trialEndsAt;
+    if (ends == null) return;
+    if (!_dismissedNotices.add(_noticeTag(ends, threshold))) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+        _noticeDismissedKey, _dismissedNotices.toList()..sort());
+  }
+
+  /// Whether the one-time "your alerts are paused" notice is still owed for
+  /// the current window. Safe to call from the background isolate — it reads
+  /// prefs fresh, since the foreground may have sent it since this isolate
+  /// last loaded them.
+  Future<bool> shouldSendLapseNotice() async {
+    try {
+      await initialize();
+      if (hasPlus || trialActive) return false;
+      final ends = trialEndsAt;
+      if (ends == null) return false;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.reload();
+      return prefs.getInt(_lapseNoticeKey) != ends.millisecondsSinceEpoch;
+    } catch (_) {
+      return false; // never risk a spurious notice on broken state
+    }
+  }
+
+  /// Record that the lapse notice went out for this window. Called BEFORE the
+  /// notification is shown: a notice that silently fails to appear is a much
+  /// smaller harm than one that repeats.
+  Future<void> markLapseNoticeSent() async {
+    final ends = trialEndsAt;
+    if (ends == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_lapseNoticeKey, ends.millisecondsSinceEpoch);
+  }
+
+  // ── Offer windows ─────────────────────────────────────────────────────
+
+  /// The discount running right now, or null at the everyday price.
+  ///
+  /// The welcome week takes precedence over a festive window that happens to
+  /// overlap it. They carry the same prices, so this only picks which label
+  /// the paywall shows — and a user's one-shot welcome offer is the more
+  /// specific, more urgent story.
+  ///
+  /// Uses the rollback-guarded clock, so winding the device clock backwards
+  /// can't re-open a window that has already closed. Winding it *forwards*
+  /// into a festive window is possible, and deliberately not defended against:
+  /// the displayed price is only ever a display, Play charges whatever the
+  /// Console has configured, and the same tampering also burns the user's own
+  /// trial.
+  PlusOffer? get activeOffer => offerAt(_effectiveNow);
+
+  /// [activeOffer] against an explicit clock. Production reads the getter,
+  /// which supplies the rollback-guarded now; tests pin [now] so a suite run
+  /// during Diwali doesn't see different prices than one run in July.
+  PlusOffer? offerAt(DateTime now) {
+    final ends = trialEndsAt;
+    // Post-trial welcome week. Guarded on trialActive rather than on the date
+    // alone so a simulated expiry (dev mode) previews the offer too.
+    if (ends != null && !trialActive) {
+      // Anchored on the moment free access actually STOPPED, so the window is
+      // always the seven days that follow it. Clamped to `now` for the one
+      // case where the two disagree: a simulated expiry leaves the real anchor
+      // ticking months out, and anchoring on it would count the offer down to
+      // a date the tester does not reach for another quarter ("ends in 114
+      // days"), which is neither a welcome week nor a believable preview.
+      final startsAt = ends.isAfter(now) ? now : ends;
+      final welcomeEnds = startsAt.add(welcomeOfferDuration);
+      if (now.isBefore(welcomeEnds)) {
+        return PlusOffer(
+          id: 'welcome',
+          kind: PlusOfferKind.welcome,
+          startsAt: startsAt,
+          endsAt: welcomeEnds,
+        );
+      }
+    }
+    return activeFestiveOffer(now);
+  }
+
+  /// Whether any discount is live. Convenience for pricing call sites that
+  /// don't care which campaign it is.
+  bool get offerActive => activeOffer != null;
 
   // ── Plus entitlement (dormant until billing ships) ────────────────────
 
@@ -344,5 +534,6 @@ class EntitlementService {
     _plusLifetime = false;
     _plusUntilMs = 0;
     _ownedRoyals = <String>{};
+    _dismissedNotices = <String>{};
   }
 }

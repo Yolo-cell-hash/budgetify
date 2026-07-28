@@ -183,7 +183,7 @@ class BackupService {
   /// or unparseable — a hand-stripped field lands here and simply leaves the
   /// trial anchor to the other witnesses. Written as a local-time ISO-8601
   /// string; a cross-timezone restore can be hours off, which is noise against
-  /// a 182-day window.
+  /// a 90-day window.
   static int? _createdAtMs(Object? raw) =>
       raw is String ? DateTime.tryParse(raw)?.millisecondsSinceEpoch : null;
 
