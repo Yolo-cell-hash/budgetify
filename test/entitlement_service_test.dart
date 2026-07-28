@@ -229,6 +229,82 @@ void main() {
       expect(svc.firstLaunchAt!.millisecondsSinceEpoch,
           closeTo(daysAgo(200), 1000));
     });
+
+    test('history with both witnesses stripped spends the window, not resets '
+        'it', () async {
+      // The last way out: decrypt your own backup, drop the entitlement block
+      // AND the envelope's createdAt, re-encrypt, restore. Every witness is
+      // gone and the free window used to start over with a year of tagged
+      // history intact. A backup this app writes always stamps createdAt, so
+      // reaching here at all means the payload was assembled by hand.
+      await svc.initialize(); // fresh reinstall: stamps ~now
+      expect(svc.trialActive, isTrue);
+
+      await svc.importSettings(null, carriesHistory: true);
+
+      expect(svc.trialActive, isFalse);
+      expect(svc.trialDaysLeft, 0);
+    });
+
+    test('an empty payload is still not a reason to end anyone\'s trial',
+        () async {
+      // No history means no evidence of prior use, so nothing is inferred —
+      // this is also what a legitimate day-one backup looks like.
+      await svc.initialize();
+      final before = svc.firstLaunchAt;
+      await svc.importSettings(null, carriesHistory: false);
+      await svc.importSettings({}, carriesHistory: false);
+
+      expect(svc.firstLaunchAt, before);
+      expect(svc.trialActive, isTrue);
+    });
+
+    test('a witness that survives is trusted over the fail-closed floor',
+        () async {
+      // History plus a real anchor: the anchor decides, even when it leaves
+      // most of the window intact. Restoring a genuine one-week-old backup
+      // must not cost the other eighty-three days.
+      await svc.initialize();
+      await svc.importSettings({'first_launch_at': daysAgo(7)},
+          carriesHistory: true);
+
+      expect(svc.firstLaunchAt!.millisecondsSinceEpoch,
+          closeTo(daysAgo(7), 1000));
+      expect(svc.trialActive, isTrue);
+      expect(svc.trialDaysLeft, greaterThan(80));
+    });
+
+    test('the file stamp alone still counts as a witness', () async {
+      // Only the entitlement block was dropped. createdAt survives, so the
+      // fail-closed floor must stay out of it and the real date decide.
+      await svc.initialize();
+      await svc.importSettings(null,
+          backupCreatedAtMs: daysAgo(5), carriesHistory: true);
+
+      expect(svc.firstLaunchAt!.millisecondsSinceEpoch,
+          closeTo(daysAgo(5), 1000));
+      expect(svc.trialActive, isTrue);
+    });
+
+    test('never lengthens a window, whatever the payload claims', () async {
+      // The invariant the whole method rests on: every path can only move the
+      // anchor earlier. An already-expired install cannot be revived by a
+      // hand-built payload, with or without history.
+      await svc.initialize();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('entitlement_first_launch_at', daysAgo(300));
+      svc.resetForTest();
+      await svc.initialize();
+      final before = svc.firstLaunchAt!.millisecondsSinceEpoch;
+
+      await svc.importSettings({'first_launch_at': daysAhead(50)},
+          backupCreatedAtMs: daysAhead(50), carriesHistory: true);
+      expect(svc.firstLaunchAt!.millisecondsSinceEpoch, before);
+
+      await svc.importSettings(null, carriesHistory: true);
+      expect(svc.firstLaunchAt!.millisecondsSinceEpoch, before);
+      expect(svc.trialActive, isFalse);
+    });
   });
 
   group('product catalog', () {
