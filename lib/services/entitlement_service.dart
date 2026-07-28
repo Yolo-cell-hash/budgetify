@@ -478,27 +478,61 @@ class EntitlementService {
   /// envelope. It counts because it lives OUTSIDE this payload: deleting the
   /// entitlement block from a decrypted backup no longer buys a clean trial,
   /// since a file written five months in still dates the install five months
-  /// back. Not tamper-proof (nothing client-side is) — just no longer a
-  /// one-line edit.
-  Future<void> importSettings(Map<String, dynamic>? settings,
-      {int? backupCreatedAtMs}) async {
-    if (settings == null && backupCreatedAtMs == null) return;
+  /// back.
+  ///
+  /// [carriesHistory] says the payload brought real transaction history with
+  /// it, and closes the last way out: strip BOTH witnesses and the restore
+  /// used to fall open to a clean 90 days with every tagged transaction
+  /// intact. A backup this app wrote always stamps `createdAt` on the
+  /// envelope, unconditionally, so a payload that restores a year of history
+  /// while claiming no age at all was assembled by hand. That case now fails
+  /// CLOSED — the window is treated as already elapsed — which inverts the
+  /// economics: tampering costs the remaining trial instead of buying one.
+  ///
+  /// Still not tamper-proof; nothing client-side is. A plain reinstall with no
+  /// restore keeps giving a fresh window on purpose, since re-tagging
+  /// everything by hand is its own price.
+  Future<void> importSettings(
+    Map<String, dynamic>? settings, {
+    int? backupCreatedAtMs,
+    bool carriesHistory = false,
+  }) async {
+    if (settings == null && backupCreatedAtMs == null && !carriesHistory) {
+      return;
+    }
     final prefs = await SharedPreferences.getInstance();
 
     // Every witness is a floor; the earliest one wins. Garbage and
     // forward-dated values fall through untouched.
     final current = prefs.getInt(_firstLaunchKey);
     var earliest = current;
+    var sawWitness = false;
     for (final witness in <Object?>[
       settings?['first_launch_at'],
       backupCreatedAtMs,
     ]) {
-      if (witness is int &&
-          witness > 0 &&
-          (earliest == null || witness < earliest)) {
-        earliest = witness;
+      if (witness is int && witness > 0) {
+        sawWitness = true;
+        if (earliest == null || witness < earliest) earliest = witness;
       }
     }
+
+    // History with no age at all: date the install a full window back, so the
+    // free period reads as spent. Folded in as one more floor rather than a
+    // special case, which keeps the whole method monotonic — every path here
+    // can only ever move the anchor EARLIER, so no input, however hostile,
+    // can lengthen a free window.
+    //
+    // Note [trialRestartAt] sits above this: while the restart is still in the
+    // future, EVERY anchor — this one included — is clamped up to it, so the
+    // rule cannot be observed until that date passes. That is the restart
+    // doing its job for the testing cohort, not this failing.
+    if (carriesHistory && !sawWitness) {
+      final spent =
+          _effectiveNow.subtract(trialDuration).millisecondsSinceEpoch;
+      if (earliest == null || spent < earliest) earliest = spent;
+    }
+
     if (earliest != null && earliest != current) {
       await prefs.setInt(_firstLaunchKey, earliest);
       _firstLaunch = DateTime.fromMillisecondsSinceEpoch(earliest);
