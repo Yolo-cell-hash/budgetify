@@ -13,9 +13,13 @@ import '../widgets/brand_logo.dart';
 
 /// The Budgetify Plus paywall.
 ///
-/// NOT reachable from any menu today: the only ways in are the feature gates
-/// ([maybePush]), and those stay dormant until a trial actually expires — the
-/// free window is silent by design, so no current user ever sees this screen.
+/// Three ways in: the Settings → Budgetify Plus row and the feature gates
+/// ([maybePush]), both of which stay shut for the whole free window, and the
+/// last-fortnight heads-up card, which does NOT — it appears while the trial
+/// is still running, which is why the hero copy is trial-aware. Telling
+/// someone mid-trial that their free months "included" everything would be a
+/// lie about a window that is still open.
+///
 /// Purchases resolve through [BillingService], which ships with the
 /// unavailable-store stub until Play billing is approved; buying/restoring
 /// here today lands on the calm "purchases open soon" toast.
@@ -69,6 +73,10 @@ class _PlusScreenState extends State<PlusScreen>
       : EntitlementService().offerAt(_nowOverride);
 
   bool get _onOffer => _offer != null;
+
+  /// Whether the free window is still open. Read once, like [_offer], so the
+  /// copy can't change under the user mid-session.
+  late final bool _trialRunning = EntitlementService().trialActive;
 
   late final AnimationController _entrance = AnimationController(
     vsync: this,
@@ -272,7 +280,7 @@ class _PlusScreenState extends State<PlusScreen>
           ),
           const SizedBox(height: 10),
           Text(
-            l10n.plusHeroBody,
+            _trialRunning ? l10n.plusHeroBodyTrial : l10n.plusHeroBody,
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 12.5,
@@ -502,18 +510,26 @@ class _PlusScreenState extends State<PlusScreen>
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   // The everyday price, struck through. Honest because it is
-                  // what this plan actually costs once the window closes.
-                  if (_onOffer)
+                  // what this plan actually costs once the window closes —
+                  // which is also why it is drawn to be READ rather than
+                  // whispered: a saving the user can't see isn't a saving.
+                  // Secondary (not tertiary) ink and a double-weight rule keep
+                  // the line crisp at 13.5sp on every theme; the price below
+                  // still wins on size and weight, so the hierarchy holds.
+                  if (_onOffer) ...[
                     Text(
                       _rupees(plan.priceInr),
                       style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textTertiary,
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                        color: colors.textSecondary,
                         decoration: TextDecoration.lineThrough,
-                        decorationColor: colors.textTertiary,
+                        decorationColor: colors.textSecondary,
+                        decorationThickness: 2.2,
                       ),
                     ),
+                    const SizedBox(height: 2),
+                  ],
                   Text(
                     _price(plan),
                     style: TextStyle(

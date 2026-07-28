@@ -353,12 +353,19 @@ class EntitlementService {
     // Post-trial welcome week. Guarded on trialActive rather than on the date
     // alone so a simulated expiry (dev mode) previews the offer too.
     if (ends != null && !trialActive) {
-      final welcomeEnds = ends.add(welcomeOfferDuration);
+      // Anchored on the moment free access actually STOPPED, so the window is
+      // always the seven days that follow it. Clamped to `now` for the one
+      // case where the two disagree: a simulated expiry leaves the real anchor
+      // ticking months out, and anchoring on it would count the offer down to
+      // a date the tester does not reach for another quarter ("ends in 114
+      // days"), which is neither a welcome week nor a believable preview.
+      final startsAt = ends.isAfter(now) ? now : ends;
+      final welcomeEnds = startsAt.add(welcomeOfferDuration);
       if (now.isBefore(welcomeEnds)) {
         return PlusOffer(
           id: 'welcome',
           kind: PlusOfferKind.welcome,
-          startsAt: ends,
+          startsAt: startsAt,
           endsAt: welcomeEnds,
         );
       }

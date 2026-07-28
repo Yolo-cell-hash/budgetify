@@ -80,7 +80,7 @@ String royalProductId(String royalId) => 'royal_$royalId';
 String? royalIdFromProduct(String productId) =>
     productId.startsWith('royal_') ? productId.substring(6) : null;
 
-/// Features that lock behind Plus once the free window (6 months from first
+/// Features that lock behind Plus once the free window (3 months from first
 /// launch) has elapsed. Everything NOT listed here stays free forever — most
 /// notably the overall monthly budget and its alerts, SMS transaction
 /// detection itself, manual tagging of a single transaction, applying a tag to
