@@ -233,9 +233,14 @@ class BackupService {
     // the install's age — it sits outside the entitlement block, so dropping
     // that block no longer resets the free window. Kept out of RestoreResult
     // so nothing is surfaced to the user.
+    //
+    // carriesHistory is read from the PAYLOAD, not from `counts`: restoring
+    // the same backup twice merges no new rows, and that must not read as a
+    // payload with nothing in it.
     await EntitlementService().importSettings(
       (data['entitlement'] as Map?)?.cast<String, dynamic>(),
       backupCreatedAtMs: _createdAtMs(decoded['createdAt']),
+      carriesHistory: (data['transactions'] as List?)?.isNotEmpty ?? false,
     );
 
     // Restore tax regime + cap overrides (absent in pre-feature backups → no-op).

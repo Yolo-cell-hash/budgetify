@@ -1,6 +1,6 @@
 # Budgetify — Privacy Policy
 
-**Effective date:** 1 July 2026
+**Effective date:** 28 July 2026
 **Applies to:** the Budgetify Android application ("Budgetify", "the app", "we", "us")
 
 ---
@@ -77,15 +77,17 @@ Budgetify does **not** request the `INTERNET` permission, "all files" access, lo
 - **App lock.** You can optionally protect the app with your device's biometric lock.
 - **Privacy Mode.** You can hide all amounts in the interface with a single toggle, so nothing sensitive is visible to someone glancing at your screen.
 
-## 7. When data leaves your device — only when you send it
+## 7. When data leaves your device
 
-Budgetify never moves your data on its own. Some features let **you** deliberately take your data out of the app, and it's important you understand them:
+Budgetify never moves your financial data on its own. Some features let **you** deliberately take data out of the app, and there is one small, automatic exception we want you to know about. All of it is set out here:
+
+- **Android's automatic backup — the install date, and nothing else.** Android has a built-in feature that copies app data to your own Google Drive. It is switched on or off in your phone's settings, not inside Budgetify, and most phones have it on by default. We have restricted what it may take from Budgetify to a **single value: the date you first opened the app.** Your transactions, messages, balances, tags and settings are all explicitly excluded and are never copied. That one date is what lets a reinstall resume the free trial period you were already in, instead of starting a new one. It goes to your own Google account — on Android 9 and above it is encrypted with your device's screen lock before it leaves — and we never receive it, see it, or have any way to read it. Turn off backup in your phone's settings and nothing is copied at all.
 
 - **Exporting.** You can export your transactions to Excel, CSV, PDF, or text. Android's system file picker asks where you want to save it (for example your Downloads folder or a cloud drive). From that point, the file is under your control, like any other file on your phone.
 - **Sharing.** Features such as the Monthly Wrapped card, your gamified profile card, and exports can be shared through Android's standard share sheet. When you choose to share, you select the destination app (for example a messaging or social app), and the content is handed to that app. That destination is outside Budgetify's control and is governed by *its* privacy policy. By default, shareable summaries emphasise percentages rather than exact amounts, and sharing actual figures is an explicit, optional choice.
 - **Backups.** An encrypted backup file goes wherever you choose to save it.
 
-In every case, the data leaves only because you asked it to, to a destination you picked.
+Apart from that single date, data leaves only because you asked it to, to a destination you picked.
 
 ## 8. Third-party services
 
@@ -102,6 +104,7 @@ Because your data is stored only on your device, **you** control its lifetime:
 - Delete individual transactions or other records at any time within the app.
 - Clear the app's data from Android Settings to erase everything the app has stored.
 - **Uninstalling Budgetify removes its on-device database.** Any export or backup files you created yourself remain wherever you saved them until you delete them.
+- The install date described in section 7 lives in your own Google Drive backup. You can remove it by turning off backup in your phone's settings, or by deleting this device's backup from your Google account.
 
 We hold nothing on our side, so there is nothing for us to delete or return.
 
