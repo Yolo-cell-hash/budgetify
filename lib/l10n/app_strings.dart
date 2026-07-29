@@ -321,7 +321,6 @@ class AppStrings {
   String get commonExpenses => _t('Expenses', 'खर्च', 'खर्च', 'খরচ', 'ఖర్చులు', 'செலவுகள்');
 
   // ── Home ────────────────────────────────────────────────────────────────
-  String get smsActive => _t('SMS Active', 'SMS चालू', 'SMS सुरू', 'SMS সক্রিয়', 'SMS యాక్టివ్', 'SMS செயலில்');
   String get showHideAmounts =>
       _t('Show/hide amounts', 'राशि दिखाएँ/छिपाएँ', 'रक्कम दाखवा/लपवा', 'পরিমাণ দেখান/লুকান', 'మొత్తాలను చూపు/దాచు', 'தொகைகளைக் காட்டு/மறை');
   String monthExpenses(int month) => _t(
