@@ -40,7 +40,6 @@ import '../services/tutorial_service.dart';
 import '../widgets/spotlight.dart';
 import '../widgets/trial_notice_card.dart';
 import '../widgets/streak_save_sheet.dart';
-import 'banks_screen.dart';
 import 'tidy_up_screen.dart';
 import 'transactions_screen.dart';
 import 'add_transaction_screen.dart';
@@ -920,39 +919,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ],
                 ),
               ),
-              if (_hasPermission)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: colors.success.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: colors.success.withValues(alpha: 0.25),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.check_circle,
-                        size: 14,
-                        color: colors.success,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        context.l10n.smsActive,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: colors.success,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
               // Quick reveal/hide toggle, shown only when privacy mode is on
               if (context.watch<AppPreferences>().privacyMode)
                 IconButton(
@@ -1187,13 +1153,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  /// The bank strip under the month's expenses: one small pill per bank the
+  /// The bank strip under the month's expenses: one card per bank the
   /// month's money actually moved through, each opening that bank's
-  /// transactions, with "See all" going to the full month-by-month view.
+  /// transactions.
   Widget _buildBankStrip() {
     final now = DateTime.now();
     return BankChips(
       breakdown: _bankBreakdown,
+      style: BankChipStyle.card,
       onSelect: (bank) => Navigator.push(
         context,
         MaterialPageRoute(
@@ -1204,10 +1171,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             initialEndDate: DateTime(now.year, now.month + 1, 0, 23, 59, 59),
           ),
         ),
-      ).then((_) => _loadData()),
-      onSeeAll: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const BanksScreen()),
       ).then((_) => _loadData()),
     );
   }
