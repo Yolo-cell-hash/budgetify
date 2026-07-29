@@ -100,6 +100,115 @@ void main() {
     });
   });
 
+  // PayZapp is the one allowlisted app that alerts on money leaving as well
+  // as money arriving, so it is the only one whose debits this parser can
+  // ever see. The copy below is verbatim from the device, including the
+  // trailing verdict ("… was successful.") that no other app puts after the
+  // payee name.
+  group('PayZapp — the both-ways app', () {
+    const payzapp = 'com.enstage.wibmo.hdfc';
+
+    test('debit to a person, with the verdict trailing the name', () {
+      final t = parse(
+        pkg: payzapp,
+        title: 'Payment sent successfully',
+        text: 'Your payment of Rs.200 to Ashokkumar Sharma was successful.',
+      );
+      expect(t, isNotNull);
+      expect(t!.type, TransactionType.debit);
+      expect(t.amount, 200);
+      // Not "Ashokkumar Sharma Was" — the trailing verb has to stop the
+      // payee capture, which is what `was` in the connective list buys.
+      expect(t.merchantName, 'Ashokkumar Sharma');
+      expect(t.sender, 'NOTIF-PayZapp');
+      expect(t.parseSource, 'app alert · PayZapp');
+    });
+
+    test('sub-₹100 merchant debit — the case SMS no longer covers', () {
+      final t = parse(
+        pkg: payzapp,
+        title: 'Payment sent successfully',
+        text: 'Your payment of Rs.20 to ADITYA MEDICAL was successful.',
+      );
+      expect(t, isNotNull);
+      expect(t!.type, TransactionType.debit);
+      expect(t.amount, 20);
+      expect(t.merchantName, 'Aditya Medical');
+    });
+
+    test('credit names the sender', () {
+      final t = parse(
+        pkg: payzapp,
+        title: 'Received Money',
+        text: 'You received Rs.1 from JAY RAJESH KEER',
+      );
+      expect(t, isNotNull);
+      expect(t!.type, TransactionType.credit);
+      expect(t.amount, 1);
+      expect(t.merchantName, 'Jay Rajesh Keer');
+      expect(t.sender, 'NOTIF-PayZapp');
+    });
+
+    test('"sent successfully" is not read as "unsuccessful"', () {
+      // The reject list carries `unsuccessful`; PayZapp says "successful" in
+      // both the title and the body of every completed payment, so a sloppy
+      // substring match here would silently reject the app entirely.
+      final t = parse(
+        pkg: payzapp,
+        title: 'Payment sent successfully',
+        text: 'Your payment of Rs.500 to Kirana Store was successful.',
+      );
+      expect(t, isNotNull);
+      expect(t!.amount, 500);
+    });
+
+    test('a failed PayZapp payment is still rejected', () {
+      expect(
+        parse(
+          pkg: payzapp,
+          title: 'Payment failed',
+          text: 'Your payment of Rs.200 to Ashokkumar Sharma was not successful.',
+        ),
+        isNull,
+      );
+    });
+  });
+
+  group('coverage is declared per app', () {
+    test('PayZapp alerts both ways; the UPI apps only announce credits', () {
+      expect(
+        NotificationParserService.watchedPackages['com.enstage.wibmo.hdfc']!
+            .coverage,
+        NotifCoverage.bothWays,
+      );
+      for (final pkg in const [
+        'com.phonepe.app',
+        'com.google.android.apps.nbu.paisa.user',
+        'net.one97.paytm',
+      ]) {
+        expect(
+          NotificationParserService.watchedPackages[pkg]!.coverage,
+          NotifCoverage.creditsOnly,
+          reason: '$pkg confirms payments in-app, it does not notify them',
+        );
+      }
+    });
+
+    test('the two coverage groups partition the allowlist', () {
+      // Settings renders exactly these two lists; an app in neither would
+      // silently vanish from the "only these apps are read" disclosure.
+      expect(
+        NotificationParserService.bothWaysApps.length +
+            NotificationParserService.creditsOnlyApps.length,
+        NotificationParserService.watchedPackages.length,
+      );
+      expect(
+        NotificationParserService.bothWaysApps.map((a) => a.label),
+        contains('PayZapp'),
+      );
+    });
+  });
+
   group('rejects everything that is not a completed payment', () {
     final rejects = <String, Map<String, String>>{
       'collect request': {'title': 'Rahul requested ₹500'},
@@ -139,6 +248,13 @@ void main() {
     test('WhatsApp is not on the allowlist — by design', () {
       expect(
         NotificationParserService.watchedPackages.containsKey('com.whatsapp'),
+        isFalse,
+      );
+      // Nor is the HDFC Bank app, whose payments arrive as richer bank SMS —
+      // PayZapp being on the list is not a foot in the door for bank apps.
+      expect(
+        NotificationParserService.watchedPackages
+            .containsKey('com.snapwork.hdfc'),
         isFalse,
       );
       expect(

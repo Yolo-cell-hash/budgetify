@@ -27,12 +27,12 @@ import '../services/gamification_service.dart';
 import '../services/statement_import_service.dart';
 import '../services/database_service.dart';
 import '../services/notification_capture_service.dart';
-import '../services/notification_parser_service.dart';
 import '../services/tutorial_service.dart';
 import '../widgets/app_bar_title.dart';
 import '../widgets/app_dialog.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/language_picker_sheet.dart';
+import '../widgets/notif_coverage_list.dart';
 import '../widgets/export_options_sheet.dart';
 import '../widgets/import_options_sheet.dart';
 import 'manage_tags_screen.dart';
@@ -131,44 +131,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         icon: Icons.notifications_active_outlined,
         title: l10n.notifCaptureExplainTitle,
         subtitle: l10n.notifCaptureExplainBody,
-        content: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              l10n.notifCaptureOnlyTheseApps,
-              style: const TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                for (final app
-                    in NotificationParserService.watchedPackages.values)
-                  Chip(
-                    label: Text(app,
-                        style: const TextStyle(
-                            fontSize: 12, fontWeight: FontWeight.w600)),
-                    visualDensity: VisualDensity.compact,
-                    materialTapTargetSize:
-                        MaterialTapTargetSize.shrinkWrap,
-                  ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(
-              l10n.notifCaptureEverythingElse,
-              style: TextStyle(
-                fontSize: 12.5,
-                height: 1.4,
-                color: Theme.of(ctx).brightness == Brightness.dark
-                    ? const Color(0xFF8A8D96)
-                    : const Color(0xFF6E727C),
-              ),
-            ),
-          ],
-        ),
+        content: const NotifCoverageList(),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -190,6 +153,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await svc.openAccessSettings();
     }
   }
+
+  /// The allowlist and what each app's alerts actually cover, on demand. The
+  /// enable dialog shows the same breakdown, but that is a one-time moment
+  /// the user is trying to get past; "why am I seeing credits but not my UPI
+  /// spends?" is asked weeks later, so the answer has to stay reachable.
+  Future<void> _showNotifCoverage() => showAppDialog<void>(
+        context,
+        builder: (ctx) => AppDialog(
+          icon: Icons.apps_rounded,
+          title: ctx.l10n.notifCoverageTitle,
+          subtitle: ctx.l10n.notifCoverageSubtitle,
+          content: const NotifCoverageList(),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(ctx.l10n.gotIt),
+            ),
+          ],
+        ),
+      );
 
   /// The tour's last two stops: the Intelligence power-ups, then the
   /// personalisation section — finishing sends the user gently back Home.
@@ -621,6 +604,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             NotificationCaptureService().openAccessSettings(),
                       ),
                     ],
+                    // Always available, on or off: which apps are read, and
+                    // which of them only ever announce money coming in. The
+                    // second half is why this row is not just a privacy
+                    // disclosure — it sets the expectation that turning this
+                    // on does not make UPI spends appear by itself.
+                    Divider(
+                      height: 1,
+                      color: isDark
+                          ? const Color(0xFF2E313A)
+                          : const Color(0xFFE9E9E4),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.apps_rounded,
+                          color: Color(0xFF8A8D96)),
+                      title: Text(context.l10n.notifCoverageTitle),
+                      subtitle: Text(
+                        context.l10n.notifCoverageRowDesc,
+                        style: TextStyle(
+                          color: isDark
+                              ? const Color(0xFF8A8D96)
+                              : const Color(0xFF6E727C),
+                        ),
+                      ),
+                      trailing: const Icon(Icons.chevron_right, size: 20),
+                      onTap: _showNotifCoverage,
+                    ),
                   ],
                 );
               },

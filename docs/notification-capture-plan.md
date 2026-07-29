@@ -1,6 +1,7 @@
 # Payment-App Notification Capture — Design & Decisions
 
-_Implemented in v1.44.0 (branch `claude/notification-capture`) · 2026-07-23_
+_Implemented in v1.53.0 (branch `claude/notification-capture`) · 2026-07-23,
+PayZapp + declared coverage 2026-07-29_
 
 ## Why
 
@@ -17,6 +18,40 @@ Two structural threats to the SMS-only model, one mechanism answering both:
 The payment app's own notification ("₹40 paid to Chai Point") still records
 every payment. FinArt, Mera Kharcha and Trakio all read it; now Budgetify can
 too — without touching the no-`INTERNET` architecture.
+
+## What each app can actually see (added 2026-07-29)
+
+The allowlist is not uniform, and pretending otherwise is the feature's
+sharpest failure mode. Two bands, declared per app in
+`NotificationParserService.watchedPackages` as a `NotifCoverage`:
+
+| Band | Apps | What arrives |
+|---|---|---|
+| `bothWays` | **PayZapp** | Debits *and* credits. "Payment sent successfully — Your payment of Rs.200 to Ashokkumar Sharma was successful." and "Received Money — You received Rs.1 from JAY RAJESH KEER". Self-sufficient: with no bank SMS at all, the ledger still closes. |
+| `creditsOnly` | GPay, PhonePe, Paytm, BHIM, CRED, Amazon Pay, MobiKwik, Freecharge | Credits only. These apps end a payment on an in-app success screen and post **no notification** for it — there is nothing for any parser to read. Spends through them still depend on bank SMS. |
+
+This is a property of the apps, not a gap in the grammar: a UPI app has no
+reason to notify you about a payment you are already looking at the
+confirmation for. `_debitRegex` would happily parse a PhonePe debit alert if
+one were ever posted, and the band is metadata only — nothing in the capture
+path branches on it.
+
+**Why it is surfaced in the UI.** "Capture from payment apps" reads like a
+complete second pipeline. Someone who enables it for the sub-₹100 spends the
+banks stopped SMSing, and then sees only credits appear, will reasonably
+conclude the reader is broken and turn it off. So Settings shows the two
+bands — in the enable dialog *and* behind a permanent **Which apps are read**
+row, because the question ("why only credits?") is asked weeks after the
+one-time dialog is dismissed. The row doubles as the standing privacy
+disclosure of the allowlist.
+
+**PayZapp is not a bank app.** `com.enstage.wibmo.hdfc` is HDFC's UPI/wallet
+app (Wibmo-built, hence the package name), not the HDFC Bank app
+(`com.snapwork.hdfc`), which stays off the list under the existing rule that
+bank apps are already covered by richer bank SMS. Its payee copy is also the
+only one that puts the verdict *after* the name ("… to Ashokkumar Sharma was
+successful."), which is why `was`/`were` are connectives in the payee
+lookahead — without them the payee parses as "Ashokkumar Sharma Was".
 
 ## Architecture
 
@@ -127,9 +162,11 @@ parses land in the existing review queue (`ReviewReasons.payeeUnknown`).
 - `SmsParserService` untouched. New logic lives in new files:
   `notification_parser_service.dart`, `notification_capture_service.dart`,
   `transaction_reconciler.dart`, `TxnNotificationListener.kt`.
-- Migration v25 is additive nullable columns on `deleted_transactions` only.
-- Verified: `flutter analyze` clean (no new warnings), full test suite green
-  (607 total, 48 new), debug APK compiles.
+- Migration v28 is additive nullable columns on `deleted_transactions` only
+  (amount/type/sender, alongside main's `payload`). Manual rows leave all
+  four null, exactly as they leave the fingerprint/message keys null.
+- Verified: `flutter analyze` clean (no new warnings), full test suite green,
+  debug APK compiles.
 - **Device-verified on a Pixel-class emulator (API 37)**: opt-in flow, the
   privacy gate (a non-allowlisted app posting perfect payment copy produced no
   queue file at all), capture with the app force-stopped, drain on launch and
@@ -154,6 +191,11 @@ parses land in the existing review queue (`ReviewReasons.payeeUnknown`).
   the duplicate is visible and deletable; accepted for v1.
 - **Play Console**: the listing's Data-Safety + a prominent-disclosure line for
   notification access must be updated before this ships to production.
+- **Debits from the eight `creditsOnly` apps are unreachable**, not merely
+  unimplemented — the alert is never posted. Now stated in-app rather than
+  left for the user to discover (see *What each app can actually see*). The
+  only ways to widen this are more `bothWays` apps and bank SMS.
 - Allowlist expansion (Navi, Slice, bank apps?) is a one-line-per-app change
   in `TxnNotificationListener.kt` + `notification_parser_service.dart` (keep
-  in sync) — deliberately conservative at launch.
+  in sync — and set the new entry's `NotifCoverage` from observed alerts, not
+  from what the app *could* post) — deliberately conservative at launch.

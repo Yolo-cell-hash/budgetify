@@ -116,6 +116,15 @@ object NotifCapture {
      * notifications would mean reading personal messages, even though
      * WhatsApp Pay exists) and bank apps (their payments are already
      * covered by bank SMS, which carries richer detail).
+     *
+     * Most of these only ever notify about money *arriving* — a UPI app that
+     * ends a payment on its own success screen has no reason to also post a
+     * notification. PayZapp is the one that alerts on both directions, which
+     * is why it is worth its own entry rather than being lumped in with the
+     * bank apps it is adjacent to. The Dart mirror
+     * (NotificationParserService.watchedPackages) records that difference and
+     * shows it in Settings; nothing here depends on it — this list is only
+     * ever asked "may this package be read at all?".
      */
     val ALLOWLIST: Map<String, String> = mapOf(
         "com.google.android.apps.nbu.paisa.user" to "GPay",
@@ -126,6 +135,9 @@ object NotifCapture {
         "in.amazon.mShop.android.shopping" to "Amazon Pay",
         "com.mobikwik_new" to "MobiKwik",
         "com.freecharge.android" to "Freecharge",
+        // HDFC PayZapp (Wibmo-built, hence the package name) — UPI + wallet,
+        // not the HDFC Bank app.
+        "com.enstage.wibmo.hdfc" to "PayZapp",
     )
 
     /** JSON-lines queue the listener appends to and Dart drains. Lives in

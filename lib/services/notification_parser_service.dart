@@ -15,21 +15,67 @@ import 'sms_parser_service.dart';
 /// different languages (DLT headers vs package names, "debited from A/c
 /// XX1234" vs "You paid Ramesh"), and keeping the grammars apart means the
 /// battle-tested SMS path is not touched at all by this feature.
+/// How much of a payment app's activity its notifications can actually
+/// account for. Not every app on the allowlist is equally useful, and the app
+/// says which is which rather than letting the user assume "enabled" means
+/// "complete".
+enum NotifCoverage {
+  /// **Both directions.** The app posts a notification for money going out
+  /// *and* money coming in, so its alerts alone keep the ledger whole even
+  /// when the bank sends no SMS at all.
+  bothWays,
+
+  /// **Money in only.** The app announces credits, but confirms the user's
+  /// own payments on a success *screen* inside the app instead of posting a
+  /// notification — there is nothing to read for a debit. This is not a gap
+  /// in Budgetify's grammar; the alert is never posted, so no parser could
+  /// catch it. Spends through these apps still depend on the bank SMS.
+  creditsOnly,
+}
+
 class NotificationParserService {
   /// Mirror of the Kotlin allowlist (TxnNotificationListener.kt), package →
-  /// short label. Kotlin filters FIRST — nothing off that list ever reaches
-  /// Dart — this mirror is the second gate and the label source for the UI.
+  /// label + how much that app's alerts cover. Kotlin filters FIRST —
+  /// nothing off that list ever reaches Dart — this mirror is the second
+  /// gate and the source of both the label and the coverage note in the UI.
   /// Keep the two in sync when adding an app.
-  static const Map<String, String> watchedPackages = {
-    'com.google.android.apps.nbu.paisa.user': 'GPay',
-    'com.phonepe.app': 'PhonePe',
-    'net.one97.paytm': 'Paytm',
-    'in.org.npci.upiapp': 'BHIM',
-    'com.dreamplug.androidapp': 'CRED',
-    'in.amazon.mShop.android.shopping': 'Amazon Pay',
-    'com.mobikwik_new': 'MobiKwik',
-    'com.freecharge.android': 'Freecharge',
+  ///
+  /// Coverage is observed behaviour, not a promise by the app: UPI apps
+  /// showing a confirmation screen at the end of a payment have no reason to
+  /// also post a notification the user would only see by pulling down the
+  /// shade they are already past. PayZapp is the exception that does both.
+  static const Map<String, WatchedApp> watchedPackages = {
+    'com.google.android.apps.nbu.paisa.user':
+        WatchedApp('GPay', NotifCoverage.creditsOnly),
+    'com.phonepe.app': WatchedApp('PhonePe', NotifCoverage.creditsOnly),
+    'net.one97.paytm': WatchedApp('Paytm', NotifCoverage.creditsOnly),
+    'in.org.npci.upiapp': WatchedApp('BHIM', NotifCoverage.creditsOnly),
+    'com.dreamplug.androidapp': WatchedApp('CRED', NotifCoverage.creditsOnly),
+    'in.amazon.mShop.android.shopping':
+        WatchedApp('Amazon Pay', NotifCoverage.creditsOnly),
+    'com.mobikwik_new': WatchedApp('MobiKwik', NotifCoverage.creditsOnly),
+    'com.freecharge.android':
+        WatchedApp('Freecharge', NotifCoverage.creditsOnly),
+    // HDFC's UPI/wallet app, and the one app that alerts on both directions
+    // ("Payment sent successfully — Your payment of Rs.200 to … was
+    // successful" / "Received Money — You received Rs.1 from …"). It is not
+    // the HDFC Bank app — that one stays off the list, its payments already
+    // arriving as richer bank SMS.
+    'com.enstage.wibmo.hdfc': WatchedApp('PayZapp', NotifCoverage.bothWays),
   };
+
+  /// Apps whose alerts cover both directions, in allowlist order. Drives the
+  /// "these apps see everything" group in Settings.
+  static List<WatchedApp> get bothWaysApps => [
+        for (final a in watchedPackages.values)
+          if (a.coverage == NotifCoverage.bothWays) a,
+      ];
+
+  /// Apps that only ever announce money coming in, in allowlist order.
+  static List<WatchedApp> get creditsOnlyApps => [
+        for (final a in watchedPackages.values)
+          if (a.coverage == NotifCoverage.creditsOnly) a,
+      ];
 
   /// Sender prefix marking a notification-sourced transaction, following the
   /// statement importer's 'IMPORT-<label>' convention. Everything downstream
@@ -85,12 +131,17 @@ class NotificationParserService {
   /// The lazy capture stops at connective words, punctuation, a currency
   /// marker, or the em-dash [parse] joins title and body with, so trailing
   /// copy ("via HDFC Bank", "— Paid successfully") stays out of the name.
+  ///
+  /// `was`/`were` are in the connective list for PayZapp's shape, which puts
+  /// the verdict *after* the name ("… to Ashokkumar Sharma was successful.")
+  /// where every other app puts it before. Without them the capture runs to
+  /// the full stop and the payee becomes "Ashokkumar Sharma Was".
   static final RegExp _payeeToRegex = RegExp(
-    r'\b(?:to|at)\s+([^.,\n₹—]{2,60}?)(?=\s+(?:via|using|from|on|for|is|has|था|में)\b|\s*(?:₹|Rs\.?\s|INR\s)|[.,\n!—]|$)',
+    r'\b(?:to|at)\s+([^.,\n₹—]{2,60}?)(?=\s+(?:via|using|from|on|for|is|was|were|has|था|में)\b|\s*(?:₹|Rs\.?\s|INR\s)|[.,\n!—]|$)',
     caseSensitive: false,
   );
   static final RegExp _payeeFromRegex = RegExp(
-    r'\bfrom\s+([^.,\n₹—]{2,60}?)(?=\s+(?:via|using|on|for|is|has)\b|\s*(?:₹|Rs\.?\s|INR\s)|[.,\n!—]|$)',
+    r'\bfrom\s+([^.,\n₹—]{2,60}?)(?=\s+(?:via|using|on|for|is|was|were|has)\b|\s*(?:₹|Rs\.?\s|INR\s)|[.,\n!—]|$)',
     caseSensitive: false,
   );
 
@@ -105,8 +156,9 @@ class NotificationParserService {
   }) {
     // Second privacy gate: a package Dart doesn't recognise (version skew
     // against the Kotlin list) is dropped, not guessed at.
-    final appLabel = watchedPackages[packageName];
-    if (appLabel == null) return null;
+    final app = watchedPackages[packageName];
+    if (app == null) return null;
+    final appLabel = app.label;
 
     // The visible copy, title first — payment apps lead with the amount
     // there ("₹250 paid to Swiggy"). BIG_TEXT replaces TEXT when it extends
@@ -199,4 +251,17 @@ class NotificationParserService {
               ? w.toUpperCase()
               : w[0].toUpperCase() + w.substring(1).toLowerCase()))
       .join(' ');
+}
+
+/// One entry of the payment-app allowlist: the short name shown to the user
+/// and how much of that app's activity its notifications can account for.
+class WatchedApp {
+  /// Short display name, also the suffix of the row's sender ("NOTIF-GPay")
+  /// and of its "Read by" line ("app alert · GPay").
+  final String label;
+
+  /// What that app's alerts actually announce — see [NotifCoverage].
+  final NotifCoverage coverage;
+
+  const WatchedApp(this.label, this.coverage);
 }
