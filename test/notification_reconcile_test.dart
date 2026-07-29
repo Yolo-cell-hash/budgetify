@@ -65,6 +65,19 @@ void main() {
       expect(twin?.id, 2);
     });
 
+    // Device evidence (29 Jul 2026): one ₹1 UPI credit landed twice in the
+    // same minute — as a PayZapp alert naming the sender, and as a BOI SMS
+    // naming only the account it hit. PayZapp being the both-ways app makes
+    // this pairing routine rather than rare, so it is pinned here.
+    test('PayZapp names the counterparty, the bank SMS names the account', () {
+      final twin = TransactionReconciler.pickTwin(
+        detectedAtMs: ms(base),
+        merchantName: 'XX7848',
+        candidates: [cand(1, base, payee: 'Jay Rajesh Keer')],
+      );
+      expect(twin?.id, 1);
+    });
+
     test('no candidates → no twin', () {
       expect(
         TransactionReconciler.pickTwin(

@@ -14,14 +14,24 @@ without adding any network access.
   kirana — people most want tracked. Settings → **Payment App Alerts** now
   lets Budgetify read the payment app's own notification ("₹40 paid to Chai
   Point") as a second capture source next to bank SMS.
-  - **Only payment apps, enforced at the door.** A fixed allowlist — GPay,
-    PhonePe, Paytm, BHIM, CRED, Amazon Pay, MobiKwik, Freecharge — is
+  - **Only payment apps, enforced at the door.** A fixed allowlist — PayZapp,
+    GPay, PhonePe, Paytm, BHIM, CRED, Amazon Pay, MobiKwik, Freecharge — is
     checked natively as the very first step; a notification from any other
     app is discarded before it can be stored, parsed, or logged. WhatsApp is
     deliberately excluded (it is a messaging app, WhatsApp Pay or not), and
     so are bank apps (their payments already arrive as richer bank SMS).
     The enable flow shows the exact list before handing over to the system's
     notification-access screen. Off by default; off = nothing captured.
+  - **Budgetify says how much each app can actually see**, instead of
+    implying they are all equal. **PayZapp** alerts on money going out *and*
+    coming in, so its alerts alone keep spending complete even where the bank
+    sends no SMS. The other eight only announce **money coming in** — they
+    confirm your own payments on a screen inside the app and post no
+    notification for them, so nothing can read those; those spends still come
+    from bank SMS. Settings groups the list both ways, in the enable dialog
+    and behind a **Which apps are read** row that stays there afterwards —
+    the question "why are only credits showing up?" gets asked long after a
+    one-time dialog is gone.
   - **Strict grammar, so totals stay honest.** Only completed payments parse
     ("paid", "sent", "received", "debited"…). Requests, failed/pending
     payments, reminders, refunds, cashback, scratch cards, offers and wallet
@@ -38,7 +48,7 @@ without adding any network access.
     on open, on resume, and by the hourly background scan; with the app
     running, capture is instant. Queued events survive restarts, and
     replays de-duplicate by fingerprint.
-  - Transactions show their origin ("app alert · PhonePe") in the detail
+  - Transactions show their origin ("app alert · PayZapp") in the detail
     fine print; alerts with no readable payee land in the existing review
     queue for a one-tap name. Localised in EN/HI/MR/BN/TE/TA. As always: no
     INTERNET permission — nothing about the privacy model changes.
