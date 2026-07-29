@@ -35,10 +35,22 @@
          restricts it and the app has no use for it. -->
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" tools:node="remove"/>
 
+    <!-- Android's automatic backup, pinned to exactly one value.
+         allowBackup defaults to TRUE when unset, which had this app quietly
+         copying its whole private folder — the transactions database included
+         — to the user's Google Drive. Stating it, plus the two rule files,
+         narrows that to a single timestamp: the date this install began.
+         backup_rules covers Android 11 and below, dataExtractionRules 12 and
+         above; both are whitelists, and both name only budgetify_trial_anchor.
+         The date rides along so a reinstall resumes the free window rather
+         than starting a fresh one. Nothing financial travels. -->
     <application
         android:label="Budgetify"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="true"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules">
         <activity
             android:name=".MainActivity"
             android:exported="true"

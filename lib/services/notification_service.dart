@@ -4,6 +4,7 @@ import '../models/plus_products.dart';
 import '../models/transaction_model.dart';
 import '../screens/transactions_screen.dart';
 import '../screens/net_worth_screen.dart';
+import '../screens/plus_screen.dart';
 import '../screens/recurring_screen.dart';
 import 'entitlement_service.dart';
 import 'sip_service.dart';
@@ -94,6 +95,13 @@ class NotificationService {
   /// Payload that routes to the Recurring payments screen.
   static const String openRecurringPayload = 'open_recurring';
 
+  /// Opens the paywall. Only ever attached to the one-per-window notice
+  /// that Plus-only alerts have paused.
+  static const String openPlusPayload = 'open_plus';
+
+  /// Fixed id: the lapse notice replaces itself rather than stacking.
+  static const int plusLapsedNotificationId = 90210;
+
   factory NotificationService() => _instance;
 
   NotificationService._internal();
@@ -176,6 +184,17 @@ class NotificationService {
 
       await androidPlugin?.createNotificationChannel(
         const AndroidNotificationChannel(
+          'plus_channel',
+          'Budgetify Plus',
+          description:
+              'Tells you when Plus-only alerts pause, so they never just '
+              'stop without explanation',
+          importance: Importance.high,
+        ),
+      );
+
+      await androidPlugin?.createNotificationChannel(
+        const AndroidNotificationChannel(
           'streak_channel',
           'Streak Reminders',
           description: 'Daily nudges to keep your usage streak going',
@@ -250,6 +269,55 @@ class NotificationService {
       navigatorKey.currentState?.push(
         MaterialPageRoute(builder: (_) => const RecurringScreen()),
       );
+    } else if (payload == openPlusPayload) {
+      navigatorKey.currentState?.push(
+        MaterialPageRoute(builder: (_) => const PlusScreen()),
+      );
+    }
+  }
+
+  /// Tell the user, exactly once per free window, that a Plus-only alert just
+  /// didn't fire.
+  ///
+  /// This is the whole reason the gates aren't silent. Every gated
+  /// notification path calls it on the way out, so whichever alert would have
+  /// arrived first is the one that explains itself — the moment of highest
+  /// relevance, and the only route by which the four notification features
+  /// ever produce a paywall view. Dedup is shared across all four callers, so
+  /// a lapsed user gets one notice, not four.
+  ///
+  /// Never throws: it sits on the notification path, including the background
+  /// isolate, where a failure would take a real alert down with it.
+  Future<void> notePlusAlertSuppressed() async {
+    try {
+      final entitlements = EntitlementService();
+      if (!await entitlements.shouldSendLapseNotice()) return;
+      // Marked before showing: a notice that silently fails to appear is a
+      // far smaller harm than one that repeats every time a bank texts.
+      await entitlements.markLapseNoticeSent();
+      if (!_isInitialized) await initialize();
+      await _notifications.show(
+        plusLapsedNotificationId,
+        'Your alerts are paused',
+        'Your free 3 months are over, so spending, bill and investment alerts '
+            'have stopped. Everything you have tracked is still here — tap to '
+            'see what keeps them running.',
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'plus_channel',
+            'Budgetify Plus',
+            channelDescription:
+                'Tells you when Plus-only alerts pause, so they never just '
+                'stop without explanation',
+            importance: Importance.high,
+            priority: Priority.high,
+            styleInformation: BigTextStyleInformation(''),
+          ),
+        ),
+        payload: openPlusPayload,
+      );
+    } catch (e, st) {
+      debugPrint('notePlusAlertSuppressed failed (continuing): $e\n$st');
     }
   }
 
@@ -301,6 +369,7 @@ class NotificationService {
     // isolate — inherits the rule without knowing about entitlements.
     if (!await EntitlementService()
         .allowsAsync(PlusFeature.spendingNotifications)) {
+      await notePlusAlertSuppressed();
       return;
     }
     if (!_isInitialized) await initialize();
@@ -342,6 +411,7 @@ class NotificationService {
     // the overall monthly budget (category == null) stays free forever.
     if (category != null &&
         !await EntitlementService().allowsAsync(PlusFeature.categoryBudgets)) {
+      await notePlusAlertSuppressed();
       return;
     }
     if (!_isInitialized) await initialize();
@@ -534,6 +604,7 @@ class NotificationService {
     // Plus gate (dormant during the free window; fail-open).
     if (!await EntitlementService()
         .allowsAsync(PlusFeature.investmentReminders)) {
+      await notePlusAlertSuppressed();
       return;
     }
     if (!_isInitialized) await initialize();
@@ -592,6 +663,7 @@ class NotificationService {
     // Plus gate (dormant during the free window; fail-open).
     if (!await EntitlementService()
         .allowsAsync(PlusFeature.recurringNotifications)) {
+      await notePlusAlertSuppressed();
       return;
     }
     if (!_isInitialized) await initialize();

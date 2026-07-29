@@ -56,9 +56,9 @@ class DevMode {
 
   static bool get isActive => active.value;
 
-  /// Whether the post-trial (6-months-elapsed) experience is being simulated.
+  /// Whether the post-trial (3-months-elapsed) experience is being simulated.
   /// While on, [EntitlementService.trialActive] reports false, so every Plus
-  /// gate bites exactly as it will on day 183: category-budget creation and
+  /// gate bites exactly as it will on day 91: category-budget creation and
   /// tag bulk-apply open the paywall, Plus-only notifications go quiet, and
   /// the subscription screen becomes reachable. The REAL trial anchor is
   /// never touched — flipping this off restores the true state instantly.
@@ -70,8 +70,12 @@ class DevMode {
   /// it survives a relaunch while dev mode stays on), and nudge listening
   /// surfaces to refresh their gate state.
   static Future<void> setSimulateTrialExpired(bool on) async {
-    simulateTrialExpired.value = on;
+    // Gate state FIRST, then the notifier. A listener that rebuilds on this
+    // notification asks EntitlementService what it is allowed to show — the
+    // Settings → Budgetify Plus section does exactly that — and must not be
+    // able to read the old answer.
     EntitlementService.debugSimulateTrialExpired = on;
+    simulateTrialExpired.value = on;
     final prefs = await SharedPreferences.getInstance();
     if (on) {
       await prefs.setBool(_prefsTrialExpiredKey, true);
@@ -100,8 +104,8 @@ class DevMode {
     // Re-apply the simulated post-trial state (only ever set while dev mode
     // is on; a stale key with dev mode off never reaches here).
     final simExpired = prefs.getBool(_prefsTrialExpiredKey) ?? false;
+    EntitlementService.debugSimulateTrialExpired = simExpired; // gate first
     simulateTrialExpired.value = simExpired;
-    EntitlementService.debugSimulateTrialExpired = simExpired;
 
     // Re-apply the persisted theme overlay over the real variant.
     final themeName = prefs.getString(_prefsThemeKey);
@@ -282,7 +286,7 @@ Future<void> showDevModeDialog(BuildContext context) {
               'Developer mode is ON.\n\n'
               'All themes and royal characters are unlocked for preview, '
               'and backups are disabled. Settings › Developer can also '
-              'simulate the post-trial (6-months) state. Your previewed look '
+              'simulate the post-trial (3-months) state. Your previewed look '
               'is kept while developer mode stays on — turn it off to return '
               'to your real, earned state.',
             ),

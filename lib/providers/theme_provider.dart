@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// The set of selectable app themes. [light] and [dark] are always available;
@@ -174,6 +175,7 @@ class AppTheme {
         centerTitle: true,
         elevation: 0,
         scrolledUnderElevation: 0,
+        systemOverlayStyle: _systemOverlayStyle(Brightness.light),
         backgroundColor: c.background,
         foregroundColor: c.text,
         surfaceTintColor: Colors.transparent,
@@ -309,6 +311,7 @@ class AppTheme {
         centerTitle: true,
         elevation: 0,
         scrolledUnderElevation: 0,
+        systemOverlayStyle: _systemOverlayStyle(Brightness.dark),
         backgroundColor: c.background,
         foregroundColor: c.text,
         surfaceTintColor: Colors.transparent,
@@ -511,6 +514,7 @@ class AppTheme {
         centerTitle: true,
         elevation: 0,
         scrolledUnderElevation: 0,
+        systemOverlayStyle: _systemOverlayStyle(Brightness.light),
         backgroundColor: c.background,
         foregroundColor: c.text,
         surfaceTintColor: Colors.transparent,
@@ -648,6 +652,7 @@ class AppTheme {
         centerTitle: true,
         elevation: 0,
         scrolledUnderElevation: 0,
+        systemOverlayStyle: _systemOverlayStyle(Brightness.dark),
         backgroundColor: c.background,
         foregroundColor: c.text,
         surfaceTintColor: Colors.transparent,
@@ -759,6 +764,33 @@ class AppTheme {
     );
   }
 
+  /// System-bar styling for an edge-to-edge app, deliberately setting only
+  /// *icon brightness* and no colours.
+  ///
+  /// Android 15 deprecated `Window.setStatusBarColor`,
+  /// `setNavigationBarColor`, `setNavigationBarDividerColor` and the two
+  /// contrast-enforced setters, and Play Console flags apps that still drive
+  /// them ("Your app uses deprecated APIs or parameters for edge-to-edge").
+  /// Flutter's engine calls each of those setters only when the matching field
+  /// on [SystemUiOverlayStyle] is non-null — so leaving them null is what keeps
+  /// the app off the deprecated path. Icon brightness is unaffected: it goes
+  /// through `WindowInsetsController`, which is the modern API.
+  ///
+  /// This has to be set explicitly on every [AppBarTheme], because an AppBar
+  /// with no `systemOverlayStyle` falls back to [SystemUiOverlayStyle.light] /
+  /// `.dark`, and both of those hardcode `systemNavigationBarColor: black`.
+  static SystemUiOverlayStyle _systemOverlayStyle(Brightness brightness) {
+    final isLight = brightness == Brightness.light;
+    return SystemUiOverlayStyle(
+      // Dark icons on a light app bar, light icons on a dark one.
+      statusBarIconBrightness: isLight ? Brightness.dark : Brightness.light,
+      systemNavigationBarIconBrightness:
+          isLight ? Brightness.dark : Brightness.light,
+      // iOS-only knob; inverted by convention (it names the *background*).
+      statusBarBrightness: isLight ? Brightness.light : Brightness.dark,
+    );
+  }
+
   /// Modern fade-through page transition (subtle horizontal fade) instead
   /// of the default zoom.
   static const PageTransitionsTheme _pageTransitions = PageTransitionsTheme(
@@ -816,6 +848,13 @@ class AppColors {
   static const dangerLight = Color(0xFFC94A50);
   static const dangerDark = Color(0xFFE8888C);
 
+  /// "Needs attention" — weaker than [danger]: nothing is wrong, something is
+  /// unconfirmed (an unclassified row, a parse the reader wasn't sure about).
+  /// The amber the review banner has always used, plus a lifted companion that
+  /// stays legible on the near-black cards of the dark-brightness themes.
+  static const warningLight = Color(0xFFC05621);
+  static const warningDark = Color(0xFFE9A76B);
+
   // Hero card gradient — the dark "luxury card" used in both modes
   static const heroGradient = [Color(0xFF23273A), Color(0xFF131520)];
 
@@ -839,6 +878,11 @@ class AppColors {
   final Color success;
   final Color danger;
 
+  /// Attention state (review flags, unclassified rows). Semantic, so the royal
+  /// dress deliberately leaves it alone — "needs a look" must read the same
+  /// whoever is equipped.
+  final Color warning;
+
   const AppColors._({
     required this.background,
     required this.surface,
@@ -853,6 +897,7 @@ class AppColors {
     required this.brandAccentDeep,
     required this.success,
     required this.danger,
+    required this.warning,
   });
 
   /// A palette with selected slots replaced — used by the app-wide royal
@@ -877,6 +922,7 @@ class AppColors {
         brandAccentDeep: brandAccentDeep ?? this.brandAccentDeep,
         success: success,
         danger: danger,
+        warning: warning,
       );
 
   static const light = AppColors._(
@@ -893,6 +939,7 @@ class AppColors {
     brandAccentDeep: Color(0xFF8A6B2E),
     success: successLight,
     danger: dangerLight,
+    warning: warningLight,
   );
 
   static const dark = AppColors._(
@@ -909,6 +956,7 @@ class AppColors {
     brandAccentDeep: goldDeep,
     success: successDark,
     danger: dangerDark,
+    warning: warningDark,
   );
 
   // ── Streak-reward palettes (both light-brightness) ──────────────────────
@@ -927,6 +975,7 @@ class AppColors {
     brandAccentDeep: Color(0xFF5C6675),
     success: successLight,
     danger: dangerLight,
+    warning: warningLight,
   );
 
   // "Soft Seashell & Dusty Mauve": blush seashell canvas, dusty-mauve accent.
@@ -944,6 +993,7 @@ class AppColors {
     brandAccentDeep: Color(0xFF8A645E),
     success: successLight,
     danger: dangerLight,
+    warning: warningLight,
   );
 
   // "Onyx & Amber" (dark-brightness): deep onyx canvas, elevated gunmetal-grey
@@ -962,6 +1012,9 @@ class AppColors {
     brandAccentDeep: Color(0xFFE07B00),
     success: successDark,
     danger: dangerDark,
+    // Amber is this theme's *accent*, so the usual amber warning would read as
+    // decoration. A yellower gold keeps "needs a look" separable from it.
+    warning: Color(0xFFF2C14E),
   );
 
   // "Royal Indigo" (light-brightness, 30-day pinnacle): a frosted-lavender
@@ -981,6 +1034,7 @@ class AppColors {
     brandAccentDeep: Color(0xFF4530B3),
     success: successLight,
     danger: dangerLight,
+    warning: warningLight,
   );
 
   // "Midnight Indigo" (dark-brightness, 45-day): the dark twin of Royal Indigo
@@ -1000,6 +1054,7 @@ class AppColors {
     brandAccentDeep: Color(0xFF1BA6E0),
     success: successDark,
     danger: dangerDark,
+    warning: warningDark,
   );
 
   /// The palette backing a given [AppThemeVariant].

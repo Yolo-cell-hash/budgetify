@@ -4,11 +4,13 @@ import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../l10n/l10n.dart';
+import '../models/plus_products.dart';
 import '../models/transaction_model.dart';
 import '../providers/theme_provider.dart';
 import '../services/app_events.dart';
 import '../services/database_service.dart';
 import '../services/dev_mode.dart';
+import '../services/entitlement_service.dart';
 import '../services/financial_health_service.dart';
 import '../services/gamification_service.dart';
 import '../services/sms_service.dart';
@@ -34,7 +36,9 @@ import '../widgets/permission_request_card.dart';
 import '../widgets/expense_chart.dart';
 import '../services/tutorial_service.dart';
 import '../widgets/spotlight.dart';
+import '../widgets/trial_notice_card.dart';
 import '../widgets/streak_save_sheet.dart';
+import 'tidy_up_screen.dart';
 import 'transactions_screen.dart';
 import 'add_transaction_screen.dart';
 import 'goals_screen.dart';
@@ -77,6 +81,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   int _transactionCount = 0;
   int _unclassifiedCount = 0;
+
+  /// Rows the parser flagged. Drives the tidy-up prompt, which is hidden
+  /// entirely at zero — the dashboard should never nag about an empty queue.
+  int _needsReviewCount = 0;
   List<TransactionModel> _recentTransactions = [];
   List<TransactionModel> _allTransactions = [];
   List<TransactionModel> _cashTransactions = [];
@@ -326,6 +334,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     try {
       final transactions = await _dbService.getAllTransactions();
       final unclassified = await _dbService.getUnclassifiedTransactions();
+      final needsReview = await _dbService.countNeedsReview();
 
       // Month window as a half-open interval [monthStart, nextMonthStart):
       // everything from the 1st at 00:00 up to — but not including — the 1st of
@@ -378,6 +387,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       setState(() {
         _transactionCount = transactions.length;
         _unclassifiedCount = unclassified.length;
+        _needsReviewCount = needsReview;
         _recentTransactions = transactions.take(5).toList();
         _allTransactions = transactions;
         _cashTransactions = cashTxns;
@@ -632,6 +642,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       children: [
                         FadeSlideIn(order: 0, child: _buildHeader()),
 
+                        // Silent for all but the last fortnight of the free
+                        // window, then dismissible. Sits above the dashboard
+                        // because it is time-critical, and renders as nothing
+                        // at all the rest of the time.
+                        const TrialNoticeCard(),
+
                         if (!_hasPermission)
                           FadeSlideIn(
                             order: 1,
@@ -672,11 +688,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             const SizedBox(height: 12),
                             FadeSlideIn(order: 3, child: _buildSipAlert()),
                           ],
-                          // Gated behind AI Prediction Mode — when off, nothing
-                          // here is built and the dashboard is unchanged.
+                          // Gated behind AI Prediction Mode AND the Plus
+                          // entitlement — when either is off, nothing here is
+                          // built and the dashboard is unchanged. On lock the
+                          // card just goes quiet: the stored setting is left
+                          // alone, so buying Plus brings it straight back.
                           if (context
-                              .watch<AppPreferences>()
-                              .aiPredictionMode) ...[
+                                  .watch<AppPreferences>()
+                                  .aiPredictionMode &&
+                              EntitlementService()
+                                  .allows(PlusFeature.aiPredictionMode)) ...[
                             const SizedBox(height: 12),
                             FadeSlideIn(
                               order: 2,
@@ -715,6 +736,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           const SizedBox(height: 12),
                           FadeSlideIn(order: 7, child: _buildQuickActions()),
                           const SizedBox(height: 12),
+                          // Only when there is something to fix. The review
+                          // queue previously had no entry point anywhere — it
+                          // was reachable only from inside the transactions
+                          // filter sheet, so nobody used it.
+                          if (_needsReviewCount > 0) ...[
+                            FadeSlideIn(order: 7, child: _buildTidyUpPrompt()),
+                            const SizedBox(height: 12),
+                          ],
                           FadeSlideIn(
                             order: 8,
                             child: _buildRecentTransactions(),
@@ -882,10 +911,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: colors.success.withOpacity(0.1),
+                    color: colors.success.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: colors.success.withOpacity(0.25),
+                      color: colors.success.withValues(alpha: 0.25),
                     ),
                   ),
                   child: Row(
@@ -1032,7 +1061,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             Container(
                               padding: const EdgeInsets.all(4),
                               decoration: BoxDecoration(
-                                color: hero.positive.withOpacity(0.18),
+                                color: hero.positive.withValues(alpha: 0.18),
                                 borderRadius: BorderRadius.circular(5),
                               ),
                               child: Icon(
@@ -1092,7 +1121,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             Container(
                               padding: const EdgeInsets.all(4),
                               decoration: BoxDecoration(
-                                color: hero.negative.withOpacity(0.18),
+                                color: hero.negative.withValues(alpha: 0.18),
                                 borderRadius: BorderRadius.circular(5),
                               ),
                               child: Icon(
@@ -1310,6 +1339,120 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
+  /// Invitation into the tidy-up queue. Deliberately a prompt with a verb and
+  /// not a fourth stat tile: it should read as a small job you can finish, and
+  /// it disappears the moment the queue is empty rather than sitting there
+  /// showing a permanent zero.
+  Widget _buildTidyUpPrompt() {
+    final colors = AppColors.of(context);
+    final l10n = context.l10n;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Material(
+        color: colors.warning.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: _openTidyUp,
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border:
+                  Border.all(color: colors.warning.withValues(alpha: 0.32)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(9),
+                  decoration: BoxDecoration(
+                    color: colors.warning.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                  child: Icon(Icons.fact_check_outlined,
+                      size: 20, color: colors.warning),
+                ),
+                const SizedBox(width: 13),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              l10n.needsReviewFilter,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w700,
+                                color: colors.text,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 7),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: colors.warning,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              '$_needsReviewCount',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        l10n.tidyUpTagline,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          height: 1.25,
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  l10n.tidyUp,
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                    color: colors.warning,
+                  ),
+                ),
+                Icon(Icons.chevron_right_rounded,
+                    size: 20, color: colors.warning),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openTidyUp() async {
+    await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const TidyUpScreen()),
+    );
+    // Always reload: even backing out early may have cleared some flags.
+    if (mounted) _loadData();
+  }
+
   Widget _buildQuickActions() {
     final colors = AppColors.of(context);
 
@@ -1370,7 +1513,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           border: Border.all(color: colors.border),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),
@@ -1381,7 +1524,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
+                color: color.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(icon, color: color, size: 22),
@@ -1452,7 +1595,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             border: Border.all(color: colors.border),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.04),
+                color: Colors.black.withValues(alpha: 0.04),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
@@ -1548,7 +1691,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ? Colors.white.withAlpha(50)
         : Colors.white.withValues(alpha: 0.7);
     final convChipBg =
-        AppColors.of(context).brandAccent.withOpacity(isDark ? 0.22 : 0.14);
+        AppColors.of(context).brandAccent.withValues(alpha: isDark ? 0.22 : 0.14);
 
     return PressableScale(
       onTap: () async {

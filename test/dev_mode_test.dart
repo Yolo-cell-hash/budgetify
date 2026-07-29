@@ -205,6 +205,27 @@ void main() {
           reason: 'the real trial anchor is never touched');
     });
 
+    test('the gate has already flipped by the time listeners are notified',
+        () async {
+      // Settings → Budgetify Plus rebuilds off this notifier and then asks
+      // the entitlement service whether it should be on screen at all. If the
+      // flag lagged the notification, the buy-Plus route would stay hidden
+      // until some unrelated rebuild happened to come along — the one thing
+      // the simulator exists to show.
+      final ent = EntitlementService();
+      ent.resetForTest();
+      await ent.initialize();
+
+      bool? gateWhenNotified;
+      void listener() => gateWhenNotified ??= ent.trialActive;
+      DevMode.simulateTrialExpired.addListener(listener);
+      addTearDown(() => DevMode.simulateTrialExpired.removeListener(listener));
+
+      DevMode.tryUnlock('budgetify.dev');
+      await DevMode.setSimulateTrialExpired(true);
+      expect(gateWhenNotified, isFalse);
+    });
+
     test('a simulated expiry still honours Plus ownership', () async {
       final ent = EntitlementService();
       ent.resetForTest();
@@ -216,7 +237,7 @@ void main() {
       expect(ent.trialActive, isFalse);
       expect(ent.hasFullAccess, isTrue,
           reason: 'simulation expires the TRIAL, not a purchase — '
-              'exactly like day 183 for a paying user');
+              'exactly like day 91 for a paying user');
     });
 
     test('the overlay survives a relaunch while dev mode stays on', () async {

@@ -456,6 +456,7 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
     final routine = switch (ev.reaction) {
       RoyalReaction.scold => _Routine.smash,
       RoyalReaction.cheer => _Routine.praise,
+      RoyalReaction.taught => _Routine.praise,
       RoyalReaction.strike => _Routine.strike,
     };
     // A reaction that lands during another routine (or before the welcome

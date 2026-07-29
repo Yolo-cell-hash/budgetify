@@ -4,7 +4,7 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
-## [1.44.0] — 2026-07-23
+## [1.53.0] — 2026-07-29
 
 ### Added
 
@@ -42,6 +42,84 @@ without adding any network access.
     fine print; alerts with no readable payee land in the existing review
     queue for a one-tap name. Localised in EN/HI/MR/BN/TE/TA. As always: no
     INTERNET permission — nothing about the privacy model changes.
+
+## [1.49.0] — 2026-07-26
+
+### Changed
+
+- **Removing an entry now asks what kind of removal you meant.** Swiping a
+  transaction away used to offer only *Delete*, which quietly tombstones that
+  one message — so a recurring promo came back the next month with a new amount
+  and had to be deleted again. The confirmation now offers **Not a
+  transaction** (which also skips every future message matching that template
+  from that sender) alongside **Just remove this one**, and each option says
+  what it will do. The same choice appears from the detail screen, from bulk
+  selection, and in Tidy up, so every route behaves identically.
+- **Removals can be undone.** The toast after a removal carries **Undo**, which
+  restores the entry — and lifts the mute if one was added. Undo survives an
+  app restart: the deleted entry is kept whole until you move on.
+
+### Added
+
+- **Tidy up.** Entries the reader wasn't sure about are gathered into one
+  short pass — **Looks right**, **change the direction**, or **Not a
+  transaction** — with a plain finish when the queue is empty. A prompt appears
+  on Home only when something is waiting, and disappears once it isn't.
+- **Select several at once.** Long-press any transaction to start selecting,
+  then remove the lot in one go. Long-press is also a non-gesture alternative
+  to swiping, for anyone who can't swipe reliably.
+- **Screen-reader support on the transaction list.** Each row is announced as a
+  single sentence — direction, amount, payee, category, date — and removal is
+  exposed as a proper accessibility action rather than being swipe-only.
+- **Ignored messages shows how many.** Settings → Ignored messages now carries
+  a count, so muting a message shape is visible after the fact and easy to
+  reverse.
+
+### Fixed
+
+- **State badges no longer get cut off.** On narrower phones — and in Hindi,
+  Marathi, Bengali, Telugu and Tamil — the "Check" badge could be clipped off
+  the right edge of a card, which hid the one on-card pointer toward fixing a
+  misread entry. Badges now wrap instead of overflowing, and a large amount at
+  a big text size shrinks to fit rather than being clipped.
+- **Attention badges follow the theme.** "Unclassified" and "Check" were fixed
+  light-mode colours that painted unchanged on Dark, Onyx & Amber, Royal Indigo
+  and Midnight Indigo. They now use the theme's own palette.
+- **Dialogs scroll instead of overflowing** at large text sizes, where a long
+  dialog could previously push its own buttons out of reach.
+
+## [1.44.0] — 2026-07-24
+
+### Added
+
+- **Tax deductions (Phase 1).** A second, optional label on any transaction —
+  its tax-deduction section — next to the spending category. Open a
+  transaction → **Tax section** and file it under **80C**, **80CCD(1B)**,
+  **80D**, **24(b)**, **HRA** or **80G**; a new **Settings → Data → Tax
+  Deductions** screen totals each section for a financial year (Apr–Mar) so
+  filing season isn't a scramble to reconstruct a year of insurance, ELSS,
+  rent and donations.
+  - **Fills toward the legal cap.** 80C/80CCD(1B)/80D/24(b) show a used-vs-cap
+    bar and remaining headroom ("₹90,000 of ₹1,50,000 — ₹60,000 left"), so you
+    can see before year-end whether investing a little more would still save
+    tax. Caps are editable — statutory limits change.
+  - **Honest about what it can't sum.** HRA and 80G are shown as *evidence*
+    (total rent paid / total donations) with a plain note that the actual
+    deductible figure depends on your salary or the charity — never presented
+    as a settled deduction.
+  - **Regime-aware.** A one-time regime setting (Old / New / Not sure); under
+    the new regime — which disallows most of these — the screen shows a short
+    explainer instead of buckets, so it never implies savings you can't claim.
+  - **Suggests the section for you.** Budgetify recognises common payees —
+    LIC and other life insurers → 80C, health insurers → 80D, NPS →
+    80CCD(1B) — and offers a one-tap "Looks like Section 80D" chip
+    (suggestion only; you always confirm). Tag one and choose **Apply to
+    all** to tag every payment to that payee, now and in future.
+  - **An organiser, not tax advice.** It totals only what you tag; your CA or
+    the tax portal decides what's deductible. A standing disclaimer says so.
+  - Fully on-device, included in encrypted backups, no new permissions.
+    English/Hindi/Marathi UI (Bengali/Telugu/Tamil follow). *Coming next: a
+    filing-season summary export and a Jan–Mar home reminder.*
 
 ## [1.22.0] — 2026-07-02
 
