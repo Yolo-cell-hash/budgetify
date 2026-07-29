@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import '../models/transaction_model.dart';
 import 'database_service.dart';
+import 'notification_capture_service.dart';
 import 'notification_service.dart';
 import 'sip_service.dart';
 import 'recurring_service.dart';
@@ -276,6 +277,17 @@ class BackgroundService {
   /// Shows a summary notification when new transactions are found, so
   /// background discoveries are no longer silent.
   static Future<void> performBackgroundScan() async {
+    // Payment-app notification queue first: with the phone asleep all day,
+    // this is the only drain that runs, and doing it before the SMS pass
+    // lets a same-payment SMS below absorb the fresh notification row
+    // instead of racing it. No-op (one prefs read) while capture is off,
+    // and its failures never block the SMS scan.
+    try {
+      await NotificationCaptureService().drain();
+    } catch (_) {
+      // Silently fail in background
+    }
+
     try {
       final smsService = SmsService();
 
