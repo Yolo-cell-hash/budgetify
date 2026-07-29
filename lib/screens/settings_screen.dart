@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -21,7 +20,6 @@ import '../services/axio_import_service.dart';
 import '../services/backup_service.dart';
 import '../services/background_service.dart';
 import '../services/entitlement_service.dart';
-import '../services/export_service.dart';
 import '../services/gamification_service.dart';
 import '../services/statement_import_service.dart';
 import '../services/database_service.dart';
@@ -47,7 +45,6 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  final ExportService _exportService = ExportService();
   final AxioImportService _importService = AxioImportService();
   final BackupService _backupService = BackupService();
   bool _autoScanEnabled = true;
@@ -1573,87 +1570,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<void> _openExportSheet() async {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final request = await showModalBottomSheet<ExportRequest>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: isDark ? const Color(0xFF16181E) : Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (_) => const ExportOptionsSheet(),
-    );
-    if (request == null || !mounted) return;
-    await _runExport(request);
-  }
-
-  Future<void> _runExport(ExportRequest request) async {
-    _showProgressDialog(context.l10nRead.exporting);
-
-    ExportBundle? bundle;
-    try {
-      bundle = await _exportService.buildExport(
-        format: request.format,
-        filter: request.filter,
-      );
-    } catch (e) {
-      if (mounted) Navigator.pop(context); // dismiss loading
-      if (mounted) {
-        _showStyledSnackBar(
-          icon: Icons.error_outline,
-          message: context.l10nRead.exportFailed('$e'),
-          color: const Color(0xFFD25A5F),
-        );
-      }
-      return;
-    }
-
-    if (mounted) Navigator.pop(context); // dismiss loading
-    if (!mounted) return;
-
-    if (bundle == null) {
-      _showStyledSnackBar(
-        icon: Icons.filter_alt_off_outlined,
-        message: context.l10nRead.noTxnMatchFilters,
-        color: const Color(0xFFD79A3C),
-      );
-      return;
-    }
-
-    // Save through Android's system file picker (SAF): the user chooses the
-    // destination — Downloads, Drive, etc. This needs no storage permission,
-    // mirroring how encrypted backups are saved.
-    String? path;
-    try {
-      path = await FilePicker.saveFile(
-        dialogTitle: context.l10nRead.exportData,
-        fileName: bundle.filename,
-        bytes: Uint8List.fromList(bundle.bytes),
-      );
-    } catch (e) {
-      if (mounted) {
-        _showStyledSnackBar(
-          icon: Icons.error_outline,
-          message: context.l10nRead.exportFailed('$e'),
-          color: const Color(0xFFD25A5F),
-        );
-      }
-      return;
-    }
-
-    if (path == null || !mounted) return; // user cancelled the save dialog
-
-    final savedPath = path;
-    final fileName = savedPath.split(RegExp(r'[\\/]')).last;
-    _showStyledSnackBar(
-      icon: Icons.check_circle,
-      message: context.l10nRead.exportSavedAs(fileName),
-      color: const Color(0xFF2AA76F),
-      actionLabel: context.l10nRead.open,
-      onAction: () => OpenFilex.open(savedPath),
-    );
-  }
+  Future<void> _openExportSheet() => showExportSheet(context);
 
   /// Thin wrapper kept for the backup/restore/export call sites; delegates
   /// to the shared app-themed toast.

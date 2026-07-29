@@ -1,10 +1,18 @@
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:open_filex/open_filex.dart';
 
 import '../l10n/l10n.dart';
+import '../models/bank_summary.dart';
 import '../models/transaction_model.dart';
 import '../providers/theme_provider.dart';
 import '../services/export_service.dart';
+import 'app_dialog.dart';
+import 'app_toast.dart';
+import 'bank_chips.dart';
 
 /// What the export sheet returns when the user taps Export.
 class ExportRequest {
@@ -13,10 +21,107 @@ class ExportRequest {
   const ExportRequest(this.format, this.filter);
 }
 
+/// Opens the export sheet and, if the user goes through with it, runs the
+/// export. Returns when the file has been saved or the user backed out.
+///
+/// [initialBanks] / [initialDateRange] pre-tick the sheet, which is how a
+/// screen hands off "export what I'm looking at".
+Future<void> showExportSheet(
+  BuildContext context, {
+  Set<String> initialBanks = const {},
+  DateTimeRange? initialDateRange,
+}) async {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  final request = await showModalBottomSheet<ExportRequest>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: isDark ? const Color(0xFF16181E) : Colors.white,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    builder: (_) => ExportOptionsSheet(
+      initialBanks: initialBanks,
+      initialDateRange: initialDateRange,
+    ),
+  );
+  if (request == null || !context.mounted) return;
+  await runExport(context, request);
+}
+
+/// Builds an export and saves it through the system file picker, reporting
+/// every outcome as a toast.
+///
+/// Saving via the picker (SAF on Android) means the user chooses the
+/// destination and the app needs no storage permission — the same route
+/// encrypted backups take. Shared by Settings and the Banks screen so both
+/// behave identically.
+Future<void> runExport(BuildContext context, ExportRequest request) async {
+  final l10n = context.l10nRead;
+  showAppProgressDialog(context, l10n.exporting);
+
+  ExportBundle? bundle;
+  try {
+    bundle = await ExportService()
+        .buildExport(format: request.format, filter: request.filter);
+  } catch (e) {
+    if (context.mounted) Navigator.pop(context); // dismiss loading
+    if (context.mounted) {
+      showAppToast(context,
+          message: l10n.exportFailed('$e'), type: AppToastType.error);
+    }
+    return;
+  }
+
+  if (context.mounted) Navigator.pop(context); // dismiss loading
+  if (!context.mounted) return;
+
+  if (bundle == null) {
+    showAppToast(context,
+        message: l10n.noTxnMatchFilters, type: AppToastType.warning);
+    return;
+  }
+
+  String? path;
+  try {
+    path = await FilePicker.saveFile(
+      dialogTitle: l10n.exportData,
+      fileName: bundle.filename,
+      bytes: Uint8List.fromList(bundle.bytes),
+    );
+  } catch (e) {
+    if (context.mounted) {
+      showAppToast(context,
+          message: l10n.exportFailed('$e'), type: AppToastType.error);
+    }
+    return;
+  }
+
+  if (path == null || !context.mounted) return; // user cancelled the save
+  final savedPath = path;
+  showAppToast(
+    context,
+    message: l10n.exportSavedAs(savedPath.split(RegExp(r'[\\/]')).last),
+    type: AppToastType.success,
+    actionLabel: l10n.open,
+    onAction: () => OpenFilex.open(savedPath),
+  );
+}
+
 /// Bottom sheet for choosing an export format and filters (date range,
-/// type, categories, merchant/payee). Pops an [ExportRequest] or null.
+/// type, banks, categories, merchant/payee). Pops an [ExportRequest] or null.
 class ExportOptionsSheet extends StatefulWidget {
-  const ExportOptionsSheet({super.key});
+  /// Banks to start with ticked — how the Banks screen hands off "export
+  /// this one".
+  final Set<String> initialBanks;
+
+  /// Date range to start with, for the same hand-off.
+  final DateTimeRange? initialDateRange;
+
+  const ExportOptionsSheet({
+    super.key,
+    this.initialBanks = const {},
+    this.initialDateRange,
+  });
 
   @override
   State<ExportOptionsSheet> createState() => _ExportOptionsSheetState();
@@ -27,7 +132,26 @@ class _ExportOptionsSheetState extends State<ExportOptionsSheet> {
   DateTimeRange? _dateRange;
   final Set<TransactionType> _types = {};
   final Set<String> _categories = {};
+  final Set<String> _banks = {};
   final TextEditingController _merchant = TextEditingController();
+
+  /// Banks with stored transactions, ranked by spend. Empty until loaded —
+  /// the section stays hidden rather than flashing an empty row.
+  List<BankActivity> _availableBanks = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _dateRange = widget.initialDateRange;
+    _banks.addAll(widget.initialBanks);
+    _loadBanks();
+  }
+
+  Future<void> _loadBanks() async {
+    final breakdown = await ExportService().usedBanks();
+    if (!mounted) return;
+    setState(() => _availableBanks = breakdown.banks);
+  }
 
   @override
   void dispose() {
@@ -142,6 +266,68 @@ class _ExportOptionsSheetState extends State<ExportOptionsSheet> {
             ),
             const SizedBox(height: 20),
 
+            if (_availableBanks.isNotEmpty) ...[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _label(context.l10n.bankLabel),
+                  if (_banks.isNotEmpty)
+                    GestureDetector(
+                      onTap: () => setState(_banks.clear),
+                      child: Text(
+                        context.l10n.clearLabel,
+                        style: TextStyle(
+                          color: colors.accent,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _availableBanks.map((bank) {
+                  final selected = _banks.contains(bank.id);
+                  return GestureDetector(
+                    onTap: () => setState(() {
+                      if (selected) {
+                        _banks.remove(bank.id);
+                      } else {
+                        _banks.add(bank.id);
+                      }
+                    }),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? colors.accent.withOpacity(0.14)
+                            : colors.cardAlt,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: selected ? colors.accent : colors.border,
+                        ),
+                      ),
+                      child: Text(
+                        bankDisplayLabel(context, bank),
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight:
+                              selected ? FontWeight.w600 : FontWeight.w500,
+                          color:
+                              selected ? colors.accent : colors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 20),
+            ],
+
             _label(context.l10n.payeeMerchantContains),
             const SizedBox(height: 8),
             TextField(
@@ -225,6 +411,7 @@ class _ExportOptionsSheetState extends State<ExportOptionsSheet> {
                       dateRange: _dateRange,
                       types: Set.of(_types),
                       categories: Set.of(_categories),
+                      banks: Set.of(_banks),
                       merchantQuery: _merchant.text,
                     ),
                   ),

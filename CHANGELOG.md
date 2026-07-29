@@ -4,6 +4,67 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.53.0] — 2026-07-29
+
+### Added
+
+- **Spending by bank.** Every bank alert arrives under a registered sender
+  header — `HDFCBK`, `BOIIND`, `SBIUPI`, `ICICIB`, `AXISBK` — so your spending
+  is now totalled per bank as well as per category. Each month lists **only
+  the banks you actually used that month**: three accounts with one card in
+  use reads as a single row, and the month a dormant account wakes up it
+  appears on its own.
+- **Banks on Home.** Right under the month's expenses, a strip of small bank
+  pills shows each bank and what was spent from it. Tap one for that bank's
+  transactions, or **See all** for the full Banks screen, which steps month by
+  month.
+- **A By bank card in Budgets → Overview**, on every month page, ranked by
+  spend with the same drill-down.
+- **Bank-wise filtering.** The transaction list gains a one-tap bank strip
+  above the results — it shows the banks the *other* filters leave standing,
+  with amounts for the period you're looking at, so switching accounts never
+  dead-ends. The filter sheet gains a matching **Bank** section.
+- **Bank-wise export.** The export sheet gains bank chips, so you can export
+  one account's year rather than everything. Every format now carries the
+  breakdown: Excel gets a **By Bank** sheet (period total plus a table per
+  month), the PDF report a **By Bank** block, and the text report a **BY
+  BANK** section per month. The **Bank** column in Excel and CSV now names the
+  bank ("HDFC Bank") instead of the raw header ("HDFCBK").
+- **1,525 sender headers mapped to 610 banks**, generated from the DLT
+  registry in `list_of_banks.txt` by `tool/gen_bank_directory.py`, plus a
+  curated supplement for headers the registry omits — including neobanks like
+  Jupiter, Fi Money and Niyo, which file under their own header. This is what
+  makes one bank one row: State Bank of India alone files under 273 headers.
+  Statement imports merge into the bank their label names ("HDFC Savings"
+  joins HDFC Bank), and manual entries keep their own bucket.
+- **A header we can't name still counts.** An unrecognised sender keeps its
+  raw header as its identity, so its spending is totalled, filtered and
+  exported like any other bank — a co-operative bank outside the registry is
+  never silently dropped from your totals. It is labelled **"<header> ·
+  Unknown bank"** rather than passing itself off as a bank named "JUPITR".
+- **Call your banks what you call them.** The pencil on any row of the Banks
+  screen renames it: "HDFC Bank" can read **HDFC Salary**, and a header we
+  couldn't name reads whatever that account is to you. The name is a label
+  only — the transactions stay wired to the sender header they arrived under,
+  so nothing moves between rows, future messages from that bank still land
+  there, and one name covers every header the bank sends from (all 273 of
+  SBI's). Clearing the field restores the detected name. Your names appear
+  everywhere the bank does, exports included, and ride along in encrypted
+  backups.
+
+### Fixed
+
+- **Exports no longer count transfers as spending.** The summary block in the
+  Excel, PDF and text exports added self-transfers, investments and
+  settlements into **Total Expenses**, so an exported report disagreed with
+  every screen in the app — a ₹8,000 move between your own accounts read as
+  ₹8,000 spent. Those now sit on their own **Moved (not counted)** line, and
+  the text report lists them under a **MOVED, NOT COUNTED** heading so nothing
+  vanishes. Split transactions count your share, as they do everywhere else.
+- **The PDF footer no longer prints a tofu box.** The em-dash in
+  "Budgetify — *motto*" has no glyph in the built-in Helvetica the report
+  uses; it is now the middot the tax report already used.
+
 ## [1.49.0] — 2026-07-26
 
 ### Changed
