@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' show DateTimeRange;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:budget_tracker/models/transaction_model.dart';
+import 'package:budget_tracker/services/bank_alias_service.dart';
 import 'package:budget_tracker/services/export_service.dart';
 
 void main() {
@@ -49,6 +50,68 @@ void main() {
       // No decorative separator rows inside the table
       expect(text.contains('---'), isFalse);
     });
+
+    test('the Bank column names the bank, not the raw DLT header', () {
+      final text =
+          String.fromCharCodes(service.buildCsvForTest(txns).sublist(3));
+      expect(text, contains('State Bank of India'));
+      expect(text, contains('Bank of Maharashtra'));
+      expect(text, isNot(contains('SBIUPI')));
+      expect(text, isNot(contains('MAHABK')));
+    });
+
+    test('a bank the user renamed exports under their name', () {
+      BankAliasService.resetForTest({'State Bank of India': 'Salary account'});
+      addTearDown(() => BankAliasService.resetForTest(const {}));
+      final text =
+          String.fromCharCodes(service.buildCsvForTest(txns).sublist(3));
+      expect(text, contains('Salary account'));
+      expect(text, isNot(contains('State Bank of India')));
+    });
+  });
+
+  group('Text export · by bank', () {
+    final withTransfers = [
+      ...txns,
+      TransactionModel(
+        amount: 8000,
+        type: TransactionType.debit,
+        sender: 'BV-SBIUPI-S',
+        message: 'transferred 8000',
+        detectedAt: DateTime(2026, 6, 3, 12, 0),
+        category: 'Self Transfer',
+      ),
+    ];
+
+    test('reports spend per bank and keeps transfers out of it', () {
+      final report = service.buildTxtForTest(withTransfers);
+      expect(report, contains('BY BANK'));
+      expect(report, contains('State Bank of India'));
+      expect(report, contains('Bank of Maharashtra'));
+      // The self transfer is reported as moved, never as spend — in the bank
+      // block and in the report's own headline totals.
+      expect(report, contains('moved 8,000.00'));
+      expect(report, contains('TOTAL SPENT'));
+      expect(report, contains('Total Expenses      : Rs. 1,234.56'));
+      expect(report, contains('Moved (not counted) : Rs. 8,000.00'));
+      expect(report, isNot(contains('9,234.56')));
+    });
+
+    test('the moved money is still listed, under its own heading', () {
+      final report = service.buildTxtForTest(withTransfers);
+      expect(report, contains('MOVED, NOT COUNTED'));
+      expect(report, contains('Self Transfer'));
+      expect(report, contains('TOTAL MOVED'));
+    });
+
+    test('each month lists only the banks used that month', () {
+      final report = service.buildTxtForTest(withTransfers);
+      final may = report.substring(report.indexOf('MAY 2026'));
+      // May was salary into Bank of Maharashtra only.
+      expect(may, contains('BANKS USED'));
+      expect(may, contains('Bank of Maharashtra'));
+      expect(may, isNot(contains('State Bank of India')));
+    });
   });
 
   group('PDF export', () {
@@ -84,6 +147,36 @@ void main() {
         ),
       );
       expect(txns.where(f.matches).single.category, 'Salary');
+    });
+
+    test('filters by bank', () {
+      const f = ExportFilter(banks: {'State Bank of India'});
+      expect(txns.where(f.matches).single.merchantName, 'Swiggy');
+    });
+
+    test('bank filter accepts several banks at once', () {
+      const f =
+          ExportFilter(banks: {'State Bank of India', 'Bank of Maharashtra'});
+      expect(txns.where(f.matches).length, 2);
+    });
+
+    test('bank filter combines with the other dimensions', () {
+      const f = ExportFilter(
+        banks: {'State Bank of India'},
+        types: {TransactionType.credit},
+      );
+      expect(txns.where(f.matches), isEmpty);
+    });
+
+    test('an empty bank set means every bank', () {
+      const f = ExportFilter();
+      expect(f.isUnfiltered, isTrue);
+      expect(txns.where(f.matches).length, 2);
+    });
+
+    test('a bank filter alone counts as filtered', () {
+      const f = ExportFilter(banks: {'HDFC Bank'});
+      expect(f.isUnfiltered, isFalse);
     });
 
     test('unfiltered matches everything', () {

@@ -3,6 +3,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../l10n/l10n.dart';
+import '../models/bank_summary.dart';
 import '../models/budget_model.dart';
 import '../models/merchant_summary.dart';
 import '../models/plus_products.dart';
@@ -16,6 +17,7 @@ import '../services/tutorial_service.dart';
 import '../widgets/app_bar_title.dart';
 import '../widgets/app_dialog.dart';
 import '../widgets/app_toast.dart';
+import '../widgets/bank_chips.dart';
 import '../widgets/category_donut.dart';
 import '../widgets/glass.dart';
 import '../widgets/merchant_bar.dart';
@@ -24,11 +26,13 @@ import '../widgets/privacy_amount.dart';
 import '../widgets/royal_reactions.dart';
 import '../widgets/savings_summary.dart';
 import '../widgets/spending_calendar.dart';
+import 'banks_screen.dart';
 import 'category_budget_insights_screen.dart';
 import 'merchant_detail_screen.dart';
 import 'merchants_screen.dart';
 import 'plus_screen.dart';
 import 'transaction_detail_screen.dart';
+import 'transactions_screen.dart';
 
 /// Chart display mode for trends
 enum _TrendsChartMode { bar, line }
@@ -379,6 +383,9 @@ class _BudgetScreenState extends State<BudgetScreen>
           incomeCategories: incomeCategories,
           incomeDaily: incomeDaily,
           payees: payees,
+          // Free: the month's transactions are already in hand for the
+          // income total above.
+          banks: BankBreakdown.fromTransactions(transactions),
         );
       });
     }
@@ -724,6 +731,15 @@ class _BudgetScreenState extends State<BudgetScreen>
             }
             return sections;
           })(),
+          // Banks sit outside the expense/income toggle: the card reports
+          // both sides, so it reads the same either way.
+          if (data.banks.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            FadeSlideIn(
+              order: order++,
+              child: _buildBanksCard(month, data, isDark),
+            ),
+          ],
           const SizedBox(height: 80),
         ],
       ),
@@ -1174,6 +1190,105 @@ class _BudgetScreenState extends State<BudgetScreen>
                           ),
                         ),
                       ).then((_) => _loadData()),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Which banks did the spending in [month] — the top few, each tappable
+  /// into that bank's transactions, plus "See all" to the full month-by-month
+  /// Banks screen. Only banks used this month are listed, so a month spent on
+  /// one card is a one-row card.
+  Widget _buildBanksCard(
+    DateTime month,
+    _MonthOverviewData data,
+    bool isDark,
+  ) {
+    final colors = AppColors.of(context);
+    final fmt = NumberFormat.currency(
+      locale: 'en_IN',
+      symbol: '₹',
+      decimalDigits: 0,
+    );
+    final banks = data.banks;
+    final top = banks.banks.take(4).toList();
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: colors.card,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: colors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.account_balance_outlined,
+                  size: 18, color: colors.textSecondary),
+              const SizedBox(width: 8),
+              Text(
+                context.l10n.byBank,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: colors.text,
+                ),
+              ),
+              const Spacer(),
+              TextButton(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => BanksScreen(initialMonth: month),
+                  ),
+                ).then((_) => _loadData()),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.of(context).brandAccent,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  visualDensity: VisualDensity.compact,
+                ),
+                child: Text(context.l10n.seeAllLower),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          for (var i = 0; i < top.length; i++) ...[
+            if (i > 0) const SizedBox(height: 14),
+            MerchantBar(
+              rank: i + 1,
+              name: bankDisplayLabel(context, top[i]),
+              amountLabel: fmt.format(top[i].spent),
+              count: top[i].transactionCount,
+              fraction: banks.barFraction(top[i]),
+              shareOfTotal: banks.share(top[i]),
+              color: CustomTagService.colorFromName(top[i].id),
+              isTop: i == 0 && top[i].spent > 0,
+              captionSuffix: top[i].moved > 0
+                  ? context.l10n.movedNotCounted(fmt.format(top[i].moved))
+                  : null,
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => TransactionsScreen(
+                    initialBankId: top[i].id,
+                    initialBankLabel: bankDisplayLabel(context, top[i]),
+                    initialStartDate: DateTime(month.year, month.month, 1),
+                    initialEndDate:
+                        DateTime(month.year, month.month + 1, 0, 23, 59, 59),
+                  ),
+                ),
+              ).then((_) => _loadData()),
             ),
           ],
         ],
@@ -2678,6 +2793,10 @@ class _MonthOverviewData {
   final Map<DateTime, double> incomeDaily;
   final List<Map<String, dynamic>> payees;
 
+  /// Which banks the month's money actually moved through — only the ones
+  /// used, so an idle account doesn't take up a row.
+  final BankBreakdown banks;
+
   const _MonthOverviewData({
     required this.spent,
     required this.income,
@@ -2687,5 +2806,6 @@ class _MonthOverviewData {
     this.incomeCategories = const {},
     this.incomeDaily = const {},
     this.payees = const [],
+    this.banks = BankBreakdown.empty,
   });
 }

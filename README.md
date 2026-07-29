@@ -133,6 +133,7 @@ mindmap
       Real .xlsx workbook
       PDF report
       CSV & formatted text
+      Bank-wise filter & totals
 ```
 
 ### 🤖 Automatic transaction capture
@@ -229,8 +230,17 @@ First launch runs a **game-style tutorial**: each step is a coach mark anchored 
 - **Deletes are permanent** — a removed transaction is tombstoned so background scans never resurrect it.
 - **Transitive permissions stripped.** Plugins pull in permissions the app never uses (`another_telephony` declares location; `open_filex` declares the media group). The manifest **pins them out**, so the minimal-offline guarantee is literally true.
 
+### 🏦 Bank-wise spending
+The sender header on every alert says which bank it came from — `HDFCBK`, `BOIIND`, `SBIUPI`, `ICICIB`, `AXISBK` — so Budgetify totals your spending **per bank**, month by month. Each month lists **only the banks you actually used**: three accounts with one card in use is a one-row month, and the month a dormant account wakes up it shows on its own. Self-transfers, investments and settlements are reported as *moved*, never as spend.
+
+It shows up where you already are: a strip of bank pills on **Home** under the month's expenses, a **By bank** card in **Budgets → Overview**, a one-tap bank filter on the **transactions list**, and bank chips in the **export sheet**. Tap any bank for its transactions.
+
+**Rename any bank** to what you actually call it — "HDFC Salary", or a real name for a header the registry doesn't cover. The name is a label only: transactions stay wired to the sender header, so nothing moves between rows and one name covers every header that bank sends from. Names appear everywhere the bank does, exports included, and are carried in encrypted backups.
+
+The registry behind it maps **1,525 DLT sender headers to 610 banks** (`lib/services/bank_directory_data.dart`, regenerated from `list_of_banks.txt`), which is what collapses the 273 headers State Bank of India files under into a single row.
+
 ### 📤 Exports you own
-One tap produces a genuine **Excel `.xlsx`** workbook (with a summary sheet), a **PDF report** (brand header, motto, page numbers), a clean **CSV**, or a formatted **text report** — optionally **filtered** by date range, type, category/tag, or payee. PDF generation is pure-Dart, so it adds no platform channels and no network access.
+One tap produces a genuine **Excel `.xlsx`** workbook (summary sheet plus a **By Bank** sheet, per month), a **PDF report** (brand header, motto, page numbers), a clean **CSV**, or a formatted **text report** — optionally **filtered** by date range, type, **bank**, category/tag, or payee. PDF generation is pure-Dart, so it adds no platform channels and no network access.
 
 ### 📱 Home-screen widget
 Month-to-date spend, budget progress, income, net, and your top spending category — at a glance, without opening the app.
