@@ -90,34 +90,70 @@ class BankChips extends StatelessWidget {
     };
   }
 
-  /// Cards are sized so that a little over two fit the width: the sliver of
-  /// the next one is what says the strip scrolls, and it carries that job
-  /// alone now there is no trailing "See all" pill to say it in words.
+  /// The cards divide the row between them: same width each, same gap
+  /// between each pair, and the strip's outer edges line up with the balance
+  /// card above it. Most people bank with two or three, which fit, so this is
+  /// what the strip normally looks like.
+  ///
+  /// Past that it scrolls, and the cards keep their equal width while a
+  /// quarter of the next one shows at the edge — that sliver is the only
+  /// thing saying there is more, now there is no trailing "See all" pill to
+  /// say it in words.
   ///
   /// Height comes from the content rather than a fixed box, so a long bank
   /// name at a large system text size grows the strip instead of overflowing
   /// it.
   Widget _buildCards(BuildContext context) {
     const gap = 10.0;
-    final width = ((MediaQuery.sizeOf(context).width - 32 - gap) / 2.15)
-        .clamp(148.0, 210.0);
+    const padding = 16.0;
+    // Under this a card can't hold a bank name and an amount without
+    // ellipsing the name down to nothing.
+    const minCard = 150.0;
+    final banks = breakdown.banks;
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      // Every card as tall as the tallest, so the row reads as one strip
-      // whatever each bank's name and amount need.
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            for (final (i, bank) in breakdown.banks.indexed) ...[
-              if (i > 0) const SizedBox(width: gap),
-              _card(context, bank, width),
-            ],
-          ],
-        ),
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final available = constraints.maxWidth - padding * 2;
+        // How many cards fit at a width that can still be read.
+        final perView =
+            ((available + gap) / (minCard + gap)).floor().clamp(1, 4);
+
+        // Every card as tall as the tallest, so the row reads as one strip
+        // whatever each bank's name and amount need.
+        if (banks.length <= perView) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: padding),
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final (i, bank) in banks.indexed) ...[
+                    if (i > 0) const SizedBox(width: gap),
+                    Expanded(child: _card(context, bank)),
+                  ],
+                ],
+              ),
+            ),
+          );
+        }
+
+        final width = (available - gap * perView) / (perView + 0.25);
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: padding),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final (i, bank) in banks.indexed) ...[
+                  if (i > 0) const SizedBox(width: gap),
+                  SizedBox(width: width, child: _card(context, bank)),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -156,75 +192,74 @@ class BankChips extends StatelessWidget {
     );
   }
 
-  Widget _card(BuildContext context, BankActivity bank, double width) {
+  /// One bank's card, unsized — how wide it is belongs to the strip, which is
+  /// the only thing that knows how many have to share the row.
+  Widget _card(BuildContext context, BankActivity bank) {
     final colors = AppColors.of(context);
     final accent = CustomTagService.colorFromName(bank.id);
     const radius = BorderRadius.all(Radius.circular(16));
 
-    return SizedBox(
-      width: width,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: colors.cardAlt,
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.cardAlt,
+        borderRadius: radius,
+        border: Border.all(color: colors.border),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onSelect == null ? null : () => onSelect!(bank),
           borderRadius: radius,
-          border: Border.all(color: colors.border),
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onSelect == null ? null : () => onSelect!(bank),
-            borderRadius: radius,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 13),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: accent,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: accent.withValues(alpha: 0.5),
-                              blurRadius: 8,
-                              spreadRadius: 1,
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 9),
-                      Expanded(
-                        child: Text(
-                          bankDisplayLabel(context, bank),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: -0.2,
-                            color: colors.text,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 13),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: accent,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: accent.withValues(alpha: 0.5),
+                            blurRadius: 8,
+                            spreadRadius: 1,
                           ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 9),
+                    Expanded(
+                      child: Text(
+                        bankDisplayLabel(context, bank),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.2,
+                          color: colors.text,
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 7),
-                  PrivacyAmount(
-                    _fmt.format(bank.spent),
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.3,
-                      color: colors.textSecondary,
                     ),
+                  ],
+                ),
+                const SizedBox(height: 7),
+                PrivacyAmount(
+                  _fmt.format(bank.spent),
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.3,
+                    color: colors.textSecondary,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
