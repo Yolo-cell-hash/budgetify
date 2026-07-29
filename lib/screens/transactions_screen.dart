@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../l10n/l10n.dart';
+import '../models/bank_summary.dart';
 import '../models/transaction_model.dart';
 import '../providers/theme_provider.dart';
+import '../services/bank_directory.dart';
 import '../services/database_service.dart';
 import '../services/removal_service.dart';
 import '../services/tutorial_service.dart';
 import '../widgets/app_dialog.dart';
 import '../widgets/app_toast.dart';
+import '../widgets/bank_chips.dart';
 import '../widgets/removal_choice_dialog.dart';
 import '../widgets/transaction_card.dart';
 import 'transaction_detail_screen.dart';
@@ -55,12 +58,22 @@ class TransactionsScreen extends StatefulWidget {
   final DateTime? initialStartDate;
   final DateTime? initialEndDate;
 
+  /// [BankIdentity.id] to open filtered to — how the Banks screen drills in.
+  final String? initialBankId;
+
+  /// What to call that bank on the active-filter chip. Defaults to the id,
+  /// which for a resolved bank is already its display name; the Banks screen
+  /// passes the translated label for the manual/imported buckets.
+  final String? initialBankLabel;
+
   const TransactionsScreen({
     super.key,
     this.initialUnclassifiedOnly = false,
     this.initialTypeFilter,
     this.initialStartDate,
     this.initialEndDate,
+    this.initialBankId,
+    this.initialBankLabel,
   });
 
   @override
@@ -81,6 +94,14 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   DateTime? _startDate;
   DateTime? _endDate;
   _DatePreset _datePreset = _DatePreset.all;
+
+  /// Bank filter: a [BankIdentity.id], resolved from each transaction's
+  /// sender. Null = every bank.
+  String? _bankFilter;
+
+  /// The bank facet for the current view: every bank the other filters leave
+  /// standing, with what was spent from each. Rebuilt on every load.
+  List<BankActivity> _banks = const [];
 
   // Free-text search across merchant/payee, amount, and date
   final TextEditingController _searchController = TextEditingController();
@@ -117,6 +138,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     _typeFilter = widget.initialTypeFilter;
     _startDate = widget.initialStartDate;
     _endDate = widget.initialEndDate;
+    _bankFilter = widget.initialBankId;
     _datePreset =
         widget.initialStartDate != null ? _DatePreset.custom : _DatePreset.all;
     _loadSwipeHintFlag();
@@ -181,12 +203,20 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   Future<void> _loadFiltersData() async {
     try {
       final categories = await _dbService.getUsedCategories();
-      setState(() {
-        _categories = categories;
-      });
+      if (!mounted) return;
+      setState(() => _categories = categories);
     } catch (e) {
       debugPrint('Error loading filter data: $e');
     }
+  }
+
+  /// The label for the active-bank chip, which has to survive the filtered
+  /// list going empty (no rows left to read a name off).
+  String get _bankFilterLabel {
+    for (final b in _banks) {
+      if (b.id == _bankFilter) return bankDisplayLabel(context, b);
+    }
+    return widget.initialBankLabel ?? _bankFilter!;
   }
 
   Future<void> _loadTransactions() async {
@@ -223,6 +253,20 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         transactions = transactions.where(_matchesSearch).toList();
       }
 
+      // The bank facet is built from everything EXCEPT the bank filter, so
+      // the chips keep showing every bank you could switch to — and their
+      // amounts describe the period you're actually looking at, not all time.
+      final banks = BankBreakdown.fromTransactions(transactions).banks;
+
+      // Bank lives in the sender header, not a column, so it narrows here
+      // rather than in SQL.
+      final bank = _bankFilter;
+      if (bank != null) {
+        transactions = transactions
+            .where((t) => BankDirectory.resolve(t).id == bank)
+            .toList();
+      }
+
       // Load current-month totals (always unfiltered) for the summary card
       final now = DateTime.now();
       final monthStart = DateTime(now.year, now.month, 1);
@@ -249,6 +293,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
       setState(() {
         _transactions = transactions;
+        _banks = banks;
         _monthlyCredits = mCredits;
         _monthlyDebits = mDebits;
         _isLoading = false;
@@ -269,6 +314,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     setState(() {
       _typeFilter = null;
       _categoryFilter = null;
+      _bankFilter = null;
       _classFilter = _ClassFilter.all;
       _startDate = null;
       _endDate = null;
@@ -363,7 +409,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       (_typeFilter != null ? 1 : 0) +
       (_classFilter != _ClassFilter.all ? 1 : 0) +
       (_datePreset != _DatePreset.all || _startDate != null ? 1 : 0) +
-      (_categoryFilter != null ? 1 : 0);
+      (_categoryFilter != null ? 1 : 0) +
+      (_bankFilter != null ? 1 : 0);
 
   /// Label for the active date filter (preset name or the custom range).
   String get _dateFilterLabel {
@@ -707,6 +754,26 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               ],
             ),
           ),
+          // One-tap bank filter, above the active-filter chips. Only when
+          // there is a choice to make — with a single bank on record,
+          // filtering by it selects everything and is pure clutter.
+          if (_banks.length > 1) ...[
+            const SizedBox(height: 10),
+            BankChips(
+              breakdown: BankBreakdown(_banks),
+              selectedId: _bankFilter,
+              onSelectAll: () {
+                setState(() => _bankFilter = null);
+                _loadTransactions();
+              },
+              onSelect: (bank) {
+                setState(() =>
+                    _bankFilter = _bankFilter == bank.id ? null : bank.id);
+                _loadTransactions();
+              },
+            ),
+            const SizedBox(height: 4),
+          ],
           if (_activeFilterCount > 0) _buildActiveFiltersStrip(isDark),
           Divider(
             height: 1,
@@ -830,6 +897,16 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           isDark: isDark,
           onRemove: () {
             setState(() => _categoryFilter = null);
+            _loadTransactions();
+          },
+        ),
+      if (_bankFilter != null)
+        _activeFilterChip(
+          label: _bankFilterLabel,
+          color: const Color(0xFF4A6489),
+          isDark: isDark,
+          onRemove: () {
+            setState(() => _bankFilter = null);
             _loadTransactions();
           },
         ),
@@ -1068,6 +1145,33 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                 ),
                               ],
                             ),
+                            // Only banks with transactions on record — a
+                            // filter you can't get results from is noise.
+                            if (_banks.isNotEmpty) ...[
+                              _sheetSection(l10n.bankLabel, isDark),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  _buildFilterChip(
+                                    label: l10n.filterAll,
+                                    isSelected: _bankFilter == null,
+                                    onSelected: () =>
+                                        apply(() => _bankFilter = null),
+                                    isDark: isDark,
+                                  ),
+                                  for (final bank in _banks)
+                                    _buildFilterChip(
+                                      label: bankDisplayLabel(context, bank),
+                                      isSelected: _bankFilter == bank.id,
+                                      onSelected: () =>
+                                          apply(() => _bankFilter = bank.id),
+                                      color: const Color(0xFF4A6489),
+                                      isDark: isDark,
+                                    ),
+                                ],
+                              ),
+                            ],
                             if (_categories.isNotEmpty) ...[
                               _sheetSection(l10n.category, isDark),
                               Wrap(

@@ -26,6 +26,10 @@ class MerchantBar extends StatelessWidget {
   /// "of category" / "of spending" defaults.
   final String? shareLabel;
 
+  /// Appended to the caption after a separator — used by the bank list to
+  /// note money that moved without being spent.
+  final String? captionSuffix;
+
   /// Optional tap handler (e.g. to drill into a merchant).
   final VoidCallback? onTap;
 
@@ -41,6 +45,7 @@ class MerchantBar extends StatelessWidget {
     this.isTop = false,
     this.shareIsCategory = false,
     this.shareLabel,
+    this.captionSuffix,
     this.onTap,
   });
 
@@ -144,7 +149,8 @@ class MerchantBar extends StatelessWidget {
         Text(
           '${context.l10n.txnCountCaption(count)} · '
           '${(shareOfTotal * 100).toStringAsFixed(0)}% '
-          '${shareLabel ?? (shareIsCategory ? context.l10n.ofCategory : context.l10n.ofSpending)}',
+          '${shareLabel ?? (shareIsCategory ? context.l10n.ofCategory : context.l10n.ofSpending)}'
+          '${captionSuffix == null ? '' : ' · $captionSuffix'}',
           style: TextStyle(fontSize: 11.5, color: colors.textSecondary),
         ),
       ],

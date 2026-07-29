@@ -12,6 +12,7 @@ import 'package:budget_tracker/services/app_icon_service.dart';
 import 'package:budget_tracker/services/app_lock_service.dart';
 import 'package:budget_tracker/services/notification_service.dart';
 import 'package:budget_tracker/services/background_service.dart';
+import 'package:budget_tracker/services/bank_alias_service.dart';
 import 'package:budget_tracker/services/custom_tag_service.dart';
 import 'package:budget_tracker/services/dev_mode.dart';
 import 'package:budget_tracker/services/gamification_service.dart';
@@ -60,6 +61,10 @@ void main() async {
   // Custom tags feed transaction icons synchronously during build, so the
   // cache is warmed before the first frame (a cheap cached-prefs read).
   await CustomTagService().initialize();
+  // Before anything renders: bank names resolve synchronously everywhere
+  // (including deep inside the export builders), so the user's own names
+  // have to be in memory first or the first frame shows the detected ones.
+  await BankAliasService().initialize();
 
   // Which royal launcher-icon is active (if any), so the very first splash
   // frame can wear the matching gem skin instead of flashing the default.

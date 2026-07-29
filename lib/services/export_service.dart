@@ -6,11 +6,12 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/material.dart' show DateTimeRange;
 import 'package:intl/intl.dart';
 import '../app_info.dart';
+import '../models/bank_summary.dart';
 import '../models/tax_export.dart';
 import '../models/transaction_model.dart';
 import '../widgets/brand_logo.dart';
+import 'bank_directory.dart';
 import 'database_service.dart';
-import 'sms_parser_service.dart';
 
 /// Output formats for an export.
 enum ExportFormat { excel, csv, text, pdf }
@@ -23,21 +24,31 @@ class ExportFilter {
   final Set<String> categories; // empty = all; 'Uncategorized' matches null
   final String merchantQuery; // case-insensitive substring on merchant/sender
 
+  /// [BankIdentity.id]s to keep; empty = every bank. Lets a user with three
+  /// accounts export just the one they care about.
+  final Set<String> banks;
+
   const ExportFilter({
     this.dateRange,
     this.types = const {},
     this.categories = const {},
     this.merchantQuery = '',
+    this.banks = const {},
   });
 
   bool get isUnfiltered =>
       dateRange == null &&
       types.isEmpty &&
       categories.isEmpty &&
+      banks.isEmpty &&
       merchantQuery.trim().isEmpty;
 
   bool matches(TransactionModel t) {
     if (types.isNotEmpty && !types.contains(t.type)) return false;
+
+    if (banks.isNotEmpty && !banks.contains(BankDirectory.resolve(t).id)) {
+      return false;
+    }
 
     if (dateRange != null) {
       final d = t.detectedAt;
@@ -71,6 +82,46 @@ class ExportFilter {
   }
 }
 
+/// Period totals on the app's definition of money.
+///
+/// Self-transfers, investments and settlements are real transactions but
+/// neither spending nor income (see [ExpenseCategories.nonExpense]), so they
+/// are held in [moved] rather than silently inflating [expenses] — which is
+/// what every other screen in the app already does. Debits use the split
+/// share when there is one; credits are never split.
+class _PeriodTotals {
+  final double income;
+  final double expenses;
+  final double moved;
+
+  /// Expense categories only, ranked by the caller.
+  final Map<String, double> byCategory;
+
+  const _PeriodTotals(
+      this.income, this.expenses, this.moved, this.byCategory);
+
+  factory _PeriodTotals.of(List<TransactionModel> txns) {
+    double income = 0, expenses = 0, moved = 0;
+    final byCategory = <String, double>{};
+    for (final t in txns) {
+      if (t.type == TransactionType.credit) {
+        if (ExpenseCategories.isIncomeCategory(t.category)) {
+          income += t.amount;
+        } else {
+          moved += t.amount;
+        }
+      } else if (ExpenseCategories.isExpenseCategory(t.category)) {
+        expenses += t.effectiveAmount;
+        final c = t.category ?? 'Uncategorized';
+        byCategory[c] = (byCategory[c] ?? 0) + t.effectiveAmount;
+      } else {
+        moved += t.effectiveAmount;
+      }
+    }
+    return _PeriodTotals(income, expenses, moved, byCategory);
+  }
+}
+
 /// A ready-to-save export: the file [bytes] and a suggested [filename].
 /// The caller decides where it lands (typically the system file picker), so
 /// the app needs no broad storage permission to produce one.
@@ -96,6 +147,15 @@ class ExportService {
   static final _monthYearFmt = DateFormat('MMMM yyyy');
   static final _fileDateFmt = DateFormat('yyyyMMdd_HHmm');
   static final _currencyFmt = NumberFormat('#,##0.00', 'en_IN');
+
+  /// Carried on every bank breakdown, so a reader never has to guess why a
+  /// bank's Spent is smaller than the money that passed through it.
+  // Middot, not em-dash: the built-in Helvetica the PDF uses has no em-dash
+  // glyph and renders it as a tofu box.
+  static const String bankMovedNote =
+      'Spent and Received count real spending and income only. "Moved" is '
+      'self-transfers, investments and settlements · your money changing '
+      'place, not leaving.';
 
   static const int _reportWidth = 64;
   static const List<String> _columns = [
@@ -129,6 +189,12 @@ class ExportService {
         return ExportBundle(await _buildPdfBytes(txns), '$base.pdf');
     }
   }
+
+  /// Every bank the stored transactions came from, ranked by spend. Feeds
+  /// the export sheet's bank chips, so a user is only ever offered banks
+  /// they actually have money moving through.
+  Future<BankBreakdown> usedBanks() async =>
+      BankBreakdown.fromTransactions(await _db.getAllTransactions());
 
   // ── Tax Summary export (Phase 3) ────────────────────────────────────
 
@@ -412,6 +478,9 @@ class ExportService {
   Future<List<int>> buildPdfForTest(List<TransactionModel> txns) =>
       _buildPdfBytes(txns);
 
+  @visibleForTesting
+  String buildTxtForTest(List<TransactionModel> txns) => _buildTxt(txns);
+
   List<int> _buildWorkbook(List<TransactionModel> txns) {
     final excel = Excel.createExcel();
     final defaultSheet = excel.getDefaultSheet()!;
@@ -451,9 +520,7 @@ class ExportService {
           TextCellValue(t.category ?? ''),
           TextCellValue(t.merchantName ?? ''),
           TextCellValue(t.accountInfo ?? ''),
-          TextCellValue(t.isManual
-              ? 'Manual'
-              : SmsParserService.normalizeSender(t.sender)),
+          TextCellValue(BankDirectory.resolve(t).name),
           TextCellValue(t.notes ?? ''),
         ]);
       }
@@ -465,11 +532,14 @@ class ExportService {
       sheet.setColumnWidth(c, widths[c]);
     }
 
-    // ── Summary sheet ──
+    // ── Summary + By Bank sheets ──
     _buildSummarySheet(excel['Summary'], txns);
+    _buildBankSheet(excel['By Bank'], txns);
 
     // Drop the auto-created default sheet so the file opens on Transactions
-    if (defaultSheet != 'Transactions' && defaultSheet != 'Summary') {
+    if (defaultSheet != 'Transactions' &&
+        defaultSheet != 'Summary' &&
+        defaultSheet != 'By Bank') {
       excel.delete(defaultSheet);
     }
     excel.setDefaultSheet('Transactions');
@@ -478,17 +548,10 @@ class ExportService {
   }
 
   void _buildSummarySheet(Sheet sheet, List<TransactionModel> txns) {
-    double income = 0, expenses = 0;
-    final byCategory = <String, double>{};
-    for (final t in txns) {
-      if (t.type == TransactionType.credit) {
-        income += t.amount;
-      } else {
-        expenses += t.amount;
-        final c = t.category ?? 'Uncategorized';
-        byCategory[c] = (byCategory[c] ?? 0) + t.amount;
-      }
-    }
+    final totals = _PeriodTotals.of(txns);
+    final income = totals.income;
+    final expenses = totals.expenses;
+    final byCategory = totals.byCategory;
 
     final titleStyle = CellStyle(bold: true, fontSize: 14);
     final labelStyle = CellStyle(bold: true);
@@ -510,11 +573,14 @@ class ExportService {
     row(3, 'Total Income', DoubleCellValue(income));
     row(4, 'Total Expenses', DoubleCellValue(expenses));
     row(5, 'Net', DoubleCellValue(income - expenses));
+    if (totals.moved > 0) {
+      row(6, 'Moved (not counted)', DoubleCellValue(totals.moved));
+    }
 
-    row(7, 'Expenses by Category', TextCellValue(''), style: titleStyle);
+    row(8, 'Expenses by Category', TextCellValue(''), style: titleStyle);
     final sortedCats = byCategory.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
-    var r = 8;
+    var r = 9;
     for (final e in sortedCats) {
       row(r++, e.key, DoubleCellValue(e.value));
     }
@@ -523,25 +589,99 @@ class ExportService {
     sheet.setColumnWidth(1, 16.0);
   }
 
+  /// Spending and income per bank, month by month, then a period total.
+  ///
+  /// Each month lists only the banks that saw activity in it, so a month
+  /// spent entirely on one card is a one-row month. "Moved" holds
+  /// self-transfers, investments and settlements: real transactions that are
+  /// deliberately kept out of Spent and Received.
+  void _buildBankSheet(Sheet sheet, List<TransactionModel> txns) {
+    final titleStyle = CellStyle(bold: true, fontSize: 14);
+    final sectionStyle = CellStyle(bold: true, fontSize: 12);
+    final headerStyle = CellStyle(
+      bold: true,
+      fontColorHex: ExcelColor.fromHexString('#FFFFFF'),
+      backgroundColorHex: ExcelColor.fromHexString('#1B1E28'),
+    );
+    final totalStyle = CellStyle(bold: true);
+
+    sheet.appendRow(<CellValue?>[TextCellValue('Spending by Bank')]);
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0))
+        .cellStyle = titleStyle;
+    sheet.appendRow(<CellValue?>[TextCellValue(bankMovedNote)]);
+    sheet.appendRow(<CellValue?>[]);
+
+    void bankTable(String heading, BankBreakdown breakdown) {
+      if (breakdown.isEmpty) return;
+      final sr = sheet.maxRows;
+      sheet.appendRow(<CellValue?>[TextCellValue(heading)]);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: sr))
+          .cellStyle = sectionStyle;
+
+      final hr = sheet.maxRows;
+      sheet.appendRow(<CellValue?>[
+        TextCellValue('Bank'),
+        TextCellValue('Spent'),
+        TextCellValue('Received'),
+        TextCellValue('Moved'),
+        TextCellValue('Transactions'),
+        TextCellValue('% of spend'),
+      ]);
+      for (var c = 0; c < 6; c++) {
+        sheet.cell(CellIndex.indexByColumnRow(columnIndex: c, rowIndex: hr))
+            .cellStyle = headerStyle;
+      }
+      for (final b in breakdown.banks) {
+        sheet.appendRow(<CellValue?>[
+          TextCellValue(b.name),
+          DoubleCellValue(b.spent),
+          DoubleCellValue(b.received),
+          DoubleCellValue(b.moved),
+          IntCellValue(b.transactionCount),
+          DoubleCellValue(
+              double.parse((breakdown.share(b) * 100).toStringAsFixed(1))),
+        ]);
+      }
+      final tr = sheet.maxRows;
+      sheet.appendRow(<CellValue?>[
+        TextCellValue('Total'),
+        DoubleCellValue(breakdown.totalSpent),
+        DoubleCellValue(breakdown.totalReceived),
+        DoubleCellValue(breakdown.totalMoved),
+        IntCellValue(breakdown.transactionCount),
+        TextCellValue(''),
+      ]);
+      for (var c = 0; c < 6; c++) {
+        sheet.cell(CellIndex.indexByColumnRow(columnIndex: c, rowIndex: tr))
+            .cellStyle = totalStyle;
+      }
+      sheet.appendRow(<CellValue?>[]);
+    }
+
+    bankTable('All months', BankBreakdown.fromTransactions(txns));
+    for (final entry in _groupByMonth(txns).entries) {
+      bankTable(_monthYearFmt.format(entry.key),
+          BankBreakdown.fromTransactions(entry.value));
+    }
+
+    sheet.setColumnWidth(0, 30.0);
+    for (var c = 1; c < 6; c++) {
+      sheet.setColumnWidth(c, 14.0);
+    }
+  }
+
   // ── PDF ─────────────────────────────────────────────────────────────
 
   /// A paginated report: a summary block (totals + expenses by category)
   /// followed by a per-month transaction table. Uses the built-in Helvetica
   /// font (ASCII), so amounts are prefixed "Rs." rather than the ₹ glyph.
   Future<List<int>> _buildPdfBytes(List<TransactionModel> txns) async {
-    double income = 0, expenses = 0;
-    final byCategory = <String, double>{};
-    for (final t in txns) {
-      if (t.type == TransactionType.credit) {
-        income += t.amount;
-      } else {
-        expenses += t.amount;
-        final c = t.category ?? 'Uncategorized';
-        byCategory[c] = (byCategory[c] ?? 0) + t.amount;
-      }
-    }
-    final sortedCats = byCategory.entries.toList()
+    final totals = _PeriodTotals.of(txns);
+    final income = totals.income;
+    final expenses = totals.expenses;
+    final sortedCats = totals.byCategory.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
+    final banks = BankBreakdown.fromTransactions(txns);
 
     const headerColor = PdfColor.fromInt(0xFF1B1E28);
     const brandGold = PdfColor.fromInt(0xFFC8A75E);
@@ -586,7 +726,9 @@ class ExportService {
           ),
           child: pw.Row(
             children: [
-              pw.Text('Budgetify — $kAppMotto',
+              // Middot, not em-dash — Helvetica has no em-dash glyph and
+              // renders a tofu box, as the tax PDF footer already accounts for.
+              pw.Text('Budgetify · $kAppMotto',
                   style:
                       const pw.TextStyle(fontSize: 7.5, color: PdfColors.grey600)),
               pw.Spacer(),
@@ -639,12 +781,58 @@ class ExportService {
           summaryRow('Total Income', _rs(income)),
           summaryRow('Total Expenses', _rs(expenses)),
           summaryRow('Net', _rs(income - expenses), bold: true),
+          if (totals.moved > 0)
+            summaryRow('Moved (not counted)', _rs(totals.moved)),
           if (sortedCats.isNotEmpty) ...[
             pw.SizedBox(height: 12),
             pw.Text('Expenses by Category',
                 style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
             pw.Divider(thickness: 0.5),
             for (final e in sortedCats) summaryRow(e.key, _rs(e.value)),
+          ],
+          if (banks.isNotEmpty) ...[
+            pw.SizedBox(height: 14),
+            pw.Text('By Bank',
+                style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 4),
+            pw.TableHelper.fromTextArray(
+              headerStyle: pw.TextStyle(
+                fontSize: 9,
+                fontWeight: pw.FontWeight.bold,
+                color: PdfColors.white,
+              ),
+              headerDecoration: const pw.BoxDecoration(color: headerColor),
+              headerAlignment: pw.Alignment.centerLeft,
+              cellStyle: const pw.TextStyle(fontSize: 9),
+              cellAlignments: const {
+                1: pw.Alignment.centerRight,
+                2: pw.Alignment.centerRight,
+                3: pw.Alignment.centerRight,
+                4: pw.Alignment.centerRight,
+              },
+              columnWidths: const {
+                0: pw.FlexColumnWidth(3.4),
+                1: pw.FlexColumnWidth(2.0),
+                2: pw.FlexColumnWidth(2.0),
+                3: pw.FlexColumnWidth(2.0),
+                4: pw.FlexColumnWidth(1.4),
+              },
+              headers: const ['Bank', 'Spent', 'Received', 'Moved', 'Txns'],
+              data: [
+                for (final b in banks.banks)
+                  [
+                    b.name,
+                    _currencyFmt.format(b.spent),
+                    _currencyFmt.format(b.received),
+                    _currencyFmt.format(b.moved),
+                    '${b.transactionCount}',
+                  ],
+              ],
+            ),
+            pw.SizedBox(height: 4),
+            pw.Text(bankMovedNote,
+                style:
+                    const pw.TextStyle(fontSize: 7.5, color: PdfColors.grey600)),
           ],
           pw.SizedBox(height: 18),
           for (final entry in _groupByMonth(txns).entries) ...[
@@ -676,10 +864,7 @@ class ExportService {
                     _dateFmt.format(t.detectedAt),
                     t.type == TransactionType.credit ? 'Credit' : 'Debit',
                     t.category ?? '',
-                    t.merchantName ??
-                        (t.isManual
-                            ? 'Manual'
-                            : SmsParserService.normalizeSender(t.sender)),
+                    t.merchantName ?? BankDirectory.resolve(t).name,
                     _currencyFmt.format(t.amount),
                   ],
               ],
@@ -717,7 +902,7 @@ class ExportService {
       t.category ?? '',
       t.merchantName ?? '',
       t.accountInfo ?? '',
-      t.isManual ? 'Manual' : SmsParserService.normalizeSender(t.sender),
+      BankDirectory.resolve(t).name,
       t.notes ?? '',
     ];
     return fields.map(_escapeCsv).join(',');
@@ -744,60 +929,55 @@ class ExportService {
     buffer.writeln('=' * _reportWidth);
     buffer.writeln();
 
-    double totalIncome = 0, totalExpenses = 0;
-    for (final t in txns) {
-      if (t.type == TransactionType.credit) {
-        totalIncome += t.amount;
-      } else {
-        totalExpenses += t.amount;
-      }
-    }
+    final totals = _PeriodTotals.of(txns);
 
     buffer.writeln('SUMMARY');
     buffer.writeln('-' * _reportWidth);
     buffer.writeln(_summaryLine('Total Transactions', '${txns.length}'));
-    buffer.writeln(_summaryLine('Total Income', _rs(totalIncome)));
-    buffer.writeln(_summaryLine('Total Expenses', _rs(totalExpenses)));
-    buffer.writeln(_summaryLine('Net', _rs(totalIncome - totalExpenses)));
+    buffer.writeln(_summaryLine('Total Income', _rs(totals.income)));
+    buffer.writeln(_summaryLine('Total Expenses', _rs(totals.expenses)));
+    buffer.writeln(
+        _summaryLine('Net', _rs(totals.income - totals.expenses)));
+    if (totals.moved > 0) {
+      buffer.writeln(_summaryLine('Moved (not counted)', _rs(totals.moved)));
+    }
     buffer.writeln();
+
+    _writeBankBlock(buffer, 'BY BANK', BankBreakdown.fromTransactions(txns));
 
     final grouped = _groupByMonth(txns);
     for (final entry in grouped.entries) {
       buffer.writeln(_monthYearFmt.format(entry.key).toUpperCase());
       buffer.writeln('-' * _reportWidth);
 
-      final expenses =
-          entry.value.where((t) => t.type == TransactionType.debit).toList();
-      final income =
-          entry.value.where((t) => t.type == TransactionType.credit).toList();
+      // Only the banks this month actually saw — a one-card month reads as
+      // one line, and a dormant account waking up is visible on sight.
+      _writeBankBlock(
+        buffer,
+        'BANKS USED',
+        BankBreakdown.fromTransactions(entry.value),
+        indent: 2,
+      );
+
+      // Self-transfers, investments and settlements are listed, but under
+      // their own heading — they are not spending and must not inflate the
+      // month's expense total.
+      final expenses = <TransactionModel>[];
+      final moved = <TransactionModel>[];
+      final income = <TransactionModel>[];
+      for (final t in entry.value) {
+        if (t.type == TransactionType.debit) {
+          (ExpenseCategories.isExpenseCategory(t.category) ? expenses : moved)
+              .add(t);
+        } else {
+          (ExpenseCategories.isIncomeCategory(t.category) ? income : moved)
+              .add(t);
+        }
+      }
 
       if (expenses.isNotEmpty) {
-        buffer.writeln('EXPENSES BY CATEGORY');
-        final byCategory = <String, List<TransactionModel>>{};
-        for (final t in expenses) {
-          byCategory.putIfAbsent(t.category ?? 'Uncategorized', () => []).add(t);
-        }
-        final sorted = byCategory.entries.toList()
-          ..sort((a, b) {
-            final ta = a.value.fold<double>(0, (s, t) => s + t.amount);
-            final tb = b.value.fold<double>(0, (s, t) => s + t.amount);
-            return tb.compareTo(ta);
-          });
-        double monthTotal = 0;
-        for (final cat in sorted) {
-          final catTotal = cat.value.fold<double>(0, (s, t) => s + t.amount);
-          monthTotal += catTotal;
-          buffer.writeln(_row(cat.key, _rs(catTotal), indent: 2));
-          for (final t in cat.value) {
-            buffer.writeln(_row(
-              '${_dayFmt.format(t.detectedAt)}  ${t.merchantName ?? t.sender}',
-              _currencyFmt.format(t.amount),
-              indent: 4,
-            ));
-          }
-        }
-        buffer.writeln(_row('TOTAL EXPENSES', _rs(monthTotal), indent: 2));
-        buffer.writeln();
+        _writeCategoryBlock(buffer, 'EXPENSES BY CATEGORY', expenses,
+            totalLabel: 'TOTAL EXPENSES');
       }
 
       if (income.isNotEmpty) {
@@ -814,8 +994,75 @@ class ExportService {
         buffer.writeln(_row('TOTAL INCOME', _rs(monthIncome), indent: 2));
         buffer.writeln();
       }
+
+      if (moved.isNotEmpty) {
+        _writeCategoryBlock(buffer, 'MOVED, NOT COUNTED', moved,
+            totalLabel: 'TOTAL MOVED');
+      }
     }
     return buffer.toString();
+  }
+
+  /// A category-grouped listing with a total line: each category ranked by
+  /// size, every transaction under it, then [totalLabel].
+  void _writeCategoryBlock(
+    StringBuffer buffer,
+    String heading,
+    List<TransactionModel> txns, {
+    required String totalLabel,
+  }) {
+    buffer.writeln(heading);
+    final byCategory = <String, List<TransactionModel>>{};
+    for (final t in txns) {
+      byCategory.putIfAbsent(t.category ?? 'Uncategorized', () => []).add(t);
+    }
+    double blockTotal(List<TransactionModel> list) =>
+        list.fold<double>(0, (s, t) => s + t.effectiveAmount);
+    final sorted = byCategory.entries.toList()
+      ..sort((a, b) => blockTotal(b.value).compareTo(blockTotal(a.value)));
+    double total = 0;
+    for (final cat in sorted) {
+      final catTotal = blockTotal(cat.value);
+      total += catTotal;
+      buffer.writeln(_row(cat.key, _rs(catTotal), indent: 2));
+      for (final t in cat.value) {
+        buffer.writeln(_row(
+          '${_dayFmt.format(t.detectedAt)}  ${t.merchantName ?? t.sender}',
+          _currencyFmt.format(t.amount),
+          indent: 4,
+        ));
+      }
+    }
+    buffer.writeln(_row(totalLabel, _rs(total), indent: 2));
+    buffer.writeln();
+  }
+
+  /// One "who did the spending" block: a line per bank, then the total.
+  /// Silent when there is nothing to report.
+  void _writeBankBlock(
+    StringBuffer buffer,
+    String heading,
+    BankBreakdown breakdown, {
+    int indent = 0,
+  }) {
+    if (breakdown.isEmpty) return;
+    buffer.writeln('${' ' * indent}$heading');
+    for (final b in breakdown.banks) {
+      final detail = StringBuffer(b.name)
+        ..write('  (${b.transactionCount} txn');
+      if (b.transactionCount != 1) detail.write('s');
+      if (b.received > 0) detail.write(', +${_currencyFmt.format(b.received)}');
+      if (b.moved > 0) detail.write(', moved ${_currencyFmt.format(b.moved)}');
+      detail.write(')');
+      buffer.writeln(_row(
+        detail.toString(),
+        _currencyFmt.format(b.spent),
+        indent: indent + 2,
+      ));
+    }
+    buffer.writeln(_row('TOTAL SPENT', _rs(breakdown.totalSpent),
+        indent: indent + 2));
+    buffer.writeln();
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────
