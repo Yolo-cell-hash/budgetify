@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../l10n/l10n.dart';
+import '../models/bank_summary.dart';
 import '../models/plus_products.dart';
 import '../models/transaction_model.dart';
 import '../providers/theme_provider.dart';
@@ -21,6 +22,7 @@ import 'package:provider/provider.dart';
 import '../providers/app_preferences.dart';
 import '../widgets/app_dialog.dart';
 import '../widgets/app_toast.dart';
+import '../widgets/bank_chips.dart';
 import '../widgets/category_icon.dart';
 import '../widgets/financial_health_card.dart';
 import '../widgets/glass.dart';
@@ -37,6 +39,7 @@ import '../services/tutorial_service.dart';
 import '../widgets/spotlight.dart';
 import '../widgets/trial_notice_card.dart';
 import '../widgets/streak_save_sheet.dart';
+import 'banks_screen.dart';
 import 'tidy_up_screen.dart';
 import 'transactions_screen.dart';
 import 'add_transaction_screen.dart';
@@ -90,6 +93,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   double _totalCash = 0;
   double _monthlyIncome = 0;
   double _monthlyExpenses = 0;
+
+  /// This month's spending split by bank — only the banks actually used.
+  BankBreakdown _bankBreakdown = BankBreakdown.empty;
   // Recurring investments due today and still unanswered (drives the alert).
   int _dueSipCount = 0;
   // Latest Financial Health Score; recomputed on every data refresh so both
@@ -356,8 +362,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       // Calculate monthly income/expenses
       double monthlyIncome = 0;
       double monthlyExpenses = 0;
+      final thisMonth = <TransactionModel>[];
       for (final t in transactions) {
         if (inThisMonth(t.detectedAt)) {
+          thisMonth.add(t);
           if (t.type == TransactionType.credit) {
             // Self-transfers and investment redemptions aren't real income.
             if (ExpenseCategories.isIncomeCategory(t.category)) {
@@ -393,6 +401,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         _totalCash = totalCash;
         _monthlyIncome = monthlyIncome;
         _monthlyExpenses = monthlyExpenses;
+        _bankBreakdown = BankBreakdown.fromTransactions(thisMonth);
         _dueSipCount = dueSips.length;
         _health = health;
       });
@@ -669,6 +678,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                   showHealthInline: !detailed),
                             ),
                           ),
+                          // Which accounts this month's spend actually came
+                          // out of, directly under the total it adds up to.
+                          if (_bankBreakdown.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            FadeSlideIn(
+                                order: 1, child: _buildBankStrip()),
+                          ],
                           // Full Financial Health breakdown card — only in the
                           // detailed view; otherwise the compact score sits on
                           // the balance card's savings-rate area above.
@@ -1131,6 +1147,31 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
         ],
       ),
+    );
+  }
+
+  /// The bank strip under the month's expenses: one small pill per bank the
+  /// month's money actually moved through, each opening that bank's
+  /// transactions, with "See all" going to the full month-by-month view.
+  Widget _buildBankStrip() {
+    final now = DateTime.now();
+    return BankChips(
+      breakdown: _bankBreakdown,
+      onSelect: (bank) => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => TransactionsScreen(
+            initialBankId: bank.id,
+            initialBankLabel: bankDisplayLabel(context, bank),
+            initialStartDate: DateTime(now.year, now.month, 1),
+            initialEndDate: DateTime(now.year, now.month + 1, 0, 23, 59, 59),
+          ),
+        ),
+      ).then((_) => _loadData()),
+      onSeeAll: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const BanksScreen()),
+      ).then((_) => _loadData()),
     );
   }
 

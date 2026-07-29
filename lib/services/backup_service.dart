@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:cryptography/cryptography.dart';
 import 'package:file_picker/file_picker.dart';
 
+import 'bank_alias_service.dart';
 import 'custom_tag_service.dart';
 import 'database_service.dart';
 import 'entitlement_service.dart';
@@ -158,6 +159,10 @@ class BackupService {
     // Tax buckets: regime + cap overrides (the per-transaction tags themselves
     // ride the transactions table dump above).
     data['tax_settings'] = await TaxService().exportSettings();
+    // The names the user gave their banks. Purely labels — the transactions
+    // resolve from their sender either way — but losing them on restore would
+    // silently put "ZZZTOP" back where they had written "Salary account".
+    data['bank_aliases'] = BankAliasService().exportSettings();
 
     final payloadJson = jsonEncode({
       'magic': _magic,
@@ -221,6 +226,11 @@ class BackupService {
     // Restore tag settings (emoji overrides + hidden built-in tags)
     await tagService.importSettings(
       (data['tag_settings'] as Map?)?.cast<String, dynamic>(),
+    );
+
+    // Restore the user's bank names.
+    await BankAliasService().importSettings(
+      (data['bank_aliases'] as Map?)?.cast<String, dynamic>(),
     );
 
     // Restore Gamified Budgets profile + streak + unlock state.
