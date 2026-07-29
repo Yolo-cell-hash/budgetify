@@ -10,26 +10,40 @@ library;
 /// The three ways to buy Plus. One entitlement ("plus"), three SKUs.
 enum PlusPlan {
   /// Auto-renewing monthly subscription.
-  monthly('plus_monthly', 29),
+  monthly('plus_monthly', 49, 29),
 
-  /// Auto-renewing yearly subscription (~2 months free vs monthly).
-  yearly('plus_yearly', 299),
+  /// Auto-renewing yearly subscription.
+  yearly('plus_yearly', 499, 299),
 
   /// One-time, non-consumable, forever. Lead offer for the anti-subscription
   /// audience — and the cleanest fit for an offline app, since a lifetime
   /// purchase never needs re-verification against Play.
-  lifetime('plus_lifetime', 699);
+  lifetime('plus_lifetime', 1499, 999);
 
-  const PlusPlan(this.productId, this.priceInr);
+  const PlusPlan(this.productId, this.priceInr, this.offerPriceInr);
 
   /// Play product id. Must match the Play Console exactly, forever —
   /// product ids are immutable once a purchase exists.
   final String productId;
 
-  /// Display price in whole rupees. The REAL price always comes from Play's
-  /// `ProductDetails` at purchase time (localized, tax-aware); this constant
-  /// is only for the pre-billing paywall preview and tests.
+  /// The everyday price in whole rupees — what a user pays on any ordinary
+  /// day. The REAL charged price always comes from Play's `ProductDetails` at
+  /// purchase time (localized, tax-aware); this constant is only for the
+  /// pre-billing paywall preview and tests.
   final int priceInr;
+
+  /// The discounted price during an active [PlusOffer] window. Must mirror the
+  /// introductory/promotional offer configured on this product in the Play
+  /// Console, or the paywall would advertise a discount Play doesn't honour.
+  final int offerPriceInr;
+
+  /// Price to display right now.
+  int priceFor({required bool onOffer}) => onOffer ? offerPriceInr : priceInr;
+
+  /// Whole-percent saving of the offer price against the base price, for the
+  /// "SAVE x%" chip. Rounded for display only.
+  int get offerSavingPercent =>
+      (((priceInr - offerPriceInr) / priceInr) * 100).round();
 
   static PlusPlan? byProductId(String id) {
     for (final p in PlusPlan.values) {
@@ -45,8 +59,16 @@ enum PlusPlan {
 /// billing is reachable.
 const Duration kPlusSubscriptionGrace = Duration(days: 3);
 
-/// Price of a single royal avatar (one-time, non-consumable).
+/// Everyday price of a single royal avatar (one-time, non-consumable).
 const int kRoyalAvatarPriceInr = 49;
+
+/// Royal avatar price during an active [PlusOffer] window. Royals go on offer
+/// alongside Plus itself, so a festive week discounts the whole catalogue.
+const int kRoyalAvatarOfferPriceInr = 29;
+
+/// Price of a royal avatar right now.
+int royalAvatarPriceInr({required bool onOffer}) =>
+    onOffer ? kRoyalAvatarOfferPriceInr : kRoyalAvatarPriceInr;
 
 /// Play product id for a purchasable royal avatar. The royal [id] is the
 /// stable `RoyalAvatar.id` ('sovereign', 'empress', ...) — persisted in
@@ -58,10 +80,12 @@ String royalProductId(String royalId) => 'royal_$royalId';
 String? royalIdFromProduct(String productId) =>
     productId.startsWith('royal_') ? productId.substring(6) : null;
 
-/// Features that lock behind Plus once the free window (6 months from first
+/// Features that lock behind Plus once the free window (3 months from first
 /// launch) has elapsed. Everything NOT listed here stays free forever — most
 /// notably the overall monthly budget and its alerts, SMS transaction
-/// detection itself, and manual tagging of a single transaction.
+/// detection itself, manual tagging of a single transaction, applying a tag to
+/// all existing transactions for a merchant, and tagging transactions into tax
+/// buckets (only the tax EXPORT locks).
 enum PlusFeature {
   /// Per-category budgets: creating new ones and their threshold alerts.
   /// Existing budget DATA is never deleted on lock — it just goes quiet.
@@ -76,9 +100,19 @@ enum PlusFeature {
   /// "Investment Alert" prompts for SIP/RD instalments.
   investmentReminders,
 
-  /// Tagging: "Apply to All" (future + existing for a merchant).
+  /// Tagging: "Apply to All" (future + existing for a merchant). "Apply to All
+  /// Existing" and "Only this one" both stay free.
   tagApplyToAll,
 
-  /// Tagging: "Apply to All Existing". "Only this one" stays free.
-  tagApplyToExisting,
+  /// AI Prediction Mode: the Insights card on Home and the forecasts feeding
+  /// it. Gated at BOTH ends — turning the setting on opens the paywall, and
+  /// an already-on setting simply goes quiet once locked. The stored
+  /// preference is never flipped, so buying Plus brings the card straight
+  /// back with no re-toggling, mirroring how category budget DATA survives.
+  aiPredictionMode,
+
+  /// Exporting the tax-deduction summary for a financial year (Excel/CSV).
+  /// Tagging transactions into tax buckets and reading the on-screen summary
+  /// stay free, so a lapsed user's data is never trapped behind the wall.
+  taxDeductionsExport,
 }

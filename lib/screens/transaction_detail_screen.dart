@@ -4,23 +4,32 @@ import '../l10n/l10n.dart';
 import '../models/ledger_models.dart';
 import '../models/plus_products.dart';
 import '../models/recurring_payment.dart';
+import '../models/tax_bucket.dart';
 import '../models/transaction_model.dart';
 import '../models/transaction_rule_model.dart';
 import '../providers/theme_provider.dart';
-import '../services/app_events.dart';
 import '../services/database_service.dart';
 import '../services/custom_tag_service.dart';
 import '../services/ledger_service.dart';
+import '../services/removal_service.dart';
+import '../services/tax_service.dart';
 import '../services/tutorial_service.dart';
 import 'plus_screen.dart';
 import '../widgets/app_bar_title.dart';
+import '../widgets/app_dialog.dart';
 import '../widgets/app_toast.dart';
+import '../widgets/create_tag_sheet.dart';
 import '../widgets/recurring_editor_sheet.dart';
+import '../widgets/removal_choice_dialog.dart';
 import '../widgets/settlement_sheet.dart';
 import '../widgets/split_transaction_sheet.dart';
 
 /// Parser corrections offered in the detail-screen overflow menu.
 enum _CorrectionAction { changeType, notATransaction }
+
+/// Sheet return value meaning "clear the tax bucket" — distinct from null,
+/// which means the sheet was dismissed. Can't collide with a real bucket id.
+const String _kTaxNoneSentinel = '__tax_none__';
 
 /// Screen for viewing and classifying a transaction
 class TransactionDetailScreen extends StatefulWidget {
@@ -37,6 +46,12 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   final DatabaseService _dbService = DatabaseService();
   late TransactionModel _transaction;
   String? _selectedCategory;
+  // The tax-deduction bucket (a second, orthogonal axis to the category). Saved
+  // immediately on pick, independent of the category Save button.
+  String? _taxBucket;
+  // A built-in / rule-based bucket suggestion for this payee, shown as a
+  // one-tap chip when the transaction has no bucket yet. Suggestion only.
+  String? _taxSuggestion;
   final TextEditingController _notesController = TextEditingController();
   bool _isSaving = false;
   // Set when a split/settlement is added/edited/removed here, so the back
@@ -58,9 +73,11 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     super.initState();
     _transaction = widget.transaction;
     _selectedCategory = _transaction.category;
+    _taxBucket = _transaction.taxBucket;
     _notesController.text = _transaction.notes ?? '';
     _maybeSuggestSettlement();
     _maybeSuggestTransferPair();
+    _maybeSuggestTaxBucket();
     // Guided tour: opening any detail completes the "open it up" step; the
     // in-screen tips (choose a tag → save it) take over from here.
     TutorialService.instance.advanceFrom(TutorialStep.openTransaction);
@@ -345,18 +362,16 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     TutorialService.instance.advanceFrom(TutorialStep.applyOptions);
 
     if (result != null && mounted) {
-      // Plus gate (dormant during the free window): the bulk options —
-      // Apply to All (1) and Apply to All Existing (2) — lock after the free
-      // window; "Only this one" (3) stays free forever. When locked, the
-      // paywall opens and, unless Plus was bought right there, the save
+      // Plus gate (dormant during the free window): only "Apply to All" (1) —
+      // the future+existing sweep — locks after the free window. "Apply to All
+      // Existing" (2) and "Only this one" (3) stay free forever. When locked,
+      // the paywall opens and, unless Plus was bought right there, the save
       // gracefully degrades to the free single-transaction path. The
       // transaction itself was already saved above — nothing is lost.
       var effective = result;
-      if (result == 1 || result == 2) {
-        final feature = result == 1
-            ? PlusFeature.tagApplyToAll
-            : PlusFeature.tagApplyToExisting;
-        final allowed = await PlusScreen.maybePush(context, feature);
+      if (result == 1) {
+        final allowed =
+            await PlusScreen.maybePush(context, PlusFeature.tagApplyToAll);
         if (!allowed) effective = 3;
       }
       if (!mounted) return;
@@ -518,12 +533,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     }
   }
 
-  static const List<String> _emojiChoices = [
-    '🏠', '🎮', '💊', '🎁', '🐾', '🍕', '🏋️', '📱', '☕', '🎵',
-    '💇', '🧹', '🚕', '🎓', '👶', '💍', '🏦', '⛽', '🅿️', '📦',
-    '🛒', '🍿', '🏥', '✂️', '🧾', '💻', '📸', '🎂', '🌐', '🔧',
-  ];
-
   /// Long-press on a category chip: pick a custom emoji for that tag
   /// (works for predefined categories and custom tags alike).
   Future<void> _showEmojiPickerForTag(String category, bool isDark) async {
@@ -559,9 +568,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                   mainAxisSpacing: 8,
                   crossAxisSpacing: 8,
                 ),
-                itemCount: _emojiChoices.length,
+                itemCount: kTagEmojiChoices.length,
                 itemBuilder: (_, i) => GestureDetector(
-                  onTap: () => Navigator.pop(ctx, _emojiChoices[i]),
+                  onTap: () => Navigator.pop(ctx, kTagEmojiChoices[i]),
                   child: Container(
                     decoration: BoxDecoration(
                       color: isDark
@@ -571,7 +580,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                     ),
                     child: Center(
                       child: Text(
-                        _emojiChoices[i],
+                        kTagEmojiChoices[i],
                         style: const TextStyle(fontSize: 22),
                       ),
                     ),
@@ -591,200 +600,13 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     }
   }
 
-  Future<void> _showCreateTagDialog(bool isDark) async {
-    final nameController = TextEditingController();
-    String selectedEmoji = '🏷️';
-
-    const emojis = _emojiChoices;
-
-    final cardColor = isDark ? const Color(0xFF16181E) : Colors.white;
-    final textColor = isDark ? Colors.white : Colors.black87;
-    final subtextColor = isDark ? Color(0xFF9A9DA6) : Color(0xFF6E727C);
-    final inputBg = isDark ? const Color(0xFF262931) : Color(0xFFFAFAF8);
-
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: cardColor,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setDialogState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 24,
-                right: 24,
-                top: 24,
-                bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Color(0xFF9A9DA6),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    context.l10nRead.createCustomTag,
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: textColor,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    context.l10nRead.createTagDesc,
-                    style: TextStyle(color: subtextColor),
-                  ),
-                  const SizedBox(height: 20),
-                  // Tag name input
-                  TextField(
-                    controller: nameController,
-                    style: TextStyle(color: textColor),
-                    decoration: InputDecoration(
-                      hintText: context.l10nRead.tagNameHint,
-                      hintStyle: TextStyle(color: subtextColor),
-                      filled: true,
-                      fillColor: inputBg,
-                      prefixIcon: Container(
-                        width: 48,
-                        alignment: Alignment.center,
-                        child: Text(
-                          selectedEmoji,
-                          style: const TextStyle(fontSize: 20),
-                        ),
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 14,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  // Emoji picker grid
-                  Text(
-                    context.l10nRead.pickAnEmoji,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: subtextColor,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    height: 180,
-                    child: GridView.builder(
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 6,
-                            mainAxisSpacing: 8,
-                            crossAxisSpacing: 8,
-                          ),
-                      itemCount: emojis.length,
-                      itemBuilder: (_, i) {
-                        final emoji = emojis[i];
-                        final isSelected = emoji == selectedEmoji;
-                        return GestureDetector(
-                          onTap: () {
-                            setDialogState(() => selectedEmoji = emoji);
-                          },
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? Color(0xFF4A6489).withAlpha(40)
-                                  : (isDark
-                                        ? const Color(0xFF262931)
-                                        : Color(0xFFF6F6F3)),
-                              borderRadius: BorderRadius.circular(10),
-                              border: isSelected
-                                  ? Border.all(
-                                      color: Color(0xFF8FA9C7),
-                                      width: 2,
-                                    )
-                                  : null,
-                            ),
-                            child: Center(
-                              child: Text(
-                                emoji,
-                                style: const TextStyle(fontSize: 22),
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  // Create button
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        final l10n = context.l10nRead;
-                        final name = nameController.text.trim();
-                        if (name.isEmpty) {
-                          showAppToast(context,
-                              message: l10n.enterTagName,
-                              type: AppToastType.warning);
-                          return;
-                        }
-                        final success = await CustomTagService().addCustomTag(
-                          name,
-                          selectedEmoji,
-                        );
-                        if (!success) {
-                          if (context.mounted) {
-                            showAppToast(context,
-                                message: l10n.tagExists,
-                                type: AppToastType.warning);
-                          }
-                          return;
-                        }
-                        if (ctx.mounted) Navigator.pop(ctx);
-                        setState(() {
-                          _selectedCategory = name;
-                        });
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Color(0xFF4A6489),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        elevation: 0,
-                      ),
-                      child: Text(
-                        context.l10nRead.createTag,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
+  /// "+ New Tag" on the category grid. The sheet itself is shared with
+  /// Settings → Manage tags (see [showCreateTagSheet]); all this screen adds is
+  /// selecting the tag it just created.
+  Future<void> _showCreateTagDialog() async {
+    final created = await showCreateTagSheet(context);
+    if (created == null || !mounted) return;
+    setState(() => _selectedCategory = created);
   }
 
   @override
@@ -796,6 +618,11 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     // own share (what counts toward budgets), with the full amount struck out.
     final isSplit = _transaction.splitShare != null;
     final isSettlement = _transaction.category == 'Settlement';
+    // The debit branch hangs this loose under the quick-action row, since the
+    // tax *tile* has no room for a subtitle to carry it. Hoisted up here
+    // because the `...[]` spread it lives in can't declare a local; the
+    // credit/settlement branch's tax card builds its own.
+    final taxSuggestionChip = _buildTaxSuggestionChip(colors);
     final headlineAmount = _transaction.effectiveAmount;
     final formatter = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
     final dateFormatter = DateFormat('EEEE, MMMM d, y • h:mm a');
@@ -1112,14 +939,29 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
 
             // Quick actions — a single compact row instead of a tall stack of
             // cards, so the category tags sit higher and need less scrolling to
-            // reach. Debits (that aren't already settlements) get all three
-            // actions; every other case has just "settle", which keeps its
-            // roomier descriptive card since there's no stacking to compress.
+            // reach. Debits (that aren't already settlements) get all four
+            // actions, tax included: tagging a deduction is a per-transaction
+            // action like the other three, and burying it under the tag grid
+            // meant nobody scrolled far enough to find it. Every other case has
+            // "settle", which keeps its roomier descriptive card since there's
+            // no stacking to compress, with the tax row directly beneath it.
             if (!isCredit && !isSettlement) ...[
               _buildQuickActions(colors, isSplit),
+              if (taxSuggestionChip != null) ...[
+                const SizedBox(height: 10),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: taxSuggestionChip,
+                  ),
+                ),
+              ],
               const SizedBox(height: 16),
             ] else ...[
               _buildSettlementCard(colors, isSettlement),
+              const SizedBox(height: 12),
+              _buildTaxSectionRow(colors, cardColor, textColor, subtextColor),
               const SizedBox(height: 16),
             ],
 
@@ -1238,7 +1080,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                       }),
                       // Create new tag button
                       GestureDetector(
-                        onTap: () => _showCreateTagDialog(isDark),
+                        onTap: _showCreateTagDialog,
                         child: Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
@@ -1386,11 +1228,13 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   }
 
   /// Compact horizontal action row for debit transactions: Split · Recurring ·
-  /// Settle, laid out as three equal tiles instead of a tall stack of cards.
-  /// This keeps the category tags high on the screen so they're reachable with
-  /// far less scrolling. Themed via [AppColors] so it adapts to every theme.
+  /// Settle · Tax, laid out as four equal tiles instead of a tall stack of
+  /// cards. This keeps the category tags high on the screen so they're
+  /// reachable with far less scrolling. Themed via [AppColors] so it adapts to
+  /// every theme.
   Widget _buildQuickActions(AppColors colors, bool isSplit) {
     final l10n = context.l10n;
+    final bucket = taxBucketById(_taxBucket);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       // IntrinsicHeight bounds the row's cross-axis so the tiles can share a
@@ -1412,7 +1256,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                 isActive: isSplit,
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
             Expanded(
               child: _buildActionTile(
                 colors,
@@ -1421,13 +1265,28 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                 onTap: _trackAsRecurring,
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
             Expanded(
               child: _buildActionTile(
                 colors,
                 icon: Icons.handshake_rounded,
                 label: l10n.settleUp,
                 onTap: () => _openSettlement(),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildActionTile(
+                colors,
+                icon: Icons.receipt_long_rounded,
+                // Once tagged the tile *is* the readout — there's no subtitle
+                // here — so it wears the section itself ("80C") rather than the
+                // generic word.
+                label: bucket?.compactSection ?? l10n.taxTile,
+                // A transaction with no row id can't be tagged (nothing to
+                // write to); the tile goes inert rather than disappearing.
+                onTap: _transaction.id == null ? null : _pickTaxBucket,
+                isActive: bucket != null,
               ),
             ),
           ],
@@ -1437,12 +1296,15 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   }
 
   /// One quick-action tile: an icon above a short label on a themed card
-  /// surface. [isActive] gives it an accent-tinted, accent-bordered treatment.
+  /// surface. [isActive] gives it an accent-tinted, accent-bordered treatment;
+  /// a null [onTap] makes the tile inert. Sized for four across a phone, so
+  /// the metrics are deliberately tight and the label may wrap to two lines
+  /// (Bengali "নিষ্পত্তি করুন" and Telugu "పునరావృతం" need it).
   Widget _buildActionTile(
     AppColors colors, {
     required IconData icon,
     required String label,
-    required VoidCallback onTap,
+    required VoidCallback? onTap,
     bool isActive = false,
   }) {
     return Material(
@@ -1451,7 +1313,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 5),
           decoration: BoxDecoration(
             color: isActive
                 ? colors.accent.withValues(alpha: 0.10)
@@ -1465,27 +1327,30 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
+            // Top-aligned, not centred: a two-line label on one tile would
+            // otherwise push its icon out of line with the other three.
+            mainAxisAlignment: MainAxisAlignment.start,
             children: [
               // Accent chip behind the icon — the app's signature treatment,
               // and what gives the tile a clear anchor on low-contrast dark
               // surfaces where card and page background sit close together.
               Container(
-                padding: const EdgeInsets.all(9),
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: colors.accent.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(11),
                 ),
-                child: Icon(icon, color: colors.accent, size: 22),
+                child: Icon(icon, color: colors.accent, size: 20),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               Text(
                 label,
-                maxLines: 1,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 12.5,
+                  fontSize: 11.5,
+                  height: 1.15,
                   fontWeight: FontWeight.w600,
                   color: colors.text,
                 ),
@@ -1601,6 +1466,253 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     );
   }
 
+  /// The "Tax section" row: shows the current bucket (or a prompt to add one)
+  /// and opens the picker. Tagging here is independent of the category Save
+  /// button — a tax bucket is a different axis and persists on its own.
+  Widget _buildTaxSectionRow(
+    AppColors colors,
+    Color cardColor,
+    Color textColor,
+    Color subtextColor,
+  ) {
+    final l10n = context.l10n;
+    final bucket = taxBucketById(_taxBucket);
+    final suggestionChip = _buildTaxSuggestionChip(colors);
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: _transaction.id == null ? null : _pickTaxBucket,
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: colors.accent.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(Icons.receipt_long_rounded,
+                          color: colors.accent, size: 20),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            l10n.taxSection,
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: textColor,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            bucket == null
+                                ? l10n.taxAddSection
+                                : '${bucket.section} · ${bucket.shortLabel}',
+                            style:
+                                TextStyle(fontSize: 12.5, color: subtextColor),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.chevron_right_rounded,
+                        size: 20, color: colors.textTertiary),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          // One-tap suggestion: "Looks like Section 80C — tap to tag".
+          if (suggestionChip != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: suggestionChip,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// The one-tap auto-suggest chip ("Looks like Section 80C — tap to tag"),
+  /// or null when there's nothing to suggest. Only offered while the
+  /// transaction is still untagged; acting on it tags and dismisses.
+  Widget? _buildTaxSuggestionChip(AppColors colors) {
+    final suggested = taxBucketById(_taxSuggestion);
+    if (_taxBucket != null || suggested == null) return null;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _applyTaxBucket(suggested.id),
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: colors.accent.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: colors.accent.withValues(alpha: 0.35)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.auto_awesome_rounded, size: 14, color: colors.accent),
+              const SizedBox(width: 6),
+              Text(
+                context.l10n.taxSuggestChip(suggested.section),
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: colors.accent,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Bottom sheet to pick (or clear) the tax bucket. Persists immediately via
+  /// a targeted single-column write, so it never touches the category flow.
+  Future<void> _pickTaxBucket() async {
+    if (_transaction.id == null) return;
+    // Event handler, not build: `l10n` watches and would assert here.
+    final l10n = context.l10nRead;
+    final chosen = await showModalBottomSheet<String?>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) {
+        final colors = AppColors.of(ctx);
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 6),
+                child: Text(
+                  l10n.taxPickSection,
+                  style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: colors.text),
+                ),
+              ),
+              // "None" clears the bucket. Popped with a sentinel (not null) so
+              // it's distinguishable from dismissing the sheet.
+              ListTile(
+                onTap: () => Navigator.pop(ctx, _kTaxNoneSentinel),
+                title: Text(l10n.taxNone,
+                    style: TextStyle(color: colors.text)),
+                trailing: _taxBucket == null
+                    ? Icon(Icons.check_rounded, color: colors.accent)
+                    : null,
+              ),
+              for (final b in kTaxBuckets)
+                ListTile(
+                  onTap: () => Navigator.pop(ctx, b.id),
+                  title: Text(b.section,
+                      style: TextStyle(
+                          color: colors.text, fontWeight: FontWeight.w600)),
+                  subtitle: Text(b.shortLabel,
+                      style: TextStyle(color: colors.textSecondary)),
+                  trailing: _taxBucket == b.id
+                      ? Icon(Icons.check_rounded, color: colors.accent)
+                      : null,
+                ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (chosen == null) return; // dismissed without choosing
+    final newBucket = chosen == _kTaxNoneSentinel ? null : chosen;
+    if (newBucket == _taxBucket) return;
+    await _applyTaxBucket(newBucket);
+  }
+
+  /// Persist the chosen bucket (or clear with null), then — when a real bucket
+  /// was set on an identifying payee — offer "apply to all from {payee}".
+  Future<void> _applyTaxBucket(String? newBucket) async {
+    await _dbService.setTaxBucket(_transaction.id!, newBucket);
+    _changed = true;
+    if (!mounted) return;
+    setState(() {
+      _taxBucket = newBucket;
+      _taxSuggestion = null; // acted on; hide the chip
+      _transaction = newBucket == null
+          ? _transaction.clearedTaxBucket()
+          : _transaction.copyWith(taxBucket: newBucket);
+    });
+    if (newBucket != null) {
+      await _maybeOfferApplyToAll(newBucket);
+    }
+  }
+
+  /// Compute a bucket suggestion for this payee (built-in keyword or a
+  /// user-taught rule), shown as a one-tap chip while the row is untagged.
+  Future<void> _maybeSuggestTaxBucket() async {
+    if (_transaction.taxBucket != null) return;
+    final suggestion =
+        await TaxService().suggestionFor(_transaction.merchantName);
+    if (mounted && suggestion != null && _taxBucket == null) {
+      setState(() => _taxSuggestion = suggestion);
+    }
+  }
+
+  /// After tagging, offer to apply the same bucket to every other transaction
+  /// from this payee (and remember it for future ones) — but only for an
+  /// identifying payee, never a placeholder like "UPI Transfer".
+  Future<void> _maybeOfferApplyToAll(String bucket) async {
+    final payee = _transaction.merchantName;
+    if (payee == null || !isIdentifyingTaxPayee(payee)) return;
+    final b = taxBucketById(bucket);
+    if (b == null) return;
+    final l10n = context.l10nRead;
+
+    final apply = await showAppDialog<bool>(
+      context,
+      builder: (ctx) => AppDialog(
+        icon: Icons.receipt_long_rounded,
+        title: l10n.taxApplyAllTitle,
+        subtitle: l10n.taxApplyAllBody(payee, b.section),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l10n.taxApplyAllNo),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(l10n.taxApplyAllYes),
+          ),
+        ],
+      ),
+    );
+    if (apply != true) return;
+
+    final count = await TaxService().saveRuleAndApply(payee, bucket);
+    if (!mounted) return;
+    showAppToast(context,
+        message: l10n.taxApplyAllDone(count), type: AppToastType.success);
+  }
+
   /// Tier-3 nudge banner: "looks like a known person settling up — mark as
   /// settlement?" Tapping opens the sheet with the suggestion pre-selected.
   Widget _buildSettlementSuggestion(AppColors colors) {
@@ -1697,62 +1809,30 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     }
   }
 
-  /// Remove a false positive: delete + tombstone, and optionally mute the
-  /// message shape so similar messages from this sender never log again.
+  /// Remove a false positive. Shares the removal fork with the swipe gesture
+  /// and bulk selection — one dialog, one set of consequences, one place where
+  /// the mute decision is explained — rather than the bespoke checkbox dialog
+  /// this used to own. Picking "Not a transaction" mutes the message shape;
+  /// picking "Just remove this one" keeps the old delete-only behaviour.
   Future<void> _notATransaction() async {
-    var muteSimilar = true;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: Text(ctx.l10n.notATransaction),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(ctx.l10n.notATransactionTagline),
-              const SizedBox(height: 12),
-              CheckboxListTile(
-                value: muteSimilar,
-                onChanged: (v) =>
-                    setDialogState(() => muteSimilar = v ?? false),
-                title: Text(
-                  ctx.l10n.ignoreSimilarMessages,
-                  style: const TextStyle(fontSize: 13),
-                ),
-                contentPadding: EdgeInsets.zero,
-                controlAffinity: ListTileControlAffinity.leading,
-                dense: true,
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(ctx.l10n.commonCancel),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: Text(ctx.l10n.notATransaction),
-            ),
-          ],
-        ),
-      ),
+    if (_transaction.id == null) return;
+
+    final choice = await showRemovalChoiceDialog(
+      context,
+      sender: _transaction.merchantName?.trim().isNotEmpty == true
+          ? _transaction.merchantName!
+          : _transaction.sender,
+      canMute: RemovalService.canMute(_transaction),
     );
-    if (confirmed != true || _transaction.id == null) return;
-    if (muteSimilar && !_transaction.isManual) {
-      await _dbService.addMessageMute(
-        _transaction.sender,
-        _transaction.message,
-      );
-    }
-    await _dbService.deleteTransaction(_transaction.id!);
-    // Cosmetic only: an equipped royal "vanquishes" the removed entry.
-    requestRoyalReaction(RoyalReaction.strike);
+    if (choice == null || !mounted) return;
+
+    await RemovalService.instance.remove([_transaction], choice);
     if (!mounted) return;
     showAppToast(
       context,
-      message: context.l10nRead.entryRemoved,
+      message: choice == TransactionRemoval.notATransaction
+          ? context.l10nRead.entryRemovedMuted
+          : context.l10nRead.entryRemoved,
       type: AppToastType.info,
     );
     Navigator.pop(context, true);
@@ -1824,14 +1904,30 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
               ),
             ),
             const SizedBox(height: 4),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: _confirmLooksRight,
-                icon: const Icon(Icons.check_rounded, size: 18),
-                label: Text(l10n.looksRight),
-                style: TextButton.styleFrom(foregroundColor: amber),
-              ),
+            // Both answers to "is this right?" live here, side by side. The
+            // banner only appears when the reader was unsure — precisely when a
+            // false positive is likely — so this is where "Not a transaction"
+            // earns its place in the open, instead of only in the overflow menu
+            // where nobody found it.
+            Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 4,
+              children: [
+                TextButton.icon(
+                  onPressed: _notATransaction,
+                  icon: const Icon(Icons.playlist_remove_rounded, size: 18),
+                  label: Text(l10n.notATransaction),
+                  style: TextButton.styleFrom(
+                    foregroundColor: colors.textSecondary,
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: _confirmLooksRight,
+                  icon: const Icon(Icons.check_rounded, size: 18),
+                  label: Text(l10n.looksRight),
+                  style: TextButton.styleFrom(foregroundColor: amber),
+                ),
+              ],
             ),
           ],
         ),

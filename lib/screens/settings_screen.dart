@@ -9,6 +9,7 @@ import 'package:open_filex/open_filex.dart';
 import '../app_info.dart';
 import '../l10n/app_strings.dart';
 import '../l10n/l10n.dart';
+import '../models/plus_products.dart';
 import '../models/statement_import_models.dart';
 import '../models/streak_reward.dart';
 import '../providers/theme_provider.dart';
@@ -19,6 +20,7 @@ import '../services/app_lock_service.dart';
 import '../services/axio_import_service.dart';
 import '../services/backup_service.dart';
 import '../services/background_service.dart';
+import '../services/entitlement_service.dart';
 import '../services/export_service.dart';
 import '../services/gamification_service.dart';
 import '../services/statement_import_service.dart';
@@ -33,8 +35,10 @@ import '../widgets/language_picker_sheet.dart';
 import '../widgets/export_options_sheet.dart';
 import '../widgets/import_options_sheet.dart';
 import 'manage_tags_screen.dart';
+import 'plus_screen.dart';
 import 'statement_import_screen.dart';
 import 'streak_rewards_screen.dart';
+import 'tax_screen.dart';
 
 /// Settings screen with theme toggle and auto-scan configuration
 class SettingsScreen extends StatefulWidget {
@@ -63,16 +67,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final GlobalKey _tutBackupKey = GlobalKey();
   final GlobalKey _tutAppearanceKey = GlobalKey();
 
+  /// How many message shapes are currently muted, shown beside "Ignored
+  /// messages" so the effect of "Not a transaction" is visible after the fact.
+  int _mutedShapeCount = 0;
+
   @override
   void initState() {
     super.initState();
     _loadSettings();
+    _loadMutedShapeCount();
     // The user may arrive straight from the system notification-access
     // screen; make the payment-app-alerts tile reflect reality.
     NotificationCaptureService().refreshStatus();
     TutorialService.instance.addListener(_onTutorialTick);
     WidgetsBinding.instance
         .addPostFrameCallback((_) => _maybeShowTutorialTip());
+  }
+
+  Future<void> _loadMutedShapeCount() async {
+    final n = await DatabaseService().countMessageMutes();
+    if (mounted) setState(() => _mutedShapeCount = n);
   }
 
   @override
@@ -320,6 +334,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: SafeArea(child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // Budgetify Plus Section — the answer to "where do I actually buy
+          // this?", and absent for as long as that question has no answer.
+          _buildPlusSection(isDark),
+
           // Appearance Section
           KeyedSubtree(
             key: _tutAppearanceKey,
@@ -804,6 +822,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 10),
+          // Tax deductions: tag deductible spends into 80C/80D/… buckets and
+          // total them for the filing season. An organiser, not tax advice.
+          _buildSettingsCard(
+            isDark: isDark,
+            child: ListTile(
+              leading:
+                  const Icon(Icons.receipt_long_outlined, color: Color(0xFF2AA76F)),
+              title: Text(context.l10n.taxDeductions),
+              subtitle: Text(
+                context.l10n.taxDeductionsDesc,
+                style: TextStyle(
+                  color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
+                ),
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const TaxScreen()),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
           // Message shapes the user told the parser to skip ("not a
           // transaction — ignore similar"), with per-row un-mute.
           _buildSettingsCard(
@@ -818,7 +858,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
                 ),
               ),
-              trailing: const Icon(Icons.chevron_right),
+              // The count makes the mute visible after the fact: choosing
+              // "Not a transaction" silently changes what gets logged, so the
+              // user should be able to see how many shapes they've muted —
+              // and undo one — without opening the list to find out.
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_mutedShapeCount > 0)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.of(context)
+                            .warning
+                            .withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        context.l10n.nMutedShapes(_mutedShapeCount),
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.of(context).warning,
+                        ),
+                      ),
+                    ),
+                  const Icon(Icons.chevron_right),
+                ],
+              ),
               onTap: _openIgnoredMessagesSheet,
             ),
           ),
@@ -945,6 +1013,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// Same hand-off for AI Prediction Mode: cross-fade Home and spotlight the
   /// Insights card that just appeared. Turning it off is silent.
   Future<void> _onAiPredictionChanged(bool enabled) async {
+    // Plus gate (dormant during the free window): turning the mode ON is
+    // Plus-only. Turning it OFF is never gated — a lapsed user must always be
+    // able to undo a setting, even one they can no longer re-enable.
+    if (enabled &&
+        !await PlusScreen.maybePush(context, PlusFeature.aiPredictionMode)) {
+      return;
+    }
+    if (!mounted) return;
     await context.read<AppPreferences>().setAiPredictionMode(enabled);
     if (!enabled) return;
     homeSpotlightRequest.value = 'insights';
@@ -1072,6 +1148,66 @@ class _SettingsScreenState extends State<SettingsScreen> {
         AppThemeVariant.royalIndigo => context.l10n.themeNameRoyalIndigo,
         AppThemeVariant.midnightIndigo => context.l10n.themeNameMidnightIndigo,
       };
+
+  /// The Budgetify Plus section — where a lapsed user goes to buy.
+  ///
+  /// Deliberately ABSENT while the free window runs and nothing is owned: no
+  /// gate has bitten yet, so an upgrade row would be selling the user
+  /// something they already have. It appears the day access lapses, alongside
+  /// the feature gates it is the calm alternative to.
+  Widget _buildPlusSection(bool isDark) {
+    final entitlements = EntitlementService();
+    final owned = entitlements.hasPlus;
+    if (entitlements.trialActive && !owned) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildSectionHeader(context.l10n.plusTitle, isDark),
+        const SizedBox(height: 8),
+        _buildSettingsCard(
+          isDark: isDark,
+          child: _buildPlusTile(isDark, owned: owned),
+        ),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+
+  /// The row itself. Two states:
+  ///
+  ///   * **owned** — a plain confirmation with no chevron and no tap. Sending
+  ///     a paying user back to a screen that sells what they already own is
+  ///     the one version of this row that would feel like a shakedown.
+  ///   * **lapsed** — the ask, named in terms of what comes back rather than
+  ///     what was taken away.
+  Widget _buildPlusTile(bool isDark, {required bool owned}) {
+    return ListTile(
+      leading: Icon(
+        owned ? Icons.workspace_premium_rounded : Icons.auto_awesome_rounded,
+        color: Theme.of(context).colorScheme.primary,
+      ),
+      title: Text(context.l10n.plusTitle),
+      subtitle: Text(
+        owned
+            ? context.l10n.plusSettingsOwnedDesc
+            : context.l10n.plusSettingsLockedDesc,
+        style: TextStyle(
+          color: isDark ? const Color(0xFF8A8D96) : const Color(0xFF6E727C),
+        ),
+      ),
+      trailing: owned ? null : const Icon(Icons.chevron_right, size: 20),
+      onTap: owned ? null : _openPlusScreen,
+    );
+  }
+
+  /// Open the paywall, then rebuild — a purchase or a restore made on that
+  /// screen changes what this row should say.
+  Future<void> _openPlusScreen() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const PlusScreen()),
+    );
+    if (mounted) setState(() {});
+  }
 
   Widget _buildSectionHeader(String title, bool isDark) {
     return Padding(
@@ -1263,6 +1399,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// Bottom sheet listing message shapes the user muted via "Not a
   /// transaction — ignore similar". Deleting a row un-mutes that shape.
   Future<void> _openIgnoredMessagesSheet() async {
+    // Un-muting inside the sheet changes the count behind it.
+    await _showIgnoredMessagesSheet();
+    await _loadMutedShapeCount();
+  }
+
+  Future<void> _showIgnoredMessagesSheet() async {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardColor = isDark ? const Color(0xFF16181E) : Colors.white;
     final textColor = isDark ? Colors.white : Colors.black87;

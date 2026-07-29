@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:budget_tracker/models/plus_products.dart';
@@ -20,12 +21,60 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
     svc.resetForTest();
+    // The production restart is dated in the future, which would put every
+    // seeded install back inside its free window. Neutralised here so the
+    // suite can exercise expired trials; trial_notice_test.dart drives the
+    // restart itself.
+    EntitlementService.debugTrialRestartAt = DateTime.utc(2000);
   });
 
   int daysAgo(int d) =>
       DateTime.now().subtract(Duration(days: d)).millisecondsSinceEpoch;
   int daysAhead(int d) =>
       DateTime.now().add(Duration(days: d)).millisecondsSinceEpoch;
+
+  // Stand in for MainActivity: the package install record, plus the one-value
+  // preferences file Android's automatic backup is allowed to carry.
+  const installChannel = MethodChannel('budgetify/install_info');
+  int? fakeInstallMs;
+  int? fakeAnchorMs;
+  var anchorWrites = <int>[];
+
+  /// Bind the channel. [anchorMs] seeds the backed-up file — non-null is what
+  /// a reinstall looks like once Android has restored it.
+  void mockChannel({int? installMs, int? anchorMs}) {
+    fakeInstallMs = installMs;
+    fakeAnchorMs = anchorMs;
+    anchorWrites = [];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(installChannel, (call) async {
+      switch (call.method) {
+        case 'firstInstallTime':
+          return fakeInstallMs;
+        case 'readTrialAnchor':
+          return fakeAnchorMs;
+        case 'writeTrialAnchor':
+          final ms = (call.arguments as Map)['ms'] as int;
+          anchorWrites.add(ms);
+          fakeAnchorMs = ms;
+          return null;
+        default:
+          return null;
+      }
+    });
+  }
+
+  /// Unbind it entirely — what every non-Android platform, and the background
+  /// isolate, look like from Dart.
+  void unbindChannel() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(installChannel, null);
+  }
+
+  void mockFirstInstall(int? ms) =>
+      ms == null ? unbindChannel() : mockChannel(installMs: ms);
+
+  tearDown(unbindChannel);
 
   group('trial anchor', () {
     test('stamps first-launch once and does not move it on re-init', () async {
@@ -43,8 +92,8 @@ void main() {
     test('trial is active immediately after first launch', () async {
       await svc.initialize();
       expect(svc.trialActive, isTrue);
-      expect(svc.trialDaysLeft, greaterThanOrEqualTo(180));
-      expect(svc.trialDaysLeft, lessThanOrEqualTo(182));
+      expect(svc.trialDaysLeft, greaterThanOrEqualTo(88));
+      expect(svc.trialDaysLeft, lessThanOrEqualTo(90));
     });
 
     test('trial is inactive once the window has elapsed', () async {
@@ -59,6 +108,80 @@ void main() {
     });
   });
 
+  group('install-record floor', () {
+    test('a data wipe cannot buy a fresh window', () async {
+      // "Clear data" leaves no anchor, so initialize() stamps today — but the
+      // package record still knows the app went on 200 days ago.
+      mockFirstInstall(daysAgo(200));
+      await svc.initialize();
+      expect(svc.trialActive, isTrue); // the wipe appeared to work…
+      await svc.applyInstallRecordFloor();
+
+      expect(svc.trialActive, isFalse); // …until the install record spoke
+      expect(svc.firstLaunchAt!.millisecondsSinceEpoch,
+          closeTo(daysAgo(200), 1000));
+    });
+
+    test('the floor persists, so it only has to be read once', () async {
+      mockFirstInstall(daysAgo(200));
+      await svc.initialize();
+      await svc.applyInstallRecordFloor();
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getInt('entitlement_first_launch_at'),
+          closeTo(daysAgo(200), 1000));
+    });
+
+    test('a later install record never moves the anchor forward', () async {
+      // Reinstall-then-restore order: the anchor is already older than the
+      // (fresh) package record, and must survive untouched.
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('entitlement_first_launch_at', daysAgo(200));
+      mockFirstInstall(DateTime.now().millisecondsSinceEpoch);
+      await svc.initialize();
+      await svc.applyInstallRecordFloor();
+
+      expect(svc.trialActive, isFalse);
+      expect(svc.firstLaunchAt!.millisecondsSinceEpoch,
+          closeTo(daysAgo(200), 1000));
+    });
+
+    test('no channel (non-Android, isolate) leaves the anchor alone', () async {
+      mockFirstInstall(null);
+      await svc.initialize();
+      await svc.applyInstallRecordFloor();
+
+      expect(svc.trialActive, isTrue);
+      expect(svc.firstLaunchAt, isNotNull);
+    });
+
+    test('a nonsense install time is ignored', () async {
+      mockFirstInstall(0);
+      await svc.initialize();
+      await svc.applyInstallRecordFloor();
+
+      expect(svc.trialActive, isTrue);
+      expect(svc.trialDaysLeft, greaterThanOrEqualTo(88));
+    });
+
+    test('the gate path never touches the channel', () async {
+      // allowsAsync runs in the background isolate, where an unbound channel
+      // would stall a notification. It must resolve on prefs alone.
+      mockFirstInstall(null);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('entitlement_first_launch_at', daysAgo(200));
+      await prefs.setInt(
+          'entitlement_last_seen_at', DateTime.now().millisecondsSinceEpoch);
+
+      expect(
+        await svc
+            .allowsAsync(PlusFeature.spendingNotifications)
+            .timeout(const Duration(seconds: 2)),
+        isFalse,
+      );
+    });
+  });
+
   group('rollback guard', () {
     test('a last-seen clock in the future drives trial math', () async {
       // Anchored only 10 days ago (normally deep in trial), but a previously
@@ -70,6 +193,90 @@ void main() {
       await svc.initialize();
 
       expect(svc.trialActive, isFalse);
+    });
+  });
+
+  group('portable anchor (the witness that outlives an uninstall)', () {
+    // Android's automatic backup carries exactly one file — a single
+    // timestamp, whitelisted in res/xml/backup_rules.xml — and puts it back
+    // before first launch. Everything else the app owns, the transactions
+    // database above all, is excluded and never leaves the phone.
+
+    test('a restored file older than this install wins', () async {
+      // The reinstall case: fresh install stamps today, Drive hands back a
+      // file saying the real start was 200 days ago. The timestamp is pinned
+      // in a local — daysAgo() reads the wall clock, so recomputing it at
+      // assertion time makes the test fail whenever a millisecond ticks
+      // mid-test.
+      final restored = daysAgo(200);
+      mockChannel(anchorMs: restored);
+      await svc.initialize();
+      expect(svc.trialActive, isTrue, reason: 'fresh stamp, before the sync');
+
+      await svc.syncPortableAnchor();
+
+      expect(svc.firstLaunchAt!.millisecondsSinceEpoch, restored);
+      expect(svc.trialActive, isFalse);
+    });
+
+    test('a restored file cannot push the anchor forward', () async {
+      // Same monotonic rule as every other witness: later is ignored.
+      final stored = daysAgo(200);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('entitlement_first_launch_at', stored);
+      mockChannel(anchorMs: daysAgo(5));
+      await svc.initialize();
+
+      await svc.syncPortableAnchor();
+
+      expect(svc.firstLaunchAt!.millisecondsSinceEpoch, stored);
+      expect(svc.trialActive, isFalse);
+    });
+
+    test('the anchor is written back so the file stays true', () async {
+      // Nothing restored — a genuinely first install. The file has to be
+      // seeded now, or there is nothing to survive the uninstall later.
+      mockChannel();
+      await svc.initialize();
+      final anchor = svc.firstLaunchAt!.millisecondsSinceEpoch;
+
+      await svc.syncPortableAnchor();
+
+      expect(anchorWrites, [anchor]);
+    });
+
+    test('a pulled-back anchor is written back, not the value it replaced',
+        () async {
+      // Order matters: the install-record floor runs first, and the file must
+      // end up holding the older date it just produced. A stale copy here
+      // would quietly undo that on the next reinstall.
+      final installed = daysAgo(200);
+      mockChannel(installMs: installed);
+      await svc.initialize();
+      await svc.applyInstallRecordFloor();
+
+      await svc.syncPortableAnchor();
+
+      expect(anchorWrites, [installed]);
+    });
+
+    test('a file already holding the anchor is not rewritten', () async {
+      mockChannel(anchorMs: daysAgo(200));
+      await svc.initialize();
+      await svc.syncPortableAnchor();
+      await svc.syncPortableAnchor();
+
+      expect(anchorWrites, isEmpty, reason: 'idempotent, no pointless writes');
+    });
+
+    test('no channel leaves the anchor alone and never throws', () async {
+      unbindChannel();
+      await svc.initialize();
+      final before = svc.firstLaunchAt;
+
+      await svc.syncPortableAnchor();
+
+      expect(svc.firstLaunchAt, before);
     });
   });
 
@@ -105,25 +312,135 @@ void main() {
       await svc.importSettings(null);
       await svc.importSettings({'first_launch_at': 'not-an-int'});
       await svc.importSettings({});
+      await svc.importSettings({}, backupCreatedAtMs: 0);
 
       expect(svc.firstLaunchAt, before);
+    });
+
+    test('the backup file stamp ages the anchor on its own', () async {
+      // The tamper case: entitlement block stripped out of a decrypted
+      // backup, but the file was written 200 days ago and says so.
+      await svc.initialize(); // stamps ~now
+      await svc.importSettings(null, backupCreatedAtMs: daysAgo(200));
+
+      expect(svc.trialActive, isFalse);
+    });
+
+    test('the file stamp never moves the anchor forward', () async {
+      await svc.initialize();
+      final before = svc.firstLaunchAt!.millisecondsSinceEpoch;
+      await svc.importSettings({}, backupCreatedAtMs: daysAhead(200));
+
+      expect(svc.firstLaunchAt!.millisecondsSinceEpoch, before);
+    });
+
+    test('the earliest of the two witnesses wins', () async {
+      await svc.initialize();
+      // File written recently, but it carries a much older anchor.
+      await svc.importSettings({'first_launch_at': daysAgo(200)},
+          backupCreatedAtMs: daysAgo(3));
+
+      expect(svc.firstLaunchAt!.millisecondsSinceEpoch,
+          closeTo(daysAgo(200), 1000));
+    });
+
+    test('history with both witnesses stripped spends the window, not resets '
+        'it', () async {
+      // The last way out: decrypt your own backup, drop the entitlement block
+      // AND the envelope's createdAt, re-encrypt, restore. Every witness is
+      // gone and the free window used to start over with a year of tagged
+      // history intact. A backup this app writes always stamps createdAt, so
+      // reaching here at all means the payload was assembled by hand.
+      await svc.initialize(); // fresh reinstall: stamps ~now
+      expect(svc.trialActive, isTrue);
+
+      await svc.importSettings(null, carriesHistory: true);
+
+      expect(svc.trialActive, isFalse);
+      expect(svc.trialDaysLeft, 0);
+    });
+
+    test('an empty payload is still not a reason to end anyone\'s trial',
+        () async {
+      // No history means no evidence of prior use, so nothing is inferred —
+      // this is also what a legitimate day-one backup looks like.
+      await svc.initialize();
+      final before = svc.firstLaunchAt;
+      await svc.importSettings(null, carriesHistory: false);
+      await svc.importSettings({}, carriesHistory: false);
+
+      expect(svc.firstLaunchAt, before);
+      expect(svc.trialActive, isTrue);
+    });
+
+    test('a witness that survives is trusted over the fail-closed floor',
+        () async {
+      // History plus a real anchor: the anchor decides, even when it leaves
+      // most of the window intact. Restoring a genuine one-week-old backup
+      // must not cost the other eighty-three days.
+      await svc.initialize();
+      await svc.importSettings({'first_launch_at': daysAgo(7)},
+          carriesHistory: true);
+
+      expect(svc.firstLaunchAt!.millisecondsSinceEpoch,
+          closeTo(daysAgo(7), 1000));
+      expect(svc.trialActive, isTrue);
+      expect(svc.trialDaysLeft, greaterThan(80));
+    });
+
+    test('the file stamp alone still counts as a witness', () async {
+      // Only the entitlement block was dropped. createdAt survives, so the
+      // fail-closed floor must stay out of it and the real date decide.
+      await svc.initialize();
+      await svc.importSettings(null,
+          backupCreatedAtMs: daysAgo(5), carriesHistory: true);
+
+      expect(svc.firstLaunchAt!.millisecondsSinceEpoch,
+          closeTo(daysAgo(5), 1000));
+      expect(svc.trialActive, isTrue);
+    });
+
+    test('never lengthens a window, whatever the payload claims', () async {
+      // The invariant the whole method rests on: every path can only move the
+      // anchor earlier. An already-expired install cannot be revived by a
+      // hand-built payload, with or without history.
+      await svc.initialize();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('entitlement_first_launch_at', daysAgo(300));
+      svc.resetForTest();
+      await svc.initialize();
+      final before = svc.firstLaunchAt!.millisecondsSinceEpoch;
+
+      await svc.importSettings({'first_launch_at': daysAhead(50)},
+          backupCreatedAtMs: daysAhead(50), carriesHistory: true);
+      expect(svc.firstLaunchAt!.millisecondsSinceEpoch, before);
+
+      await svc.importSettings(null, carriesHistory: true);
+      expect(svc.firstLaunchAt!.millisecondsSinceEpoch, before);
+      expect(svc.trialActive, isFalse);
     });
   });
 
   group('product catalog', () {
     test('Plus SKUs carry the agreed ids and prices', () {
       expect(PlusPlan.monthly.productId, 'plus_monthly');
-      expect(PlusPlan.monthly.priceInr, 29);
+      expect(PlusPlan.monthly.priceInr, 49);
+      expect(PlusPlan.monthly.offerPriceInr, 29);
       expect(PlusPlan.yearly.productId, 'plus_yearly');
-      expect(PlusPlan.yearly.priceInr, 299);
+      expect(PlusPlan.yearly.priceInr, 499);
+      expect(PlusPlan.yearly.offerPriceInr, 299);
       expect(PlusPlan.lifetime.productId, 'plus_lifetime');
-      expect(PlusPlan.lifetime.priceInr, 699);
+      expect(PlusPlan.lifetime.priceInr, 1499);
+      expect(PlusPlan.lifetime.offerPriceInr, 999);
       expect(PlusPlan.byProductId('plus_lifetime'), PlusPlan.lifetime);
       expect(PlusPlan.byProductId('nope'), isNull);
     });
 
-    test('royal products are ₹49 and round-trip their royal id', () {
+    test('royal products are ₹49 (₹29 on offer) and round-trip their id', () {
       expect(kRoyalAvatarPriceInr, 49);
+      expect(kRoyalAvatarOfferPriceInr, 29);
+      expect(royalAvatarPriceInr(onOffer: false), 49);
+      expect(royalAvatarPriceInr(onOffer: true), 29);
       expect(royalProductId('sovereign'), 'royal_sovereign');
       expect(royalIdFromProduct('royal_darkprince'), 'darkprince');
       expect(royalIdFromProduct('plus_monthly'), isNull);

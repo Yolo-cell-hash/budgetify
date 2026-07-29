@@ -452,6 +452,172 @@ class AppStrings {
         'ఇంకా ఏమీ విస్మరించలేదు',
         'இன்னும் எதுவும் புறக்கணிக்கப்படவில்லை',
       );
+  // ── Removal fork ──────────────────────────────────────────────────────
+  // Shown wherever the user removes an SMS-derived row. Deleting only
+  // tombstones that one message, so the same promo template returns next month
+  // with a new amount; muting the shape ends it. Both options therefore state
+  // their consequence outright — that difference is the whole point.
+  String get removeEntryTitle => _t(
+        'Remove this entry?',
+        'यह प्रविष्टि हटाएँ?',
+        'ही नोंद काढायची?',
+        'এই এন্ট্রি সরাবেন?',
+        'ఈ ఎంట్రీని తీసివేయాలా?',
+        'இந்தப் பதிவை நீக்கவா?',
+      );
+  String get removeEntryQuestion => _t(
+        'Was this a real transaction?',
+        'क्या यह असली लेन-देन था?',
+        'हा खरा व्यवहार होता का?',
+        'এটি কি সত্যিকারের লেনদেন ছিল?',
+        'ఇది నిజమైన లావాదేవీనా?',
+        'இது உண்மையான பரிவர்த்தனையா?',
+      );
+  String notATransactionOptionBody(String sender) => _t(
+        'Also skips future messages like this from $sender',
+        '$sender के ऐसे आगामी संदेश भी छोड़ दिए जाएँगे',
+        '$sender चे असे पुढील संदेशही वगळले जातील',
+        '$sender-এর এমন ভবিষ্যৎ বার্তাও বাদ যাবে',
+        '$sender నుండి ఇలాంటి భవిష్యత్ సందేశాలూ దాటవేయబడతాయి',
+        '$sender இன் இதுபோன்ற வரும் செய்திகளும் தவிர்க்கப்படும்',
+      );
+  String get justRemoveThisOne => _t(
+        'Just remove this one',
+        'सिर्फ़ यही हटाएँ',
+        'फक्त हीच काढा',
+        'শুধু এটিই সরান',
+        'ఇది ఒక్కటే తీసివేయి',
+        'இதை மட்டும் நீக்கு',
+      );
+  String get justRemoveThisOneBody => _t(
+        'Similar messages can show up again later',
+        'ऐसे संदेश आगे फिर आ सकते हैं',
+        'असे संदेश पुन्हा येऊ शकतात',
+        'এমন বার্তা পরে আবার আসতে পারে',
+        'ఇలాంటి సందేశాలు మళ్ళీ రావచ్చు',
+        'இதுபோன்ற செய்திகள் மீண்டும் வரலாம்',
+      );
+  String get commonUndo =>
+      _t('Undo', 'वापस लें', 'पूर्ववत', 'ফেরান', 'రద్దు చేయి', 'மீட்டெடு');
+  String get entryRemovedMuted => _t(
+        'Removed — messages like this will be skipped',
+        'हटाया गया — ऐसे संदेश आगे छोड़ दिए जाएँगे',
+        'काढले — असे संदेश पुढे वगळले जातील',
+        'সরানো হয়েছে — এমন বার্তা বাদ যাবে',
+        'తీసివేయబడింది — ఇలాంటి సందేశాలు దాటవేయబడతాయి',
+        'நீக்கப்பட்டது — இதுபோன்ற செய்திகள் தவிர்க்கப்படும்',
+      );
+  String get muteLifted => _t(
+        'Restored — messages like this are allowed again',
+        'बहाल किया गया — ऐसे संदेश फिर से आएँगे',
+        'पुन्हा आणले — असे संदेश पुन्हा येतील',
+        'ফেরানো হয়েছে — এমন বার্তা আবার আসবে',
+        'పునరుద్ధరించబడింది — ఇలాంటి సందేశాలు మళ్ళీ వస్తాయి',
+        'மீட்கப்பட்டது — இதுபோன்ற செய்திகள் மீண்டும் வரும்',
+      );
+  String get cannotUndo => _t(
+        "This one can't be restored",
+        'इसे बहाल नहीं किया जा सकता',
+        'हे पुन्हा आणता येत नाही',
+        'এটি ফেরানো যাবে না',
+        'ఇది పునరుద్ధరించలేము',
+        'இதை மீட்க முடியாது',
+      );
+
+  // ── Tidy up (review triage) ───────────────────────────────────────────
+  String get tidyUp => _t('Tidy up', 'व्यवस्थित करें', 'नीटनेटके करा',
+      'গোছান', 'చక్కబెట్టు', 'ஒழுங்குபடுத்து');
+  String get tidyUpTagline => _t(
+        'Check the entries the reader was unsure about',
+        'जिन प्रविष्टियों पर संदेह था उन्हें जाँचें',
+        'ज्या नोंदींबद्दल शंका होती त्या तपासा',
+        'যেগুলি নিয়ে সংশয় ছিল সেগুলি যাচাই করুন',
+        'సందేహం ఉన్న ఎంట్రీలను తనిఖీ చేయండి',
+        'சந்தேகம் இருந்த பதிவுகளைச் சரிபார்க்கவும்',
+      );
+  String tidyUpProgress(int done, int total) => _t(
+        '$done of $total',
+        '$total में से $done',
+        '$total पैकी $done',
+        '$total-এর মধ্যে $done',
+        '$totalలో $done',
+        '$total இல் $done',
+      );
+  String get tidyUpAllSet => _t('All set', 'सब हो गया', 'सर्व झाले',
+      'সব ঠিক আছে', 'అంతా సిద్ధం', 'அனைத்தும் தயார்');
+  String get tidyUpAllSetBody => _t(
+        'Nothing left to check. The reader learns from every fix you made.',
+        'जाँचने को कुछ नहीं बचा। आपके हर सुधार से ऐप सीखता है।',
+        'तपासण्यासारखे काही उरले नाही. तुमच्या प्रत्येक सुधारणेतून ॲप शिकते.',
+        'যাচাই করার কিছু নেই। আপনার প্রতিটি সংশোধন থেকে অ্যাপ শেখে।',
+        'తనిఖీ చేయడానికి ఏమీ లేదు. మీ ప్రతి సరిదిద్దుడి నుండి యాప్ నేర్చుకుంటుంది.',
+        'சரிபார்க்க எதுவும் இல்லை. உங்கள் ஒவ்வொரு திருத்தத்திலும் ஆப் கற்கிறது.',
+      );
+
+  // ── Bulk selection ────────────────────────────────────────────────────
+  String nSelected(int n) => _t('$n selected', '$n चुने गए', '$n निवडले',
+      '$n নির্বাচিত', '$n ఎంచుకున్నారు', '$n தேர்ந்தெடுக்கப்பட்டது');
+  String get selectAll => _t('Select all', 'सभी चुनें', 'सर्व निवडा',
+      'সব নির্বাচন করুন', 'అన్నీ ఎంచుకో', 'அனைத்தையும் தேர்');
+  String removeNEntriesTitle(int n) => _t(
+        'Remove $n entries?',
+        '$n प्रविष्टियाँ हटाएँ?',
+        '$n नोंदी काढायच्या?',
+        '$n এন্ট্রি সরাবেন?',
+        '$n ఎంట్రీలను తీసివేయాలా?',
+        '$n பதிவுகளை நீக்கவா?',
+      );
+  String notATransactionNBody(int n) => _t(
+        'Also skips future messages like these $n',
+        'इन $n जैसे आगामी संदेश भी छोड़ दिए जाएँगे',
+        'या $n सारखे पुढील संदेशही वगळले जातील',
+        'এই $n-এর মতো ভবিষ্যৎ বার্তাও বাদ যাবে',
+        'ఈ $n లాంటి భవిష్యత్ సందేశాలూ దాటవేయబడతాయి',
+        'இந்த $n போன்ற வரும் செய்திகளும் தவிர்க்கப்படும்',
+      );
+  String nEntriesRemoved(int n) => _t(
+        '$n removed',
+        '$n हटाए गए',
+        '$n काढले',
+        '$n সরানো হয়েছে',
+        '$n తీసివేయబడ్డాయి',
+        '$n நீக்கப்பட்டது',
+      );
+
+  // ── Repeat-deletion nudge ─────────────────────────────────────────────
+  String get repeatDeleteTipTitle => _t(
+        'Seeing this one again?',
+        'यह फिर दिख रहा है?',
+        'हे पुन्हा दिसत आहे?',
+        'এটি আবার দেখছেন?',
+        'ఇది మళ్ళీ కనిపిస్తోందా?',
+        'இது மீண்டும் தெரிகிறதா?',
+      );
+  String get repeatDeleteTipBody => _t(
+        "You've removed this kind of message before. Choose "
+            '"Not a transaction" instead and the app will skip every one of '
+            'them from now on.',
+        'आपने ऐसा संदेश पहले भी हटाया था। इसके बजाय "यह लेन-देन नहीं है" '
+            'चुनें और ऐप आगे ऐसे सभी संदेश छोड़ देगा।',
+        'तुम्ही असा संदेश आधीही काढला होता. त्याऐवजी "हा व्यवहार नाही" '
+            'निवडा आणि ॲप पुढे असे सर्व संदेश वगळेल.',
+        'আপনি এমন বার্তা আগেও সরিয়েছেন। বদলে "এটি লেনদেন নয়" বেছে নিন, '
+            'অ্যাপ এরপর এমন সব বার্তা বাদ দেবে।',
+        'మీరు ఇలాంటి సందేశాన్ని ఇంతకుముందే తీసివేశారు. దానికి బదులు '
+            '"ఇది లావాదేవీ కాదు" ఎంచుకోండి, యాప్ ఇకపై ఇలాంటివన్నీ దాటవేస్తుంది.',
+        'இதுபோன்ற செய்தியை ஏற்கனவே நீக்கியுள்ளீர்கள். அதற்குப் பதிலாக '
+            '"இது பரிவர்த்தனை அல்ல" தேர்ந்தெடுத்தால் ஆப் இனி இவை '
+            'அனைத்தையும் தவிர்க்கும்.',
+      );
+  String nMutedShapes(int n) => _t(
+        '$n muted',
+        '$n अनदेखे',
+        '$n दुर्लक्षित',
+        '$n উপেক্ষিত',
+        '$n విస్మరించినవి',
+        '$n புறக்கணிக்கப்பட்டது',
+      );
+
   String get fixThis =>
       _t('Fix this', 'ठीक करें', 'दुरुस्त करा', 'ঠিক করুন', 'సరిచేయి', 'சரிசெய்');
   String get changeToCredit => _t(
@@ -814,6 +980,164 @@ class AppStrings {
   String get manageTags => _t('Manage Tags', 'टैग प्रबंधित करें', 'टॅग व्यवस्थापित करा', 'ট্যাগ পরিচালনা করুন', 'ట్యాగ్‌లను నిర్వహించు', 'குறிச்சொற்களை நிர்வகி');
   String get manageTagsDesc => _t("Delete tags you don't use",
       'जो टैग आप उपयोग नहीं करते उन्हें हटाएँ', 'तुम्ही वापरत नसलेले टॅग हटवा', 'আপনি যে ট্যাগ ব্যবহার করেন না সেগুলো মুছুন', 'మీరు ఉపయోగించని ట్యాగ్‌లను తొలగించండి', 'நீங்கள் பயன்படுத்தாத குறிச்சொற்களை நீக்கவும்');
+  // ── Tax buckets ────────────────────────────────────────────────────────────
+  // EN/HI/MR translated; BN/TE/TA fall back to English pending native review
+  // (the app ships partial translation incrementally — see class doc).
+  String get taxDeductions => _t('Tax Deductions', 'टैक्स कटौती', 'कर वजावट',
+      'Tax Deductions', 'Tax Deductions', 'Tax Deductions');
+  String get taxDeductionsDesc => _t(
+        'Tag deductible spends and total them for filing',
+        'कटौती योग्य खर्च टैग करें और फाइलिंग के लिए जोड़ें',
+        'वजावटयोग्य खर्च टॅग करा आणि भरण्यासाठी एकत्र करा',
+        'Tag deductible spends and total them for filing',
+        'Tag deductible spends and total them for filing',
+        'Tag deductible spends and total them for filing',
+      );
+  // The single most important string in the feature — it keeps "organiser, not
+  // advisor" explicit everywhere the totals appear.
+  String get taxDisclaimer => _t(
+        'This organises your records — it is not tax advice. Only amounts you tag are totalled here; your CA or the tax portal decides what is actually deductible.',
+        'यह आपके रिकॉर्ड व्यवस्थित करता है — यह टैक्स सलाह नहीं है। यहाँ केवल वही राशि जुड़ती है जो आप टैग करते हैं; क्या वास्तव में कटौती योग्य है, यह आपका CA या टैक्स पोर्टल तय करता है।',
+        'हे तुमचे रेकॉर्ड व्यवस्थित करते — हा कर सल्ला नाही. येथे फक्त तुम्ही टॅग केलेली रक्कमच जोडली जाते; प्रत्यक्षात काय वजावटयोग्य आहे हे तुमचा CA किंवा कर पोर्टल ठरवते.',
+        'This organises your records — it is not tax advice. Only amounts you tag are totalled here; your CA or the tax portal decides what is actually deductible.',
+        'This organises your records — it is not tax advice. Only amounts you tag are totalled here; your CA or the tax portal decides what is actually deductible.',
+        'This organises your records — it is not tax advice. Only amounts you tag are totalled here; your CA or the tax portal decides what is actually deductible.',
+      );
+  String get taxSection => _t('Tax section', 'टैक्स सेक्शन', 'कर विभाग',
+      'Tax section', 'Tax section', 'Tax section');
+  /// Short label for the tax quick-action tile. It shares a row with Split /
+  /// Recurring / Settle up, so it has to stay one short word in every language.
+  String get taxTile => _t('Tax', 'टैक्स', 'कर', 'কর', 'పన్ను', 'வரி');
+  String get taxAddSection => _t('Add tax section', 'टैक्स सेक्शन जोड़ें',
+      'कर विभाग जोडा', 'Add tax section', 'Add tax section', 'Add tax section');
+  String get taxPickSection => _t('Tag a tax section', 'एक टैक्स सेक्शन टैग करें',
+      'एक कर विभाग टॅग करा', 'Tag a tax section', 'Tag a tax section', 'Tag a tax section');
+  String get taxNone => _t('None', 'कोई नहीं', 'काहीही नाही', 'None', 'None', 'None');
+  String taxUsedOfCap(String used, String cap) => _t(
+        '$used of $cap',
+        '$cap में से $used',
+        '$cap पैकी $used',
+        '$used of $cap',
+        '$used of $cap',
+        '$used of $cap',
+      );
+  String taxHeadroom(String amount) => _t(
+        '$amount headroom',
+        '$amount बाकी',
+        '$amount शिल्लक',
+        '$amount headroom',
+        '$amount headroom',
+        '$amount headroom',
+      );
+  String get taxCapReached => _t('Limit reached', 'सीमा पूरी', 'मर्यादा पूर्ण',
+      'Limit reached', 'Limit reached', 'Limit reached');
+  // Evidence-only buckets must never read as a settled deduction.
+  String get taxEvidenceRent => _t(
+        'Total rent paid — your employer or CA computes the HRA exemption',
+        'कुल चुकाया गया किराया — HRA छूट आपका नियोक्ता या CA गणना करता है',
+        'एकूण भरलेले भाडे — HRA सूट तुमचा नियोक्ता किंवा CA मोजतो',
+        'Total rent paid — your employer or CA computes the HRA exemption',
+        'Total rent paid — your employer or CA computes the HRA exemption',
+        'Total rent paid — your employer or CA computes the HRA exemption',
+      );
+  String get taxEvidenceDonation => _t(
+        'Total donations — the deductible share (50% or 100%) depends on the charity',
+        'कुल दान — कटौती योग्य हिस्सा (50% या 100%) संस्था पर निर्भर करता है',
+        'एकूण देणग्या — वजावटयोग्य हिस्सा (50% किंवा 100%) संस्थेवर अवलंबून',
+        'Total donations — the deductible share (50% or 100%) depends on the charity',
+        'Total donations — the deductible share (50% or 100%) depends on the charity',
+        'Total donations — the deductible share (50% or 100%) depends on the charity',
+      );
+  String get taxEmpty => _t(
+        "Nothing tagged for this year yet. Open a transaction and tap 'Tax section' to start.",
+        "इस वर्ष अभी कुछ भी टैग नहीं किया गया। शुरू करने के लिए कोई लेन-देन खोलें और 'टैक्स सेक्शन' टैप करें।",
+        "या वर्षासाठी अजून काहीही टॅग केलेले नाही. सुरू करण्यासाठी एखादा व्यवहार उघडा आणि 'कर विभाग' टॅप करा.",
+        "Nothing tagged for this year yet. Open a transaction and tap 'Tax section' to start.",
+        "Nothing tagged for this year yet. Open a transaction and tap 'Tax section' to start.",
+        "Nothing tagged for this year yet. Open a transaction and tap 'Tax section' to start.",
+      );
+  // Regime setting + the honest new-regime card.
+  String get taxRegime => _t('Tax regime', 'टैक्स व्यवस्था', 'कर प्रणाली',
+      'Tax regime', 'Tax regime', 'Tax regime');
+  String get taxRegimeOld => _t('Old regime', 'पुरानी व्यवस्था', 'जुनी प्रणाली',
+      'Old regime', 'Old regime', 'Old regime');
+  String get taxRegimeNew => _t('New regime', 'नई व्यवस्था', 'नवीन प्रणाली',
+      'New regime', 'New regime', 'New regime');
+  String get taxRegimeUnsure => _t('Not sure', 'पता नहीं', 'खात्री नाही',
+      'Not sure', 'Not sure', 'Not sure');
+  String get taxNewRegimeExplainer => _t(
+        'You file under the new regime, which does not allow most of these deductions (80C, 80D, HRA and so on). Tax buckets stay hidden to avoid implying savings you cannot claim. On the old regime? Change your tax regime to switch this on.',
+        'आप नई व्यवस्था के तहत फाइल करते हैं, जिसमें इनमें से अधिकांश कटौतियाँ (80C, 80D, HRA आदि) मान्य नहीं हैं। ऐसी बचत का भ्रम न हो जो आप ले नहीं सकते, इसलिए टैक्स बकेट छिपे रहते हैं। पुरानी व्यवस्था पर हैं? इसे चालू करने के लिए अपनी टैक्स व्यवस्था बदलें।',
+        'तुम्ही नवीन प्रणालीअंतर्गत भरता, ज्यात यांपैकी बहुतांश वजावटी (80C, 80D, HRA इ.) लागू होत नाहीत. न मिळणाऱ्या बचतीचा भास होऊ नये म्हणून कर बकेट लपवलेले असतात. जुन्या प्रणालीवर आहात? हे सुरू करण्यासाठी तुमची कर प्रणाली बदला.',
+        'You file under the new regime, which does not allow most of these deductions (80C, 80D, HRA and so on). Tax buckets stay hidden to avoid implying savings you cannot claim. On the old regime? Change your tax regime to switch this on.',
+        'You file under the new regime, which does not allow most of these deductions (80C, 80D, HRA and so on). Tax buckets stay hidden to avoid implying savings you cannot claim. On the old regime? Change your tax regime to switch this on.',
+        'You file under the new regime, which does not allow most of these deductions (80C, 80D, HRA and so on). Tax buckets stay hidden to avoid implying savings you cannot claim. On the old regime? Change your tax regime to switch this on.',
+      );
+  String get taxEditLimit => _t('Edit limit', 'सीमा बदलें', 'मर्यादा बदला',
+      'Edit limit', 'Edit limit', 'Edit limit');
+  // Phase 2 — auto-suggest + apply-to-all.
+  String taxSuggestChip(String section) => _t(
+        'Looks like $section — tap to tag',
+        'लगता है $section — टैग करने के लिए टैप करें',
+        '$section वाटतं — टॅग करण्यासाठी टॅप करा',
+        'Looks like $section — tap to tag',
+        'Looks like $section — tap to tag',
+        'Looks like $section — tap to tag',
+      );
+  String get taxApplyAllTitle => _t('Apply to all?', 'सभी पर लागू करें?',
+      'सर्वांना लागू करायचं?', 'Apply to all?', 'Apply to all?', 'Apply to all?');
+  String taxApplyAllBody(String payee, String section) => _t(
+        'Tag every payment to $payee as $section — now and in future?',
+        '$payee को हर भुगतान को $section के रूप में टैग करें — अभी और आगे भी?',
+        '$payee ला होणारे प्रत्येक पेमेंट $section म्हणून टॅग करायचे — आता आणि पुढेही?',
+        'Tag every payment to $payee as $section — now and in future?',
+        'Tag every payment to $payee as $section — now and in future?',
+        'Tag every payment to $payee as $section — now and in future?',
+      );
+  String get taxApplyAllYes => _t('Apply to all', 'सभी पर लागू करें',
+      'सर्वांना लागू करा', 'Apply to all', 'Apply to all', 'Apply to all');
+  String get taxApplyAllNo => _t('Just this one', 'सिर्फ़ यही', 'फक्त हेच',
+      'Just this one', 'Just this one', 'Just this one');
+  String taxApplyAllDone(int count) => _t(
+        'Tagged $count more',
+        '$count और टैग किए',
+        '$count अधिक टॅग केले',
+        'Tagged $count more',
+        'Tagged $count more',
+        'Tagged $count more',
+      );
+  // Phase 3 — Tax Summary export.
+  String get taxExport => _t('Export summary', 'सारांश एक्सपोर्ट करें',
+      'सारांश एक्सपोर्ट करा', 'Export summary', 'Export summary', 'Export summary');
+  String get taxExportPdf =>
+      _t('PDF', 'PDF', 'PDF', 'PDF', 'PDF', 'PDF');
+  String get taxExportPdfDesc => _t(
+        'A printable report to hand your CA',
+        'CA को देने के लिए प्रिंट-योग्य रिपोर्ट',
+        'CA ला देण्यासाठी प्रिंट करण्याजोगा अहवाल',
+        'A printable report to hand your CA',
+        'A printable report to hand your CA',
+        'A printable report to hand your CA',
+      );
+  String get taxExportExcel =>
+      _t('Excel', 'Excel', 'Excel', 'Excel', 'Excel', 'Excel');
+  String get taxExportExcelDesc => _t(
+        'A spreadsheet to transcribe into the ITR portal',
+        'ITR पोर्टल में भरने के लिए स्प्रेडशीट',
+        'ITR पोर्टलमध्ये भरण्यासाठी स्प्रेडशीट',
+        'A spreadsheet to transcribe into the ITR portal',
+        'A spreadsheet to transcribe into the ITR portal',
+        'A spreadsheet to transcribe into the ITR portal',
+      );
+  String get taxExportSaved => _t(
+        'Tax summary saved',
+        'टैक्स सारांश सहेजा गया',
+        'कर सारांश जतन केले',
+        'Tax summary saved',
+        'Tax summary saved',
+        'Tax summary saved',
+      );
+
   String get exportData => _t('Export Data', 'डेटा एक्सपोर्ट करें', 'डेटा एक्सपोर्ट करा', 'ডেটা এক্সপোর্ট করুন', 'డేటాను ఎగుమతి చేయి', 'தரவை ஏற்றுமதி செய்');
   String get exportDataDesc => _t(
         'Excel, CSV, PDF or text — filter by date, type, tag or payee',
@@ -1643,13 +1967,18 @@ class AppStrings {
   String get filtersTitle => _t('Filters', 'फ़िल्टर', 'फिल्टर', 'ফিল্টার', 'ఫిల్టర్‌లు', 'வடிகட்டிகள்');
   String lastNDays(int n) => _t('Last $n days', 'पिछले $n दिन', 'मागील $n दिवस', 'গত $n দিন', 'గత $n రోజులు', 'கடந்த $n நாட்கள்');
   String get summaryWord => _t('Summary', 'सारांश', 'सारांश', 'সারসংক্ষেপ', 'సారాంశం', 'சுருக்கம்');
+  // Deliberately narrower than it used to be. The old wording ("it won't
+  // return on the next scan") let users believe a delete had solved the
+  // problem, when only *this* message is tombstoned — a similar message from
+  // the same template still logs. Say what actually happened, and let the
+  // removal fork be where the permanent option is offered.
   String get txnDeletedToast => _t(
-        "Transaction deleted — it won't return on the next scan",
-        'लेन-देन हटाया गया — यह अगली स्कैन में वापस नहीं आएगा',
-        'व्यवहार हटवला — हे पुढील स्कॅनमध्ये परत येणार नाही',
-        'লেনদেন মুছে ফেলা হয়েছে — এটি পরবর্তী স্ক্যানে আর ফিরবে না',
-        'లావాదేవీ తొలగించబడింది — ఇది తదుపరి స్కాన్‌లో తిరిగి రాదు',
-        'பரிவர்த்தனை நீக்கப்பட்டது — இது அடுத்த ஸ்கேனில் திரும்பி வராது',
+        'Transaction removed',
+        'लेन-देन हटाया गया',
+        'व्यवहार काढला',
+        'লেনদেন সরানো হয়েছে',
+        'లావాదేవీ తీసివేయబడింది',
+        'பரிவர்த்தனை நீக்கப்பட்டது',
       );
   String allOfFilter(String hint) => _t('All $hint', 'सभी $hint', 'सर्व $hint', 'সব $hint', 'అన్నీ $hint', 'அனைத்து $hint');
 
@@ -2932,6 +3261,8 @@ class AppStrings {
         '"$tag" நீக்கப்பட்டது மற்றும் $count பரிவர்த்தனைகளிலிருந்து குறிச்சொல் அகற்றப்பட்டது',
       );
   String deletedTag(String tag) => _t('Deleted "$tag"', '"$tag" हटाया', '"$tag" हटवला', '"$tag" মুছে ফেলা হয়েছে', '"$tag" తొలగించబడింది', '"$tag" நீக்கப்பட்டது');
+  String createdTag(String tag) =>
+      _t('Created "$tag"', '"$tag" बनाया', '"$tag" तयार केला', '"$tag" তৈরি করা হয়েছে', '"$tag" సృష్టించబడింది', '"$tag" உருவாக்கப்பட்டது');
   String restoredTag(String tag) =>
       _t('Restored "$tag"', '"$tag" पुनर्स्थापित किया', '"$tag" पुनर्संचयित केला', '"$tag" পুনরুদ্ধার করা হয়েছে', '"$tag" పునరుద్ధరించబడింది', '"$tag" மீட்டமைக்கப்பட்டது');
   String tagMeta(bool isCustom, int count) {
@@ -3171,12 +3502,6 @@ class AppStrings {
       _t('Active days', 'सक्रिय दिन', 'सक्रिय दिवस', 'সক্রিয় দিন', 'యాక్టివ్ రోజులు', 'செயலில் இருந்த நாட்கள்');
   String wPctOfSpend(int pct) =>
       _t('$pct% of spend', 'खर्च का $pct%', 'खर्चाच्या $pct%', 'খরচের $pct%', 'ఖర్చులో $pct%', 'செலவில் $pct%');
-  String get shareAnimatedWrapped => _t(
-      'Share animated card', 'एनिमेटेड कार्ड साझा करें', 'ॲनिमेटेड कार्ड शेअर करा', 'অ্যানিমেটেড কার্ড শেয়ার করুন', 'యానిమేటెడ్ కార్డ్ షేర్ చేయండి', 'அசையும் அட்டையைப் பகிர்');
-  String get shareStillImage => _t(
-      'Share as still image', 'स्थिर छवि के रूप में साझा करें', 'स्थिर प्रतिमा म्हणून शेअर करा', 'স্থির ছবি হিসেবে শেয়ার করুন', 'స్టిల్ ఇమేజ్‌గా షేర్ చేయండి', 'நிலைப் படமாகப் பகிர்');
-  String get creatingAnimation => _t(
-      'Weaving the animation…', 'एनीमेशन बन रहा है…', 'ॲनिमेशन तयार होत आहे…', 'অ্যানিমেশন তৈরি হচ্ছে…', 'యానిమేషన్ సిద్ధమవుతోంది…', 'அனிமேஷன் உருவாகிறது…');
   String get wrappedAmountsOnNote => _t(
         'Amounts are showing — anything you share will include your real ₹ figures.',
         'राशियाँ दिख रही हैं — आप जो भी साझा करेंगे उसमें आपके असली ₹ आँकड़े होंगे।',
@@ -4393,13 +4718,26 @@ class AppStrings {
         'మీకు నచ్చినవన్నీ ఉంచుకోండి',
         'நீங்கள் விரும்பும் அனைத்தையும் வைத்திருங்கள்',
       );
+  /// Hero copy once the free window has closed — past tense, because the
+  /// features have just stopped.
   String get plusHeroBody => _t(
-        'Your 6 free months included every premium feature. Plus keeps them running — still private, still offline, still yours.',
-        'आपके 6 मुफ़्त महीनों में हर प्रीमियम फ़ीचर शामिल था। Plus उन्हें चालू रखता है — उतना ही निजी, ऑफ़लाइन और आपका।',
-        'तुमच्या 6 मोफत महिन्यांत प्रत्येक प्रीमियम फीचर होते. Plus ते सुरू ठेवते — तितकेच खाजगी, ऑफलाइन आणि तुमचे.',
-        'আপনার ৬টি ফ্রি মাসে প্রতিটি প্রিমিয়াম ফিচার ছিল। Plus সেগুলো চালু রাখে — তেমনই প্রাইভেট, অফলাইন, আপনার।',
-        'మీ 6 ఉచిత నెలల్లో ప్రతి ప్రీమియం ఫీచర్ ఉంది. Plus వాటిని కొనసాగిస్తుంది — అంతే ప్రైవేట్, ఆఫ్‌లైన్, మీదే.',
-        'உங்கள் 6 இலவச மாதங்களில் எல்லா பிரீமியம் அம்சங்களும் இருந்தன. Plus அவற்றைத் தொடரவைக்கிறது — அதே தனியுரிமை, ஆஃப்லைன், உங்களுடையது.',
+        'Your 3 free months included every premium feature. Plus keeps them running — still private, still offline, still yours.',
+        'आपके 3 मुफ़्त महीनों में हर प्रीमियम फ़ीचर शामिल था। Plus उन्हें चालू रखता है — उतना ही निजी, ऑफ़लाइन और आपका।',
+        'तुमच्या 3 मोफत महिन्यांत प्रत्येक प्रीमियम फीचर होते. Plus ते सुरू ठेवते — तितकेच खाजगी, ऑफलाइन आणि तुमचे.',
+        'আপনার ৩টি ফ্রি মাসে প্রতিটি প্রিমিয়াম ফিচার ছিল। Plus সেগুলো চালু রাখে — তেমনই প্রাইভেট, অফলাইন, আপনার।',
+        'మీ 3 ఉచిత నెలల్లో ప్రతి ప్రీమియం ఫీచర్ ఉంది. Plus వాటిని కొనసాగిస్తుంది — అంతే ప్రైవేట్, ఆఫ్‌లైన్, మీదే.',
+        'உங்கள் 3 இலவச மாதங்களில் எல்லா பிரீமியம் அம்சங்களும் இருந்தன. Plus அவற்றைத் தொடரவைக்கிறது — அதே தனியுரிமை, ஆஃப்லைன், உங்களுடையது.',
+      );
+
+  /// Hero copy while the free window is still open — reached from the Settings
+  /// entry, so it must not imply anything has been taken away yet.
+  String get plusHeroBodyTrial => _t(
+        'Every premium feature is on right now, free for 3 months. Plus keeps them running after that — still private, still offline, still yours.',
+        'अभी हर प्रीमियम फ़ीचर चालू है — 3 महीने मुफ़्त। उसके बाद Plus उन्हें चालू रखता है — उतना ही निजी, ऑफ़लाइन और आपका।',
+        'सध्या प्रत्येक प्रीमियम फीचर सुरू आहे — 3 महिने मोफत. त्यानंतर Plus ते सुरू ठेवते — तितकेच खाजगी, ऑफलाइन आणि तुमचे.',
+        'এখন প্রতিটি প্রিমিয়াম ফিচার চালু আছে — ৩ মাস ফ্রি। এরপর Plus সেগুলো চালু রাখে — তেমনই প্রাইভেট, অফলাইন, আপনার।',
+        'ప్రస్తుతం ప్రతి ప్రీమియం ఫీచర్ ఆన్‌లో ఉంది — 3 నెలలు ఉచితం. ఆ తర్వాత Plus వాటిని కొనసాగిస్తుంది — అంతే ప్రైవేట్, ఆఫ్‌లైన్, మీదే.',
+        'இப்போது எல்லா பிரீமியம் அம்சங்களும் இயங்குகின்றன — 3 மாதங்கள் இலவசம். அதன் பிறகு Plus அவற்றைத் தொடரவைக்கிறது — அதே தனியுரிமை, ஆஃப்லைன், உங்களுடையது.',
       );
   String get plusFeaturesHeader => _t(
         'Everything in Plus',
@@ -4448,6 +4786,22 @@ class AppStrings {
         'সব লেনদেনে ওয়ান-ট্যাপ ট্যাগিং',
         'అన్ని లావాదేవీలపై వన్-ట్యాప్ ట్యాగింగ్',
         'எல்லா பரிவர்த்தனைகளிலும் ஒரே-தட்டு டேக்கிங்',
+      );
+  String get plusFeatAiPredictions => _t(
+        'AI predictions & insights',
+        'AI पूर्वानुमान और इनसाइट्स',
+        'AI अंदाज व इनसाइट्स',
+        'AI পূর্বাভাস ও ইনসাইটস',
+        'AI అంచనాలు & అంతర్దృష్టులు',
+        'AI முன்கணிப்புகள் & நுண்ணறிவுகள்',
+      );
+  String get plusFeatTaxExport => _t(
+        'Tax deduction exports',
+        'टैक्स कटौती एक्सपोर्ट',
+        'कर वजावट एक्सपोर्ट',
+        'ট্যাক্স ছাড় এক্সপোর্ট',
+        'పన్ను మినహాయింపు ఎగుమతులు',
+        'வரி விலக்கு ஏற்றுமதிகள்',
       );
   String get plusPlanMonthly => _t('Monthly', 'मासिक', 'मासिक', 'মাসিক', 'నెలవారీ', 'மாதாந்திர');
   String get plusPlanYearly => _t('Yearly', 'वार्षिक', 'वार्षिक', 'বার্ষিক', 'వార్షిక', 'வருடாந்திர');
@@ -4504,6 +4858,26 @@ class AppStrings {
         '$n కొనుగోళ్లు పునరుద్ధరించబడ్డాయి. తిరిగి స్వాగతం!',
         '$n வாங்கியவை மீட்டெடுக்கப்பட்டன. மீண்டும் வரவேற்கிறோம்!',
       );
+  // ── The Settings doorway (the route to the paywall once access lapses) ─
+  //
+  // Two states, one row, and no mention of time: the row simply isn't there
+  // while the free window runs, so it never has a countdown to hide.
+  String get plusSettingsLockedDesc => _t(
+        'Bring back budgets, alerts and exports.',
+        'बजट, अलर्ट और एक्सपोर्ट वापस पाएँ।',
+        'बजेट, अलर्ट आणि एक्सपोर्ट परत मिळवा.',
+        'বাজেট, অ্যালার্ট ও এক্সপোর্ট ফিরিয়ে আনুন।',
+        'బడ్జెట్‌లు, అలర్ట్‌లు, ఎగుమతులను తిరిగి పొందండి.',
+        'பட்ஜெட்கள், எச்சரிக்கைகள், ஏற்றுமதிகளை மீண்டும் பெறுங்கள்.',
+      );
+  String get plusSettingsOwnedDesc => _t(
+        'Plus is active — everything stays unlocked.',
+        'Plus सक्रिय है — सब कुछ अनलॉक रहेगा।',
+        'Plus सक्रिय आहे — सर्व काही अनलॉक राहील.',
+        'Plus সক্রিয় — সবকিছু আনলক থাকবে।',
+        'Plus యాక్టివ్‌గా ఉంది — అన్నీ అన్‌లాక్‌గా ఉంటాయి.',
+        'Plus செயலில் உள்ளது — அனைத்தும் திறந்தே இருக்கும்.',
+      );
   String get plusActive => _t(
         'Plus is active — thank you!',
         'Plus सक्रिय है — धन्यवाद!',
@@ -4512,6 +4886,102 @@ class AppStrings {
         'Plus యాక్టివ్‌గా ఉంది — ధన్యవాదాలు!',
         'Plus செயலில் உள்ளது — நன்றி!',
       );
+  // ── Free-window heads-up (the last fortnight) ─────────────────────────
+  String trialEndingTitle(int days) => _t(
+        days <= 1
+            ? 'Your free access ends tomorrow'
+            : 'Your free access ends in $days days',
+        days <= 1
+            ? 'आपकी मुफ़्त सुविधा कल खत्म हो रही है'
+            : 'आपकी मुफ़्त सुविधा $days दिन में खत्म हो रही है',
+        days <= 1
+            ? 'तुमचा मोफत प्रवेश उद्या संपेल'
+            : 'तुमचा मोफत प्रवेश $days दिवसांत संपेल',
+        days <= 1
+            ? 'আপনার ফ্রি অ্যাক্সেস আগামীকাল শেষ হচ্ছে'
+            : 'আপনার ফ্রি অ্যাক্সেস $days দিনে শেষ হচ্ছে',
+        days <= 1
+            ? 'మీ ఉచిత యాక్సెస్ రేపు ముగుస్తుంది'
+            : 'మీ ఉచిత యాక్సెస్ $days రోజుల్లో ముగుస్తుంది',
+        days <= 1
+            ? 'உங்கள் இலவச அணுகல் நாளை முடிகிறது'
+            : 'உங்கள் இலவச அணுகல் $days நாட்களில் முடிகிறது',
+      );
+  String get trialEndingBody => _t(
+        'Everything you have tracked stays yours, and the app keeps reading your SMS as usual. Only some extras pause — spending alerts, bill reminders and category budgets.',
+        'आपका ट्रैक किया हुआ सब कुछ आपका ही रहेगा, और ऐप हमेशा की तरह आपके SMS पढ़ता रहेगा। सिर्फ़ कुछ अतिरिक्त सुविधाएँ रुकेंगी — खर्च अलर्ट, बिल रिमाइंडर और श्रेणी बजट।',
+        'तुम्ही ट्रॅक केलेले सर्व तुमचेच राहील आणि ॲप नेहमीप्रमाणे तुमचे SMS वाचत राहील. फक्त काही अतिरिक्त गोष्टी थांबतील — खर्च अलर्ट, बिल रिमाइंडर आणि श्रेणी बजेट.',
+        'আপনার ট্র্যাক করা সবকিছু আপনারই থাকবে, আর অ্যাপ আগের মতোই আপনার SMS পড়তে থাকবে। শুধু কিছু অতিরিক্ত সুবিধা থামবে — খরচের অ্যালার্ট, বিল রিমাইন্ডার আর ক্যাটাগরি বাজেট।',
+        'మీరు ట్రాక్ చేసినదంతా మీదే ఉంటుంది, యాప్ ఎప్పటిలాగే మీ SMS చదువుతూనే ఉంటుంది. కొన్ని అదనపు సౌకర్యాలు మాత్రమే ఆగుతాయి — ఖర్చు అలర్ట్‌లు, బిల్ రిమైండర్‌లు, వర్గ బడ్జెట్‌లు.',
+        'நீங்கள் பதிவு செய்த அனைத்தும் உங்களுடையதாகவே இருக்கும், செயலி வழக்கம் போல் உங்கள் SMS-ஐப் படிக்கும். சில கூடுதல் வசதிகள் மட்டுமே நிற்கும் — செலவு எச்சரிக்கைகள், பில் நினைவூட்டல்கள், வகை பட்ஜெட்கள்.',
+      );
+  String get trialEndingCta => _t(
+        'See what stays free',
+        'देखें क्या मुफ़्त रहेगा',
+        'काय मोफत राहील ते पहा',
+        'কী ফ্রি থাকবে দেখুন',
+        'ఉచితంగా ఏమి ఉంటుందో చూడండి',
+        'இலவசமாக என்ன இருக்கும் என்று பாருங்கள்',
+      );
+  String get dismiss => _t(
+        'Dismiss',
+        'हटाएँ',
+        'काढून टाका',
+        'সরান',
+        'తీసివేయండి',
+        'அகற்று',
+      );
+
+  // ── Offer windows (welcome week + festive campaigns) ──────────────────
+  String get plusOfferWelcomeTitle => _t(
+        'Welcome offer',
+        'स्वागत ऑफ़र',
+        'स्वागत ऑफर',
+        'স্বাগত অফার',
+        'స్వాగత ఆఫర్',
+        'வரவேற்பு சலுகை',
+      );
+  String get plusOfferFestiveTitle => _t(
+        'Festive offer',
+        'त्योहार ऑफ़र',
+        'सणासुदीची ऑफर',
+        'উৎসব অফার',
+        'పండుగ ఆఫర్',
+        'பண்டிகை சலுகை',
+      );
+  String get plusOfferEndsToday => _t(
+        'Ends today',
+        'आज समाप्त',
+        'आज संपेल',
+        'আজ শেষ',
+        'ఈరోజు ముగుస్తుంది',
+        'இன்று முடிகிறது',
+      );
+  String plusOfferEndsInDays(int n) => _t(
+        n == 1 ? 'Ends tomorrow' : 'Ends in $n days',
+        n == 1 ? 'कल समाप्त' : '$n दिन में समाप्त',
+        n == 1 ? 'उद्या संपेल' : '$n दिवसांत संपेल',
+        n == 1 ? 'আগামীকাল শেষ' : '$n দিনে শেষ',
+        n == 1 ? 'రేపు ముగుస్తుంది' : '$n రోజుల్లో ముగుస్తుంది',
+        n == 1 ? 'நாளை முடிகிறது' : '$n நாட்களில் முடிகிறது',
+      );
+  String plusOfferSave(int pct) => _t(
+        'SAVE $pct%',
+        '$pct% बचत',
+        '$pct% बचत',
+        '$pct% সাশ্রয়',
+        '$pct% ఆదా',
+        '$pct% சேமிப்பு',
+      );
+  String get plusOfferFootnote => _t(
+        'Offer price for a limited time. Plus goes back to its regular price when the offer ends.',
+        'सीमित समय के लिए ऑफ़र कीमत। ऑफ़र खत्म होने पर Plus अपनी सामान्य कीमत पर लौट आता है।',
+        'मर्यादित काळासाठी ऑफर किंमत. ऑफर संपल्यावर Plus नेहमीच्या किंमतीवर परत येते.',
+        'সীমিত সময়ের জন্য অফার মূল্য। অফার শেষ হলে Plus তার নিয়মিত দামে ফিরে যায়।',
+        'పరిమిత కాలానికి ఆఫర్ ధర. ఆఫర్ ముగిసిన తర్వాత Plus సాధారణ ధరకు తిరిగి వస్తుంది.',
+        'குறுகிய காலத்திற்கு சலுகை விலை. சலுகை முடிந்ததும் Plus வழக்கமான விலைக்குத் திரும்பும்.',
+      );
+
   String get plusFootnote => _t(
         'Billed once through Google Play. No account, no sign-up — purchases stay with your Google account and restore on any reinstall.',
         'Google Play से एक बार बिलिंग। कोई खाता नहीं, कोई साइन-अप नहीं — खरीदारी आपके Google खाते से जुड़ी रहती है और री-इंस्टॉल पर बहाल हो जाती है।',

@@ -9,6 +9,7 @@ import 'custom_tag_service.dart';
 import 'database_service.dart';
 import 'entitlement_service.dart';
 import 'gamification_service.dart';
+import 'tax_service.dart';
 
 /// Result of a restore operation.
 class RestoreResult {
@@ -154,6 +155,9 @@ class BackupService {
     // Trial anchor (first-use timestamp) so the free-window clock survives a
     // reinstall + restore. Silent — never surfaced to the user.
     data['entitlement'] = await EntitlementService().exportSettings();
+    // Tax buckets: regime + cap overrides (the per-transaction tags themselves
+    // ride the transactions table dump above).
+    data['tax_settings'] = await TaxService().exportSettings();
 
     final payloadJson = jsonEncode({
       'magic': _magic,
@@ -174,6 +178,14 @@ class BackupService {
       bytes: Uint8List.fromList(utf8.encode(envelope)),
     );
   }
+
+  /// The envelope's `createdAt` as ms since epoch, or null when it is absent
+  /// or unparseable — a hand-stripped field lands here and simply leaves the
+  /// trial anchor to the other witnesses. Written as a local-time ISO-8601
+  /// string; a cross-timezone restore can be hours off, which is noise against
+  /// a 90-day window.
+  static int? _createdAtMs(Object? raw) =>
+      raw is String ? DateTime.tryParse(raw)?.millisecondsSinceEpoch : null;
 
   /// Let the user pick a backup file, decrypt it, and merge its contents.
   /// Returns null if the user cancelled the file picker.
@@ -217,9 +229,23 @@ class BackupService {
     );
 
     // Restore the trial anchor (earliest first-use wins; never extends the
-    // trial). Kept out of RestoreResult so nothing is surfaced to the user.
+    // trial). The envelope's own createdAt rides along as a second witness to
+    // the install's age — it sits outside the entitlement block, so dropping
+    // that block no longer resets the free window. Kept out of RestoreResult
+    // so nothing is surfaced to the user.
+    //
+    // carriesHistory is read from the PAYLOAD, not from `counts`: restoring
+    // the same backup twice merges no new rows, and that must not read as a
+    // payload with nothing in it.
     await EntitlementService().importSettings(
       (data['entitlement'] as Map?)?.cast<String, dynamic>(),
+      backupCreatedAtMs: _createdAtMs(decoded['createdAt']),
+      carriesHistory: (data['transactions'] as List?)?.isNotEmpty ?? false,
+    );
+
+    // Restore tax regime + cap overrides (absent in pre-feature backups → no-op).
+    await TaxService().importSettings(
+      (data['tax_settings'] as Map?)?.cast<String, dynamic>(),
     );
 
     // Now that classification rules are back, auto-tag any past

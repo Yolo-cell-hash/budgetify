@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 11 and below (android:fullBackupContent).
+
+  An <include> makes the rules a WHITELIST: once one exists, everything not
+  named here is excluded. So this single line is the whole policy — the only
+  thing Android may copy to the user's Google Drive is one timestamp, the date
+  this install began.
+
+  Deliberately absent, and worth naming: the transactions database, Flutter's
+  shared preferences blob (every other setting the app owns), and all app
+  files. None of a user's financial life leaves the phone, which is what the
+  privacy policy promises and what the missing INTERNET permission enforces
+  for the app itself.
+
+  Why back up anything at all: the date is what stops a reinstall from handing
+  out a second free trial. Android restores it before first launch, so an
+  honest reinstall resumes the window it was already in.
+
+  The path must match MainActivity.TRIAL_ANCHOR_PREFS + ".xml".
+-->
+<full-backup-content>
+    <include domain="sharedpref" path="budgetify_trial_anchor.xml" />
+</full-backup-content>

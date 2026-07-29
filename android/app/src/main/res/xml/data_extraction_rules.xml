@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12 and above (android:dataExtractionRules). Same policy as
+  backup_rules.xml, which covers Android 11 and below; both must ship, and
+  both must say the same thing.
+
+  <cloud-backup>   — what may go to the user's Google Drive.
+  <device-transfer> — what may go phone-to-phone when they upgrade.
+
+  Both are whitelists once an <include> appears, so this names the one file
+  that travels: a single timestamp, the date this install began. The
+  transactions database, Flutter's preferences blob and every app file stay
+  where they are.
+
+  device-transfer carries the same date on purpose. Moving to a new phone is
+  the same person continuing the same install, and they should keep the free
+  window they were already in — neither losing days nor gaining a fresh 90.
+
+  The path must match MainActivity.TRIAL_ANCHOR_PREFS + ".xml".
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <include domain="sharedpref" path="budgetify_trial_anchor.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="sharedpref" path="budgetify_trial_anchor.xml" />
+    </device-transfer>
+</data-extraction-rules>

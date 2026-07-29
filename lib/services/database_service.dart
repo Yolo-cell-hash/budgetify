@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/transaction_model.dart';
@@ -34,7 +36,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 25,
+      version: 28,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -60,7 +62,8 @@ class DatabaseService {
         fingerprint TEXT,
         split_share REAL,
         review_reasons TEXT,
-        parse_source TEXT
+        parse_source TEXT,
+        tax_bucket TEXT
       )
     ''');
 
@@ -73,6 +76,9 @@ class DatabaseService {
     );
     await db.execute(
       'CREATE INDEX idx_transactions_merchant ON transactions(merchant_name)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_transactions_tax_bucket ON transactions(tax_bucket)',
     );
     await db.execute(
       'CREATE UNIQUE INDEX idx_transactions_fingerprint ON transactions(fingerprint)',
@@ -165,7 +171,20 @@ class DatabaseService {
     // transaction — ignore similar") and direction overrides.
     await db.execute(_createMessageMutesTable);
     await db.execute(_createParseOverridesTable);
+
+    // "Apply to all from LIC → 80C": user-taught payee→bucket tax rules.
+    await db.execute(_createTaxBucketRulesTable);
   }
+
+  static const String _createTaxBucketRulesTable = '''
+      CREATE TABLE IF NOT EXISTS tax_bucket_rules(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        payee TEXT NOT NULL,
+        bucket TEXT NOT NULL,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        created_at INTEGER NOT NULL
+      )
+    ''';
 
   static const String _createDeletedTransactionsTable = '''
       CREATE TABLE IF NOT EXISTS deleted_transactions(
@@ -174,6 +193,7 @@ class DatabaseService {
         message TEXT,
         detected_at INTEGER,
         deleted_at INTEGER NOT NULL,
+        payload TEXT,
         amount REAL,
         type INTEGER,
         sender TEXT
@@ -700,6 +720,46 @@ class DatabaseService {
     }
 
     if (oldVersion < 25) {
+      // Tax buckets: a second, orthogonal deduction label on a transaction
+      // (see docs/tax-buckets-plan.md). Additive nullable column — every
+      // existing row simply has no bucket, and nothing outside the Tax screen
+      // reads it, so the upgrade is invisible to existing behaviour.
+      try {
+        await db.execute(
+          'ALTER TABLE transactions ADD COLUMN tax_bucket TEXT',
+        );
+      } catch (_) {
+        // Column already present (fresh install that raced an upgrade).
+      }
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_transactions_tax_bucket '
+        'ON transactions(tax_bucket)',
+      );
+    }
+
+    if (oldVersion < 26) {
+      // Tax-buckets Phase 2: user-taught payee→bucket rules ("apply to all
+      // from LIC → 80C"). Additive; absent for anyone who never uses it.
+      await db.execute(_createTaxBucketRulesTable);
+    }
+
+    if (oldVersion < 27) {
+      // Undo for a removed transaction. The tombstone used to record only
+      // enough to stop a re-import (fingerprint + message + timestamp), which
+      // cannot rebuild a row. It now also carries the full row as JSON, so
+      // "Undo" survives an app restart instead of living in memory.
+      // Additive and nullable: tombstones written before this upgrade simply
+      // have no payload and are reported as not restorable.
+      try {
+        await db.execute(
+          'ALTER TABLE deleted_transactions ADD COLUMN payload TEXT',
+        );
+      } catch (_) {
+        // Column already present (fresh install that raced an upgrade).
+      }
+    }
+
+    if (oldVersion < 28) {
       // Notification capture: tombstones grow amount/type/sender so a
       // payment the user deleted can be recognised by its OTHER capture
       // channel (the SMS twin of a deleted app-notification row and vice
@@ -854,12 +914,185 @@ class DatabaseService {
     );
   }
 
+  /// Set (or clear, with null) the tax-deduction bucket on one transaction.
+  /// A targeted single-column write so tagging never rewrites the whole row.
+  Future<int> setTaxBucket(int transactionId, String? bucketId) async {
+    final db = await database;
+    return db.update(
+      'transactions',
+      {'tax_bucket': bucketId},
+      where: 'id = ?',
+      whereArgs: [transactionId],
+    );
+  }
+
+  /// Sum of transaction amounts per tax bucket within the half-open window
+  /// [start, endExclusive) — the FY window. Returns bucket id → total, only
+  /// for buckets that have at least one tagged transaction. Uses the full
+  /// [amount] (not split share): a deduction claim is the money that actually
+  /// left for that instrument, independent of any budget-split bookkeeping.
+  Future<Map<String, double>> sumByTaxBucket({
+    required DateTime start,
+    required DateTime endExclusive,
+  }) async {
+    final db = await database;
+    final rows = await db.rawQuery(
+      'SELECT tax_bucket AS bucket, SUM(amount) AS total '
+      'FROM transactions '
+      'WHERE tax_bucket IS NOT NULL '
+      'AND detected_at >= ? AND detected_at < ? '
+      'GROUP BY tax_bucket',
+      [start.millisecondsSinceEpoch, endExclusive.millisecondsSinceEpoch],
+    );
+    return {
+      for (final r in rows)
+        (r['bucket'] as String): ((r['total'] as num?)?.toDouble() ?? 0),
+    };
+  }
+
+  /// The transactions tagged to [bucketId] within [start, endExclusive),
+  /// newest first — the contributing rows a bucket's detail view (and the
+  /// Phase-3 export) lists.
+  Future<List<TransactionModel>> transactionsForTaxBucket({
+    required String bucketId,
+    required DateTime start,
+    required DateTime endExclusive,
+  }) async {
+    final db = await database;
+    final maps = await db.query(
+      'transactions',
+      where: 'tax_bucket = ? AND detected_at >= ? AND detected_at < ?',
+      whereArgs: [
+        bucketId,
+        start.millisecondsSinceEpoch,
+        endExclusive.millisecondsSinceEpoch,
+      ],
+      orderBy: 'detected_at DESC',
+    );
+    return maps.map(TransactionModel.fromMap).toList();
+  }
+
+  // ── Tax-bucket rules (payee → bucket, user-taught) ──────────────────────────
+
+  /// Active payee→bucket tax rules as raw maps ({payee, bucket}).
+  Future<List<Map<String, Object?>>> getActiveTaxRules() async {
+    final db = await database;
+    return db.query('tax_bucket_rules',
+        columns: ['payee', 'bucket'], where: 'is_active = 1');
+  }
+
+  /// Upsert a payee→bucket rule. Matching is by normalised payee, so
+  /// re-tagging the same payee updates its rule rather than duplicating it.
+  Future<void> upsertTaxRule(String payee, String bucket) async {
+    final db = await database;
+    final norm = _normTaxPayee(payee);
+    final existing = await db.query('tax_bucket_rules');
+    for (final row in existing) {
+      if (_normTaxPayee(row['payee'] as String? ?? '') == norm) {
+        await db.update(
+          'tax_bucket_rules',
+          {'bucket': bucket, 'is_active': 1},
+          where: 'id = ?',
+          whereArgs: [row['id']],
+        );
+        return;
+      }
+    }
+    await db.insert('tax_bucket_rules', {
+      'payee': payee,
+      'bucket': bucket,
+      'is_active': 1,
+      'created_at': DateTime.now().millisecondsSinceEpoch,
+    });
+  }
+
+  static String _normTaxPayee(String s) =>
+      s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+
+  /// The bucket a user rule assigns to [payee], or null. Normalised
+  /// containment either way, mirroring the category-rules matcher.
+  Future<String?> findMatchingTaxRule(String? payee) async {
+    if (payee == null || payee.isEmpty) return null;
+    final norm = _normTaxPayee(payee);
+    if (norm.isEmpty) return null;
+    for (final rule in await getActiveTaxRules()) {
+      final rp = _normTaxPayee(rule['payee'] as String? ?? '');
+      if (rp.isEmpty) continue;
+      if (norm.contains(rp) || rp.contains(norm)) {
+        return rule['bucket'] as String?;
+      }
+    }
+    return null;
+  }
+
+  /// Tag every transaction matching [payee] that has NO tax bucket yet with
+  /// [bucket] — the "apply to all from LIC" bulk action. Never overwrites a
+  /// bucket the user set explicitly. Returns the number of rows tagged.
+  Future<int> bulkSetTaxBucketByPayee(String payee, String bucket) async {
+    final db = await database;
+    final norm = _normTaxPayee(payee);
+    if (norm.isEmpty) return 0;
+    final rows = await db.query('transactions',
+        columns: ['id', 'merchant_name'], where: 'tax_bucket IS NULL');
+    var tagged = 0;
+    for (final row in rows) {
+      final m = row['merchant_name'] as String?;
+      if (m == null) continue;
+      final nm = _normTaxPayee(m);
+      if (nm.isEmpty) continue;
+      if (nm.contains(norm) || norm.contains(nm)) {
+        await db.update('transactions', {'tax_bucket': bucket},
+            where: 'id = ?', whereArgs: [row['id']]);
+        tagged++;
+      }
+    }
+    return tagged;
+  }
+
+  /// Apply every active tax rule to transactions with no bucket yet — the
+  /// lazy "forever" sweep, run when the Tax screen opens (and after a restore),
+  /// so a rule taught once keeps tagging future matching transactions without
+  /// touching the SMS insert path. Returns the number newly tagged.
+  Future<int> applyTaxRulesToUntagged() async {
+    final rules = await getActiveTaxRules();
+    if (rules.isEmpty) return 0;
+    final db = await database;
+    final rows = await db.query('transactions',
+        columns: ['id', 'merchant_name'], where: 'tax_bucket IS NULL');
+    var applied = 0;
+    for (final row in rows) {
+      final m = row['merchant_name'] as String?;
+      if (m == null) continue;
+      final nm = _normTaxPayee(m);
+      if (nm.isEmpty) continue;
+      for (final rule in rules) {
+        final rp = _normTaxPayee(rule['payee'] as String? ?? '');
+        if (rp.isEmpty) continue;
+        if (nm.contains(rp) || rp.contains(nm)) {
+          await db.update('transactions', {'tax_bucket': rule['bucket']},
+              where: 'id = ?', whereArgs: [row['id']]);
+          applied++;
+          break;
+        }
+      }
+    }
+    return applied;
+  }
+
   /// Delete a transaction.
   ///
-  /// SMS-derived transactions get a tombstone first so the same SMS is not
-  /// re-imported by the next inbox scan. Manual transactions don't need
-  /// one — nothing re-creates them.
-  Future<int> deleteTransaction(int id) async {
+  /// Every deletion writes a tombstone. For SMS-derived rows the fingerprint
+  /// stops the next inbox scan re-importing the same message; for every row,
+  /// manual included, the tombstone also carries the full record as JSON so
+  /// [restoreTransaction] can put it back. Manual rows have no fingerprint, so
+  /// their tombstones never match an incoming SMS.
+  Future<int> deleteTransaction(int id) async =>
+      (await deleteTransactionForUndo(id)).$1;
+
+  /// [deleteTransaction] plus the tombstone's row id, so a caller can offer an
+  /// Undo. Returns `(rowsDeleted, tombstoneId)`; the tombstone id is null when
+  /// there was nothing to delete.
+  Future<(int, int?)> deleteTransactionForUndo(int id) async {
     final db = await database;
 
     final rows = await db.query(
@@ -868,23 +1101,87 @@ class DatabaseService {
       whereArgs: [id],
       limit: 1,
     );
-    if (rows.isNotEmpty && (rows.first['is_manual'] as int? ?? 0) == 0) {
-      final row = rows.first;
-      await db.insert('deleted_transactions', {
-        'fingerprint': row['fingerprint'],
-        'message': row['message'],
-        'detected_at': row['detected_at'],
-        'deleted_at': DateTime.now().millisecondsSinceEpoch,
-        // Fuzzy identity for the twin-capture guard: lets a deletion made
-        // via one channel (SMS or app notification) also block the same
-        // payment arriving through the other, whose fingerprint differs.
-        'amount': row['amount'],
-        'type': row['type'],
-        'sender': row['sender'],
-      });
+    if (rows.isEmpty) return (0, null);
+
+    final row = rows.first;
+    final isManual = (row['is_manual'] as int? ?? 0) == 1;
+    final tombstoneId = await db.insert('deleted_transactions', {
+      // Manual rows deliberately store no fingerprint/message key: nothing
+      // re-creates them, so their tombstone exists only to power Undo.
+      'fingerprint': isManual ? null : row['fingerprint'],
+      'message': isManual ? null : row['message'],
+      'detected_at': isManual ? null : row['detected_at'],
+      'deleted_at': DateTime.now().millisecondsSinceEpoch,
+      'payload': jsonEncode(row),
+      // Fuzzy identity for the twin-capture guard: lets a deletion made via
+      // one channel (SMS or app notification) also block the same payment
+      // arriving through the other, whose fingerprint differs. Withheld for
+      // manual rows for the same reason as the keys above — nothing
+      // re-creates a manual entry, so its tombstone must not silently veto a
+      // real capture that happens to share its amount and its minute.
+      'amount': isManual ? null : row['amount'],
+      'type': isManual ? null : row['type'],
+      'sender': isManual ? null : row['sender'],
+    });
+
+    final n = await db.delete('transactions', where: 'id = ?', whereArgs: [id]);
+    return (n, tombstoneId);
+  }
+
+  /// Put a deleted transaction back from its tombstone and drop the tombstone,
+  /// so a later inbox scan treats the row as present rather than deleted.
+  ///
+  /// Returns the restored row, or null when the tombstone is gone or predates
+  /// the payload column (schema < 27) and therefore can't be rebuilt.
+  Future<TransactionModel?> restoreTransaction(int tombstoneId) async {
+    final db = await database;
+
+    final rows = await db.query(
+      'deleted_transactions',
+      where: 'id = ?',
+      whereArgs: [tombstoneId],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    final payload = rows.first['payload'] as String?;
+    if (payload == null || payload.isEmpty) return null;
+
+    final map = Map<String, Object?>.from(
+      jsonDecode(payload) as Map<String, dynamic>,
+    );
+
+    // Keep the original id where it is still free, so anything that referenced
+    // this transaction keeps pointing at it. If it has since been taken, fall
+    // back to a fresh id rather than clobbering an unrelated row.
+    final id = map['id'];
+    if (id != null) {
+      final clash = await db.query(
+        'transactions',
+        columns: ['id'],
+        where: 'id = ?',
+        whereArgs: [id],
+        limit: 1,
+      );
+      if (clash.isNotEmpty) map.remove('id');
     }
 
-    return await db.delete('transactions', where: 'id = ?', whereArgs: [id]);
+    final newId = await db.insert('transactions', map);
+    await db.delete(
+      'deleted_transactions',
+      where: 'id = ?',
+      whereArgs: [tombstoneId],
+    );
+
+    final restored = await db.query(
+      'transactions',
+      where: 'id = ?',
+      whereArgs: [map['id'] ?? newId],
+      limit: 1,
+    );
+    notifyAppDataChanged();
+    return restored.isEmpty
+        ? null
+        : TransactionModel.fromMap(restored.first);
   }
 
   /// Rows that could be the "other capture" of one real payment: same type,
@@ -994,6 +1291,29 @@ class DatabaseService {
       orderBy: 'detected_at DESC',
     );
     return maps.map((map) => TransactionModel.fromMap(map)).toList();
+  }
+
+  /// Rows the parser flagged for a human look, oldest first — the tidy-up
+  /// queue works through the backlog rather than the newest arrival.
+  Future<List<TransactionModel>> getNeedsReviewTransactions() async {
+    final db = await database;
+    final maps = await db.query(
+      'transactions',
+      where: "review_reasons IS NOT NULL AND review_reasons != ''",
+      orderBy: 'detected_at ASC',
+    );
+    return maps.map((map) => TransactionModel.fromMap(map)).toList();
+  }
+
+  /// How many rows still carry review flags. Drives the Home tidy-up prompt,
+  /// which stays hidden at zero.
+  Future<int> countNeedsReview() async {
+    final db = await database;
+    final rows = await db.rawQuery(
+      "SELECT COUNT(*) AS n FROM transactions "
+      "WHERE review_reasons IS NOT NULL AND review_reasons != ''",
+    );
+    return (rows.first['n'] as int?) ?? 0;
   }
 
   /// Get transactions by category
@@ -2166,6 +2486,75 @@ class DatabaseService {
     return n;
   }
 
+  /// Lift the mute this message's shape created — the undo half of
+  /// [addMessageMute], used when the user takes back a "not a transaction".
+  Future<int> removeMessageMuteFor(String sender, String message) async {
+    final db = await database;
+    final n = await db.delete(
+      'message_mutes',
+      where: 'sender_core = ? AND signature = ?',
+      whereArgs: [
+        SmsParserService.normalizeSender(sender),
+        messageSignature(message),
+      ],
+    );
+    notifyAppDataChanged();
+    return n;
+  }
+
+  /// How many message shapes the user has muted — drives the Settings row's
+  /// count so "Ignored messages" isn't a silent, unexplained list.
+  Future<int> countMessageMutes() async {
+    final db = await database;
+    final rows = await db.rawQuery(
+      'SELECT COUNT(*) AS n FROM message_mutes',
+    );
+    return (rows.first['n'] as int?) ?? 0;
+  }
+
+  /// Whether an earlier deletion already tombstoned this same message shape
+  /// from this same sender. True means the user is deleting a repeat of
+  /// something they removed before — the moment worth pointing out that
+  /// "Not a transaction" would have stopped the whole template.
+  ///
+  /// Matches on the payload's sender + signature. Tombstones written before
+  /// schema 27 have no payload, so they fall back to a signature-only match on
+  /// the stored message.
+  Future<bool> hasEarlierDeletionOfShape(String sender, String message) async {
+    final db = await database;
+    final target = messageSignature(message);
+    final senderCore = SmsParserService.normalizeSender(sender);
+
+    final rows = await db.query(
+      'deleted_transactions',
+      columns: ['message', 'payload'],
+      orderBy: 'deleted_at DESC',
+      limit: 400,
+    );
+
+    for (final row in rows) {
+      final payload = row['payload'] as String?;
+      if (payload != null && payload.isNotEmpty) {
+        try {
+          final map = jsonDecode(payload) as Map<String, dynamic>;
+          final m = map['message'] as String?;
+          final s = map['sender'] as String?;
+          if (m == null || s == null) continue;
+          if (messageSignature(m) == target &&
+              SmsParserService.normalizeSender(s) == senderCore) {
+            return true;
+          }
+        } catch (_) {
+          // Unreadable payload — fall through to the message-only check.
+        }
+        continue;
+      }
+      final m = row['message'] as String?;
+      if (m != null && messageSignature(m) == target) return true;
+    }
+    return false;
+  }
+
   /// Teach the parser that this message shape's direction is [correctType]:
   /// flips the stored row, resolves the direction review flag, and
   /// remembers the correction for every future message of the same shape.
@@ -2839,6 +3228,7 @@ class DatabaseService {
       'payee_aliases': await db.query('payee_aliases'),
       'message_mutes': await db.query('message_mutes'),
       'parse_overrides': await db.query('parse_overrides'),
+      'tax_bucket_rules': await db.query('tax_bucket_rules'),
     };
   }
 
@@ -2965,6 +3355,17 @@ class DatabaseService {
           conflictAlgorithm: ConflictAlgorithm.ignore,
         );
       }
+    }
+
+    // Tax payee→bucket rules: upsert by normalised payee so a restore never
+    // duplicates a rule the device already learned.
+    for (final raw in (data['tax_bucket_rules'] as List? ?? const [])) {
+      final row = Map<String, dynamic>.from(raw as Map);
+      final payee = row['payee'] as String?;
+      final bucket = row['bucket'] as String?;
+      if (payee == null || bucket == null) continue;
+      if ((row['is_active'] as int? ?? 1) == 0) continue;
+      await upsertTaxRule(payee, bucket);
     }
 
     for (final raw in (data['holdings'] as List? ?? const [])) {

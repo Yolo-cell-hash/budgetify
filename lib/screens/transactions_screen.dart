@@ -4,10 +4,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../l10n/l10n.dart';
 import '../models/transaction_model.dart';
 import '../providers/theme_provider.dart';
-import '../services/app_events.dart';
 import '../services/database_service.dart';
+import '../services/removal_service.dart';
 import '../services/tutorial_service.dart';
+import '../widgets/app_dialog.dart';
 import '../widgets/app_toast.dart';
+import '../widgets/removal_choice_dialog.dart';
 import '../widgets/transaction_card.dart';
 import 'transaction_detail_screen.dart';
 import 'add_transaction_screen.dart';
@@ -93,6 +95,16 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   static const String _swipeHintKey = 'swipe_to_delete_hint_shown_v1';
   bool _showSwipeHint = false;
 
+  // One-time nudge, fired the first time the user removes a message shape they
+  // have already removed before — proof they're on the delete treadmill.
+  static const String _repeatTipKey = 'repeat_delete_tip_shown_v1';
+  bool _repeatTipShown = true; // assume shown until prefs say otherwise
+
+  // Bulk selection. Empty set == not in selection mode, so a single flag can't
+  // drift out of sync with the selection itself.
+  final Set<int> _selectedIds = {};
+  bool get _selectionMode => _selectedIds.isNotEmpty;
+
   // Tour anchor for the "open this transaction" tip.
   final GlobalKey _firstCardKey = GlobalKey();
 
@@ -142,9 +154,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   Future<void> _loadSwipeHintFlag() async {
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
-    if (!(prefs.getBool(_swipeHintKey) ?? false)) {
-      setState(() => _showSwipeHint = true);
-    }
+    final repeatShown = prefs.getBool(_repeatTipKey) ?? false;
+    setState(() {
+      if (!(prefs.getBool(_swipeHintKey) ?? false)) _showSwipeHint = true;
+      _repeatTipShown = repeatShown;
+    });
   }
 
   Future<void> _markSwipeHintShown() async {
@@ -364,19 +378,128 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     };
   }
 
-  Future<void> _deleteTransaction(TransactionModel transaction) async {
-    if (transaction.id == null) return;
+  /// Carry out a removal the user already confirmed in the fork, then offer an
+  /// Undo. The royal reaction is chosen inside [RemovalService] so a correction
+  /// and a bare delete never look alike.
+  Future<void> _removeTransactions(
+    List<TransactionModel> transactions,
+    TransactionRemoval choice,
+  ) async {
+    if (transactions.isEmpty) return;
 
-    await _dbService.deleteTransaction(transaction.id!);
+    // Whether this is a repeat of a shape the user already deleted — read
+    // before the removal writes its own tombstone, or every delete looks like
+    // a repeat of itself.
+    final nudge = choice == TransactionRemoval.deleteOnly &&
+            transactions.length == 1 &&
+            !_repeatTipShown &&
+            RemovalService.canMute(transactions.first)
+        ? await _dbService.hasEarlierDeletionOfShape(
+            transactions.first.sender, transactions.first.message)
+        : false;
+
+    final receipt =
+        await RemovalService.instance.remove(transactions, choice);
     await _loadTransactions();
-    // Cosmetic only: an equipped royal "vanquishes" the removed entry.
-    requestRoyalReaction(RoyalReaction.strike);
+    if (!mounted) return;
 
-    if (mounted) {
-      showAppToast(context,
-          message: context.l10nRead.txnDeletedToast,
-          type: AppToastType.info);
-    }
+    final l10n = context.l10nRead;
+    showAppToast(
+      context,
+      message: receipt.mutedAnything
+          ? l10n.entryRemovedMuted
+          : transactions.length > 1
+              ? l10n.nEntriesRemoved(receipt.count)
+              : l10n.txnDeletedToast,
+      type: AppToastType.info,
+      actionLabel: receipt.isRestorable ? l10n.commonUndo : null,
+      onAction: receipt.isRestorable ? () => _undoRemoval(receipt) : null,
+    );
+
+    if (nudge) _showRepeatDeleteTip();
+  }
+
+  Future<void> _undoRemoval(RemovalReceipt receipt) async {
+    final restored = await RemovalService.instance.undo(receipt);
+    await _loadTransactions();
+    if (!mounted) return;
+    showAppToast(
+      context,
+      message: restored == 0
+          ? context.l10nRead.cannotUndo
+          : receipt.mutedAnything
+              ? context.l10nRead.muteLifted
+              : context.l10nRead.nEntriesRemoved(restored),
+      type: restored == 0 ? AppToastType.error : AppToastType.success,
+    );
+  }
+
+  /// The user just deleted a message shape they had already deleted before —
+  /// exactly the treadmill that makes people report the app as broken. Say once
+  /// that "Not a transaction" ends it, then never mention it again.
+  Future<void> _showRepeatDeleteTip() async {
+    _repeatTipShown = true;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_repeatTipKey, true);
+    if (!mounted) return;
+    final l10n = context.l10nRead;
+    await showAppDialog<void>(
+      context,
+      builder: (ctx) => AppDialog(
+        icon: Icons.playlist_remove_rounded,
+        accent: AppColors.of(ctx).warning,
+        title: l10n.repeatDeleteTipTitle,
+        subtitle: l10n.repeatDeleteTipBody,
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(l10n.commonDone),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Bulk selection ───────────────────────────────────────────────────
+  // Long-press enters selection mode. Besides making bulk corrections possible
+  // at all, this is the visible, non-gesture alternative to swiping that the
+  // list previously lacked entirely.
+
+  void _toggleSelection(TransactionModel t) {
+    final id = t.id;
+    if (id == null) return;
+    setState(() {
+      if (!_selectedIds.remove(id)) _selectedIds.add(id);
+    });
+  }
+
+  void _clearSelection() => setState(_selectedIds.clear);
+
+  void _selectAll() => setState(() {
+        _selectedIds
+          ..clear()
+          ..addAll(_transactions.map((t) => t.id).whereType<int>());
+      });
+
+  List<TransactionModel> get _selectedTransactions =>
+      _transactions.where((t) => _selectedIds.contains(t.id)).toList();
+
+  /// Bulk remove: one fork for the whole selection. Muting is offered only when
+  /// every selected row can actually be muted, so the dialog never promises
+  /// something it will silently skip for some rows.
+  Future<void> _removeSelected() async {
+    final chosen = _selectedTransactions;
+    if (chosen.isEmpty) return;
+
+    final choice = await showRemovalChoiceDialog(
+      context,
+      sender: chosen.first.sender,
+      canMute: chosen.every(RemovalService.canMute),
+      count: chosen.length,
+    );
+    if (choice == null) return;
+    _clearSelection();
+    await _removeTransactions(chosen, choice);
   }
 
   void _openTransactionDetail(TransactionModel transaction) async {
@@ -411,38 +534,43 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0A0B0E) : Color(0xFFF6F6F3),
-      appBar: AppBar(
-        title: Text(_appBarTitle),
-        actions: [
-          if (_hasActiveFilters)
-            IconButton(
-              icon: const Icon(Icons.filter_alt_off),
-              onPressed: _clearFilters,
-              tooltip: context.l10n.clearFilters,
+      appBar: _selectionMode
+          ? _buildSelectionAppBar()
+          : AppBar(
+              title: Text(_appBarTitle),
+              actions: [
+                if (_hasActiveFilters)
+                  IconButton(
+                    icon: const Icon(Icons.filter_alt_off),
+                    onPressed: _clearFilters,
+                    tooltip: context.l10n.clearFilters,
+                  ),
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: _loadTransactions,
+                ),
+              ],
             ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadTransactions,
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          final result = await Navigator.push<bool>(
-            context,
-            MaterialPageRoute(builder: (_) => const AddTransactionScreen()),
-          );
-          if (result == true) _loadTransactions();
-        },
-        icon: const Icon(Icons.add),
-        label: Text(context.l10n.add),
-      ),
+      floatingActionButton: _selectionMode
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: () async {
+                final result = await Navigator.push<bool>(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AddTransactionScreen()),
+                );
+                if (result == true) _loadTransactions();
+              },
+              icon: const Icon(Icons.add),
+              label: Text(context.l10n.add),
+            ),
       body: SafeArea(child: Column(
         children: [
           // Compact pinned chrome: one search row (with the filter-sheet
           // button), plus a slim strip of removable chips only while filters
-          // are active — the list keeps the rest of the screen.
-          _buildHeader(isDark),
+          // are active — the list keeps the rest of the screen. Hidden in
+          // selection mode, where the app bar carries the actions instead.
+          if (!_selectionMode) _buildHeader(isDark),
 
           // Transactions list (the month summary scrolls away with it)
           Expanded(
@@ -456,14 +584,26 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       padding: const EdgeInsets.only(top: 4, bottom: 80),
                       itemCount: _transactions.length + 1,
                       itemBuilder: (context, index) {
-                        if (index == 0) return _buildSummaryStrip(isDark);
+                        if (index == 0) {
+                          return _selectionMode
+                              ? const SizedBox.shrink()
+                              : _buildSummaryStrip(isDark);
+                        }
                         final transaction = _transactions[index - 1];
                         final card = TransactionCard(
                           transaction: transaction,
-                          animateSwipeHint: index == 1 && _showSwipeHint,
+                          animateSwipeHint: index == 1 &&
+                              _showSwipeHint &&
+                              !_selectionMode,
                           onSwipeHintShown: _markSwipeHintShown,
-                          onTap: () => _openTransactionDetail(transaction),
-                          onDelete: () => _deleteTransaction(transaction),
+                          selectable: _selectionMode,
+                          selected: _selectedIds.contains(transaction.id),
+                          onLongPress: () => _toggleSelection(transaction),
+                          onTap: () => _selectionMode
+                              ? _toggleSelection(transaction)
+                              : _openTransactionDetail(transaction),
+                          onRemove: (choice) =>
+                              _removeTransactions([transaction], choice),
                         );
                         // Tour anchor: the first card is what the "open this
                         // transaction" tip points at.
@@ -481,6 +621,32 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         ],
       ),
       ),
+    );
+  }
+
+  /// Contextual app bar for selection mode: count, select-all, and the bulk
+  /// remove that routes through the same fork a single swipe does.
+  AppBar _buildSelectionAppBar() {
+    final l10n = context.l10n;
+    return AppBar(
+      leading: IconButton(
+        icon: const Icon(Icons.close_rounded),
+        onPressed: _clearSelection,
+        tooltip: l10n.commonCancel,
+      ),
+      title: Text(l10n.nSelected(_selectedIds.length)),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.select_all_rounded),
+          onPressed: _selectAll,
+          tooltip: l10n.selectAll,
+        ),
+        IconButton(
+          icon: const Icon(Icons.delete_outline_rounded),
+          onPressed: _removeSelected,
+          tooltip: l10n.commonDelete,
+        ),
+      ],
     );
   }
 
@@ -559,7 +725,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     final active = _activeFilterCount;
     return Material(
       color: active > 0
-          ? accent.withOpacity(isDark ? 0.18 : 0.14)
+          ? accent.withValues(alpha: isDark ? 0.18 : 0.14)
           : colors.cardAlt,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
@@ -571,7 +737,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: active > 0 ? accent.withOpacity(0.55) : colors.border,
+              color: active > 0 ? accent.withValues(alpha: 0.55) : colors.border,
             ),
           ),
           child: Tooltip(
@@ -695,9 +861,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         padding: const EdgeInsets.only(left: 12, right: 8),
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: color.withOpacity(isDark ? 0.16 : 0.10),
+          color: color.withValues(alpha: isDark ? 0.16 : 0.10),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withOpacity(0.45), width: 0.8),
+          border: Border.all(color: color.withValues(alpha: 0.45), width: 0.8),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -1004,7 +1170,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       onSelected: (_) => onSelected(),
       backgroundColor: isDark ? const Color(0xFF16181E) : Color(0xFFF6F6F3),
       selectedColor:
-          color?.withOpacity(0.2) ??
+          color?.withValues(alpha: 0.2) ??
           (isDark ? const Color(0xFF16181E) : Color(0xFFEFE6D2)),
       checkmarkColor: color ?? AppColors.of(context).brandAccent,
       labelStyle: TextStyle(
@@ -1080,7 +1246,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             ? null
             : [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 10,
                   offset: const Offset(0, 2),
                 ),
