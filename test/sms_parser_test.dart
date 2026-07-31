@@ -826,4 +826,79 @@ void main() {
       expect(txn.accountInfo, 'XX5983'); // last 4 of the NN-masked number
     });
   });
+
+  group('The payee is never the account (user reports, 2026-07-31)', () {
+    test('IndusInd credit names the paying VPA, not the receiving a/c', () {
+      // Reported from the device: the detail screen showed "Received from
+      // XX3209" sitting right above "Account XX3209". The payer is spelled
+      // out in the body — a Google Pay VPA whose local part contains a
+      // hyphen, which the generic VPA class ([\w.]) did not accept, so the
+      // match restarted after the "-" and the lone "4" was too short.
+      final txn = SmsParserService.parseTransaction(
+        'AX-INDUSB-S',
+        'A/C *XX3209 credited by Rs 150.00 from shubhamtambe85-4@okhdfcbank. '
+        'RRN:127128216269. Avl Bal:5976.01. Not you? Call 18602677777 - '
+        'IndusInd bank',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 150.0); // not the 5976.01 balance
+      expect(txn.type, TransactionType.credit);
+      expect(txn.accountInfo, 'XX3209');
+      expect(txn.merchantName, 'Shubhamtambe85-4');
+      expect(txn.merchantName, isNot(txn.accountInfo));
+      expect(txn.needsReview, isFalse);
+    });
+
+    test('an unreadable payer is left empty rather than set to the a/c', () {
+      // The invariant behind the report: the account is one side of the
+      // transaction, so it can never be the other. With no payer in the
+      // body the counterparty row is simply omitted.
+      final txn = SmsParserService.parseTransaction(
+        'AX-INDUSB-S',
+        'A/C *XX3209 credited by Rs 150.00. RRN:127128216269. '
+        'Avl Bal:5976.01. - IndusInd bank',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.accountInfo, 'XX3209');
+      expect(txn.merchantName, isNull);
+      expect(txn.reviewReasonList, contains(ReviewReasons.payeeUnknown));
+    });
+
+    test('Saraswat card spend is detected and names the merchant', () {
+      // Reported from the device: card spends never appeared at all. Two
+      // faults — the card rail files under its own header (SBCARD, absent
+      // from the DLT registry, so the sender was untrusted and the message
+      // dropped), and the merchant follows "towards", which no pattern read.
+      final txn = SmsParserService.parseTransaction(
+        'JX-SBCARD-S',
+        'Dear Customer, Rs. 3838 debited from Saraswat Bank Card account '
+        '3302 towards IOCL on 31-07-2026 08:38 - Ref 657889901145 Avl Bal - '
+        '21162 ,if not you? Call 18002669545-Saraswat Bank',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 3838.0); // not the 21162 balance or the ref
+      expect(txn.type, TransactionType.debit);
+      expect(txn.accountInfo, 'XX3302');
+      expect(txn.merchantName, 'Iocl');
+      expect(txn.category, 'Transportation'); // fuel
+      expect(txn.needsReview, isFalse);
+    });
+
+    test('"towards" on the UPI rail still yields the payer, not the ref', () {
+      // Guard for the pattern-4c ordering: the same word introduces a UPI
+      // ref on Saraswat's account rail, where the name lives inside the ref.
+      final txn = SmsParserService.parseTransaction(
+        'VM-SARASW-S',
+        'Your A/c no. 000404 is credited with INR 150.00 on 25-06-2026 '
+        'towards UPI/340983713462/HUSAIN M N/SR. Current Bal is INR '
+        '9,657.61 CR. - Saraswat Co-op Bank Ltd.',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.merchantName, 'Husain M N');
+    });
+  });
 }

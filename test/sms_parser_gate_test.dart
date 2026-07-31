@@ -34,6 +34,11 @@ void main() {
           SenderTrust.allowlisted);
       expect(SmsParserService.senderTrust('Bank of Maharashtra'),
           SenderTrust.allowlisted);
+      // Saraswat's card rail. Absent from the DLT registry and not caught by
+      // the "contains BANK" net, so without the curated entry its spends
+      // were dropped outright.
+      expect(SmsParserService.senderTrust('JX-SBCARD-S'),
+          SenderTrust.allowlisted);
     });
 
     test('unknown headers containing BANK get fallback trust only', () {
