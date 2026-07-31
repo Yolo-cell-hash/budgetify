@@ -217,6 +217,15 @@ void main() {
       expect(BankDirectory.forSender('AX-BOMSMS-S').name,
           'Bank of Maharashtra');
       expect(BankDirectory.forSender('VM-AXISBNK').name, 'Axis Bank');
+      // Saraswat is absent from the registry entirely; its account and card
+      // headers must land on one identity so card spends group with the
+      // account's SMS instead of standing up an unnamed "SBCARD" row.
+      expect(BankDirectory.forSender('JX-SARBNK-S').name,
+          'Saraswat Co-operative Bank');
+      expect(BankDirectory.forSender('JX-SBCARD-S').name,
+          'Saraswat Co-operative Bank');
+      expect(BankDirectory.forSender('JX-SBCARD-S').id,
+          BankDirectory.forSender('JX-SARBNK-S').id);
     });
 
     test('full-name senders resolve by the bank named in them', () {

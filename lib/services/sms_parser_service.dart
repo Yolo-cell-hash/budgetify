@@ -161,6 +161,12 @@ class SmsParserService {
     'ESFB',
     'UJJIVN',
     'SARASW',
+    // Saraswat's card-rail alerts come under their own header ("JX-SBCARD-S"),
+    // not the SARBNK/SARASW account headers, so every credit/debit card spend
+    // was dropped before it reached the parser. Saraswat is absent from the
+    // DLT registry in list_of_banks.txt, which is why its headers are curated
+    // by hand here and in BankDirectory._extraHeaders.
+    'SBCARD',
     'KVBSMS',
     'SIBBNK',
     'CUBANK',
@@ -1745,6 +1751,14 @@ class SmsParserService {
       'BLABLACAR', 'INDRIVE', 'ZOOMCAR', 'REVV', 'BOUNCE', 'VOGO',
       'QUICK RIDE', 'UBERAUTO', 'OLA AUTO', 'CHALO', 'TUMMOC', 'NMMT',
       'BEST BUS', 'SMARTCARD', 'MAHA METRO', 'NASHIK METRO',
+      // Fuel. Card spends at a pump name the oil company, not the station
+      // ("...towards IOCL on 31-07-2026"), and none of these were listed, so
+      // every refuel landed unclassified. Only distinctive spellings: the
+      // bare "IOC"/"HP" abbreviations are substrings of ordinary words and
+      // would misfile unrelated messages.
+      'IOCL', 'INDIAN OIL', 'INDIANOIL', 'HPCL', 'HINDUSTAN PETROLEUM',
+      'BPCL', 'BHARAT PETROLEUM', 'NAYARA', 'JIO-BP', 'PETROL PUMP',
+      'FUEL STATION',
     ],
     'Entertainment': [
       // --- Original ---
@@ -2407,7 +2421,10 @@ class SmsParserService {
   /// template matches does the generic cascade in [_extractMerchant] run,
   /// and its output is graded so the review queue can surface guesses:
   /// named generic extraction, curated placeholders (ATM / Bank Charges /
-  /// UPI Transfer), or the account-number fallback (a template miss).
+  /// UPI Transfer), or nothing at all (a template miss).
+  ///
+  /// Whatever produced the name, it is never allowed to be the account or
+  /// card number the message is about — see [_isAccountLike].
   static MerchantExtraction extractMerchantDetailed(
     String message,
     String? accountInfo,
@@ -2449,22 +2466,30 @@ class SmsParserService {
           if (mangled != null) {
             final local =
                 mangled.group(1)!.replaceAll(RegExp(r'[._]'), ' ').trim();
-            if (local.isNotEmpty) {
+            if (local.isNotEmpty && !_isAccountLike(local, accountInfo)) {
               return MerchantExtraction(_titleCase(local), source, kind);
             }
             continue;
           }
         }
         final cleaned = _cleanMerchant(candidate);
-        if (cleaned != null) {
+        if (cleaned != null && !_isAccountLike(cleaned, accountInfo)) {
           return MerchantExtraction(cleaned, source, kind);
         }
       }
     }
 
-    final name = _extractMerchant(message, accountInfo);
-    if (name == null) {
-      return const MerchantExtraction(null, 'unmatched', PayeeSource.none);
+    final name = _extractMerchant(message);
+    if (name == null || _isAccountLike(name, accountInfo)) {
+      // Shown to the user as "Read by: no payee named". This is now the
+      // answer for every message that names no counterparty — previously
+      // most of them reported "account fallback" and displayed the account
+      // number as the payee.
+      return const MerchantExtraction(
+        null,
+        'no payee named',
+        PayeeSource.none,
+      );
     }
     if (name == 'ATM' || name == 'Bank Charges' || name == 'UPI Transfer') {
       return MerchantExtraction(
@@ -2473,20 +2498,13 @@ class SmsParserService {
         PayeeSource.placeholder,
       );
     }
-    if (accountInfo != null && name == accountInfo) {
-      return MerchantExtraction(
-        name,
-        'account fallback',
-        PayeeSource.accountFallback,
-      );
-    }
     return MerchantExtraction(name, 'general patterns', PayeeSource.generic);
   }
 
   /// Generic (cross-bank) merchant extraction cascade. Bank-specific shapes
   /// live in [BankTemplates.packs] and are tried before this by
-  /// [extractMerchantDetailed]. Falls back to the account number if no
-  /// merchant name can be determined.
+  /// [extractMerchantDetailed]. Returns null when no rule can name the
+  /// counterparty — the account number is never used as a stand-in.
   ///
   /// Priority order:
   /// 1e. Card spend — `Spent/spent ... at {MERCHANT}` (HDFC intl e-com, ICICI)
@@ -2495,11 +2513,11 @@ class SmsParserService {
   /// 3. HDFC — `To {NAME}` (on same or next line)
   /// 4. Generic — `paid/sent/transferred/payment/trf to {NAME}` (BOM, SBI)
   /// 4b. Slash-delimited UPI ref — `UPI/P2M/{ref}/{NAME}` (Axis, Saraswat)
+  /// 4c. Card spend — `towards {MERCHANT}` (Saraswat card rail)
   /// 5. UPI VPA — `VPA {name}@bank` or `{name}@{bank}` → extract name
   /// 8. Generic credit — `... from {PAYER}`
   /// 9/10. Placeholders — "Bank Charges", "UPI Transfer"
-  /// Fallback — account number (A/cXX1234)
-  static String? _extractMerchant(String message, String? accountInfo) {
+  static String? _extractMerchant(String message) {
     String? merchant;
 
     // --- Pattern 1e: card spend "Spent ... At {MERCHANT} On {date}" ---
@@ -2624,14 +2642,49 @@ class SmsParserService {
       if (merchant != null) return merchant;
     }
 
+    // --- Pattern 4c: card spend "towards {MERCHANT}" ---
+    // Co-op card rails name the merchant after "towards" rather than the
+    // "at"/"to" every rule above expects, e.g. Saraswat's
+    //   "Rs. 3838 debited from Saraswat Bank Card account 3302 towards IOCL
+    //    on 31-07-2026 08:38 - Ref 657889901145 Avl Bal - 21162"
+    // so the payee collapsed to the card number. The name ends at the next
+    // structural token — " on <date>", a ref, a balance, or punctuation.
+    //
+    // Runs AFTER pattern 4b on purpose: the same word introduces a UPI ref on
+    // Saraswat's account rail ("towards UPI/340983713462/HUSAIN M N/SR."),
+    // and that shape must keep yielding the payer name, not the raw ref. The
+    // slash/at guard below is the backstop for ref shapes 4b cannot read.
+    final towardsMerchant = RegExp(
+      r'\btowards\s+([A-Za-z][A-Za-z0-9 .&@/_\-]{1,}?)'
+      r'(?:\s+on\b|\s+ref\b|\s+avl\b|\s+bal\b|\s*[.,;]|\n|$)',
+      caseSensitive: false,
+    ).firstMatch(message);
+    final towardsCandidate = towardsMerchant?.group(1)?.trim();
+    if (towardsCandidate != null &&
+        towardsCandidate.length > 2 &&
+        // A rail token + ref ("UPI/3409.../HUSAIN M N") is not a merchant.
+        !towardsCandidate.contains('/') &&
+        !towardsCandidate.contains('@')) {
+      merchant = _cleanMerchant(towardsCandidate);
+      if (merchant != null) return merchant;
+    }
+
     // --- Pattern 5: UPI VPA in body ---
     // "to VPA username@okaxis" or just "username@okaxis" or "username@ybl"
+    //
+    // The local part accepts hyphens as well as word characters and dots.
+    // NPCI allows "-" in a VPA and Google Pay mints handles that use it
+    // ("shubhamtambe85-4@okhdfcbank"); with the hyphen missing from the class
+    // the match restarted after it and the "4" left was too short to qualify,
+    // so real IndusInd credits fell through to the account fallback. The
+    // template path in extractMerchantDetailed already allowed it — this
+    // brings the generic cascade in line.
     final vpaPatterns = [
       // "to VPA username@bank"
-      RegExp(r'(?:to\s+)?VPA\s+([\w.]+)@[\w.]+', caseSensitive: false),
+      RegExp(r'(?:to\s+)?VPA\s+([\w.\-]+)@[\w.\-]+', caseSensitive: false),
       // Standalone UPI VPA like "username@okaxis", "name@ybl", "name@paytm"
       RegExp(
-        r'\b([\w.]{3,})@(?:ok(?:axis|icici|sbi|hdfc)|ybl|paytm|upi|apl|ibl|axl|sbi|okhdfcbank|okbizaxis)\b',
+        r'\b([\w.\-]{3,})@(?:ok(?:axis|icici|sbi|hdfc)|ybl|paytm|upi|apl|ibl|axl|sbi|okhdfcbank|okbizaxis)\b',
         caseSensitive: false,
       ),
     ];
@@ -2707,12 +2760,40 @@ class SmsParserService {
       return 'UPI Transfer';
     }
 
-    // --- Fallback: Use account number as merchant identifier ---
-    if (accountInfo != null && accountInfo.isNotEmpty) {
-      return accountInfo;
-    }
-
+    // --- No counterparty could be read ---
+    // This used to return [accountInfo], which put the user's OWN account
+    // number in the counterparty row: "Received from XX3209" sitting directly
+    // above "Account XX3209" — the two can never legitimately be the same
+    // party, and the row read as a parse the app was confident about. Saying
+    // nothing is the honest answer; ReviewReasons.payeeUnknown still flags
+    // the message for review, and the detail screen simply omits the row.
     return null;
+  }
+
+  /// Whether [name] is really the account/card number rather than a
+  /// counterparty — either the very number this message is about, or a bare
+  /// masked number ("XX3209", "**1234") from any pattern above.
+  ///
+  /// A transaction always has two sides: the account is one of them, so it
+  /// can never be the other. Enforced centrally in [extractMerchantDetailed]
+  /// so no template or generic pattern can reintroduce the collapse.
+  static bool _isAccountLike(String name, String? accountInfo) {
+    final n = name.trim().toUpperCase();
+    if (n.isEmpty) return true;
+    // A masked number, whichever account it belongs to: "XX3209", "**1234".
+    if (RegExp(r'^[X*]{2,}\d{2,}$').hasMatch(n)) return true;
+
+    final account = accountInfo?.trim().toUpperCase();
+    if (account == null) return false;
+    if (n == account) return true;
+
+    // The same number written bare — payee "3302" against account "XX3302".
+    // Only short digit runs qualify: a phone-number UPI id ("9904393066@ybl")
+    // is a genuine counterparty, not an account tail, and must survive.
+    final tail = RegExp(r'(\d{4})$').firstMatch(account)?.group(1);
+    return tail != null &&
+        RegExp(r'^\d{4,6}$').hasMatch(n) &&
+        n.endsWith(tail);
   }
 
   /// Clean up extracted merchant string

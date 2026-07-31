@@ -30,11 +30,13 @@ enum PayeeSource {
   /// "UPI Transfer") — accurate, but not an individual identity.
   placeholder,
 
-  /// The account-number fallback — the parser found no counterparty; this
-  /// is a template miss and belongs in the review queue.
-  accountFallback,
-
-  /// Nothing at all could be extracted.
+  /// Nothing at all could be extracted — a template miss that belongs in the
+  /// review queue. The parser used to answer this case with the account
+  /// number itself; it no longer does, because the account is one side of
+  /// the transaction and so can never be the other (see
+  /// SmsParserService._isAccountLike). Rows written before that change still
+  /// carry such a payee, which is what
+  /// DatabaseService.isAccountFallbackPayee exists to recognise.
   none,
 }
 
@@ -51,10 +53,9 @@ class MerchantExtraction {
 
   const MerchantExtraction(this.name, this.source, this.kind);
 
-  /// Whether the payee needs a user glance: the parser either guessed from
-  /// an unmatched template (account fallback) or found nothing.
-  bool get payeeUnknown =>
-      kind == PayeeSource.accountFallback || kind == PayeeSource.none;
+  /// Whether the payee needs a user glance: no template or generic pattern
+  /// could name the counterparty.
+  bool get payeeUnknown => kind == PayeeSource.none;
 }
 
 /// One registered SMS shape for a bank: how to read the counterparty out of
