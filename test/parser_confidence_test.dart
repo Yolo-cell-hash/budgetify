@@ -160,7 +160,12 @@ void main() {
       expect(txn.reviewReasonList, contains(ReviewReasons.amountUncertain));
     });
 
-    test('account-fallback payee is flagged as a template miss', () {
+    test('an unreadable payee is left empty, never the account number', () {
+      // The parser used to answer "who was the counterparty?" with the
+      // account number itself, so the detail screen read "Received from
+      // XX1234" directly above "Account XX1234" — the two sides of a
+      // transaction can never be the same party. Saying nothing is honest,
+      // and payee_unknown still routes it to the review queue.
       final txn = SmsParserService.parseTransaction(
         'BOMSMS',
         'A/c XX1234 Credited by Rs.15,000.00 on 01-06-2026 by Mob Banking. '
@@ -168,8 +173,9 @@ void main() {
         now,
       );
       expect(txn, isNotNull);
-      expect(txn!.merchantName, 'XX1234');
-      expect(txn.parseSource, 'account fallback');
+      expect(txn!.accountInfo, 'XX1234');
+      expect(txn.merchantName, isNull);
+      expect(txn.parseSource, 'no payee named');
       expect(txn.reviewReasonList, contains(ReviewReasons.payeeUnknown));
     });
 

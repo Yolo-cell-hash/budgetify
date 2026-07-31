@@ -133,6 +133,9 @@ class BankDirectory {
     'SIBBNK': 'South Indian Bank',
     'SIBPLZ': 'South Indian Bank',
     'SARASW': 'Saraswat Co-operative Bank',
+    // Saraswat's card rail files under its own header, so card spends group
+    // with the account's SMS instead of standing up an unnamed "SBCARD" row.
+    'SBCARD': 'Saraswat Co-operative Bank',
     'BANDHN': 'Bandhan Bank',
     'BDHNBK': 'Bandhan Bank',
     'BNDHNB': 'Bandhan Bank',
@@ -222,6 +225,7 @@ class BankDirectory {
     ('UJJIVAN', 'Ujjivan Small Finance Bank'),
     ('SURYODAY', 'Suryoday Small Finance Bank'),
     ('UTKARSH', 'Utkarsh Small Finance Bank'),
+    ('SARASWAT', 'Saraswat Co-operative Bank'),
     ('CITIBANK', 'Citibank'),
     ('CITI BANK', 'Citibank'),
     ('CANARA', 'Canara Bank'),
