@@ -345,4 +345,93 @@ void main() {
       expect(DatabaseService.isAccountFallbackPayee(null, 'XX7531'), isFalse);
     });
   });
+
+  group('rows stored under the old account fallback are re-read', () {
+    // Reported from the device on 2026-08-01: two IndusInd credits still
+    // showing "Received from XX3209" above "Account XX3209", with "Read by:
+    // account fallback" underneath — a label the parser stopped producing in
+    // v1.55.1. The messages parse correctly now; these rows were written by
+    // the older build and nothing re-reads a stored row, so the fix never
+    // reached them.
+    const indusIndCredit =
+        'A/C *XX3209 credited by Rs 90.00 from kumbharyashvant5-1@okaxis. '
+        'RRN:621348000140. Avl Bal:7416.01. Not you? Call 18602677777 - '
+        'IndusInd bank';
+
+    test('the reported credit heals to the payer, not the account', () {
+      final fresh = DatabaseService.rereadAccountFallbackPayee(
+        storedPayee: 'XX3209',
+        accountInfo: 'XX3209',
+        message: indusIndCredit,
+      );
+      expect(fresh, isNotNull);
+      expect(fresh!.payee, 'Kumbharyashvant5-1');
+      expect(fresh.payee, isNot('XX3209'));
+      expect(fresh.source, isNot('account fallback'));
+    });
+
+    test('an unreadable payer is cleared rather than left as the account', () {
+      // The invariant the migration carries into stored rows: the account is
+      // one side of the transaction, so it is never the other. With no payer
+      // in the body the counterparty is simply unknown.
+      final fresh = DatabaseService.rereadAccountFallbackPayee(
+        storedPayee: 'XX3209',
+        accountInfo: 'XX3209',
+        message: 'A/C *XX3209 credited by Rs 90.00. RRN:621348000140. '
+            'Avl Bal:7416.01. - IndusInd bank',
+      );
+      expect(fresh, isNotNull);
+      expect(fresh!.payee, isNull);
+      expect(fresh.source, 'no payee named');
+    });
+
+    test('a bare masked number from any account counts as the fallback', () {
+      // Rows saved before account_info was reliable carry the mask alone.
+      final fresh = DatabaseService.rereadAccountFallbackPayee(
+        storedPayee: '**3209',
+        accountInfo: null,
+        message: indusIndCredit,
+      );
+      expect(fresh?.payee, 'Kumbharyashvant5-1');
+    });
+
+    test('a name the user typed over the fallback is left alone', () {
+      expect(
+        DatabaseService.rereadAccountFallbackPayee(
+          storedPayee: 'Yashvant',
+          accountInfo: 'XX3209',
+          message: indusIndCredit,
+        ),
+        isNull,
+      );
+    });
+
+    test('real payees and curated placeholders are left alone', () {
+      // "UPI Transfer" and "ATM" are what the parser says today, not the old
+      // fallback — re-reading them would be churn at best.
+      for (final stored in ['Sharma Kirana', 'UPI Transfer', 'ATM']) {
+        expect(
+          DatabaseService.rereadAccountFallbackPayee(
+            storedPayee: stored,
+            accountInfo: 'XX7848',
+            message: 'Rs.800.00 Credited to your Ac XX7848 on 24-06-26 by '
+                'UPI ref No.654169525627',
+          ),
+          isNull,
+          reason: '$stored must survive the migration',
+        );
+      }
+    });
+
+    test('a manual entry with no message behind it is left alone', () {
+      expect(
+        DatabaseService.rereadAccountFallbackPayee(
+          storedPayee: 'XX3209',
+          accountInfo: 'XX3209',
+          message: '',
+        ),
+        isNull,
+      );
+    });
+  });
 }

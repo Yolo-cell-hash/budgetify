@@ -2424,7 +2424,7 @@ class SmsParserService {
   /// UPI Transfer), or nothing at all (a template miss).
   ///
   /// Whatever produced the name, it is never allowed to be the account or
-  /// card number the message is about — see [_isAccountLike].
+  /// card number the message is about — see [isAccountLikePayee].
   static MerchantExtraction extractMerchantDetailed(
     String message,
     String? accountInfo,
@@ -2466,21 +2466,21 @@ class SmsParserService {
           if (mangled != null) {
             final local =
                 mangled.group(1)!.replaceAll(RegExp(r'[._]'), ' ').trim();
-            if (local.isNotEmpty && !_isAccountLike(local, accountInfo)) {
+            if (local.isNotEmpty && !isAccountLikePayee(local, accountInfo)) {
               return MerchantExtraction(_titleCase(local), source, kind);
             }
             continue;
           }
         }
         final cleaned = _cleanMerchant(candidate);
-        if (cleaned != null && !_isAccountLike(cleaned, accountInfo)) {
+        if (cleaned != null && !isAccountLikePayee(cleaned, accountInfo)) {
           return MerchantExtraction(cleaned, source, kind);
         }
       }
     }
 
     final name = _extractMerchant(message);
-    if (name == null || _isAccountLike(name, accountInfo)) {
+    if (name == null || isAccountLikePayee(name, accountInfo)) {
       // Shown to the user as "Read by: no payee named". This is now the
       // answer for every message that names no counterparty — previously
       // most of them reported "account fallback" and displayed the account
@@ -2777,7 +2777,12 @@ class SmsParserService {
   /// A transaction always has two sides: the account is one of them, so it
   /// can never be the other. Enforced centrally in [extractMerchantDetailed]
   /// so no template or generic pattern can reintroduce the collapse.
-  static bool _isAccountLike(String name, String? accountInfo) {
+  ///
+  /// Public because it is also the test for rows *already stored* under the
+  /// old account fallback — see `DatabaseService.rereadAccountFallbackPayee`,
+  /// which re-reads exactly those. One definition, so the stored side and the
+  /// parsing side can never disagree about what counts as the account.
+  static bool isAccountLikePayee(String name, String? accountInfo) {
     final n = name.trim().toUpperCase();
     if (n.isEmpty) return true;
     // A masked number, whichever account it belongs to: "XX3209", "**1234".

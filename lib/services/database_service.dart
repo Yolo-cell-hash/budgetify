@@ -36,7 +36,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 27,
+      version: 28,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -755,6 +755,93 @@ class DatabaseService {
         // Column already present (fresh install that raced an upgrade).
       }
     }
+
+    if (oldVersion < 28) {
+      // v1.55.1 abolished the account fallback in the parser, but only for
+      // messages read after the update. Rows written before it still carry
+      // the account number as their payee — the IndusInd credit reported from
+      // the device reads "Received from XX3209" directly above "Account
+      // XX3209", with "Read by: account fallback" underneath — and nothing
+      // re-reads a stored row, so they would have stayed that way forever.
+      //
+      // That payee is not merely cosmetic: every unrelated credit into one
+      // account collapses onto a single name, so the merchant summary groups
+      // strangers together and a rename or category rule aimed at one of them
+      // lands on all of them. Re-read each such row with today's parser.
+      //
+      // Only rows whose payee IS the account are touched, so a name the user
+      // typed over one is never clobbered; when the message still names
+      // nobody the payee is cleared rather than left as the account, matching
+      // what a fresh parse of the same message produces today. Review state
+      // is deliberately untouched: these are old rows, many already confirmed
+      // by the user, and re-opening them would refill the review queue.
+      final rows = await db.query(
+        'transactions',
+        columns: ['id', 'message', 'account_info', 'merchant_name'],
+      );
+      for (final row in rows) {
+        final message = row['message'] as String? ?? '';
+        final accountInfo = row['account_info'] as String?;
+        final fresh = rereadAccountFallbackPayee(
+          storedPayee: row['merchant_name'] as String?,
+          accountInfo: accountInfo,
+          message: message,
+        );
+        if (fresh == null) continue; // row keeps what it has
+        // A payee the user has since renamed elsewhere should read the same
+        // here as on a freshly parsed message, where applyPayeeAlias runs
+        // before the row is saved. Queried against the raw handle — the
+        // public alias helpers await `database`, which is mid-open.
+        var payee = fresh.payee;
+        if (payee != null) {
+          final alias = await db.query(
+            'payee_aliases',
+            columns: ['display_name'],
+            where: 'raw_key = ?',
+            whereArgs: [normalizePayeeKey(payee)],
+            limit: 1,
+          );
+          if (alias.isNotEmpty) {
+            payee = alias.first['display_name'] as String? ?? payee;
+          }
+        }
+        await db.update(
+          'transactions',
+          {'merchant_name': payee, 'parse_source': fresh.source},
+          where: 'id = ?',
+          whereArgs: [row['id']],
+        );
+      }
+    }
+  }
+
+  /// What a stored row should show as its payee when the one it was saved
+  /// with is the account number itself — the pre-v1.55.1 "account fallback".
+  /// Returns null when the row must be left exactly as it is: a real payee, a
+  /// name the user typed, a curated placeholder ("UPI Transfer", "ATM"), or a
+  /// manual entry with no SMS behind it to re-read.
+  ///
+  /// A payee counts as the account by [SmsParserService.isAccountLikePayee] —
+  /// the same test the parser applies when reading a message — so the stored
+  /// and the parsed side can never disagree about what the account is.
+  /// The returned payee may itself be null, which means today's parser can
+  /// name nobody: the row then shows no counterparty at all, which is the
+  /// truth, instead of pointing at its own account.
+  static ({String? payee, String source})? rereadAccountFallbackPayee({
+    required String? storedPayee,
+    required String? accountInfo,
+    required String message,
+  }) {
+    if (storedPayee == null || storedPayee.trim().isEmpty) return null;
+    if (!SmsParserService.isAccountLikePayee(storedPayee, accountInfo)) {
+      return null;
+    }
+    if (message.isEmpty) return null; // manual rows have no message to re-read
+    final fresh = SmsParserService.extractMerchantDetailed(
+      message,
+      accountInfo,
+    );
+    return (payee: fresh.name, source: fresh.source);
   }
 
   /// Internal backfill that works during migration (uses raw db handle)
