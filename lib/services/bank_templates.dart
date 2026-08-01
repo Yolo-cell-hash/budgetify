@@ -34,9 +34,11 @@ enum PayeeSource {
   /// review queue. The parser used to answer this case with the account
   /// number itself; it no longer does, because the account is one side of
   /// the transaction and so can never be the other (see
-  /// SmsParserService._isAccountLike). Rows written before that change still
-  /// carry such a payee, which is what
-  /// DatabaseService.isAccountFallbackPayee exists to recognise.
+  /// SmsParserService.isAccountLikePayee). Rows written before that change
+  /// carried such a payee; the schema-28 migration re-reads them with today's
+  /// parser (DatabaseService.rereadAccountFallbackPayee), and
+  /// DatabaseService.isAccountFallbackPayee still recognises the shape so no
+  /// leftover can ever be taught as an alias.
   none,
 }
 
