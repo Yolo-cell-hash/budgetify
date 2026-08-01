@@ -866,6 +866,45 @@ void main() {
       expect(txn.reviewReasonList, contains(ReviewReasons.payeeUnknown));
     });
 
+    test('both IndusInd credits re-reported on 2026-08-01 name the payer', () {
+      // The same two rows came back from the device the next day, still
+      // showing "Received from XX3209" — they were parsed by the older build
+      // and stored that way, which is what the schema-28 migration heals.
+      // The bodies themselves are pinned here so the parse can never regress,
+      // under both sender headers IndusInd sends from (AX-, AD-).
+      final okaxis = SmsParserService.parseTransaction(
+        'AX-INDUSB-S',
+        'A/C *XX3209 credited by Rs 90.00 from kumbharyashvant5-1@okaxis. '
+        'RRN:621348000140. Avl Bal:7416.01. Not you? Call 18602677777 - '
+        'IndusInd bank',
+        now,
+      );
+      expect(okaxis, isNotNull);
+      expect(okaxis!.amount, 90.0); // not the 7416.01 balance
+      expect(okaxis.type, TransactionType.credit);
+      expect(okaxis.accountInfo, 'XX3209');
+      expect(okaxis.merchantName, 'Kumbharyashvant5-1');
+      expect(okaxis.merchantName, isNot(okaxis.accountInfo));
+
+      final okhdfc = SmsParserService.parseTransaction(
+        'AD-INDUSB-S',
+        'A/C *XX3209 credited by Rs 100.00 from '
+        'sunilkatkar98030-1@okhdfcbank. RRN:127170730709. Avl Bal:7326.01. '
+        'Not you? Call 18602677777 - IndusInd bank',
+        now,
+      );
+      expect(okhdfc, isNotNull);
+      expect(okhdfc!.amount, 100.0); // not the 7326.01 balance
+      expect(okhdfc.type, TransactionType.credit);
+      expect(okhdfc.accountInfo, 'XX3209');
+      expect(okhdfc.merchantName, 'Sunilkatkar98030-1');
+      expect(okhdfc.merchantName, isNot(okhdfc.accountInfo));
+
+      // Two different payers into one account: the whole point of the fix is
+      // that they stay two payees instead of collapsing onto the account.
+      expect(okaxis.merchantName, isNot(okhdfc.merchantName));
+    });
+
     test('Saraswat card spend is detected and names the merchant', () {
       // Reported from the device: card spends never appeared at all. Two
       // faults — the card rail files under its own header (SBCARD, absent
