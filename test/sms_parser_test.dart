@@ -940,4 +940,164 @@ void main() {
       expect(txn!.merchantName, 'Husain M N');
     });
   });
+
+  group('Canara Bank templates (v1.56)', () {
+    test('an interest payout is named "Bank Interest", not "Interest"', () {
+      final txn = SmsParserService.parseTransaction(
+        'JX-CANBNK-S',
+        'An amount of INR 149.00 has been CREDITED to your account XXXX2278 '
+        'on 28/06/2026 towards interest. Total Avail.bal INR 14,995.54. '
+        '- Canara Bank',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 149.0); // not the 14,995.54 balance
+      expect(txn.type, TransactionType.credit);
+      expect(txn.accountInfo, 'XX2278');
+      expect(txn.merchantName, 'Bank Interest');
+      // The bank paying interest is a known counterparty, so nothing here
+      // needs a second look.
+      expect(txn.needsReview, isFalse);
+    });
+
+    test('a UPI debit reads the masked VPA as the payee', () {
+      final txn = SmsParserService.parseTransaction(
+        'AD-CANBNK-S',
+        'Dear Customer, Acct XXXX2278 Dr. INR 20,000.00 on 02/07/26 to '
+        'pinkygala77@; UPI: 654976813375; Bal INR 14,995.54.Not you?SMS '
+        'BLOCKUPI to 9901771222-CanaraBank',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 20000.0); // not the 14,995.54 balance
+      expect(txn.type, TransactionType.debit);
+      expect(txn.accountInfo, 'XX2278');
+      // Canara masks the handle away; the local part is still the person.
+      expect(txn.merchantName, 'Pinkygala77');
+      expect(txn.needsReview, isFalse);
+    });
+
+    test('the "SMS BLOCKUPI to <number>" footer is never read as a payee', () {
+      // Same shape with no VPA at all: the template must decline rather than
+      // latch onto the block-instruction number that follows "to".
+      final txn = SmsParserService.parseTransaction(
+        'AD-CANBNK-S',
+        'Dear Customer, Acct XXXX2278 Dr. INR 500.00 on 02/07/26 by UPI: '
+        '654976813376; Bal INR 14,495.54.Not you?SMS BLOCKUPI to '
+        '9901771222-CanaraBank',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.merchantName, isNot(contains('9901771222')));
+    });
+
+    test('a credit that names no payer goes to review', () {
+      final txn = SmsParserService.parseTransaction(
+        'JK-CANBNK',
+        'An amount of INR 6,340.00 has been CREDITED to your account '
+        'XXXX2278 on 22/08/2024.Total Avail.bal INR 10,820.77.- Canara Bank',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 6340.0);
+      expect(txn.type, TransactionType.credit);
+      // Never the account number itself — the row would read "Received from
+      // XX2278" directly above "Account XX2278".
+      expect(txn.merchantName, isNull);
+      expect(txn.reviewReasonList, contains(ReviewReasons.payeeUnknown));
+    });
+
+    test('an incoming UPI credit with no payer named goes to review', () {
+      final txn = SmsParserService.parseTransaction(
+        'JX-CANBNK-S',
+        'Your a/c XXXXX2278 is credited by Rs.500.00 on 12-07-26 by UPI ref '
+        'no 123456789012 -Canara Bank',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.type, TransactionType.credit);
+      // The placeholder states what IS known (money came in over UPI); the
+      // review flag states what isn't (who sent it).
+      expect(txn.merchantName, 'UPI Transfer');
+      expect(txn.reviewReasonList, contains(ReviewReasons.payeeUnknown));
+    });
+
+    test('an outgoing nameless UPI debit is not sent to review', () {
+      // The user knows what they just paid for; only unexplained *incoming*
+      // money earns a second look.
+      final txn = SmsParserService.parseTransaction(
+        'JM-BOIIND-S',
+        'Rs.800.00 Debited to your Ac XX7848 on 24-06-26 by UPI ref '
+        'No.654169525627.',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.type, TransactionType.debit);
+      expect(txn.merchantName, 'UPI Transfer');
+      expect(txn.reviewReasonList, isNot(contains(ReviewReasons.payeeUnknown)));
+    });
+  });
+
+  group('ICICI ACH credits — dividends and interest warrants (v1.56)', () {
+    test('the remitter is read out of the ACH narration', () {
+      final txn = SmsParserService.parseTransaction(
+        'JD-ICICIT-S',
+        'ICICI Bank Account XX197 credited:Rs. 11.50 on 05-Jun-26. Info '
+        'ACH*IRB INFRASTRUCTURE D*164. Available Balance is Rs. 11,566.13.',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 11.50); // not the 11,566.13 balance
+      expect(txn.type, TransactionType.credit);
+      expect(txn.merchantName, 'Irb Infrastructure D');
+      expect(txn.needsReview, isFalse);
+    });
+
+    test('an institutional remitter survives (the generic rule drops it)', () {
+      final txn = SmsParserService.parseTransaction(
+        'JD-ICICIT-S',
+        'ICICI Bank Account XX197 credited:Rs. 425.00 on 02-Jul-26. Info '
+        'ACH*BANK OF BARODA*13975693. Available Balance is Rs. 6,869.83.',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 425.0);
+      expect(txn.type, TransactionType.credit);
+      expect(txn.merchantName, 'Bank Of Baroda');
+      expect(txn.needsReview, isFalse);
+    });
+
+    test('the ACH template is scoped to ICICI', () {
+      // Same narration shape from a bank with no pack must not pick it up —
+      // "train this parser only for ICICI" (the generic cascade still runs).
+      final extraction = SmsParserService.extractMerchantDetailed(
+        'A/c XX197 credited Rs. 425.00. Info ACH*BANK OF BARODA*13975693.',
+        'XX197',
+      );
+      expect(extraction.name, isNot('Bank Of Baroda'));
+    });
+  });
+
+  group('Post-parse audit: the payee can never be the account', () {
+    test('a payee equal to the account is dropped and flagged', () {
+      final verdictName = SmsParserService.extractMerchantDetailed(
+        'An amount of INR 149.00 has been CREDITED to your account XXXX2278 '
+        'on 28/06/2026. Total Avail.bal INR 14,995.54.',
+        'XX2278',
+      );
+      expect(verdictName.name, isNull);
+      expect(verdictName.payeeUnknown, isTrue);
+    });
+
+    test('isAccountLikePayee recognises both masked and bare forms', () {
+      expect(SmsParserService.isAccountLikePayee('XX2278', 'XX2278'), isTrue);
+      expect(SmsParserService.isAccountLikePayee('2278', 'XX2278'), isTrue);
+      expect(SmsParserService.isAccountLikePayee('**1234', null), isTrue);
+      // A phone-number UPI id is a real counterparty, not an account tail.
+      expect(
+        SmsParserService.isAccountLikePayee('9904392278', 'XX2278'),
+        isFalse,
+      );
+    });
+  });
 }
