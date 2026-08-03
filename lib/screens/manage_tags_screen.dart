@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../l10n/l10n.dart';
 import '../models/transaction_model.dart';
+import '../models/transaction_rule_model.dart';
 import '../providers/theme_provider.dart';
 import '../services/custom_tag_service.dart';
 import '../services/database_service.dart';
@@ -10,9 +11,13 @@ import '../widgets/app_dialog.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/create_tag_sheet.dart';
 
-/// Settings screen for managing tags: review every category and delete the
-/// ones you don't use. Deleting a tag that has tagged transactions warns
-/// first and untags those transactions (returns them to "unclassified").
+/// What the per-tag overflow menu can do.
+enum _TagAction { clear, delete }
+
+/// Settings screen for managing tags: review every category, empty the ones
+/// whose transactions you want back, and delete the ones you don't use.
+/// Deleting a tag that has tagged transactions warns first and untags those
+/// transactions (returns them to "unclassified").
 class ManageTagsScreen extends StatefulWidget {
   const ManageTagsScreen({super.key});
 
@@ -86,6 +91,10 @@ class _ManageTagsScreenState extends State<ManageTagsScreen> {
     if (confirmed != true) return;
 
     if (count > 0) await _db.untagCategory(tag);
+    // Rules outlive the tag they write. Left behind, an "Apply to All" rule
+    // keeps stamping a deleted tag back onto every new transaction from that
+    // payee — the tag is gone from the pickers but never gone from the data.
+    await _db.deleteRulesForCategory(tag);
     await _tags.deleteTag(tag);
     await _load();
     if (mounted) {
@@ -97,6 +106,89 @@ class _ManageTagsScreenState extends State<ManageTagsScreen> {
         type: AppToastType.success,
       );
     }
+  }
+
+  /// Take a tag off every transaction carrying it — and keep the tag.
+  ///
+  /// The screen used to offer only "delete", so a user who wanted their
+  /// transactions back out of "Groceries" had to destroy the tag to get
+  /// there. These are different intentions and now they're different
+  /// actions: this one empties the tag, delete removes it.
+  Future<void> _clearTagFromAll(String tag) async {
+    final l10n = context.l10nRead;
+    final rows = await _db.getFilteredTransactions(category: tag);
+    if (rows.isEmpty || !mounted) return;
+    final rules = await _db.getRulesForCategory(tag);
+    if (!mounted) return;
+
+    final confirmed = await showAppDialog<bool>(
+      context,
+      builder: (ctx) => AppDialog(
+        icon: Icons.layers_clear_rounded,
+        accent: const Color(0xFFC94A50),
+        title: l10n.clearTagFromAllTitle(l10n.categoryName(tag)),
+        subtitle: l10n.clearTagFromAllDesc(
+          rows.length,
+          rules.length,
+          l10n.categoryName(tag),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l10n.commonCancel),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFC94A50),
+              foregroundColor: Colors.white,
+            ),
+            child: Text(l10n.clearTagAction),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    await _db.untagTransactions(rows);
+    // Clearing without removing the rules would undo itself: the next
+    // transaction from those payees arrives already tagged again.
+    if (rules.isNotEmpty) await _db.deleteRulesForCategory(tag);
+    await _load();
+    if (!mounted) return;
+
+    showAppToast(
+      context,
+      message: l10n.clearedTagFromAll(rows.length, l10n.categoryName(tag)),
+      type: AppToastType.success,
+      actionLabel: l10n.commonUndo,
+      duration: const Duration(seconds: 6),
+      onAction: () => _undoClearAll(rows, rules),
+    );
+  }
+
+  Future<void> _undoClearAll(
+    List<TransactionModel> rows,
+    List<TransactionRule> rules,
+  ) async {
+    await _db.restoreTransactions(rows);
+    for (final rule in rules) {
+      // Re-inserted rather than updated: each row's id died with it.
+      await _db.insertTransactionRule(
+        TransactionRule(
+          senderName: rule.senderName,
+          transactionType: rule.transactionType,
+          category: rule.category,
+          notes: rule.notes,
+          isActive: rule.isActive,
+          createdAt: rule.createdAt,
+        ),
+      );
+    }
+    await _load();
+    if (!mounted) return;
+    showAppToast(context,
+        message: context.l10nRead.tagRestored, type: AppToastType.info);
   }
 
   /// Create a tag from the management screen itself. Managing tags means
@@ -245,11 +337,53 @@ class _ManageTagsScreenState extends State<ManageTagsScreen> {
         context.l10n.tagMeta(isCustom, count),
         style: TextStyle(fontSize: 12, color: colors.textTertiary),
       ),
-      trailing: IconButton(
-        icon: const Icon(Icons.delete_outline_rounded),
-        color: const Color(0xFFD25A5F),
-        tooltip: context.l10n.deleteTagTooltip,
-        onPressed: () => _deleteTag(tag),
+      // Two distinct intentions behind one row: "take this tag off my
+      // transactions" and "I never want to see this tag again". A menu keeps
+      // both one tap away without the destructive one being the only one.
+      trailing: PopupMenuButton<_TagAction>(
+        icon: Icon(Icons.more_vert_rounded, color: colors.textSecondary),
+        color: colors.card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        tooltip: context.l10n.tagActionsTooltip,
+        onSelected: (action) {
+          switch (action) {
+            case _TagAction.clear:
+              _clearTagFromAll(tag);
+            case _TagAction.delete:
+              _deleteTag(tag);
+          }
+        },
+        itemBuilder: (_) => [
+          PopupMenuItem(
+            value: _TagAction.clear,
+            enabled: count > 0,
+            child: Row(
+              children: [
+                Icon(
+                  Icons.layers_clear_rounded,
+                  size: 20,
+                  color: count > 0 ? colors.accent : colors.textTertiary,
+                ),
+                const SizedBox(width: 12),
+                Flexible(child: Text(context.l10n.clearFromTransactions(count))),
+              ],
+            ),
+          ),
+          PopupMenuItem(
+            value: _TagAction.delete,
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.delete_outline_rounded,
+                  size: 20,
+                  color: Color(0xFFD25A5F),
+                ),
+                const SizedBox(width: 12),
+                Text(context.l10n.deleteTagTooltip),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

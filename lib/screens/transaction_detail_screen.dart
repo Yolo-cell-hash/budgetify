@@ -14,10 +14,12 @@ import '../services/ledger_service.dart';
 import '../services/removal_service.dart';
 import '../services/tax_service.dart';
 import '../services/tutorial_service.dart';
+import 'auto_tag_rules_screen.dart';
 import 'plus_screen.dart';
 import '../widgets/app_bar_title.dart';
 import '../widgets/app_dialog.dart';
 import '../widgets/app_toast.dart';
+import '../widgets/clear_tag_sheet.dart';
 import '../widgets/create_tag_sheet.dart';
 import '../widgets/recurring_editor_sheet.dart';
 import '../widgets/removal_choice_dialog.dart';
@@ -63,6 +65,10 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   // The other half of a same-amount, opposite-direction pair landing within
   // minutes — the "looks like a self-transfer" nudge. Computed once on open.
   TransactionModel? _transferPair;
+  // The standing "Apply to All" rule behind this row's tag, when there is
+  // one. Drives the "tagged automatically" notice and the third clear scope
+  // ("…and stop auto-tagging"), which is the only real undo of Apply to All.
+  TransactionRule? _autoTagRule;
 
   // Guided-tour anchors: the category chips card and the Save button.
   final GlobalKey _categoryKey = GlobalKey();
@@ -78,6 +84,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     _maybeSuggestSettlement();
     _maybeSuggestTransferPair();
     _maybeSuggestTaxBucket();
+    _loadAutoTagRule();
     // Guided tour: opening any detail completes the "open it up" step; the
     // in-screen tips (choose a tag → save it) take over from here.
     TutorialService.instance.advanceFrom(TutorialStep.openTransaction);
@@ -187,6 +194,142 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     }
   }
 
+  /// Look up the standing auto-tag rule for this payee, if the tag on this
+  /// row came from one.
+  Future<void> _loadAutoTagRule() async {
+    final payee = _transaction.merchantName;
+    if (payee == null || payee.isEmpty) return;
+    final rule = await _dbService.findExistingRule(payee, _transaction.type);
+    if (!mounted) return;
+    // Only relevant while the rule actually governs this row's tag: a rule
+    // pointing at a different tag than the one showing means the user has
+    // since re-tagged this one by hand.
+    setState(() {
+      _autoTagRule =
+          (rule != null && rule.category == _transaction.category) ? rule : null;
+    });
+  }
+
+  Future<void> _openRules() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const AutoTagRulesScreen()),
+    );
+    if (!mounted) return;
+    _changed = true;
+    await _refreshTransaction();
+  }
+
+  /// Re-read this row (and its rule) after something changed it elsewhere.
+  Future<void> _refreshTransaction() async {
+    if (_transaction.id == null) return;
+    final fresh = await _dbService.getTransactionById(_transaction.id!);
+    if (fresh == null || !mounted) return;
+    setState(() {
+      _transaction = fresh;
+      _selectedCategory = fresh.category;
+    });
+    await _loadAutoTagRule();
+  }
+
+  /// Clear the tag on this transaction, asking first how far to reach.
+  ///
+  /// Tagging offers three distances (this one / every past one from this
+  /// payee / those plus everything future); clearing offers the same three in
+  /// reverse, so a tag applied in one gesture comes off in one gesture. Every
+  /// scope is undoable from the toast that follows.
+  Future<void> _clearTag() async {
+    final tag = _transaction.category;
+    if (tag == null || _transaction.id == null) return;
+    final payee = _merchantDisplayName;
+    final l10n = context.l10nRead;
+
+    // What "all from this payee" would actually reach, counted before the
+    // question is asked so the sheet can state it.
+    final siblings = (_transaction.merchantName?.isNotEmpty ?? false)
+        ? await _dbService.findTaggedByMerchant(
+            merchantName: _transaction.merchantName!,
+            type: _transaction.type,
+            category: tag,
+          )
+        : <TransactionModel>[];
+    if (!mounted) return;
+
+    final scope = await showClearTagSheet(
+      context,
+      tag: tag,
+      payee: payee,
+      matchCount: siblings.length,
+      hasRule: _autoTagRule != null,
+    );
+    if (scope == null || !mounted) return;
+
+    setState(() => _isSaving = true);
+    try {
+      // Snapshotted before any write, so Undo restores exactly this.
+      final affected = scope == ClearTagScope.onlyThis
+          ? [_transaction]
+          : siblings;
+      final removedRule =
+          scope == ClearTagScope.allAndStopRule ? _autoTagRule : null;
+
+      await _dbService.untagTransactions(affected);
+      if (removedRule?.id != null) {
+        await _dbService.deleteTransactionRule(removedRule!.id!);
+      }
+
+      _changed = true;
+      await _refreshTransaction();
+      if (!mounted) return;
+
+      showAppToast(
+        context,
+        message: removedRule != null
+            ? l10n.clearedAndStoppedRule(affected.length, payee)
+            : affected.length == 1
+                ? l10n.tagRemoved
+                : l10n.clearedFromCount(affected.length, payee),
+        type: AppToastType.success,
+        actionLabel: l10n.commonUndo,
+        duration: const Duration(seconds: 6),
+        onAction: () => _undoClear(affected, removedRule),
+      );
+    } catch (e) {
+      if (mounted) {
+        showAppToast(context,
+            message: l10n.errorGeneric(e), type: AppToastType.error);
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  /// Put back everything the last clear removed — the tags and, if it went
+  /// that far, the auto-tag rule.
+  Future<void> _undoClear(
+    List<TransactionModel> affected,
+    TransactionRule? removedRule,
+  ) async {
+    await _dbService.restoreTransactions(affected);
+    if (removedRule != null) {
+      // Re-inserted rather than updated: the row's id died with it.
+      await _dbService.insertTransactionRule(
+        TransactionRule(
+          senderName: removedRule.senderName,
+          transactionType: removedRule.transactionType,
+          category: removedRule.category,
+          notes: removedRule.notes,
+          isActive: removedRule.isActive,
+          createdAt: removedRule.createdAt,
+        ),
+      );
+    }
+    await _refreshTransaction();
+    if (!mounted) return;
+    showAppToast(context,
+        message: context.l10nRead.tagRestored, type: AppToastType.info);
+  }
+
   Future<void> _saveClassification() async {
     if (_transaction.id == null) return;
 
@@ -202,15 +345,19 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
           : _notesController.text.trim();
 
       if (_selectedCategory == null) {
-        // Un-tag: clear the category and put it back in the
-        // unclassified queue
-        final untagged = _transaction.untagged().copyWith(notes: notes);
-        await _dbService.updateTransaction(untagged);
-        if (mounted) {
-          showAppToast(context,
-              message: context.l10nRead.tagRemoved, type: AppToastType.info);
-          Navigator.pop(context, true);
+        // Deselecting the chip and pressing the "Clear" button above are the
+        // same intent, so both go through the one place that asks how far the
+        // clear should reach. Which gesture the user happened to find must
+        // not decide whether ten transactions keep a tag they shouldn't have.
+        if (notes != null && notes != _transaction.notes) {
+          await _dbService.updateTransaction(
+            _transaction.copyWith(notes: notes),
+          );
+          await _refreshTransaction();
         }
+        if (!mounted) return;
+        setState(() => _isSaving = false);
+        await _clearTag();
         return;
       }
 
@@ -979,12 +1126,17 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                 children: [
                   Row(
                     children: [
-                      Text(
-                        context.l10n.category,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: textColor,
+                      // Flexible so a long-script heading yields to the
+                      // trailing Clear action instead of overflowing the row.
+                      Flexible(
+                        child: Text(
+                          context.l10n.category,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: textColor,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       if (!_transaction.isClassified) ...[
@@ -1008,8 +1160,39 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                           ),
                         ),
                       ],
+                      // Removing a tag used to mean deselecting the chip and
+                      // noticing that the Save button had turned red — a
+                      // hidden gesture nobody found, and one that could only
+                      // ever reach this single row. This says what it does,
+                      // and the sheet behind it reaches as far as tagging did.
+                      if (_transaction.category != null) ...[
+                        const Spacer(),
+                        TextButton.icon(
+                          onPressed: _isSaving ? null : _clearTag,
+                          icon: const Icon(Icons.label_off_rounded, size: 17),
+                          label: Text(context.l10n.clearTag),
+                          style: TextButton.styleFrom(
+                            foregroundColor: const Color(0xFFC94A50),
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            minimumSize: const Size(0, 34),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            textStyle: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
+                  // Why a tag appeared without the user choosing it here.
+                  if (_autoTagRule != null) ...[
+                    const SizedBox(height: 12),
+                    AutoTaggedNotice(
+                      payee: _autoTagRule!.senderName,
+                      onManage: _openRules,
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   Wrap(
                     spacing: 8,

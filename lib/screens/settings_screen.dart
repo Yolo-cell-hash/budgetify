@@ -30,6 +30,7 @@ import '../widgets/app_toast.dart';
 import '../widgets/language_picker_sheet.dart';
 import '../widgets/export_options_sheet.dart';
 import '../widgets/import_options_sheet.dart';
+import 'auto_tag_rules_screen.dart';
 import 'manage_tags_screen.dart';
 import 'plus_screen.dart';
 import 'statement_import_screen.dart';
@@ -663,6 +664,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const ManageTagsScreen()),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          // The standing rules "Apply to All" writes. They used to be
+          // invisible — created in one tap, then permanent and unlistable —
+          // so a tag applied by mistake kept coming back with no way to stop
+          // it short of deleting the tag itself.
+          _buildSettingsCard(
+            isDark: isDark,
+            child: ListTile(
+              leading:
+                  const Icon(Icons.rule_folder_outlined, color: Color(0xFF4A6489)),
+              title: Text(context.l10n.autoTagRules),
+              subtitle: Text(
+                context.l10n.autoTagRulesDesc,
+                style: TextStyle(
+                  color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
+                ),
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AutoTagRulesScreen()),
               ),
             ),
           ),
