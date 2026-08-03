@@ -27,6 +27,15 @@ class _AmountResolution {
   const _AmountResolution(this.amount, this.certain);
 }
 
+/// The payee a finished parse should carry, after the post-extraction audit:
+/// the name to store (null when nothing survived) and whether the reader
+/// ended up not knowing who the other party was.
+class _PayeeVerdict {
+  final String? name;
+  final bool unknown;
+  const _PayeeVerdict(this.name, this.unknown);
+}
+
 /// Service for parsing bank SMS messages to extract transaction details
 class SmsParserService {
   // Common Indian bank sender patterns
@@ -1968,12 +1977,13 @@ class SmsParserService {
     // Extract merchant/payee name from SMS body: registered bank templates
     // first, then the generic cascade, with provenance.
     final extraction = extractMerchantDetailed(message, accountInfo);
-    final merchantName = extraction.name;
+    final payeeVerdict = _auditPayee(extraction.name, accountInfo, type);
+    final merchantName = payeeVerdict.name;
 
     // Auto-detect category from merchant. Bank service charges carry no
     // merchant keyword, but their category is known by construction.
     final category = detectCategory(message) ??
-        (merchantName == 'Bank Charges' ? 'Bills & Utilities' : null);
+        (merchantName == payeeBankCharges ? 'Bills & Utilities' : null);
 
     // Everything the parser had to guess, as machine-readable reasons. The
     // UI turns them into one-line explanations, the "Needs review" filter
@@ -1984,7 +1994,8 @@ class SmsParserService {
       if (trust == SenderTrust.headerFallback) ReviewReasons.unknownSender,
       if (!typeRes.certain) ReviewReasons.directionUncertain,
       if (!amountRes.certain) ReviewReasons.amountUncertain,
-      if (extraction.payeeUnknown) ReviewReasons.payeeUnknown,
+      if (extraction.payeeUnknown || payeeVerdict.unknown)
+        ReviewReasons.payeeUnknown,
     ];
 
     return TransactionModel(
@@ -2414,6 +2425,19 @@ class SmsParserService {
     return extractMerchantDetailed(message, accountInfo).name;
   }
 
+  /// Cash withdrawal — one real counterparty (cash), so it may be aliased
+  /// and tagged like any other payee.
+  static const String payeeAtm = 'ATM';
+
+  /// Bank fees — the counterparty is the bank itself.
+  static const String payeeBankCharges = 'Bank Charges';
+
+  /// A UPI transfer whose counterparty the message never names. Unlike the
+  /// two above this is NOT one party: many unrelated people share it, which
+  /// is why it can never learn an alias (DatabaseService.isAccountFallbackPayee)
+  /// and why an incoming payment carrying it is sent to the review queue.
+  static const String payeeUpiTransfer = 'UPI Transfer';
+
   /// Extract the merchant/payee with provenance.
   ///
   /// Registered bank templates ([BankTemplates.packs]) run first — highest
@@ -2432,16 +2456,24 @@ class SmsParserService {
     for (final bank in BankTemplates.identifyBanks(message)) {
       for (final template in BankTemplates.packs[bank]!) {
         final match = template.pattern.firstMatch(message);
-        final candidate = match?.group(1)?.trim();
-        if (candidate == null || candidate.length <= 2) continue;
+        if (match == null) continue;
         final source = '$bank · ${template.rail}';
         final kind = template.verified
             ? PayeeSource.bankTemplate
             : PayeeSource.generic;
+        // A shape that identifies the counterparty by itself (interest
+        // payouts, fee debits) names it outright — there is nothing in the
+        // message to capture.
+        final fixed = template.fixedName;
+        if (fixed != null) return MerchantExtraction(fixed, source, kind);
+        final candidate = match.group(1)?.trim();
+        if (candidate == null || candidate.length <= 2) continue;
         if (template.nameIsVpa) {
           // A UPI VPA ("paytm.s21upj5@pty") → render its handle-less local
-          // part the same way the generic VPA pattern does.
-          final vpa = RegExp(r'^([\w.\-]+)@[\w.\-]+$').firstMatch(candidate);
+          // part the same way the generic VPA pattern does. The handle may
+          // be absent entirely ("pinkygala77@"): Canara masks it away, and
+          // the local part is still the person the money went to.
+          final vpa = RegExp(r'^([\w.\-]+)@[\w.\-]*$').firstMatch(candidate);
           if (vpa != null) {
             final local =
                 vpa.group(1)!.replaceAll(RegExp(r'[._]'), ' ').trim();
@@ -2491,7 +2523,9 @@ class SmsParserService {
         PayeeSource.none,
       );
     }
-    if (name == 'ATM' || name == 'Bank Charges' || name == 'UPI Transfer') {
+    if (name == payeeAtm ||
+        name == payeeBankCharges ||
+        name == payeeUpiTransfer) {
       return MerchantExtraction(
         name,
         'recognised · ${name.toLowerCase()}',
@@ -2568,7 +2602,7 @@ class SmsParserService {
             RegExp(r'\bWITHDRAWN\b[\s\S]*\bCARD\b[\s\S]*\bAT\s')
                 .hasMatch(upperForAtm);
     if (isAtmWithdrawal) {
-      return 'ATM';
+      return payeeAtm;
     }
 
     // --- Pattern 2: BOI "credited to {NAME} via UPI" ---
@@ -2744,7 +2778,7 @@ class SmsParserService {
     // real counterparty extracted above always wins. "RECHARGE" can't match:
     // \bCHARGES?\b is word-bounded and CHRG is not a substring of it.
     if (RegExp(r'CHRG|\bCHARGES?\b').hasMatch(upperForAtm)) {
-      return 'Bank Charges';
+      return payeeBankCharges;
     }
 
     // --- Pattern 10: nameless UPI transfer → uniform payee "UPI Transfer" ---
@@ -2757,7 +2791,7 @@ class SmsParserService {
     // DatabaseService.isAccountFallbackPayee) — unlike "ATM", which really
     // is a single counterparty (cash).
     if (RegExp(r'\bUPI\b').hasMatch(upperForAtm)) {
-      return 'UPI Transfer';
+      return payeeUpiTransfer;
     }
 
     // --- No counterparty could be read ---
@@ -2768,6 +2802,40 @@ class SmsParserService {
     // nothing is the honest answer; ReviewReasons.payeeUnknown still flags
     // the message for review, and the detail screen simply omits the row.
     return null;
+  }
+
+  /// Final say on the payee, applied to the finished parse rather than to any
+  /// one extraction rule. Two things send a transaction to the review queue
+  /// no matter which template or pattern produced the name:
+  ///
+  /// 1. **The payee is this row's own account.** A transaction has two sides
+  ///    and the account is one of them, so it can never be the other — a row
+  ///    reading "Received from XX2278" directly above "Account XX2278" is a
+  ///    misread, not a fact. [extractMerchantDetailed] already refuses to
+  ///    return one, but checking the finished parse means no template added
+  ///    later can quietly reintroduce the collapse: the name is dropped and
+  ///    the row is flagged instead.
+  ///
+  /// 2. **Money arrived from the nameless "UPI Transfer" placeholder.**
+  ///    Canara's UPI credits ("credited … by UPI ref no …") carry no payer at
+  ///    all, and unlike a debit — where the user knows what they just paid
+  ///    for — an unexplained incoming payment is exactly what wants a glance:
+  ///    it could be income, a refund, or a friend settling up. The
+  ///    placeholder is kept as the payee (it states what is known) while the
+  ///    review flag says the payer is not.
+  static _PayeeVerdict _auditPayee(
+    String? name,
+    String? accountInfo,
+    TransactionType type,
+  ) {
+    if (name == null) return const _PayeeVerdict(null, false);
+    if (isAccountLikePayee(name, accountInfo)) {
+      return const _PayeeVerdict(null, true);
+    }
+    if (type == TransactionType.credit && name == payeeUpiTransfer) {
+      return const _PayeeVerdict(payeeUpiTransfer, true);
+    }
+    return _PayeeVerdict(name, false);
   }
 
   /// Whether [name] is really the account/card number rather than a

@@ -107,10 +107,29 @@ void main() {
       expect(txn.needsReview, isFalse);
     });
 
-    test('nameless UPI credit is a recognised placeholder, not a guess', () {
+    test('nameless UPI credit keeps the placeholder but asks for a look', () {
       final txn = SmsParserService.parseTransaction(
         'BP-BOIIND-S',
         'BOI -  Rs.800.00 Credited to your Ac XX7848 on 24-06-26 by UPI '
+        'ref No.654169525627.Avl Bal 17871.44',
+        now,
+      );
+      expect(txn, isNotNull);
+      // The placeholder is right about what IS known — money arrived over UPI.
+      expect(txn!.merchantName, 'UPI Transfer');
+      expect(txn.parseSource, 'recognised · upi transfer');
+      // …and the review flag is right about what isn't: money arriving from
+      // a party the bank never named could be income, a refund or a friend
+      // settling up, and only the user can say which.
+      expect(txn.reviewReasonList, contains(ReviewReasons.payeeUnknown));
+    });
+
+    test('nameless UPI debit is a recognised placeholder, not a guess', () {
+      // The mirror case: on the way out the user knows what they just paid
+      // for, so an unnamed counterparty is not worth interrupting them over.
+      final txn = SmsParserService.parseTransaction(
+        'BP-BOIIND-S',
+        'BOI -  Rs.800.00 Debited to your Ac XX7848 on 24-06-26 by UPI '
         'ref No.654169525627.Avl Bal 17871.44',
         now,
       );

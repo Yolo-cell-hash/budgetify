@@ -76,11 +76,18 @@ class BankTemplate {
   /// their extractions still land in the review queue until confirmed.
   final bool verified;
 
+  /// A counterparty the shape itself identifies, with nothing to capture —
+  /// e.g. Canara's "…CREDITED to your account … towards interest", where the
+  /// other party is the bank paying you interest. When set, [pattern] only
+  /// has to match: the name is this, and no capture group is required.
+  final String? fixedName;
+
   BankTemplate(
     this.rail,
     String pattern, {
     this.nameIsVpa = false,
     this.verified = true,
+    this.fixedName,
   }) : pattern = RegExp(pattern, caseSensitive: false);
 }
 
@@ -97,6 +104,10 @@ class BankTemplates {
     ('KOTAK', 'Kotak'),
     ('IPPB', 'IPPB'),
     ('BANK OF MAHARASHTRA', 'BOM'),
+    // Canara signs off as "- Canara Bank" or "-CanaraBank"; the mention is
+    // spelled without the space so both forms are recognised. Listed last so
+    // a message that names two banks still tries the others first.
+    ('CANARA', 'Canara'),
   ];
 
   /// Banks named in [message] that have a template pack, in priority order.
@@ -123,6 +134,17 @@ class BankTemplates {
         'UPI transfer-out',
         r'\bdebited\b[\s\S]*?[;:]\s*([A-Za-z][A-Za-z .&\-]{2,}?)\s+credited\b',
       ),
+      // ACH/NACH narration — dividends, interest warrants, mandate debits:
+      //   "ICICI Bank Account XX197 credited:Rs. 11.50 on 05-Jun-26.
+      //    Info ACH*IRB INFRASTRUCTURE D*164. Available Balance is …"
+      //   "… Info ACH*BANK OF BARODA*13975693. …"
+      // The counterparty is the star-delimited segment between the rail and
+      // the numeric reference. These messages name nobody with "from"/"to",
+      // so every one of them used to land in the review queue unnamed. The
+      // remitter is often an institution ("BANK OF BARODA"), which the
+      // generic "from {PAYER}" rule deliberately refuses — a registered
+      // template is exactly the right place to allow it.
+      BankTemplate('ACH credit', r'\bInfo:?\s*N?ACH\*([^*]+?)\*'),
     ],
     'HDFC': [
       // "for NEFT Cr-ICIC0099999-GODREJ AND BOYCE MFG CO LTD-…" — the
@@ -166,6 +188,34 @@ class BankTemplates {
       BankTemplate(
         'UPI transfer-out',
         r'\bdebited\b[\s\S]*?\bUPI payment to\s+(.+?)\s+on\b',
+        nameIsVpa: true,
+      ),
+    ],
+    'Canara': [
+      // "An amount of INR 149.00 has been CREDITED to your account XXXX2278
+      //  on 28/06/2026 towards interest. Total Avail.bal INR 14,995.54.
+      //  - Canara Bank" — a savings-interest payout. Nobody is named because
+      // the other party is the bank itself, so the generic "towards {X}"
+      // rule read the literal word ("Interest"). Name it for what it is, the
+      // same way fee debits are named "Bank Charges", so every interest
+      // credit across accounts groups under one payee and one tag rule.
+      BankTemplate(
+        'interest credit',
+        r'\bcredit(?:ed)?\b[\s\S]*?\btowards\s+interest\b',
+        fixedName: 'Bank Interest',
+      ),
+      // "Dear Customer, Acct XXXX2278 Dr. INR 20,000.00 on 02/07/26 to
+      //  pinkygala77@; UPI: 654976813375; Bal INR 14,995.54.Not you?SMS
+      //  BLOCKUPI to 9901771222-CanaraBank"
+      // Canara masks the UPI handle away, leaving a VPA that stops at the
+      // "@" — no generic VPA rule matches it, so the payee collapsed to the
+      // "UPI Transfer" placeholder even though the message names the person.
+      // Anchored on the "Dr." debit marker so it can never read a credit,
+      // and on an "@"-bearing token so the trailing "SMS BLOCKUPI to
+      // 9901771222" instruction can't be mistaken for a payee.
+      BankTemplate(
+        'UPI transfer-out',
+        r'\bDr\.\s[\s\S]*?\bto\s+([\w.\-]+@[\w.\-]*)',
         nameIsVpa: true,
       ),
     ],

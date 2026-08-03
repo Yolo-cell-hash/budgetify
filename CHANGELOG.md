@@ -4,6 +4,59 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.56.0] — 2026-08-03
+
+### Added
+
+- **Clearing a tag now reaches as far as tagging did.** Choosing **Apply to
+  All** tags every matching transaction *and* writes a standing rule that keeps
+  tagging the ones that arrive later. Taking that back was the problem: the
+  only visible way out was deleting the tag itself. A transaction that carries
+  a tag now shows a plain **Clear** next to the Category heading, and it asks
+  how far to reach — **Only this one**, **All from this payee** (with the real
+  count), or **All, and stop auto-tagging**, which is the true undo of Apply to
+  All. Every one of them is undoable from the toast that follows.
+- **An Auto-tag rules screen** (Settings → Data). The rules Apply to All
+  creates used to be invisible — written in one tap, then permanent and
+  unlistable. Now each one shows what it tags, in which direction, and how
+  many transactions currently carry it. Pause a rule to stop it tagging new
+  transactions while keeping what it already did, or delete it and choose
+  whether the tags it applied go with it.
+- **A "tagged automatically" note** on any transaction whose tag came from a
+  rule rather than from you, so a tag that appears on its own explains itself
+  — and links straight to the rule behind it.
+- **Clear from N transactions** in Manage Tags, separate from Delete. Emptying
+  a tag and destroying it are different intentions; only one of them was
+  available before. Clearing also removes the auto-tag rules that write that
+  tag, so it doesn't quietly come back on the next message.
+
+### Improved
+
+- **Canara Bank alerts are read properly.** An interest payout ("…CREDITED to
+  your account … towards interest") is filed under **Bank Interest** instead of
+  the literal word "interest", so every interest credit across accounts groups
+  under one payee. A UPI debit names the person: Canara masks the UPI handle
+  away at the "@", which no rule could read, so "pinkygala77@" used to collapse
+  to the generic "UPI Transfer" placeholder.
+- **ICICI ACH/NACH credits — dividends and interest warrants — name the
+  remitter.** These carry the payer only inside a star-delimited narration
+  ("Info ACH\*IRB INFRASTRUCTURE D\*164"), which no "from"/"to" rule matches,
+  so every one of them arrived with no counterparty at all. Institutional
+  remitters ("BANK OF BARODA") are read too, which the general-purpose rule
+  deliberately refuses.
+- **Money arriving from nobody now asks for a glance.** A UPI credit whose
+  payer the bank never names keeps the honest "UPI Transfer" label but lands in
+  **Needs review** — an unexplained incoming payment could be income, a refund
+  or a friend settling up, and only you can say which. Outgoing payments are
+  left alone: you know what you just paid for.
+- **A payee can never be your own account.** As a final check on every parse,
+  a counterparty that reads as the row's own account number is dropped and the
+  transaction is flagged for review — the two sides of a transaction can never
+  be the same party, so a row saying "Received from XX2278" directly above
+  "Account XX2278" was always a misread. Stored transactions that no rule could
+  name are re-read on upgrade, so the history you already have benefits from
+  the new Canara and ICICI shapes rather than only new messages.
+
 ## [1.53.0] — 2026-07-29
 
 ### Added
