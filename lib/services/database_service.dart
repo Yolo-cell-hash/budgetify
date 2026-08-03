@@ -36,7 +36,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 28,
+      version: 29,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -813,7 +813,88 @@ class DatabaseService {
         );
       }
     }
+
+    if (oldVersion < 29) {
+      // v1.56 taught the parser three shapes it could not read before: Canara
+      // interest payouts ("Bank Interest"), Canara UPI debits whose VPA the
+      // bank masks at the "@" ("pinkygala77@" → "Pinkygala77"), and ICICI
+      // ACH/NACH credits — dividends and interest warrants that name the
+      // remitter only inside a star-delimited narration ("Info ACH*IRB
+      // INFRASTRUCTURE D*164").
+      //
+      // Nothing re-reads a stored row, so without this the new rules would
+      // only ever apply to messages that arrive AFTER the update, and the
+      // history the user is looking at today would keep reading "UPI
+      // Transfer" or no payee at all.
+      //
+      // Only rows the parser could NOT name are touched — no payee, the
+      // nameless "UPI Transfer" placeholder, or the old account fallback — so
+      // a real name, and above all a name the user typed, is never clobbered.
+      // The re-read must also produce a real name: a row that today's parser
+      // still can't read keeps exactly what it has. Review state is left
+      // alone for the same reason as the schema-28 pass: these are old rows,
+      // many already confirmed, and re-flagging them would refill the queue.
+      await _renamePayeesTodayCanRead(db);
+    }
   }
+
+  /// Re-read the payee of every stored row the parser could not name, using
+  /// today's rules. Shared by the schema-29 migration and testable on its own.
+  Future<void> _renamePayeesTodayCanRead(Database db) async {
+    final rows = await db.query(
+      'transactions',
+      columns: ['id', 'message', 'account_info', 'merchant_name'],
+    );
+    for (final row in rows) {
+      final message = row['message'] as String? ?? '';
+      if (message.isEmpty) continue; // manual entries have no SMS to re-read
+      final current = row['merchant_name'] as String?;
+      final accountInfo = row['account_info'] as String?;
+      if (!isUnnamedPayee(current, accountInfo)) continue;
+
+      final fresh = SmsParserService.extractMerchantDetailed(
+        message,
+        accountInfo,
+      );
+      final name = fresh.name;
+      if (name == null || name == current) continue;
+      // A re-read that lands back on a placeholder is no improvement.
+      if (isUnnamedPayee(name, accountInfo)) continue;
+
+      // Match what a fresh parse would store: applyPayeeAlias runs before the
+      // row is saved there. Queried against the raw handle because the public
+      // alias helpers await `database`, which is mid-open during a migration.
+      var payee = name;
+      final alias = await db.query(
+        'payee_aliases',
+        columns: ['display_name'],
+        where: 'raw_key = ?',
+        whereArgs: [normalizePayeeKey(payee)],
+        limit: 1,
+      );
+      if (alias.isNotEmpty) {
+        payee = alias.first['display_name'] as String? ?? payee;
+      }
+      await db.update(
+        'transactions',
+        {'merchant_name': payee, 'parse_source': fresh.source},
+        where: 'id = ?',
+        whereArgs: [row['id']],
+      );
+    }
+  }
+
+  /// Whether a stored payee means "nobody was named": empty, the nameless
+  /// "UPI Transfer" placeholder (many unrelated counterparties share it), or
+  /// the pre-v1.55.1 account fallback. "ATM" and "Bank Charges" are NOT
+  /// unnamed — each is one real counterparty.
+  ///
+  /// Delegates the non-empty cases to [isAccountFallbackPayee] so there is
+  /// one definition of "this string is not an identity" in the codebase.
+  static bool isUnnamedPayee(String? payee, String? accountInfo) =>
+      payee == null ||
+      payee.trim().isEmpty ||
+      isAccountFallbackPayee(payee, accountInfo);
 
   /// What a stored row should show as its payee when the one it was saved
   /// with is the account number itself — the pre-v1.55.1 "account fallback".
@@ -2063,6 +2144,89 @@ class DatabaseService {
       'transaction_rules',
       where: 'id = ?',
       whereArgs: [id],
+    );
+  }
+
+  // ==================== CLEARING TAGS ====================
+  //
+  // Tagging reaches three distances — this one, every past one from this
+  // payee, and every future one (an auto-tag rule). Clearing has to reach
+  // exactly as far, or a tag applied in one gesture takes ten to undo. These
+  // are the reverse of insertTransactionRule / bulkUpdateByMerchant, and they
+  // hand the affected rows back so the caller can offer a real Undo rather
+  // than a warning dialog.
+
+  /// The transactions an auto-tag rule for [merchantName] + [type] governs —
+  /// the exact set "Apply to All" reached — narrowed to those carrying
+  /// [category] when given.
+  ///
+  /// Matching goes through [TransactionRule.matches], the same normalization
+  /// tagging used, so clearing can never reverse a different set than the one
+  /// that was tagged.
+  Future<List<TransactionModel>> findTaggedByMerchant({
+    required String merchantName,
+    required TransactionType type,
+    String? category,
+  }) async {
+    if (merchantName.trim().isEmpty) return [];
+    final probe = TransactionRule(
+      senderName: merchantName,
+      transactionType: type,
+      category: category ?? '',
+    );
+    final all = await getAllTransactions();
+    return all
+        .where((t) => category == null || t.category == category)
+        .where((t) => t.category != null)
+        .where((t) => probe.matches(t.merchantName, t.type))
+        .toList();
+  }
+
+  /// Clear the tag from [rows], returning them to the unclassified queue.
+  /// The caller keeps the rows it passed in; [restoreTransactions] puts them
+  /// back exactly as they were.
+  Future<int> untagTransactions(List<TransactionModel> rows) async {
+    final db = await database;
+    var cleared = 0;
+    for (final row in rows) {
+      if (row.id == null) continue;
+      cleared += await db.update(
+        'transactions',
+        {'category': null, 'is_classified': 0},
+        where: 'id = ?',
+        whereArgs: [row.id],
+      );
+    }
+    return cleared;
+  }
+
+  /// Undo: put [rows] back in the state they were captured in. Writes the
+  /// whole row, so a category, its notes and the classified flag all return
+  /// together.
+  Future<int> restoreTransactions(List<TransactionModel> rows) async {
+    var restored = 0;
+    for (final row in rows) {
+      if (row.id == null) continue;
+      restored += await updateTransaction(row);
+    }
+    return restored;
+  }
+
+  /// Every auto-tag rule that assigns [category] — what "Apply to All" left
+  /// behind, and what keeps re-tagging new transactions after a clear.
+  Future<List<TransactionRule>> getRulesForCategory(String category) async {
+    final rules = await getAllTransactionRules();
+    return rules.where((r) => r.category == category).toList();
+  }
+
+  /// Delete every auto-tag rule that assigns [category]. Returns how many
+  /// were removed, so the UI can say what it did.
+  Future<int> deleteRulesForCategory(String category) async {
+    final db = await database;
+    return db.delete(
+      'transaction_rules',
+      where: 'category = ?',
+      whereArgs: [category],
     );
   }
 
