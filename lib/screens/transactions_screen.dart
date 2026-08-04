@@ -219,8 +219,18 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     return widget.initialBankLabel ?? _bankFilter!;
   }
 
-  Future<void> _loadTransactions() async {
-    setState(() => _isLoading = true);
+  /// Reload the list from the database.
+  ///
+  /// [keepPosition] leaves the current list on screen while the query runs.
+  /// The full-screen spinner unmounts the [ListView], and the scroll offset
+  /// goes with it — which is why coming back from a transaction used to dump
+  /// the user at the top of a list they had scrolled a long way down. Reloads
+  /// that only refresh what's already there (returning from a screen, a
+  /// delete, an undo, pull-to-refresh) keep their place; filter and search
+  /// changes still show the spinner, because a different result set genuinely
+  /// does start at the top.
+  Future<void> _loadTransactions({bool keepPosition = false}) async {
+    if (!keepPosition) setState(() => _isLoading = true);
 
     try {
       var transactions = await _dbService.getFilteredTransactions(
@@ -448,7 +458,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
     final receipt =
         await RemovalService.instance.remove(transactions, choice);
-    await _loadTransactions();
+    await _loadTransactions(keepPosition: true);
     if (!mounted) return;
 
     final l10n = context.l10nRead;
@@ -469,7 +479,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
   Future<void> _undoRemoval(RemovalReceipt receipt) async {
     final restored = await RemovalService.instance.undo(receipt);
-    await _loadTransactions();
+    await _loadTransactions(keepPosition: true);
     if (!mounted) return;
     showAppToast(
       context,
@@ -559,7 +569,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     );
 
     if (result == true) {
-      _loadTransactions();
+      // Refresh in place: the user came back to the row they were looking at,
+      // not to the top of the list.
+      _loadTransactions(keepPosition: true);
     }
   }
 
@@ -595,7 +607,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   ),
                 IconButton(
                   icon: const Icon(Icons.refresh),
-                  onPressed: _loadTransactions,
+                  onPressed: () => _loadTransactions(keepPosition: true),
                 ),
               ],
             ),
@@ -607,7 +619,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   context,
                   MaterialPageRoute(builder: (_) => const AddTransactionScreen()),
                 );
-                if (result == true) _loadTransactions();
+                if (result == true) _loadTransactions(keepPosition: true);
               },
               icon: const Icon(Icons.add),
               label: Text(context.l10n.add),
@@ -627,7 +639,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 : _transactions.isEmpty
                 ? _buildEmptyState(isDark)
                 : RefreshIndicator(
-                    onRefresh: _loadTransactions,
+                    // Pull-to-refresh has its own spinner; swapping the list
+                    // out for a second one would also lose the user's place.
+                    onRefresh: () => _loadTransactions(keepPosition: true),
                     child: ListView.builder(
                       padding: const EdgeInsets.only(top: 4, bottom: 80),
                       itemCount: _transactions.length + 1,
