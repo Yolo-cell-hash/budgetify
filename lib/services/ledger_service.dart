@@ -102,27 +102,24 @@ class LedgerService {
 
   /// Split a single transaction so only [myShare] counts toward spending.
   ///
-  /// When [owedBy] is non-empty, the remainder is recorded in the ledger (those
-  /// people owe you, evenly split) and the share override is set; otherwise we
-  /// just set the share override and track no one. Reconciles any existing
-  /// split on the same transaction (so editing works), making this idempotent.
+  /// When [owedBy] is non-empty, each person is recorded in the ledger owing
+  /// exactly the share they carry (the caller resolves those amounts — see
+  /// [TransactionSplitMath.owedShares]) and the share override is set;
+  /// otherwise we just set the share override and track no one. Reconciles any
+  /// existing split on the same transaction (so editing works), making this
+  /// idempotent.
   Future<void> setTransactionSplit({
     required int transactionId,
     required String title,
     required double total,
     required double myShare,
     required DateTime date,
-    List<String> owedBy = const [],
+    List<SplitParticipant> owedBy = const [],
   }) async {
     final existing = await _db.getSplitByTransactionId(transactionId);
 
     if (owedBy.isNotEmpty) {
-      final shares =
-          TransactionSplitMath.owedShares(total, myShare, owedBy);
-      final participants = [
-        for (final s in shares)
-          SplitParticipant(person: s.person, share: s.share),
-      ];
+      final participants = owedBy.toList();
       final split = SplitEntry(
         id: existing?.id,
         title: title,

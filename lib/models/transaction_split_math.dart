@@ -15,30 +15,68 @@ class TransactionSplitMath {
     return base + remainder;
   }
 
-  /// The remainder ([total] − [myShare]) owed to you, split evenly among
-  /// [owedBy]. Each entry sums back to the remainder (the first person absorbs
-  /// the rounding remainder). Empty when nothing is owed or no people are given.
+  /// What each of [owedBy] owes you, honouring the amounts the user typed by
+  /// hand.
+  ///
+  /// [fixed] holds those hand-typed amounts, keyed by person. Everyone left
+  /// over evenly absorbs what remains of ([total] − [myShare]) once the fixed
+  /// amounts are taken out — so setting one person's figure realigns the rest
+  /// instead of making the user do the arithmetic. An even split is just the
+  /// case where [fixed] is empty.
+  ///
+  /// When the fixed amounts already swallow the remainder, the rest settle at
+  /// ₹0 and the parts stop adding up; [allocationGap] measures by how much, and
+  /// the caller decides whether to warn. Empty when no people are given.
   static List<({String person, double share})> owedShares(
     double total,
     double myShare,
-    List<String> owedBy,
-  ) {
-    final remainder = total - myShare;
-    if (remainder <= 0 || owedBy.isEmpty) return const [];
-    final n = owedBy.length;
-    final base = (remainder / n).floorToDouble();
-    var leftover = remainder - base * n;
-    final out = <({String person, double share})>[];
-    for (var i = 0; i < n; i++) {
-      var share = base;
-      if (leftover > 0.0005) {
-        share += 1;
-        leftover -= 1;
-      }
-      out.add((person: owedBy[i], share: share));
+    List<String> owedBy, {
+    Map<String, double> fixed = const {},
+  }) {
+    if (owedBy.isEmpty) return const [];
+    final free = [for (final p in owedBy) if (!fixed.containsKey(p)) p];
+    var left = total - myShare;
+    for (final p in owedBy) {
+      left -= fixed[p] ?? 0;
     }
-    return out;
+    final auto = <String, double>{};
+    if (free.isNotEmpty) {
+      final base = left <= 0 ? 0.0 : (left / free.length).floorToDouble();
+      var leftover = left <= 0 ? 0.0 : left - base * free.length;
+      for (final p in free) {
+        var share = base;
+        if (leftover > 0.0005) {
+          share += 1;
+          leftover -= 1;
+        }
+        auto[p] = share;
+      }
+    }
+    return [
+      for (final p in owedBy) (person: p, share: fixed[p] ?? auto[p] ?? 0),
+    ];
   }
+
+  /// Rounding residue below this is not a real mismatch.
+  static const double gapTolerance = 1.0;
+
+  /// How far the parts are from adding up: (your share + [shares]) − [total].
+  /// Positive ⇒ more is allocated than was spent; negative ⇒ some of the bill
+  /// is still unassigned.
+  static double allocationGap(
+    double total,
+    double myShare,
+    Iterable<double> shares,
+  ) =>
+      myShare + shares.fold<double>(0, (a, b) => a + b) - total;
+
+  /// Whether the parts add back up to [total], give or take rounding.
+  static bool isBalanced(
+    double total,
+    double myShare,
+    Iterable<double> shares,
+  ) =>
+      allocationGap(total, myShare, shares).abs() <= gapTolerance;
 
   /// Whether [myShare] is a usable share of [total]: from ₹0 (you covered it
   /// entirely for others) up to the full amount.

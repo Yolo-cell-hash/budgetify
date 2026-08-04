@@ -44,11 +44,110 @@ void main() {
     });
 
     test('nothing owed when your share is the whole total', () {
-      expect(TransactionSplitMath.owedShares(500, 500, ['A']), isEmpty);
+      expect(TransactionSplitMath.owedShares(500, 500, ['A']),
+          [(person: 'A', share: 0.0)]);
     });
 
     test('empty when no people are given', () {
       expect(TransactionSplitMath.owedShares(500, 100, const []), isEmpty);
+    });
+  });
+
+  group('TransactionSplitMath.owedShares with hand-set amounts', () {
+    test('the untouched person absorbs what the typed ones leave', () {
+      // ₹10,000 bill, ₹2,000 mine, Sayali pinned at ₹5,000 → Jay gets ₹3,000.
+      final shares = TransactionSplitMath.owedShares(
+        10000,
+        2000,
+        ['Sayali', 'Jay'],
+        fixed: {'Sayali': 5000},
+      );
+      expect(shares, [
+        (person: 'Sayali', share: 5000.0),
+        (person: 'Jay', share: 3000.0),
+      ]);
+    });
+
+    test('several untouched people split the leftover evenly', () {
+      final shares = TransactionSplitMath.owedShares(
+        10000,
+        2000,
+        ['A', 'B', 'C'],
+        fixed: {'A': 2000},
+      );
+      expect(shares, [
+        (person: 'A', share: 2000.0),
+        (person: 'B', share: 3000.0),
+        (person: 'C', share: 3000.0),
+      ]);
+    });
+
+    test('typed amounts are kept verbatim even when they overshoot', () {
+      final shares = TransactionSplitMath.owedShares(
+        10000,
+        2000,
+        ['A', 'B'],
+        fixed: {'A': 9000},
+      );
+      // A keeps the ₹9,000 the user meant; B has nothing left to take.
+      expect(shares, [
+        (person: 'A', share: 9000.0),
+        (person: 'B', share: 0.0),
+      ]);
+      expect(
+        TransactionSplitMath.allocationGap(
+            10000, 2000, shares.map((s) => s.share)),
+        1000,
+      );
+    });
+
+    test('every amount typed by hand is left exactly as entered', () {
+      final shares = TransactionSplitMath.owedShares(
+        10000,
+        2000,
+        ['A', 'B'],
+        fixed: {'A': 5000, 'B': 2000},
+      );
+      expect(shares.map((s) => s.share), [5000.0, 2000.0]);
+    });
+
+    test('rounding leftover lands on the first free person', () {
+      final shares = TransactionSplitMath.owedShares(
+        1000,
+        1,
+        ['A', 'B'],
+      );
+      expect(shares.map((s) => s.share), [500.0, 499.0]);
+      expect(
+        TransactionSplitMath.isBalanced(1000, 1, shares.map((s) => s.share)),
+        isTrue,
+      );
+    });
+  });
+
+  group('TransactionSplitMath.allocationGap', () {
+    test('zero when the parts add back up to the bill', () {
+      expect(TransactionSplitMath.allocationGap(10000, 2000, [5000, 3000]), 0);
+      expect(
+          TransactionSplitMath.isBalanced(10000, 2000, [5000, 3000]), isTrue);
+    });
+
+    test('negative when part of the bill is unassigned', () {
+      expect(TransactionSplitMath.allocationGap(10000, 2000, [5000]), -3000);
+      expect(TransactionSplitMath.isBalanced(10000, 2000, [5000]), isFalse);
+    });
+
+    test('positive when more is split than was spent', () {
+      expect(
+          TransactionSplitMath.allocationGap(10000, 2000, [5000, 5000]), 2000);
+      expect(
+          TransactionSplitMath.isBalanced(10000, 2000, [5000, 5000]), isFalse);
+    });
+
+    test('a rupee of rounding residue still counts as balanced', () {
+      expect(TransactionSplitMath.isBalanced(1000, 1, [500, 499]), isTrue);
+      expect(TransactionSplitMath.isBalanced(1000, 1, [500, 498]), isTrue);
+      expect(TransactionSplitMath.isBalanced(1000, 1, [500, 497]), isFalse);
     });
   });
 
