@@ -78,6 +78,12 @@ void main() async {
   // the previewed theme, which the very first frame must reflect.
   await DevMode.initialize(themeProvider);
 
+  // Which over-budget breach the court has already reacted to. Must be in
+  // memory before the first health snapshot lands, or a session that opens
+  // over budget would re-scold for a breach the user has already been told
+  // about (see RoyalMood).
+  await RoyalMood.loadBreach();
+
   runApp(
     MultiProvider(
       providers: [

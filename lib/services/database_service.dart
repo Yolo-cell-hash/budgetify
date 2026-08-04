@@ -10,6 +10,7 @@ import '../models/sip.dart';
 import '../models/ledger_models.dart';
 import '../models/savings_goal.dart';
 import '../models/recurring_payment.dart';
+import '../models/upi_mandate.dart';
 import 'sms_parser_service.dart';
 import 'app_events.dart';
 
@@ -36,7 +37,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 29,
+      version: 30,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -174,6 +175,7 @@ class DatabaseService {
 
     // "Apply to all from LIC → 80C": user-taught payee→bucket tax rules.
     await db.execute(_createTaxBucketRulesTable);
+    await db.execute(_createUpiMandatesTable);
   }
 
   static const String _createTaxBucketRulesTable = '''
@@ -388,6 +390,26 @@ class DatabaseService {
         txn_type INTEGER NOT NULL,
         created_at INTEGER NOT NULL,
         UNIQUE(sender_core, signature)
+      )
+    ''';
+
+  // UPI mandates (autopay) the bank announced over SMS — subscriptions that
+  // told us they exist. dedup_key is UMN-based where the bank quotes one,
+  // merchant+amount otherwise, and the UNIQUE constraint is what stops a
+  // rescan of the inbox re-offering a mandate the user already answered.
+  static const String _createUpiMandatesTable = '''
+      CREATE TABLE IF NOT EXISTS upi_mandates(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        dedup_key TEXT NOT NULL UNIQUE,
+        merchant TEXT NOT NULL,
+        amount REAL NOT NULL,
+        first_debit_on INTEGER,
+        umn TEXT,
+        account_info TEXT,
+        sender TEXT NOT NULL,
+        message TEXT NOT NULL,
+        detected_at INTEGER NOT NULL,
+        state TEXT NOT NULL
       )
     ''';
 
@@ -835,6 +857,12 @@ class DatabaseService {
       // alone for the same reason as the schema-28 pass: these are old rows,
       // many already confirmed, and re-flagging them would refill the queue.
       await _renamePayeesTodayCanRead(db);
+    }
+
+    if (oldVersion < 30) {
+      // UPI mandates: subscriptions the bank announced over SMS. Purely
+      // additive — a new table nothing else reads, filled by the next scan.
+      await db.execute(_createUpiMandatesTable);
     }
   }
 
@@ -1626,6 +1654,29 @@ class DatabaseService {
     return (result.first['total'] as num?)?.toDouble() ?? 0.0;
   }
 
+  /// Real income credited in the period — the mirror of
+  /// [getSpendingForPeriod]. Self-transfers and investment redemptions are
+  /// money moving between the user's own pockets, not income, so the same
+  /// non-expense set is excluded (see [ExpenseCategories.isIncomeCategory]).
+  Future<double> getIncomeForPeriod({
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    final db = await database;
+    final (clause, exArgs) = _nonExpenseExclusion();
+    final result = await db.rawQuery(
+      'SELECT SUM(amount) as total FROM transactions '
+      'WHERE type = ? AND detected_at >= ? AND detected_at <= ? AND $clause',
+      [
+        TransactionType.credit.index,
+        startDate.millisecondsSinceEpoch,
+        endDate.millisecondsSinceEpoch,
+        ...exArgs,
+      ],
+    );
+    return (result.first['total'] as num?)?.toDouble() ?? 0.0;
+  }
+
   Future<Map<DateTime, double>> getDailySpending({
     required DateTime startDate,
     required DateTime endDate,
@@ -2055,6 +2106,58 @@ class DatabaseService {
       limit: 50,
     );
     return result.map((map) => TransactionModel.fromMap(map)).toList();
+  }
+
+  // ==================== UPI MANDATE OPERATIONS ====================
+
+  /// Record a mandate the bank announced. Idempotent by [UpiMandate.dedupKey]:
+  /// re-reading the same registration SMS on a later inbox scan updates the
+  /// stored details but never resurrects a mandate the user has already
+  /// tracked or dismissed — the state column is deliberately not overwritten.
+  Future<void> upsertUpiMandate(UpiMandate mandate) async {
+    final db = await database;
+    final existing = await db.query(
+      'upi_mandates',
+      columns: ['id', 'state'],
+      where: 'dedup_key = ?',
+      whereArgs: [mandate.dedupKey],
+      limit: 1,
+    );
+    if (existing.isEmpty) {
+      await db.insert('upi_mandates', mandate.toMap());
+      return;
+    }
+    final values = mandate.toMap()
+      ..remove('id')
+      ..remove('state'); // the user's answer outlives the message
+    await db.update(
+      'upi_mandates',
+      values,
+      where: 'id = ?',
+      whereArgs: [existing.first['id']],
+    );
+  }
+
+  /// Mandates still waiting to be offered, newest first.
+  Future<List<UpiMandate>> getSuggestedMandates() async {
+    final db = await database;
+    final rows = await db.query(
+      'upi_mandates',
+      where: 'state = ?',
+      whereArgs: [MandateState.suggested.name],
+      orderBy: 'detected_at DESC',
+    );
+    return rows.map(UpiMandate.fromMap).toList();
+  }
+
+  Future<int> setUpiMandateState(int id, MandateState state) async {
+    final db = await database;
+    return db.update(
+      'upi_mandates',
+      {'state': state.name},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
   }
 
   // ==================== TRANSACTION RULES OPERATIONS ====================

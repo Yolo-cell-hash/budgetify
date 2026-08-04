@@ -1,7 +1,9 @@
 import '../models/recurring_payment.dart';
 import '../models/transaction_model.dart';
+import '../models/upi_mandate.dart';
 import 'database_service.dart';
 import 'notification_service.dart';
+import 'sms_parser_service.dart';
 
 /// Drives recurring *expenses* (subscriptions, rent, EMIs, insurance…).
 ///
@@ -371,10 +373,91 @@ class RecurringService {
 
   // ──────────────────────────── auto-detect ────────────────────────────
 
+  /// Subscriptions the user hasn't tracked yet, from both things the app can
+  /// know: UPI mandates the bank announced, and merchants that keep charging
+  /// on a monthly rhythm. Suggestion-only — neither ever creates a plan.
+  ///
+  /// Mandates come first and are never filtered by the history heuristics:
+  /// a registration SMS is a *statement* that a recurring commitment exists,
+  /// not an inference from three look-alike debits, so it can be offered the
+  /// day the user subscribes instead of three months later.
+  Future<List<RecurringCandidate>> detectCandidates({DateTime? now}) async {
+    final fromMandates = await mandateCandidates();
+    final fromHistory = await _historyCandidates(now: now);
+    return mergeCandidates(fromMandates, fromHistory);
+  }
+
+  /// Mandate suggestions first, then any history guess that isn't already
+  /// covered by one — a subscription that both announced itself over SMS and
+  /// has been charging long enough to spot in the history is still one
+  /// subscription, and offering it twice reads like a bug. Pure, so the
+  /// precedence is unit-tested without a database.
+  static List<RecurringCandidate> mergeCandidates(
+    List<RecurringCandidate> mandates,
+    List<RecurringCandidate> history,
+  ) {
+    final claimed = {
+      for (final c in mandates) _norm(c.merchant),
+    }..removeWhere((k) => k.isEmpty);
+    return [
+      ...mandates,
+      ...history.where((c) {
+        final key = _norm(c.merchant);
+        if (key.isEmpty) return true;
+        return !claimed.any((m) => m.contains(key) || key.contains(m));
+      }),
+    ];
+  }
+
+  /// Turn stored mandates into suggestions, dropping any whose merchant an
+  /// existing plan already covers. Pure for the same reason as
+  /// [mergeCandidates]; [existingHints] are the plans' match hints/names.
+  static List<RecurringCandidate> candidatesFromMandates(
+    List<UpiMandate> mandates,
+    Iterable<String> existingHints,
+  ) {
+    final existing = {for (final h in existingHints) _norm(h)}
+      ..removeWhere((k) => k.isEmpty);
+    final out = <RecurringCandidate>[];
+    for (final m in mandates) {
+      final key = _norm(m.merchant);
+      if (key.isEmpty) continue;
+      if (existing.any((e) => e.contains(key) || key.contains(e))) continue;
+      // The bank often states the first debit date; otherwise the day the
+      // mandate was set up is the best anchor available.
+      final anchor = m.firstDebitOn ?? m.detectedAt;
+      out.add(RecurringCandidate(
+        merchant: m.merchant,
+        amount: m.amount,
+        dayOfMonth: anchor.day,
+        // The mandate names a merchant, not a category — let the merchant
+        // database have a go at it, exactly as a parsed debit would.
+        category: SmsParserService.detectCategory(m.merchant),
+        occurrences: 0, // nothing has been charged yet
+        lastSeen: m.detectedAt,
+        source: CandidateSource.mandate,
+        mandateId: m.id,
+      ));
+    }
+    return out;
+  }
+
+  /// Suggestions read straight from UPI-mandate registration alerts, newest
+  /// first. Excludes any mandate whose merchant is already tracked by a plan.
+  Future<List<RecurringCandidate>> mandateCandidates() async {
+    final mandates = await _db.getSuggestedMandates();
+    if (mandates.isEmpty) return const [];
+    final plans = await _db.getRecurringPayments();
+    return candidatesFromMandates(
+      mandates,
+      plans.map((p) => p.matchHint ?? p.name),
+    );
+  }
+
   /// Scan recent debits for likely subscriptions/bills the user hasn't tracked
   /// yet: a merchant charged on a roughly regular monthly cadence with a stable
   /// amount. Suggestion-only — never creates a plan. Newest-activity first.
-  Future<List<RecurringCandidate>> detectCandidates({DateTime? now}) async {
+  Future<List<RecurringCandidate>> _historyCandidates({DateTime? now}) async {
     final today = _dateOnly(now ?? DateTime.now());
     final start = DateTime(today.year, today.month - 4, 1);
     final txns = await _db.getTransactionsByDateRange(start, today);
@@ -442,6 +525,18 @@ class RecurringService {
   }
 }
 
+/// Where a suggestion came from — it changes how much the app knows and how
+/// it should say so.
+enum CandidateSource {
+  /// Inferred from a run of look-alike debits. Needs three charges before it
+  /// can be sure, so a new subscription stays invisible for ~3 months.
+  history,
+
+  /// Read from a UPI-mandate registration SMS: the bank told us on day one
+  /// that this subscription exists, with its exact amount.
+  mandate,
+}
+
 /// A detected, not-yet-tracked recurring charge — pre-fills the editor.
 class RecurringCandidate {
   final String merchant;
@@ -450,6 +545,11 @@ class RecurringCandidate {
   final String? category;
   final int occurrences;
   final DateTime lastSeen;
+  final CandidateSource source;
+
+  /// The mandate row behind a [CandidateSource.mandate] suggestion, so the
+  /// screen can mark it tracked/dismissed once the user answers.
+  final int? mandateId;
 
   const RecurringCandidate({
     required this.merchant,
@@ -458,5 +558,7 @@ class RecurringCandidate {
     required this.category,
     required this.occurrences,
     required this.lastSeen,
+    this.source = CandidateSource.history,
+    this.mandateId,
   });
 }

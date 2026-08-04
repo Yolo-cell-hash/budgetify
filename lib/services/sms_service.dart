@@ -7,11 +7,43 @@ import '../models/budget_model.dart';
 import 'database_service.dart';
 import 'sms_parser_service.dart';
 import 'notification_service.dart';
+import 'upi_mandate_parser.dart';
+
+/// Record a UPI mandate if [body] is one being registered.
+///
+/// Runs alongside — not instead of — transaction parsing at every point SMS
+/// enters the app. A mandate registration is never a transaction (no money
+/// moves), so the two can never both fire on one message; keeping the call
+/// separate means the mandate is captured even though `parseTransaction`
+/// deliberately returns null for it.
+///
+/// Best-effort by design: a subscription *suggestion* must never be able to
+/// break the pipeline that logs real spending.
+Future<void> _captureMandate(
+  DatabaseService db,
+  String sender,
+  String body,
+  DateTime at,
+) async {
+  try {
+    final mandate = UpiMandateParser.parse(sender, body, at);
+    if (mandate != null) await db.upsertUpiMandate(mandate);
+  } catch (_) {
+    // Ignore — the transaction path is what matters here.
+  }
+}
 
 /// Top-level function for handling SMS in background
 @pragma('vm:entry-point')
 Future<void> backgroundMessageHandler(SmsMessage message) async {
   final dbService = DatabaseService();
+
+  await _captureMandate(
+    dbService,
+    message.address ?? 'Unknown',
+    message.body ?? '',
+    DateTime.now(),
+  );
 
   var transaction = SmsParserService.parseTransaction(
     message.address ?? 'Unknown',
@@ -230,6 +262,13 @@ class SmsService {
     SmsMessage message,
     Function(TransactionModel) onTransactionDetected,
   ) async {
+    await _captureMandate(
+      _dbService,
+      message.address ?? 'Unknown',
+      message.body ?? '',
+      DateTime.now(),
+    );
+
     var transaction = SmsParserService.parseTransaction(
       message.address ?? 'Unknown',
       message.body ?? '',
@@ -493,6 +532,13 @@ class SmsService {
       if (sentAt != null && (newest == null || sentAt.isAfter(newest))) {
         newest = sentAt;
       }
+
+      await _captureMandate(
+        _dbService,
+        message.address ?? 'Unknown',
+        message.body ?? '',
+        sentAt ?? DateTime.now(),
+      );
 
       var transaction = SmsParserService.parseTransaction(
         message.address ?? 'Unknown',

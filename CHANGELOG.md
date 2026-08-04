@@ -4,6 +4,50 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.57.0] — 2026-08-04
+
+### Added
+
+- **Subscriptions that add themselves.** When you set up autopay for anything
+  — Google Play, Spotify, a Groww SIP — your bank registers a **UPI mandate**
+  and texts you about it. Budgetify now reads those messages, so a new
+  subscription appears on the Recurring screen the day you subscribe, with the
+  exact amount and (where the bank states it) the first debit date. Until now
+  the app could only *infer* a subscription from three look-alike charges, which
+  meant three months of it being invisible. Suggestions only, as before:
+  nothing is added to your subscriptions until you tap **Track** and save it,
+  and each one can be dismissed on its own. Mandate suggestions carry an
+  **AUTOPAY** badge, because "your bank told us" is a different claim from "we
+  noticed a pattern". Registrations from ICICI, HDFC, BOI and SBI are read.
+
+### Fixed
+
+- **A mandate being *set up* is no longer logged as money moving.** No money
+  changes hands when autopay is registered, but SBI's wording ("Your
+  UPI-Mandate for Rs.1950.00 is successfully created towards Google Play from
+  A/c No: X") read enough like a credit that it was landing as ₹1,950 of
+  **income**. These messages are now recognised for what they are.
+- **Autopay charges are counted again.** The reverse mistake: any message
+  mentioning "AutoPay" was thrown away as a reminder — including the real
+  debits autopay produces. An ICICI mandate charge ("Rs 3000.00 debited from
+  ICICI Bank Savings Account XX197 … for UPI Mandate AutoPay Retrieval Ref
+  No.X") never reached your spending at all. Genuine autopay debits are now
+  logged, while the reminders that don't move money still aren't. Their payee
+  reads as the merchant alone ("ICCL Groww Auto") rather than trailing the
+  rail description, so repeat charges group together.
+- **The over-budget animation now plays when you reopen the app.** The royal's
+  attack on the budget gauge only fired if you crossed the limit while the app
+  was already open — reopening it on a budget you blew yesterday showed
+  nothing, because the app adopted "over budget" as the starting state and
+  waited for a change that had already happened. It now reacts once per
+  breach: reopening on the same blown budget stays quiet, going over a *new*
+  budget, or a new month, gets its own reaction. A scold raised while you're
+  elsewhere in the app waits a few seconds for you to reach the Budgets tab so
+  it can land on the gauge itself, and plays wherever you are if you don't.
+- **The Budgets screen reacts on its own.** Budget state was only ever checked
+  from Home, so blowing a limit while sitting on Budgets — by editing the
+  limit, or a charge arriving — went unremarked until the next visit to Home.
+
 ## [1.56.0] — 2026-08-03
 
 ### Added
