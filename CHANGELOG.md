@@ -4,6 +4,28 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.60.0] — 2026-08-04
+
+### Changed
+
+- **The app no longer jumps to Budgets when you go over.** Being thrown onto
+  a screen you didn't ask for reads as a malfunction, not as feedback. The
+  reaction is simply *owed*: it waits, and plays the moment you open your
+  budgets yourself — this launch or three launches later. The debt is
+  remembered across restarts, so it can't quietly expire, and it's settled
+  only when the animation actually plays.
+
+### Fixed
+
+- **Split bills now count as your share everywhere.** A ₹645 dinner split
+  down to ₹145 was still being counted at the full ₹645 in **Daily
+  Analysis** — its spend total, its category breakdown and the amount on each
+  row. The same slip was in the **7-day chart on Home**, the **month totals
+  above the transaction list**, the **merchant detail** totals (month, average
+  and largest), and the **"large spend" coach tip**, which could flag a bill
+  you only paid a fifth of. Every spending figure in the app now uses your
+  own share, matching the headline on the transaction itself.
+
 ## [1.59.0] — 2026-08-04
 
 ### Fixed
