@@ -3,12 +3,14 @@ import 'package:intl/intl.dart';
 
 import '../l10n/app_strings.dart';
 import '../l10n/l10n.dart';
+import '../models/ledger_models.dart';
 import '../models/transaction_model.dart';
 import '../models/transaction_split_math.dart';
 import '../providers/theme_provider.dart';
 import '../services/app_events.dart';
 import '../services/database_service.dart';
 import '../services/ledger_service.dart';
+import 'app_dialog.dart';
 import 'app_toast.dart';
 import 'person_avatar.dart';
 
@@ -50,6 +52,13 @@ class _SplitTransactionSheetState extends State<_SplitTransactionSheet> {
 
   bool _track = false;
   final List<String> _people = [];
+
+  /// One amount field per person, and the names whose amount the user typed
+  /// themselves. Everyone *not* in [_fixed] keeps absorbing whatever is left of
+  /// the bill, so setting one person's figure realigns the others.
+  final Map<String, TextEditingController> _amountCtrls = {};
+  final Set<String> _fixed = {};
+
   bool _alreadySplit = false; // had a split when opened (enables Remove)
   bool _loading = true;
   bool _saving = false;
@@ -61,6 +70,29 @@ class _SplitTransactionSheetState extends State<_SplitTransactionSheet> {
   double get _share => double.tryParse(_shareCtrl.text.trim()) ?? 0;
   double get _remainder => (_total - _share).clamp(0, _total);
   bool get _reduces => TransactionSplitMath.reducesSpend(_total, _share);
+
+  /// The hand-typed amounts, keyed by person.
+  Map<String, double> get _fixedAmounts => {
+        for (final name in _fixed)
+          if (_amountCtrls[name] != null)
+            name: double.tryParse(_amountCtrls[name]!.text.trim()) ?? 0,
+      };
+
+  /// What each person owes right now: the typed amounts as-is, the rest
+  /// sharing what's left of the bill.
+  List<({String person, double share})> get _owed =>
+      TransactionSplitMath.owedShares(_total, _share, _people,
+          fixed: _fixedAmounts);
+
+  /// Non-zero once the parts stop adding up to the bill — only meaningful
+  /// while tracking people. Positive ⇒ over, negative ⇒ still unassigned.
+  double get _gap => TransactionSplitMath.allocationGap(
+      _total, _share, _owed.map((o) => o.share));
+
+  bool get _showsGap =>
+      _track &&
+      _people.isNotEmpty &&
+      _gap.abs() > TransactionSplitMath.gapTolerance;
 
   @override
   void initState() {
@@ -78,7 +110,21 @@ class _SplitTransactionSheetState extends State<_SplitTransactionSheet> {
       _track = true;
       _shareCtrl.text = existing.myShare.toStringAsFixed(0);
       final parts = await _db.getParticipants(existing.id!);
-      _people.addAll(parts.map((p) => p.person));
+      final saved = {for (final p in parts) p.person: p.share};
+      _people.addAll(saved.keys);
+      for (final e in saved.entries) {
+        _amountCtrls[e.key] =
+            TextEditingController(text: e.value.toStringAsFixed(0));
+      }
+      // An amount an even split wouldn't have produced was set by hand, so
+      // hold on to it — reopening the sheet must not quietly round the group
+      // back to equal shares.
+      for (final o in TransactionSplitMath.owedShares(
+          _total, existing.myShare, _people)) {
+        if (((saved[o.person] ?? 0) - o.share).abs() > 0.5) {
+          _fixed.add(o.person);
+        }
+      }
     } else if (txn.splitShare != null) {
       _alreadySplit = true;
       _shareCtrl.text = txn.splitShare!.toStringAsFixed(0);
@@ -87,26 +133,68 @@ class _SplitTransactionSheetState extends State<_SplitTransactionSheet> {
       _shareCtrl.text =
           TransactionSplitMath.equalShare(_total, 2).toStringAsFixed(0);
     }
+    _syncAuto();
     if (mounted) setState(() => _loading = false);
   }
 
   @override
   void dispose() {
     _shareCtrl.dispose();
+    for (final c in _amountCtrls.values) {
+      c.dispose();
+    }
     super.dispose();
+  }
+
+  /// Push the freshly computed amounts into the fields of everyone the user
+  /// hasn't typed over, so every row always shows what will actually be saved.
+  void _syncAuto() {
+    for (final o in _owed) {
+      if (_fixed.contains(o.person)) continue;
+      final ctrl = _amountCtrls[o.person];
+      final text = o.share.toStringAsFixed(0);
+      if (ctrl != null && ctrl.text != text) ctrl.text = text;
+    }
   }
 
   void _setEqual(int people) {
     _shareCtrl.text =
         TransactionSplitMath.equalShare(_total, people).toStringAsFixed(0);
+    _syncAuto();
     setState(() {});
   }
+
+  /// Hand this row's amount back to the auto split and rebalance.
+  void _release(String name) => setState(() {
+        _fixed.remove(name);
+        _syncAuto();
+      });
+
+  /// Drop every hand-set amount so the bill divides evenly again.
+  void _evenOut() => setState(() {
+        _fixed.clear();
+        _syncAuto();
+      });
+
+  void _removePerson(String name) => setState(() {
+        _people.remove(name);
+        _fixed.remove(name);
+        _amountCtrls.remove(name)?.dispose();
+        _syncAuto();
+      });
 
   Future<void> _addPerson() async {
     final picked = await _promptPerson();
     if (picked != null && picked.trim().isNotEmpty) {
       final name = picked.trim();
-      if (!_people.contains(name)) setState(() => _people.add(name));
+      if (!_people.contains(name)) {
+        setState(() {
+          _people.add(name);
+          // New arrivals start on the auto split, absorbing what's unassigned.
+          _amountCtrls[name] = TextEditingController();
+          _syncAuto();
+        });
+      }
     }
   }
 
@@ -187,10 +275,9 @@ class _SplitTransactionSheetState extends State<_SplitTransactionSheet> {
     final txnId = widget.transaction.id;
     if (txnId == null) return;
 
-    setState(() => _saving = true);
-
     // Your share == the whole amount ⇒ it isn't really split; clear any split.
     if (!_reduces) {
+      setState(() => _saving = true);
       await _ledger.clearTransactionSplit(txnId);
       notifyAppDataChanged();
       if (mounted) {
@@ -199,13 +286,25 @@ class _SplitTransactionSheetState extends State<_SplitTransactionSheet> {
       return;
     }
 
-    final owedBy = _track ? _people : const <String>[];
     if (_track && _people.isEmpty) {
-      setState(() => _saving = false);
       showAppToast(context,
           message: l10n.addSomeoneWhoOwes, type: AppToastType.warning);
       return;
     }
+
+    // Amounts that don't add up are the user's call to make — warn, then
+    // record exactly what they entered if they mean it.
+    final owed = _owed;
+    final owedBy = _track
+        ? [
+            for (final o in owed)
+              SplitParticipant(person: o.person, share: o.share),
+          ]
+        : const <SplitParticipant>[];
+    if (_showsGap && await _confirmMismatch(l10n) != true) return;
+    if (!mounted) return;
+
+    setState(() => _saving = true);
 
     final txn = widget.transaction;
     final title = (txn.merchantName?.trim().isNotEmpty ?? false)
@@ -218,10 +317,36 @@ class _SplitTransactionSheetState extends State<_SplitTransactionSheet> {
       total: _total,
       myShare: _share,
       date: txn.detectedAt,
-      owedBy: owedBy.toList(),
+      owedBy: owedBy,
     );
     notifyAppDataChanged();
     if (mounted) Navigator.pop(context, true);
+  }
+
+  /// The shares no longer add up to the bill. Say so plainly, then let the
+  /// user go ahead — tracking a part of a bill is a legitimate thing to want.
+  Future<bool?> _confirmMismatch(AppStrings l10n) {
+    final allocated = _share + _owed.fold<double>(0, (a, o) => a + o.share);
+    return showAppDialog<bool>(
+      context,
+      builder: (ctx) => AppDialog(
+        icon: Icons.rule_rounded,
+        accent: AppColors.of(ctx).warning,
+        title: l10n.splitDoesntAddUp,
+        subtitle: l10n.splitGapExplainer(
+            _fmt.format(allocated), _fmt.format(_total)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l10n.commonCancel),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(l10n.saveAnyway),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _remove() async {
@@ -373,7 +498,8 @@ class _SplitTransactionSheetState extends State<_SplitTransactionSheet> {
           TextField(
             controller: _shareCtrl,
             keyboardType: TextInputType.number,
-            onChanged: (_) => setState(() {}),
+            // Your share moves ⇒ everyone still on the auto split moves with it.
+            onChanged: (_) => setState(_syncAuto),
             style: TextStyle(
                 fontSize: 22, fontWeight: FontWeight.w700, color: c.text),
             decoration: const InputDecoration(
@@ -475,7 +601,7 @@ class _SplitTransactionSheetState extends State<_SplitTransactionSheet> {
   }
 
   Widget _trackSection(AppColors c, AppStrings l10n) {
-    final owed = TransactionSplitMath.owedShares(_total, _share, _people);
+    final owed = _owed;
     return Container(
       decoration: BoxDecoration(
         color: c.cardAlt,
@@ -524,8 +650,9 @@ class _SplitTransactionSheetState extends State<_SplitTransactionSheet> {
                 children: [
                   Divider(color: c.border, height: 1),
                   const SizedBox(height: 10),
-                  for (final o in owed) _personRow(c, l10n, o.person, o.share),
+                  for (final o in owed) _personRow(c, o.person),
                   _addPersonRow(c, l10n),
+                  if (_showsGap) _gapNotice(c, l10n),
                 ],
               ),
             ),
@@ -536,8 +663,10 @@ class _SplitTransactionSheetState extends State<_SplitTransactionSheet> {
     );
   }
 
-  Widget _personRow(
-      AppColors c, AppStrings l10n, String name, double share) {
+  /// One person, with their share as a live field. Type over it and everyone
+  /// still on the auto split takes up the slack; the ↺ hands it back.
+  Widget _personRow(AppColors c, String name) {
+    final fixed = _fixed.contains(name);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
@@ -553,15 +682,89 @@ class _SplitTransactionSheetState extends State<_SplitTransactionSheet> {
                     fontWeight: FontWeight.w600,
                     color: c.text)),
           ),
-          Text(l10n.owesAmount(_fmt.format(share)),
+          SizedBox(
+            width: 100,
+            child: TextField(
+              controller: _amountCtrls[name],
+              keyboardType: TextInputType.number,
+              textAlign: TextAlign.right,
+              onChanged: (_) => setState(() {
+                _fixed.add(name);
+                _syncAuto();
+              }),
               style: TextStyle(
-                  fontSize: 13,
+                  fontSize: 13.5,
                   fontWeight: FontWeight.w700,
-                  color: c.success)),
-          const SizedBox(width: 4),
+                  color: c.success),
+              decoration: InputDecoration(
+                prefixText: '₹',
+                prefixStyle: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                    color: c.success),
+                isDense: true,
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
+              ),
+            ),
+          ),
+          // Same footprint either way, so typing an amount doesn't shunt the
+          // row sideways as the reset appears.
+          SizedBox(
+            width: 29,
+            child: fixed
+                ? GestureDetector(
+                    onTap: () => _release(name),
+                    child: Icon(Icons.restart_alt_rounded,
+                        size: 17, color: c.textTertiary),
+                  )
+                : null,
+          ),
           GestureDetector(
-            onTap: () => setState(() => _people.remove(name)),
+            onTap: () => _removePerson(name),
             child: Icon(Icons.close_rounded, size: 17, color: c.textTertiary),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// The parts stopped adding up to the bill. Say by how much and offer the
+  /// one-tap fix, but never block: saving past it is allowed.
+  Widget _gapNotice(AppColors c, AppStrings l10n) {
+    final amount = _fmt.format(_gap.abs());
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.fromLTRB(11, 9, 6, 9),
+      decoration: BoxDecoration(
+        color: c.warning.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(11),
+        border: Border.all(color: c.warning.withValues(alpha: 0.28)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.error_outline_rounded, size: 16, color: c.warning),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _gap > 0
+                  ? l10n.splitOverAllocated(amount)
+                  : l10n.splitUnallocated(amount),
+              style: TextStyle(
+                  fontSize: 12.5, fontWeight: FontWeight.w600, color: c.text),
+            ),
+          ),
+          TextButton(
+            onPressed: _evenOut,
+            style: TextButton.styleFrom(
+              foregroundColor: c.warning,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              minimumSize: const Size(0, 32),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              textStyle:
+                  const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+            ),
+            child: Text(l10n.evenItOut),
           ),
         ],
       ),
