@@ -1997,6 +1997,18 @@ class AppStrings {
       'మీరు ట్రాక్ చేయాలనుకునే $n చెల్లింపులు',
       'நீங்கள் கண்காணிக்க விரும்பக்கூடிய $n கட்டணங்கள்');
   String get trackShort => _t('Track', 'ट्रैक', 'ट्रॅक', 'ট্র্যাক', 'ట్రాక్', 'கண்காணி');
+  /// Badge on a suggestion that came from a UPI-mandate SMS rather than from
+  /// look-alike charges — the bank stated it, the app didn't guess.
+  String get autopayBadge => _t('AUTOPAY', 'ऑटोपे', 'ऑटोपे', 'অটোপে', 'ఆటోపే', 'ஆட்டோபே');
+  String get autopaySuggestionMeta => _t(
+      'autopay set up with your bank',
+      'आपके बैंक में ऑटोपे सेट है',
+      'तुमच्या बँकेत ऑटोपे सेट आहे',
+      'আপনার ব্যাঙ্কে অটোপে সেট করা আছে',
+      'మీ బ్యాంకులో ఆటోపే సెట్ చేయబడింది',
+      'உங்கள் வங்கியில் ஆட்டோபே அமைக்கப்பட்டுள்ளது');
+  String get commonDismiss =>
+      _t('Dismiss', 'खारिज करें', 'बाजूला ठेवा', 'বাতিল করুন', 'తీసివేయి', 'நிராகரி');
   String get monthlyCommitmentLabel =>
       _t('Monthly commitment', 'मासिक प्रतिबद्धता', 'मासिक वचनबद्धता', 'মাসিক প্রতিশ্রুতি', 'నెలవారీ నిబద్ధత', 'மாதாந்திர கடமை');
   String autoDetectedFromSms(String name) => _t(

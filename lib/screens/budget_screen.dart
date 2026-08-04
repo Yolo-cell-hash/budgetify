@@ -23,6 +23,7 @@ import '../widgets/glass.dart';
 import '../widgets/merchant_bar.dart';
 import '../widgets/motion.dart';
 import '../widgets/privacy_amount.dart';
+import '../services/financial_health_service.dart';
 import '../widgets/royal_reactions.dart';
 import '../widgets/savings_summary.dart';
 import '../widgets/spending_calendar.dart';
@@ -263,6 +264,36 @@ class _BudgetScreenState extends State<BudgetScreen>
     await _loadOverviewMonths();
     await _loadCategoryMonth(_selectedCategoryMonth);
     await _loadCategoryBudgets();
+
+    // Cosmetic only: the over-budget scold is *about* this screen's gauge, so
+    // the Budgets tab is an observation point of its own. Home used to be the
+    // only one, which meant a budget blown while sitting here — by editing a
+    // limit, or a debit arriving — went unremarked until the next Home load.
+    await _observeRoyalMood();
+  }
+
+  /// Feed the current budget picture to the royal court. Never blocks or
+  /// throws into the load path — an equipped royal reacting is decoration.
+  Future<void> _observeRoyalMood() async {
+    if (!mounted) return;
+    try {
+      final now = DateTime.now();
+      final monthStart = DateTime(now.year, now.month, 1);
+      final monthEnd = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+      final income = await _db.getIncomeForPeriod(
+        startDate: monthStart,
+        endDate: monthEnd,
+      );
+      final expenses = await _db.getSpendingForPeriod(
+        startDate: monthStart,
+        endDate: monthEnd,
+      );
+      final health = await FinancialHealthService()
+          .compute(income: income, expenses: expenses, now: now);
+      RoyalMood.observe(health, now: now);
+    } catch (_) {
+      // A decoration must never surface an error on the budgets screen.
+    }
   }
 
   /// Load every per-category budget, its current-month spend, and compute the

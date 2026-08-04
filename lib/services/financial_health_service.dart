@@ -8,7 +8,16 @@ class BudgetUsage {
   final double limit;
   final double spent;
 
-  const BudgetUsage({required this.limit, required this.spent});
+  /// Which envelope this is — a category name, or null for the overall
+  /// monthly budget. Only used to tell one blown budget from another when
+  /// deciding whether an over-budget state is a NEW one worth reacting to
+  /// (see RoyalMood.breachSignature); nothing is displayed from it.
+  final String? label;
+
+  const BudgetUsage({required this.limit, required this.spent, this.label});
+
+  /// Whether this envelope is blown.
+  bool get isOver => limit > 0 && spent > limit;
 }
 
 /// Qualitative band for a 0–100 health score. Drives the gauge colour and the
@@ -212,6 +221,7 @@ class FinancialHealthService {
     final overall = await _db.getActiveBudget();
     if (overall != null && overall.amount > 0) {
       budgets.add(BudgetUsage(limit: overall.amount, spent: expenses));
+      // (label stays null — this is the overall monthly envelope)
     }
     for (final b in await _db.getCategoryBudgets()) {
       if (b.amount <= 0 || b.category == null) continue;
@@ -220,7 +230,9 @@ class FinancialHealthService {
         endDate: monthEnd,
         category: b.category,
       );
-      budgets.add(BudgetUsage(limit: b.amount, spent: spent));
+      budgets.add(
+        BudgetUsage(limit: b.amount, spent: spent, label: b.category),
+      );
     }
 
     // ── Recurring monthly commitment ──

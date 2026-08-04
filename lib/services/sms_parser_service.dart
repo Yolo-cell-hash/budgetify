@@ -1,5 +1,6 @@
 import '../models/transaction_model.dart';
 import 'bank_templates.dart';
+import 'upi_mandate_parser.dart';
 
 /// How much a sender header can be trusted to carry real bank alerts.
 ///
@@ -2087,8 +2088,6 @@ class SmsParserService {
       ),
       RegExp(r'MAINTAIN\s+(?:A\s+)?SUFFICIENT\s+BAL'),
       RegExp(r'SCHEDULED\s+S\.?\s?I\.?\s'),
-      RegExp(r'\bAUTOPAY\b'),
-      RegExp(r'E-?MANDATE'),
       // UPI collect requests — money has not moved yet
       RegExp(r'HAS REQUESTED'),
       RegExp(r'COLLECT REQUEST'),
@@ -2119,6 +2118,17 @@ class SmsParserService {
       return true;
     }
 
+    // A UPI mandate being REGISTERED. No money moves when autopay is set up,
+    // yet the wording reads enough like a transaction to be logged as one —
+    // SBI's "Your UPI-Mandate for Rs.1950.00 is successfully created towards
+    // Google Play from A/c No: X" was landing as a ₹1950 *income* credit,
+    // because "from A/c" scored as a credit and nothing else objected.
+    // These messages are captured separately, as subscription suggestions
+    // (UpiMandateParser); the real debits arrive later on their own and are
+    // the ones that count. Mandate EXECUTIONS are unaffected: they carry a
+    // settled verb, which is exactly what looksLikeCreation rules out.
+    if (UpiMandateParser.looksLikeCreation(upperMessage)) return true;
+
     // Soft rejects: these words flag OTPs and marketing SMS, but banks also
     // put them in footers of genuine alerts. Only reject when the message
     // carries no completed-transaction verb. 'PIN' is word-bounded so it no
@@ -2138,6 +2148,16 @@ class SmsParserService {
       RegExp(r'\bPROMO\b'),
       RegExp(r'\bDISCOUNT\b'),
       RegExp(r'DUE DATE'),
+      // Autopay/e-mandate wording. These used to be HARD rejects, which threw
+      // away the genuine debits an autopay produces — "Rs 3000.00 debited
+      // from ICICI Bank Savings Account XX197 … for UPI Mandate AutoPay
+      // Retrieval Ref No.103709467589" is a real ₹3000 outflow and was never
+      // logged. As a soft reject it must still clear the completed-verb AND
+      // structural-evidence bar below, so the reminders and registrations
+      // these patterns were added for stay out (the mandate-creation reject
+      // above and "will be debited" cover those explicitly).
+      RegExp(r'\bAUTOPAY\b'),
+      RegExp(r'E-?MANDATE'),
     ];
     if (softRejectPatterns.any((p) => p.hasMatch(upperMessage))) {
       final hasTransactionVerb = _transactionVerbRegex.hasMatch(upperMessage);
@@ -2373,6 +2393,17 @@ class SmsParserService {
 
     return const _AmountResolution(null, false);
   }
+
+  /// The masked account/card a message is about ("XX1234"), or null.
+  /// Public so other readers of the same SMS — the UPI-mandate parser — name
+  /// the account exactly as the transaction parser does.
+  static String? extractAccountInfo(String message) =>
+      _extractAccountInfo(message);
+
+  /// Tidy a raw captured name into a display payee. Public for the same
+  /// reason as [extractAccountInfo]: one definition of what a name looks
+  /// like, so a mandate's merchant matches the debits it will produce.
+  static String? cleanMerchantName(String? raw) => _cleanMerchant(raw);
 
   /// Extract account information (last 4 digits of account/card)
   static String? _extractAccountInfo(String message) {
@@ -2688,9 +2719,15 @@ class SmsParserService {
     // Saraswat's account rail ("towards UPI/340983713462/HUSAIN M N/SR."),
     // and that shape must keep yielding the payer name, not the raw ref. The
     // slash/at guard below is the backstop for ref shapes 4b cannot read.
+    // An autopay debit appends the rail after the merchant — ICICI's
+    // "towards ICCL GROWW AUTO for UPI Mandate AutoPay Retrieval Ref No.X" —
+    // so " for <rail>" terminates the name too, otherwise the payee reads
+    // "Iccl Groww Auto For Upi Mandate Autopay Retrieval" and no two charges
+    // of the same subscription group together.
     final towardsMerchant = RegExp(
       r'\btowards\s+([A-Za-z][A-Za-z0-9 .&@/_\-]{1,}?)'
-      r'(?:\s+on\b|\s+ref\b|\s+avl\b|\s+bal\b|\s*[.,;]|\n|$)',
+      r'(?:\s+for\s+(?:UPI|N?ACH|IMPS|NEFT|RTGS)\b'
+      r'|\s+on\b|\s+ref\b|\s+avl\b|\s+bal\b|\s*[.,;]|\n|$)',
       caseSensitive: false,
     ).firstMatch(message);
     final towardsCandidate = towardsMerchant?.group(1)?.trim();
