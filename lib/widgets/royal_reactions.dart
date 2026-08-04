@@ -229,6 +229,13 @@ class RoyalMood {
   static void _scold(String signature) {
     _scoldedBreach = signature;
     _saveBreach(signature);
+    // Take the user to the thing that's wrong. Being told "you're over
+    // budget" and having to go find out which one is the weaker half of the
+    // moment — and on a cold start the news arrives on Home, where the gauge
+    // that would show it isn't. The tab request is deliberately outside the
+    // animation gate below: showing someone their blown budget is useful
+    // whether or not they've turned the court's theatrics on.
+    mainShellTabRequest.value = 1;
     requestRoyalReaction(RoyalReaction.scold);
   }
 
@@ -353,12 +360,17 @@ class RoyalReactionHost extends StatefulWidget {
     _RoyalReactionHostState._bootedThisSession = false;
     royalCharacterOut.value = false;
     debugCameoGap = null;
-    debugSmashParkGrace = null;
+    debugSmashParkPoll = null;
+    debugSmashParkAttempts = null;
   }
 
-  /// Test override for how long a scold waits for the Budgets gauge.
+  /// Test overrides for how a parked scold waits for the Budgets gauge: how
+  /// often it re-checks, and how many checks before it plays anyway.
   @visibleForTesting
-  static Duration? debugSmashParkGrace;
+  static Duration? debugSmashParkPoll;
+
+  @visibleForTesting
+  static int? debugSmashParkAttempts;
 
   @override
   State<RoyalReactionHost> createState() => _RoyalReactionHostState();
@@ -544,49 +556,67 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
   }
 
   /// Begin [r] now, unless it is the over-budget attack and the gauge it is
-  /// *about* isn't on screen — then hold it briefly for the Budgets tab.
+  /// *about* isn't reachable yet — then hold it and keep checking.
   ///
-  /// The attack exists to wreck the monthly-budget ring; raised from Home (as
-  /// the launch scold always is) it would otherwise spend itself on a generic
-  /// spot beside the profile icon, which is the weaker version of the moment.
-  /// Holding it means a user who reacts to "you're over budget" by going to
-  /// look at their budgets gets the real thing, and one who doesn't still
-  /// sees it a few seconds later wherever they are — never nothing.
+  /// The attack exists to wreck the monthly-budget ring, so it should land on
+  /// the ring. It rarely can at the moment it is raised: on a cold start the
+  /// news breaks on Home, and after an edit the budget dialog is still
+  /// unwinding. [_scold] has already asked the shell for the Budgets tab, so
+  /// the gauge is usually seconds away — [_parkSmash] waits for it rather
+  /// than firing into whatever happens to be on screen.
   void _startOrPark(_Routine r) {
-    if (r == _Routine.smash && _resolveChartTarget() == null) {
+    if (r == _Routine.smash && !_canStageSmash()) {
       _parkSmash();
       return;
     }
     _play(r);
   }
 
-  /// How long a scold waits for the Budgets gauge before giving up and
-  /// playing wherever the user is. Long enough to cover a deliberate walk to
-  /// the tab, short enough that the reaction still reads as a response.
-  static const Duration _smashParkGrace = Duration(seconds: 6);
+  /// Whether the attack can be staged on the gauge right now.
+  bool _canStageSmash() => !_popupOpen && _resolveChartTarget() != null;
+
+  /// How often a parked scold re-checks for the gauge, and how many checks it
+  /// makes before playing wherever the user is instead. ~12s of looking: long
+  /// enough for the tab switch, the screen's first load and its layout, short
+  /// enough that the reaction still reads as a response to what just happened.
+  static const Duration _smashParkPoll = Duration(milliseconds: 300);
+  static const int _smashParkAttempts = 40;
 
   Timer? _parkedSmashTimer;
+  int _parkedSmashChecks = 0;
 
   void _parkSmash() {
     _parkedSmashTimer?.cancel();
-    _parkedSmashTimer = Timer(
-      RoyalReactionHost.debugSmashParkGrace ?? _smashParkGrace,
-      () => _releaseParkedSmash(force: true),
+    _parkedSmashChecks = 0;
+    _parkedSmashTimer = Timer.periodic(
+      RoyalReactionHost.debugSmashParkPoll ?? _smashParkPoll,
+      (_) => _pollParkedSmash(),
     );
   }
 
-  /// Play a parked scold. Called on every tab change (where it only fires once
-  /// the gauge is genuinely on screen) and by the grace timer with
-  /// [force] — at which point it plays anywhere rather than being lost.
-  void _releaseParkedSmash({bool force = false}) {
-    if (_parkedSmashTimer == null || !mounted) return;
-    if (!force && _resolveChartTarget() == null) return;
-    _parkedSmashTimer!.cancel();
-    _parkedSmashTimer = null;
-    if (_routine != null) {
-      _pending = _Routine.smash;
+  void _pollParkedSmash() {
+    if (!mounted) return;
+    _parkedSmashChecks++;
+    // Something else is playing (the launch parade, usually) — keep waiting
+    // rather than stacking two routines on top of each other.
+    if (_routine != null) return;
+    final exhausted = _parkedSmashChecks >=
+        (RoyalReactionHost.debugSmashParkAttempts ?? _smashParkAttempts);
+    if (_canStageSmash()) {
+      _releaseParkedSmash();
       return;
     }
+    // Out of patience: play it anywhere rather than lose it — the breach has
+    // already been marked as reacted to, so a dropped scold is a scold the
+    // user never gets. A modal popup is the one thing worth waiting out
+    // regardless, since the court must never paint over a sheet.
+    if (exhausted && !_popupOpen) _releaseParkedSmash();
+  }
+
+  void _releaseParkedSmash() {
+    _parkedSmashTimer?.cancel();
+    _parkedSmashTimer = null;
+    _parkedSmashChecks = 0;
     _play(_Routine.smash);
   }
 
@@ -647,11 +677,14 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
   /// makes the court feel at home on every page, not just Home.
   void _onTabChange() {
     if (!mounted || _royal == null) return;
-    // Landing on Budgets is what a parked scold has been waiting for. The
-    // gauge needs a frame to lay out before its anchor resolves.
+    // Landing on Budgets is what a parked scold has been waiting for — check
+    // straight away instead of on the next poll tick. The gauge needs a frame
+    // to lay out first, so this rides a post-frame callback.
     if (_parkedSmashTimer != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _releaseParkedSmash();
+        if (mounted && _parkedSmashTimer != null && _routine == null) {
+          _pollParkedSmash();
+        }
       });
       return;
     }

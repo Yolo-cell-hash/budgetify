@@ -4,6 +4,39 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.58.0] — 2026-08-04
+
+### Added
+
+- **Blowing a budget takes you to it.** When you cross a limit, the app now
+  opens the Budgets tab on the gauge that broke, instead of announcing it
+  wherever you happen to be and leaving you to go find which budget it was.
+  This happens on a cold start too: reopen the app after a charge pushed you
+  over and you land on the Budgets screen showing the new total. Once per
+  breach, so it never hijacks a launch twice for the same thing, and it works
+  whether or not the royal animations are switched on.
+
+### Fixed
+
+- **Retagging a transaction now updates your budgets.** Tagging a spend and
+  then moving it to **Self Transfer** or **Investments** takes it out of your
+  spending — but the Budgets tab kept showing the old figure until the app was
+  restarted. The screen was built once and never told the data underneath it
+  had changed. It now refreshes whenever anything changes what's been spent:
+  a retag, a new charge, a deletion.
+- **Cutting a budget below what you've already spent counts as going over.**
+  ₹1,000 budget with ₹900 spent, dropped to ₹800 — you are over, without
+  spending another rupee, and the reaction now fires.
+- **The over-budget animation waits for the gauge properly.** It was raised
+  the moment the breach was noticed, which is usually a moment when the ring
+  it attacks isn't on screen — mid-launch, or with the budget dialog still
+  closing over it. It now waits for the gauge to actually be there (through a
+  tab switch, a screen load and a dialog unwinding) and plays on it, falling
+  back to playing wherever you are rather than being dropped.
+
+  *Note: these full-body animations are opt-in — **Enable Custom Animations**
+  in the avatar picker, with a royal equipped and Gamified Budgets on.*
+
 ## [1.57.0] — 2026-08-04
 
 ### Added

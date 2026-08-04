@@ -45,7 +45,13 @@ class _MainShellState extends State<MainShell> {
     // The tour's "tap this tab" tips are anchored on the bottom bar, which
     // belongs to this shell — so the shell shows them whichever tab is open.
     TutorialService.instance.addListener(_onTutorialTick);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowTabTip());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _maybeShowTabTip();
+      // A request raised before this shell existed would otherwise sit unread
+      // forever: a ValueNotifier only calls listeners on *change*, and the
+      // over-budget alert can be set during startup, before the first frame.
+      _onTabRequest();
+    });
   }
 
   @override
