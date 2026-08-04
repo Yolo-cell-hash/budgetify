@@ -1126,54 +1126,66 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                 children: [
                   Row(
                     children: [
-                      // Flexible so a long-script heading yields to the
-                      // trailing Clear action instead of overflowing the row.
-                      Flexible(
-                        child: Text(
-                          context.l10n.category,
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: textColor,
-                          ),
-                          overflow: TextOverflow.ellipsis,
+                      // The heading (plus its badge) takes the whole row and
+                      // yields to the trailing Clear action, which stays
+                      // pinned to the right edge. A bare Flexible + Spacer
+                      // pair left the button floating short of the edge: both
+                      // claim flex 1, so the slack the ellipsised heading
+                      // didn't use was stranded after the button.
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                context.l10n.category,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: textColor,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (!_transaction.isClassified) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Color(0xFFD79A3C).withAlpha(26),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  context.l10n.unclassified,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: Color(0xFFD79A3C),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
-                      if (!_transaction.isClassified) ...[
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Color(0xFFD79A3C).withAlpha(26),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            context.l10n.unclassified,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: Color(0xFFD79A3C),
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      ],
                       // Removing a tag used to mean deselecting the chip and
                       // noticing that the Save button had turned red — a
                       // hidden gesture nobody found, and one that could only
                       // ever reach this single row. This says what it does,
                       // and the sheet behind it reaches as far as tagging did.
                       if (_transaction.category != null) ...[
-                        const Spacer(),
+                        const SizedBox(width: 8),
                         TextButton.icon(
                           onPressed: _isSaving ? null : _clearTag,
                           icon: const Icon(Icons.label_off_rounded, size: 17),
                           label: Text(context.l10n.clearTag),
                           style: TextButton.styleFrom(
                             foregroundColor: const Color(0xFFC94A50),
-                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            // Right padding trimmed so the label lines up with
+                            // the card's content edge, not 10px inside it.
+                            padding: const EdgeInsets.fromLTRB(10, 0, 2, 0),
                             minimumSize: const Size(0, 34),
                             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             textStyle: const TextStyle(
