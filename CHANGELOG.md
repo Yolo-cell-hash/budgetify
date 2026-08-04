@@ -4,6 +4,40 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.61.0] — 2026-08-05
+
+### Added
+
+- **Set each person's share of a split by hand.** Splitting a bill three ways
+  only ever offered one answer: your share, and the rest divided equally —
+  but the friend who ordered the wine owes more than the one who had soup.
+  Every person's amount is now a field you can type into, and the people you
+  haven't touched absorb the difference: on a ₹10,000 bill with ₹2,000 yours,
+  putting ₹5,000 on one person leaves ₹3,000 on the other, with no arithmetic
+  to do. Changing your own share realigns them the same way, and ↺ hands a
+  row you set back to the automatic split. When the parts stop adding up, the
+  sheet says by how much and offers a one-tap **Even it out** — then lets you
+  save it anyway, because tracking a slice of a bill is a legitimate thing to
+  want. The ledger records exactly what you entered.
+
+### Fixed
+
+- **The transaction list keeps your place when you come back to it.**
+  Scrolling a long way down, opening a transaction and tagging it landed you
+  back at the very top, with all that scrolling to do again. The list wasn't
+  forgetting its position — it was being destroyed: every reload swapped the
+  whole list out for a loading spinner, and the scroll position went with it.
+  Refreshes that only update what's already on screen (coming back from a
+  transaction or from Add, a delete, an undo, pull-to-refresh) now leave the
+  list in place. Filter and search changes still start at the top, where a
+  new result set belongs.
+- **Settings shows the version you are actually running.** The About row read
+  1.48.0 while the app shipped as 1.60.0 — it was a hand-maintained constant
+  that release bumps kept forgetting. It is now checked against the real
+  version by the test suite, so the two can't drift apart again.
+- **The Clear action on a transaction's Category card sits at the right
+  edge.** It had been floating well short of it.
+
 ## [1.60.0] — 2026-08-04
 
 ### Changed
