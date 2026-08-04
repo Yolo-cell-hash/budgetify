@@ -192,6 +192,57 @@ void main() {
       );
     });
 
+    test('cutting the budget below what is spent counts as going over', () {
+      // ₹1000 budget, ₹900 spent — fine. Drop the budget to ₹800 and the user
+      // is over without spending another rupee, which is just as much a
+      // breach as a charge pushing them past it.
+      final events = capture(() {
+        RoyalMood.observe(
+          _health(income: 2000, expenses: 900, limit: 1000, spent: 900),
+          now: DateTime(2026, 8, 4),
+        );
+        RoyalMood.observe(
+          _health(income: 2000, expenses: 900, limit: 800, spent: 900),
+          now: DateTime(2026, 8, 4),
+        );
+      });
+      expect(events, contains(RoyalReaction.scold));
+    });
+
+    test('a breach sends the user to the Budgets tab', () {
+      // Being told "you're over budget" on Home and left to go find which one
+      // is the weak half of it — the shell is asked for the gauge.
+      addTearDown(() => mainShellTabRequest.value = null);
+      mainShellTabRequest.value = null;
+      RoyalMood.observe(
+        _health(income: 100, expenses: 150, limit: 100, spent: 150),
+        now: DateTime(2026, 8, 4),
+      );
+      expect(mainShellTabRequest.value, 1);
+    });
+
+    test('staying within budget never hijacks the tab', () {
+      addTearDown(() => mainShellTabRequest.value = null);
+      mainShellTabRequest.value = null;
+      RoyalMood.observe(
+        _health(income: 100, expenses: 20, limit: 100, spent: 50),
+        now: DateTime(2026, 8, 4),
+      );
+      expect(mainShellTabRequest.value, isNull);
+    });
+
+    test('a breach already reacted to does not re-hijack the tab', () {
+      final health =
+          _health(income: 100, expenses: 150, limit: 100, spent: 150);
+      final sig = RoyalMood.breachSignature(health, DateTime(2026, 8, 4));
+      RoyalMood.reset(scoldedBreach: sig);
+      addTearDown(() => mainShellTabRequest.value = null);
+      mainShellTabRequest.value = null;
+      RoyalMood.observe(health, now: DateTime(2026, 8, 4));
+      expect(mainShellTabRequest.value, isNull,
+          reason: 'every launch would otherwise open on Budgets');
+    });
+
     test('scold fires once when newly over budget', () {
       final events = capture(() {
         RoyalMood.observe(_health(income: 100, expenses: 50, limit: 100, spent: 50));
@@ -576,7 +627,8 @@ void main() {
 
       // No budget gauge in this tree, so the scold parks looking for one;
       // this test is about the attack itself, so cut the wait short.
-      RoyalReactionHost.debugSmashParkGrace = const Duration(milliseconds: 100);
+      RoyalReactionHost.debugSmashParkPoll = const Duration(milliseconds: 100);
+      RoyalReactionHost.debugSmashParkAttempts = 1; // give up looking at once
 
       // Blow a budget → the Sovereign storms out and slashes the screen.
       // His first cut lands at 0.272 of the 5.2s routine (~1414ms).
@@ -639,8 +691,9 @@ void main() {
         await tester.pump();
 
         // As above: no gauge in this tree, so don't wait out the park grace.
-        RoyalReactionHost.debugSmashParkGrace =
+        RoyalReactionHost.debugSmashParkPoll =
             const Duration(milliseconds: 100);
+        RoyalReactionHost.debugSmashParkAttempts = 1;
         requestRoyalReaction(RoyalReaction.scold);
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 150)); // grace elapses
@@ -840,7 +893,8 @@ void main() {
       });
       final prefs = AppPreferences();
       await prefs.initialize();
-      RoyalReactionHost.debugSmashParkGrace = const Duration(milliseconds: 400);
+      RoyalReactionHost.debugSmashParkPoll = const Duration(milliseconds: 200);
+      RoyalReactionHost.debugSmashParkAttempts = 2;
 
       await tester.pumpWidget(_host(prefs));
       for (var i = 0; i < 14; i++) {
@@ -853,7 +907,7 @@ void main() {
       await tester.pump();
       expect(_hasCharacter(tester), isFalse, reason: 'parked, not playing');
 
-      await tester.pump(const Duration(milliseconds: 500)); // grace elapses
+      await tester.pump(const Duration(milliseconds: 500)); // checks run out
       await tester.pump(const Duration(milliseconds: 1700)); // mid-slash
       expect(_characterPainter(tester)?.action, RoyalAction.slash,
           reason: 'it plays wherever the user is rather than being lost');
