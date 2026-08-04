@@ -57,6 +57,36 @@ Widget _host(AppPreferences prefs) => ChangeNotifierProvider<AppPreferences>.val
       ),
     );
 
+/// A host standing on the Budgets tab with the monthly-budget gauge laid out.
+/// The over-budget attack only ever plays here now — it is never fired into
+/// whatever screen the user happens to be on — so every test of the attack
+/// itself needs this stage. Callers must restore [mainShellTabIndex].
+Widget _budgetHost(AppPreferences prefs) {
+  mainShellTabIndex.value = 1;
+  return ChangeNotifierProvider<AppPreferences>.value(
+    value: prefs,
+    child: MaterialApp(
+      home: RoyalReactionHost(
+        child: Scaffold(
+          body: Stack(
+            children: [
+              Align(
+                alignment: Alignment.topRight,
+                child:
+                    SizedBox(key: royalHomeAnchorKey, width: 38, height: 38),
+              ),
+              Center(
+                child: SizedBox(
+                    key: royalBudgetChartAnchorKey, width: 160, height: 160),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 void main() {
   group('Royal weapons', () {
     test('each royal wields its signature weapon', () {
@@ -254,38 +284,44 @@ void main() {
       expect(events, contains(RoyalReaction.scold));
     });
 
-    test('a breach sends the user to the Budgets tab', () {
-      // Being told "you're over budget" on Home and left to go find which one
-      // is the weak half of it — the shell is asked for the gauge.
+    test('a breach never drags the user to another tab', () {
+      // Being thrown onto a screen you didn't ask for reads as the app
+      // malfunctioning. The reaction waits for the user to open Budgets.
       addTearDown(() => mainShellTabRequest.value = null);
       mainShellTabRequest.value = null;
       RoyalMood.observe(
         _health(income: 100, expenses: 150, limit: 100, spent: 150),
         now: DateTime(2026, 8, 4),
       );
-      expect(mainShellTabRequest.value, 1);
+      expect(mainShellTabRequest.value, isNull);
     });
 
-    test('staying within budget never hijacks the tab', () {
-      addTearDown(() => mainShellTabRequest.value = null);
-      mainShellTabRequest.value = null;
+    test('a breach is owed until it has actually been shown', () {
+      RoyalMood.observe(
+        _health(income: 100, expenses: 150, limit: 100, spent: 150),
+        now: DateTime(2026, 8, 4),
+      );
+      expect(RoyalMood.breachOwed, isTrue,
+          reason: 'requested is not the same as delivered');
+      RoyalMood.markBreachShown();
+      expect(RoyalMood.breachOwed, isFalse);
+    });
+
+    test('staying within budget owes nothing', () {
       RoyalMood.observe(
         _health(income: 100, expenses: 20, limit: 100, spent: 50),
         now: DateTime(2026, 8, 4),
       );
-      expect(mainShellTabRequest.value, isNull);
+      expect(RoyalMood.breachOwed, isFalse);
     });
 
-    test('a breach already reacted to does not re-hijack the tab', () {
+    test('a breach already reacted to is not owed again', () {
       final health =
           _health(income: 100, expenses: 150, limit: 100, spent: 150);
       final sig = RoyalMood.breachSignature(health, DateTime(2026, 8, 4));
       RoyalMood.reset(lastBreach: sig);
-      addTearDown(() => mainShellTabRequest.value = null);
-      mainShellTabRequest.value = null;
       RoyalMood.observe(health, now: DateTime(2026, 8, 4));
-      expect(mainShellTabRequest.value, isNull,
-          reason: 'every launch would otherwise open on Budgets');
+      expect(RoyalMood.breachOwed, isFalse);
     });
 
     test('scold fires once when newly over budget', () {
@@ -370,6 +406,11 @@ void main() {
     setUp(() {
       RoyalReactionHost.debugReset();
       RoyalOverlayRouteObserver.instance.debugReset();
+      // RoyalMood's breach state is static and persisted; without this, an
+      // owed attack left behind by the transition tests above would be
+      // delivered the moment a host mounts on the Budgets tab.
+      RoyalMood.reset();
+      mainShellTabIndex.value = 0;
     });
 
     // A host that registers the popup observer (as the real MaterialApp does)
@@ -651,19 +692,15 @@ void main() {
       final prefs = AppPreferences();
       await prefs.initialize();
       expect(prefs.royalCustomAnimations, isFalse);
-      // No gauge in this tree — cut the park wait short.
-      RoyalReactionHost.debugSmashParkPoll = const Duration(milliseconds: 100);
-      RoyalReactionHost.debugSmashParkAttempts = 1;
+      addTearDown(() => mainShellTabIndex.value = 0);
 
-      await tester.pumpWidget(_host(prefs));
+      await tester.pumpWidget(_budgetHost(prefs));
       for (var i = 0; i < 6; i++) {
         await tester.pump(const Duration(milliseconds: 40));
       }
       expect(_hasCharacter(tester), isFalse, reason: 'no parade either way');
 
       requestRoyalReaction(RoyalReaction.scold);
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 150)); // park gives up
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 1700)); // mid-slash
       expect(_characterPainter(tester)?.action, RoyalAction.slash,
@@ -704,8 +741,9 @@ void main() {
       );
       addTearDown(() => tester.binding.defaultBinaryMessenger
           .setMockMethodCallHandler(SystemChannels.platform, null));
+      addTearDown(() => mainShellTabIndex.value = 0);
 
-      await tester.pumpWidget(_host(prefs));
+      await tester.pumpWidget(_budgetHost(prefs));
       // Let the welcome parade run and fully finish first.
       for (var i = 0; i < 14; i++) {
         await tester.pump(const Duration(milliseconds: 40));
@@ -715,16 +753,9 @@ void main() {
       expect(_hasCharacter(tester), isFalse, reason: 'boot finished');
       haptics.clear();
 
-      // No budget gauge in this tree, so the scold parks looking for one;
-      // this test is about the attack itself, so cut the wait short.
-      RoyalReactionHost.debugSmashParkPoll = const Duration(milliseconds: 100);
-      RoyalReactionHost.debugSmashParkAttempts = 1; // give up looking at once
-
       // Blow a budget → the Sovereign storms out and slashes the screen.
       // His first cut lands at 0.272 of the 5.2s routine (~1414ms).
       requestRoyalReaction(RoyalReaction.scold);
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 150)); // grace elapses
       await tester.pump(); // routine starts
       await tester.pump(const Duration(milliseconds: 1700));
       expect(_characterPainter(tester)?.action, RoyalAction.slash);
@@ -746,6 +777,7 @@ void main() {
 
     testWidgets('every royal fights with its own verb and leaves damage',
         (tester) async {
+      addTearDown(() => mainShellTabIndex.value = 0);
       // (royal id, expected mid-attack action, when to look, routine length).
       const cases = [
         ('princess', RoyalAction.shoot, 1700, 5400), // volley in progress
@@ -773,20 +805,14 @@ void main() {
         final prefs = AppPreferences();
         await prefs.initialize();
 
-        await tester.pumpWidget(_host(prefs));
+        await tester.pumpWidget(_budgetHost(prefs));
         for (var i = 0; i < 14; i++) {
           await tester.pump(const Duration(milliseconds: 40));
         }
         await tester.pump(const Duration(seconds: 6)); // boot finishes
         await tester.pump();
 
-        // As above: no gauge in this tree, so don't wait out the park grace.
-        RoyalReactionHost.debugSmashParkPoll =
-            const Duration(milliseconds: 100);
-        RoyalReactionHost.debugSmashParkAttempts = 1;
         requestRoyalReaction(RoyalReaction.scold);
-        await tester.pump();
-        await tester.pump(const Duration(milliseconds: 150)); // grace elapses
         await tester.pump();
         await tester.pump(Duration(milliseconds: checkMs));
         expect(_characterPainter(tester)?.action, action, reason: id);
@@ -940,8 +966,12 @@ void main() {
       await tester.pump();
       expect(_hasCharacter(tester), isFalse, reason: 'boot finished');
 
-      // Over budget, discovered on Home. Nothing should fire yet.
-      requestRoyalReaction(RoyalReaction.scold);
+      // Over budget, discovered on Home — through the real path, so the debt
+      // is recorded exactly as it is in the app. Nothing should fire yet.
+      RoyalMood.observe(
+        _health(income: 2000, expenses: 900, limit: 800, spent: 900),
+        now: DateTime(2026, 8, 4),
+      );
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 900));
       expect(_hasCharacter(tester), isFalse,
@@ -950,8 +980,10 @@ void main() {
       // The user walks over to Budgets.
       setTab(() => onBudgets = true);
       mainShellTabIndex.value = 1;
-      await tester.pump();
-      await tester.pump();
+      await tester.pump(); // gauge lays out
+      // The watch ticks, and the routine's ticker only starts on the frame
+      // after that — so give it one before measuring where the royal is.
+      await tester.pump(const Duration(milliseconds: 400));
       await tester.pump(const Duration(milliseconds: 1700)); // mid-slash
 
       final gauge = tester.getCenter(find.byKey(royalBudgetChartAnchorKey));
@@ -967,9 +999,12 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('a scold nobody comes to collect still plays', (tester) async {
-      // The other half of the policy: waiting for the gauge must never mean
-      // the attack is silently dropped for a user who stays on Home.
+    testWidgets('a scold never fires into a screen that is not Budgets',
+        (tester) async {
+      // The user stays on Home. The attack must NOT go off there — it is
+      // about the budget gauge, and firing it into an unrelated screen (or
+      // dragging the user to Budgets to show it) reads as a malfunction.
+      // It waits; the debt is persisted.
       final sovereign = kRoyalAvatars.firstWhere((r) => r.id == 'sovereign');
       SharedPreferences.setMockInitialValues({
         'gamification_v1': jsonEncode({
@@ -983,8 +1018,9 @@ void main() {
       });
       final prefs = AppPreferences();
       await prefs.initialize();
-      RoyalReactionHost.debugSmashParkPoll = const Duration(milliseconds: 200);
-      RoyalReactionHost.debugSmashParkAttempts = 2;
+      addTearDown(() => mainShellTabRequest.value = null);
+      mainShellTabIndex.value = 0;
+      mainShellTabRequest.value = null;
 
       await tester.pumpWidget(_host(prefs));
       for (var i = 0; i < 14; i++) {
@@ -995,12 +1031,95 @@ void main() {
 
       requestRoyalReaction(RoyalReaction.scold);
       await tester.pump();
-      expect(_hasCharacter(tester), isFalse, reason: 'parked, not playing');
+      await tester.pump(const Duration(seconds: 8));
+      await tester.pump(const Duration(milliseconds: 1700));
+      expect(_hasCharacter(tester), isFalse,
+          reason: 'it waits for Budgets rather than firing into Home');
+      expect(mainShellTabRequest.value, isNull,
+          reason: 'and it does not drag the user there either');
+      expect(tester.takeException(), isNull);
+    });
 
-      await tester.pump(const Duration(milliseconds: 500)); // checks run out
+    testWidgets('an attack owed from a previous launch plays on arrival',
+        (tester) async {
+      // Cold start with a breach already owed: nothing happens until the
+      // user opens Budgets of their own accord, and then it plays.
+      addTearDown(() => mainShellTabIndex.value = 0);
+      final sovereign = kRoyalAvatars.firstWhere((r) => r.id == 'sovereign');
+      SharedPreferences.setMockInitialValues({
+        'gamification_v1': jsonEncode({
+          'profile': {
+            'avatarKind': 'pixel',
+            'avatarValue': '${sovereign.spriteIndex}',
+          },
+          'unlockedRoyals': ['sovereign'],
+        }),
+        'royal_custom_animations': true,
+      });
+      final prefs = AppPreferences();
+      await prefs.initialize();
+      // The debt survived the app being closed.
+      RoyalMood.reset(breachOwed: true);
+      expect(RoyalMood.breachOwed, isTrue);
+
+      late StateSetter setTab;
+      var onBudgets = false;
+      mainShellTabIndex.value = 0;
+      await tester.pumpWidget(
+        ChangeNotifierProvider<AppPreferences>.value(
+          value: prefs,
+          child: MaterialApp(
+            home: RoyalReactionHost(
+              child: Scaffold(
+                body: StatefulBuilder(
+                  builder: (ctx, setState) {
+                    setTab = setState;
+                    return Stack(
+                      children: [
+                        Align(
+                          alignment: Alignment.topRight,
+                          child: SizedBox(
+                              key: royalHomeAnchorKey, width: 38, height: 38),
+                        ),
+                        if (onBudgets)
+                          Center(
+                            child: SizedBox(
+                                key: royalBudgetChartAnchorKey,
+                                width: 160,
+                                height: 160),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      for (var i = 0; i < 14; i++) {
+        await tester.pump(const Duration(milliseconds: 40));
+      }
+      await tester.pump(const Duration(seconds: 6)); // parade plays out
+      await tester.pump();
+      expect(_hasCharacter(tester), isFalse,
+          reason: 'no reaction was requested this launch');
+
+      // The user opens Budgets themselves.
+      setTab(() => onBudgets = true);
+      mainShellTabIndex.value = 1;
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400)); // watch ticks
       await tester.pump(const Duration(milliseconds: 1700)); // mid-slash
-      expect(_characterPainter(tester)?.action, RoyalAction.slash,
-          reason: 'it plays wherever the user is rather than being lost');
+
+      final charFinder = find.byWidgetPredicate(
+          (w) => w is CustomPaint && w.painter is RoyalCharacterPainter);
+      expect(charFinder, findsOneWidget,
+          reason: 'the owed attack is delivered on arrival');
+      final gauge = tester.getCenter(find.byKey(royalBudgetChartAnchorKey));
+      expect((tester.getCenter(charFinder) - gauge).distance, lessThan(120),
+          reason: 'and lands on the ring');
+      expect(RoyalMood.breachOwed, isFalse, reason: 'debt settled on play');
 
       await tester.pump(const Duration(seconds: 6));
       await tester.pump(const Duration(milliseconds: 250));

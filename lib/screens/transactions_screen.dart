@@ -287,7 +287,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             mCredits += t.amount;
           }
         } else if (ExpenseCategories.isExpenseCategory(t.category)) {
-          mDebits += t.amount;
+          // A split bill costs the user their share only, matching Home.
+          mDebits += t.effectiveAmount;
         }
       }
 
