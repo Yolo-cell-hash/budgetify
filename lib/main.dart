@@ -69,6 +69,12 @@ void main() async {
   // frame can wear the matching gem skin instead of flashing the default.
   await AppIconService.loadActiveVariant();
 
+  // Which over-budget breach the court has already reacted to. Must be in
+  // memory before the first health snapshot lands, or a session that opens
+  // over budget would re-scold for a breach the user has already been told
+  // about (see RoyalMood).
+  await RoyalMood.loadBreach();
+
   runApp(
     MultiProvider(
       providers: [

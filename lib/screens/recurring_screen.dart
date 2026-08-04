@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../l10n/l10n.dart';
 import '../models/recurring_payment.dart';
 import '../models/transaction_model.dart';
+import '../models/upi_mandate.dart';
 import '../providers/theme_provider.dart';
 import '../services/app_events.dart';
 import '../services/database_service.dart';
@@ -134,11 +135,25 @@ class _RecurringScreenState extends State<RecurringScreen> {
       merchant.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
 
   Future<void> _dismissSuggestions() async {
-    final keys = _candidates.map((c) => _suggestionKey(c.merchant)).toSet();
+    // Two kinds of suggestion, two places to remember "no": history guesses
+    // are keyed by merchant in preferences, mandates by row in the database
+    // (they're records of something the bank said, not a rolling inference).
+    final mandateIds = [
+      for (final c in _candidates)
+        if (c.source == CandidateSource.mandate && c.mandateId != null)
+          c.mandateId!,
+    ];
+    final keys = _candidates
+        .where((c) => c.source == CandidateSource.history)
+        .map((c) => _suggestionKey(c.merchant))
+        .toSet();
     setState(() {
       _dismissedSuggestions = {..._dismissedSuggestions, ...keys};
       _candidates = const [];
     });
+    for (final id in mandateIds) {
+      await _db.setUpiMandateState(id, MandateState.dismissed);
+    }
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList(_dismissedKey, _dismissedSuggestions.toList());
   }
@@ -156,7 +171,11 @@ class _RecurringScreenState extends State<RecurringScreen> {
     final plans = await _db.getRecurringPayments();
     final commitment = await _svc.monthlyCommitment();
     final candidates = (await _svc.detectCandidates())
-        .where((c) => !_dismissedSuggestions.contains(_suggestionKey(c.merchant)))
+        // Mandates carry their own dismissed/tracked state in the database,
+        // so the merchant-key preference only governs history guesses.
+        .where((c) =>
+            c.source == CandidateSource.mandate ||
+            !_dismissedSuggestions.contains(_suggestionKey(c.merchant)))
         .toList();
     if (!mounted) return;
     setState(() {
@@ -378,6 +397,7 @@ class _RecurringScreenState extends State<RecurringScreen> {
   }
 
   Widget _suggestionRow(AppColors colors, RecurringCandidate c) {
+    final fromMandate = c.source == CandidateSource.mandate;
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: Row(
@@ -389,21 +409,67 @@ class _RecurringScreenState extends State<RecurringScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(c.merchant,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w600,
-                        color: colors.text)),
-                Text('${recurringFmt.format(c.amount)} · ~${context.l10n.cadenceMonthly.toLowerCase()}',
-                    style:
-                        TextStyle(fontSize: 11.5, color: colors.textSecondary)),
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(c.merchant,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w600,
+                              color: colors.text)),
+                    ),
+                    // A mandate is the bank stating the subscription exists,
+                    // not the app guessing from past charges — worth saying,
+                    // because it's the difference between "we think" and
+                    // "your bank told us", and it explains an exact amount
+                    // appearing before a single charge has gone out.
+                    if (fromMandate) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: colors.accent.withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(5),
+                        ),
+                        child: Text(
+                          context.l10n.autopayBadge,
+                          style: TextStyle(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.3,
+                              color: colors.accent),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                Text(
+                  fromMandate
+                      ? '${recurringFmt.format(c.amount)} · '
+                          '${context.l10n.autopaySuggestionMeta}'
+                      : '${recurringFmt.format(c.amount)} · '
+                          '~${context.l10n.cadenceMonthly.toLowerCase()}',
+                  style: TextStyle(fontSize: 11.5, color: colors.textSecondary),
+                ),
               ],
             ),
           ),
+          // Mandate suggestions get their own "no thanks", because dismissing
+          // them has to be remembered in the database rather than the
+          // merchant-key preference the history suggestions share.
+          if (fromMandate)
+            IconButton(
+              onPressed: () => _dismissMandate(c),
+              icon: const Icon(Icons.close_rounded, size: 16),
+              color: colors.textTertiary,
+              visualDensity: VisualDensity.compact,
+              tooltip: context.l10n.commonDismiss,
+            ),
           TextButton(
-            onPressed: () => _add(template: _templateFromCandidate(c)),
+            onPressed: () => _trackCandidate(c),
             child: Text(context.l10n.trackShort),
           ),
         ],
@@ -411,9 +477,35 @@ class _RecurringScreenState extends State<RecurringScreen> {
     );
   }
 
+  /// Turn a suggestion into a plan — via the editor, always. Nothing here
+  /// writes a RecurringPayment on the user's behalf: the mandate tells us a
+  /// subscription exists, the user decides whether they want it tracked.
+  Future<void> _trackCandidate(RecurringCandidate c) async {
+    final before = await _db.getRecurringPayments();
+    await _add(template: _templateFromCandidate(c));
+    final mandateId = c.mandateId;
+    if (mandateId == null) return;
+    // Only mark the mandate answered if a plan actually got saved — backing
+    // out of the editor must leave the suggestion where it was.
+    final after = await _db.getRecurringPayments();
+    if (after.length > before.length) {
+      await _db.setUpiMandateState(mandateId, MandateState.tracked);
+      await _load();
+    }
+  }
+
+  Future<void> _dismissMandate(RecurringCandidate c) async {
+    final id = c.mandateId;
+    if (id == null) return;
+    await _db.setUpiMandateState(id, MandateState.dismissed);
+    await _load();
+  }
+
   RecurringPayment _templateFromCandidate(RecurringCandidate c) {
     final now = DateTime.now();
-    // Next due ≈ same day-of-month next occurrence.
+    // Next due ≈ same day-of-month next occurrence. For a mandate the bank
+    // often states the first debit date outright, and dayOfMonth already
+    // carries it — the same walk-forward then lands on the right cycle.
     var anchor = DateTime(now.year, now.month, c.dayOfMonth.clamp(1, 28));
     if (anchor.isBefore(DateTime(now.year, now.month, now.day))) {
       anchor = DateTime(now.year, now.month + 1, c.dayOfMonth.clamp(1, 28));
