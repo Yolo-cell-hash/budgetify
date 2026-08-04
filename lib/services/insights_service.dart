@@ -389,7 +389,9 @@ class InsightsService {
           !ExpenseCategories.isExpenseCategory(t.category)) {
         continue;
       }
-      (byCat[t.category!] ??= []).add(t.amount);
+      // Compare like with like: a split bill's outlier-ness is about what the
+      // user actually paid, not the table's total.
+      (byCat[t.category!] ??= []).add(t.effectiveAmount);
     }
 
     TransactionModel? best;
@@ -397,10 +399,13 @@ class InsightsService {
     for (final t in candidates) {
       final samples = byCat[t.category!];
       if (samples == null) continue;
-      if (!CoachStats.isLargeOutlier(amount: t.amount, history: samples)) {
+      if (!CoachStats.isLargeOutlier(
+        amount: t.effectiveAmount,
+        history: samples,
+      )) {
         continue;
       }
-      final ratio = t.amount / CoachStats.median(samples);
+      final ratio = t.effectiveAmount / CoachStats.median(samples);
       if (ratio > bestRatio) {
         bestRatio = ratio;
         best = t;
@@ -415,7 +420,8 @@ class InsightsService {
       icon: ExpenseCategories.getIcon(best.category!),
       title: 'Large ${best.category} spend',
       detail:
-          '₹${_round(best.amount)}$where — about ${bestRatio.toStringAsFixed(1)}× '
+          '₹${_round(best.effectiveAmount)}$where — about '
+          '${bestRatio.toStringAsFixed(1)}× '
           'your usual ${best.category} transaction. Worth a quick check it\'s right.',
       tone: InsightTone.caution,
     );

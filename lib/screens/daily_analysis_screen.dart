@@ -70,9 +70,14 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
         // Self transfers / investments aren't spending — keep them in the
         // list but out of the spend total and category breakdown.
         if (!ExpenseCategories.isExpenseCategory(txn.category)) continue;
-        totalSpent += txn.amount;
+        // A split bill costs the user only their own share: the ₹645 dinner
+        // they split down to ₹145 is ₹145 of their day, not ₹645. Every
+        // other spending total in the app uses effectiveAmount for exactly
+        // this reason (see TransactionModel.effectiveAmount).
+        totalSpent += txn.effectiveAmount;
         final cat = txn.category ?? 'Uncategorized';
-        categoryBreakdown[cat] = (categoryBreakdown[cat] ?? 0) + txn.amount;
+        categoryBreakdown[cat] =
+            (categoryBreakdown[cat] ?? 0) + txn.effectiveAmount;
       } else {
         totalReceived += txn.amount;
       }
@@ -603,7 +608,9 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
           ],
         ),
         trailing: PrivacyAmount(
-          '${isCredit ? '+' : '-'} ${fmt.format(txn.amount)}',
+          // The user's own share, matching the headline on the detail screen
+          // and the amount on every transaction card.
+          '${isCredit ? '+' : '-'} ${fmt.format(txn.effectiveAmount)}',
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w600,
