@@ -101,11 +101,95 @@ void main() {
 
     setUp(RoyalMood.reset);
 
-    test('first snapshot sets a silent baseline', () {
+    test('a session that OPENS over budget still scolds', () {
+      // The bug this covers: the first snapshot used to be adopted as a silent
+      // baseline, so someone who blew their budget yesterday and reopened the
+      // app today never saw the attack — the false→true transition it waited
+      // for had happened while the app was closed.
       final events = capture(() {
-        RoyalMood.observe(_health(income: 100, expenses: 150, limit: 100, spent: 150));
+        RoyalMood.observe(
+            _health(income: 100, expenses: 150, limit: 100, spent: 150));
       });
-      expect(events, isEmpty);
+      expect(events, [RoyalReaction.scold]);
+    });
+
+    test('reopening on a breach already reacted to stays quiet', () {
+      final health =
+          _health(income: 100, expenses: 150, limit: 100, spent: 150);
+      final signature = RoyalMood.breachSignature(health, DateTime(2026, 8, 4));
+      expect(signature, isNotNull);
+
+      // Next launch: the remembered signature is restored from storage.
+      RoyalMood.reset(scoldedBreach: signature);
+      final events = capture(() {
+        RoyalMood.observe(health, now: DateTime(2026, 8, 4));
+      });
+      expect(events, isEmpty, reason: 'once per breach, not once per launch');
+    });
+
+    test('a new month is a new breach', () {
+      final health =
+          _health(income: 100, expenses: 150, limit: 100, spent: 150);
+      final july = RoyalMood.breachSignature(health, DateTime(2026, 7, 20));
+      RoyalMood.reset(scoldedBreach: july);
+      final events = capture(() {
+        RoyalMood.observe(health, now: DateTime(2026, 8, 4));
+      });
+      expect(events, [RoyalReaction.scold]);
+    });
+
+    test('going over a SECOND budget earns a fresh scold', () {
+      final events = capture(() {
+        // Opens with the food budget blown.
+        RoyalMood.observe(
+          FinancialHealth(
+            income: 100,
+            expenses: 150,
+            budgets: const [
+              BudgetUsage(limit: 100, spent: 150, label: 'Food & Dining'),
+              BudgetUsage(limit: 100, spent: 40, label: 'Shopping'),
+            ],
+          ),
+          now: DateTime(2026, 8, 4),
+        );
+        // Shopping goes over too — a different situation, worth saying so.
+        RoyalMood.observe(
+          FinancialHealth(
+            income: 100,
+            expenses: 260,
+            budgets: const [
+              BudgetUsage(limit: 100, spent: 150, label: 'Food & Dining'),
+              BudgetUsage(limit: 100, spent: 110, label: 'Shopping'),
+            ],
+          ),
+          now: DateTime(2026, 8, 4),
+        );
+      });
+      expect(events, [RoyalReaction.scold, RoyalReaction.scold]);
+    });
+
+    test('breach signature ignores the order budgets come in', () {
+      const a = BudgetUsage(limit: 10, spent: 20, label: 'Food & Dining');
+      const b = BudgetUsage(limit: 10, spent: 30, label: 'Shopping');
+      final when = DateTime(2026, 8, 4);
+      expect(
+        RoyalMood.breachSignature(
+            FinancialHealth(income: 1, expenses: 1, budgets: const [a, b]),
+            when),
+        RoyalMood.breachSignature(
+            FinancialHealth(income: 1, expenses: 1, budgets: const [b, a]),
+            when),
+      );
+    });
+
+    test('nothing over budget has no signature', () {
+      expect(
+        RoyalMood.breachSignature(
+          _health(income: 100, expenses: 20, limit: 100, spent: 50),
+          DateTime(2026, 8, 4),
+        ),
+        isNull,
+      );
     });
 
     test('scold fires once when newly over budget', () {
@@ -148,11 +232,13 @@ void main() {
           reason: 'the launch celebration fires exactly once');
     });
 
-    test('a session that opens over budget does NOT launch-cheer', () {
+    test('a session that opens over budget scolds instead of cheering', () {
       final events = capture(() {
-        RoyalMood.observe(_health(income: 100, expenses: 20, limit: 40, spent: 90));
+        RoyalMood.observe(
+            _health(income: 100, expenses: 20, limit: 40, spent: 90));
       });
-      expect(events, isEmpty);
+      expect(events, [RoyalReaction.scold],
+          reason: 'a blown budget is never a celebration');
     });
   });
 
@@ -488,9 +574,15 @@ void main() {
       expect(_hasCharacter(tester), isFalse, reason: 'boot finished');
       haptics.clear();
 
+      // No budget gauge in this tree, so the scold parks looking for one;
+      // this test is about the attack itself, so cut the wait short.
+      RoyalReactionHost.debugSmashParkGrace = const Duration(milliseconds: 100);
+
       // Blow a budget → the Sovereign storms out and slashes the screen.
       // His first cut lands at 0.272 of the 5.2s routine (~1414ms).
       requestRoyalReaction(RoyalReaction.scold);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 150)); // grace elapses
       await tester.pump(); // routine starts
       await tester.pump(const Duration(milliseconds: 1700));
       expect(_characterPainter(tester)?.action, RoyalAction.slash);
@@ -546,7 +638,12 @@ void main() {
         await tester.pump(const Duration(seconds: 6)); // boot finishes
         await tester.pump();
 
+        // As above: no gauge in this tree, so don't wait out the park grace.
+        RoyalReactionHost.debugSmashParkGrace =
+            const Duration(milliseconds: 100);
         requestRoyalReaction(RoyalReaction.scold);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 150)); // grace elapses
         await tester.pump();
         await tester.pump(Duration(milliseconds: checkMs));
         expect(_characterPainter(tester)?.action, action, reason: id);
@@ -633,6 +730,136 @@ void main() {
       await tester.pump(const Duration(seconds: 6));
       await tester.pump(const Duration(milliseconds: 250));
       expect(_hasCharacter(tester), isFalse);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a scold raised off the Budgets tab waits for the gauge',
+        (tester) async {
+      // The reported bug in full: the user reopens the app already over
+      // budget, lands on Home, and walks to Budgets. The scold is raised on
+      // Home — where there is no gauge — and must still end up attacking the
+      // ring rather than firing into a corner of the home screen.
+      addTearDown(() => mainShellTabIndex.value = 0);
+      final sovereign = kRoyalAvatars.firstWhere((r) => r.id == 'sovereign');
+      SharedPreferences.setMockInitialValues({
+        'gamification_v1': jsonEncode({
+          'profile': {
+            'avatarKind': 'pixel',
+            'avatarValue': '${sovereign.spriteIndex}',
+          },
+          'unlockedRoyals': ['sovereign'],
+        }),
+        'royal_custom_animations': true,
+      });
+      final prefs = AppPreferences();
+      await prefs.initialize();
+
+      // The gauge only exists once the user is on Budgets, exactly as the
+      // real shell behaves (the progress card renders for that tab).
+      late StateSetter setTab;
+      var onBudgets = false;
+      await tester.pumpWidget(
+        ChangeNotifierProvider<AppPreferences>.value(
+          value: prefs,
+          child: MaterialApp(
+            home: RoyalReactionHost(
+              child: Scaffold(
+                body: StatefulBuilder(
+                  builder: (ctx, setState) {
+                    setTab = setState;
+                    return Stack(
+                      children: [
+                        Align(
+                          alignment: Alignment.topRight,
+                          child: SizedBox(
+                              key: royalHomeAnchorKey, width: 38, height: 38),
+                        ),
+                        if (onBudgets)
+                          Center(
+                            child: SizedBox(
+                                key: royalBudgetChartAnchorKey,
+                                width: 160,
+                                height: 160),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      for (var i = 0; i < 14; i++) {
+        await tester.pump(const Duration(milliseconds: 40));
+      }
+      await tester.pump(const Duration(seconds: 6));
+      await tester.pump();
+      expect(_hasCharacter(tester), isFalse, reason: 'boot finished');
+
+      // Over budget, discovered on Home. Nothing should fire yet.
+      requestRoyalReaction(RoyalReaction.scold);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 900));
+      expect(_hasCharacter(tester), isFalse,
+          reason: 'the attack is holding out for the gauge');
+
+      // The user walks over to Budgets.
+      setTab(() => onBudgets = true);
+      mainShellTabIndex.value = 1;
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1700)); // mid-slash
+
+      final gauge = tester.getCenter(find.byKey(royalBudgetChartAnchorKey));
+      final charFinder = find.byWidgetPredicate(
+          (w) => w is CustomPaint && w.painter is RoyalCharacterPainter);
+      expect(charFinder, findsOneWidget,
+          reason: 'landing on Budgets releases the parked scold');
+      expect((tester.getCenter(charFinder) - gauge).distance, lessThan(120),
+          reason: 'and it lands on the ring it was waiting for');
+
+      await tester.pump(const Duration(seconds: 6));
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a scold nobody comes to collect still plays', (tester) async {
+      // The other half of the policy: waiting for the gauge must never mean
+      // the attack is silently dropped for a user who stays on Home.
+      final sovereign = kRoyalAvatars.firstWhere((r) => r.id == 'sovereign');
+      SharedPreferences.setMockInitialValues({
+        'gamification_v1': jsonEncode({
+          'profile': {
+            'avatarKind': 'pixel',
+            'avatarValue': '${sovereign.spriteIndex}',
+          },
+          'unlockedRoyals': ['sovereign'],
+        }),
+        'royal_custom_animations': true,
+      });
+      final prefs = AppPreferences();
+      await prefs.initialize();
+      RoyalReactionHost.debugSmashParkGrace = const Duration(milliseconds: 400);
+
+      await tester.pumpWidget(_host(prefs));
+      for (var i = 0; i < 14; i++) {
+        await tester.pump(const Duration(milliseconds: 40));
+      }
+      await tester.pump(const Duration(seconds: 6));
+      await tester.pump();
+
+      requestRoyalReaction(RoyalReaction.scold);
+      await tester.pump();
+      expect(_hasCharacter(tester), isFalse, reason: 'parked, not playing');
+
+      await tester.pump(const Duration(milliseconds: 500)); // grace elapses
+      await tester.pump(const Duration(milliseconds: 1700)); // mid-slash
+      expect(_characterPainter(tester)?.action, RoyalAction.slash,
+          reason: 'it plays wherever the user is rather than being lost');
+
+      await tester.pump(const Duration(seconds: 6));
+      await tester.pump(const Duration(milliseconds: 250));
       expect(tester.takeException(), isNull);
     });
   });

@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../providers/app_preferences.dart';
 import '../services/app_events.dart';
@@ -159,9 +160,22 @@ void requestRoyalCameo(RoyalCameo cameo) {
 }
 
 /// Watches financial-health snapshots and fires scold/cheer on meaningful
-/// transitions (freshly over budget, or newly healthy). In-memory and
-/// per-session; the first snapshot only sets the baseline, so nothing fires at
-/// launch. Pure: it's fed a snapshot and never touches the database.
+/// changes (over budget, or newly healthy).
+///
+/// The cheer is per-session and in-memory. The **scold is per-breach and
+/// persisted**, which is what makes it survive the app being closed: it used
+/// to fire only on a false→true transition observed *within one session*, so
+/// a user who blew their budget yesterday and reopened the app today never
+/// saw it — the first snapshot silently adopted "over budget" as the baseline
+/// and the transition it was waiting for had already happened off-screen.
+/// That made the whole attack animation invisible to exactly the users it is
+/// for. Now a session that OPENS over budget scolds too, and
+/// [breachSignature] keeps that to once per breach rather than once per
+/// launch: same blown budgets in the same month → already reacted to; a new
+/// budget going over, or a new month, is a new breach.
+///
+/// Still pure with respect to the database — the only thing it persists is
+/// the one signature string, through [loadBreach]/[_saveBreach].
 class RoyalMood {
   RoyalMood._();
 
@@ -170,28 +184,81 @@ class RoyalMood {
 
   static bool _launchCheerDone = false;
 
-  static void observe(FinancialHealth health) {
+  /// SharedPreferences key for [_scoldedBreach].
+  static const String breachPrefsKey = 'royal_scolded_breach_v1';
+
+  /// The breach the court has already reacted to, remembered across launches.
+  static String? _scoldedBreach;
+
+  /// Load the remembered breach. Called once at startup, before the first
+  /// snapshot lands — without it every launch would re-scold the same breach.
+  static Future<void> loadBreach() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _scoldedBreach = prefs.getString(breachPrefsKey);
+    } catch (_) {
+      // Cosmetic feature — a prefs failure must never break startup.
+    }
+  }
+
+  static Future<void> _saveBreach(String signature) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(breachPrefsKey, signature);
+    } catch (_) {
+      // Same: worst case the scold repeats on the next launch.
+    }
+  }
+
+  /// A stable id for "this particular over-budget situation": the month, plus
+  /// every envelope currently blown. Null when nothing is over budget.
+  ///
+  /// Reopening the app on the same breach yields the same signature (so the
+  /// court stays quiet); going over one MORE budget, or rolling into a new
+  /// month, yields a different one and earns a fresh reaction.
+  static String? breachSignature(FinancialHealth health, DateTime when) {
+    final over = <String>[
+      for (final b in health.budgets)
+        if (b.isOver) (b.label ?? '#overall').toLowerCase(),
+    ]..sort();
+    if (over.isEmpty) return null;
+    final month = '${when.year}-${when.month.toString().padLeft(2, '0')}';
+    return '$month|${over.join(',')}';
+  }
+
+  static void _scold(String signature) {
+    _scoldedBreach = signature;
+    _saveBreach(signature);
+    requestRoyalReaction(RoyalReaction.scold);
+  }
+
+  static void observe(FinancialHealth health, {DateTime? now}) {
     if (!health.hasScore) return;
-    final overBudget =
-        health.budgets.any((b) => b.limit > 0 && b.spent > b.limit);
+    final signature = breachSignature(health, now ?? DateTime.now());
+    final overBudget = signature != null;
     final band = health.band;
     final healthy = band == HealthBand.good || band == HealthBand.excellent;
 
     // First observation this session: adopt the state as the baseline. When
     // that baseline is already GOOD — budgets adhered to, healthy score — the
     // royal opens the session by celebrating the user (once per session; the
-    // host holds it until the welcome routine finishes).
+    // host holds it until the welcome routine finishes). When it is already
+    // BAD, the scold fires here rather than being swallowed, so reopening the
+    // app on a blown budget is reacted to exactly like blowing it live.
     if (_wasOverBudget == null) {
       _wasOverBudget = overBudget;
       _wasHealthy = healthy;
-      if (!overBudget && healthy && !_launchCheerDone) {
+      if (overBudget) {
+        if (signature != _scoldedBreach) _scold(signature);
+      } else if (healthy && !_launchCheerDone) {
         _launchCheerDone = true;
         requestRoyalReaction(RoyalReaction.cheer);
       }
       return;
     }
-    if (overBudget && !_wasOverBudget!) {
-      requestRoyalReaction(RoyalReaction.scold);
+    // Newly over budget, or over a budget the court hasn't reacted to yet.
+    if (overBudget && signature != _scoldedBreach) {
+      _scold(signature);
     } else if (!overBudget && healthy && !(_wasHealthy ?? false)) {
       requestRoyalReaction(RoyalReaction.cheer);
     }
@@ -200,10 +267,11 @@ class RoyalMood {
   }
 
   @visibleForTesting
-  static void reset() {
+  static void reset({String? scoldedBreach}) {
     _wasOverBudget = null;
     _wasHealthy = null;
     _launchCheerDone = false;
+    _scoldedBreach = scoldedBreach;
   }
 }
 
@@ -285,7 +353,12 @@ class RoyalReactionHost extends StatefulWidget {
     _RoyalReactionHostState._bootedThisSession = false;
     royalCharacterOut.value = false;
     debugCameoGap = null;
+    debugSmashParkGrace = null;
   }
+
+  /// Test override for how long a scold waits for the Budgets gauge.
+  @visibleForTesting
+  static Duration? debugSmashParkGrace;
 
   @override
   State<RoyalReactionHost> createState() => _RoyalReactionHostState();
@@ -353,6 +426,7 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
         .removeListener(_onPopupChanged);
     _prefs?.removeListener(_onPrefsChanged);
     _cameoTimer?.cancel();
+    _parkedSmashTimer?.cancel();
     _ctrl.dispose();
     super.dispose();
   }
@@ -466,16 +540,65 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
       _pending = routine;
       return;
     }
-    _play(routine);
+    _startOrPark(routine);
+  }
+
+  /// Begin [r] now, unless it is the over-budget attack and the gauge it is
+  /// *about* isn't on screen — then hold it briefly for the Budgets tab.
+  ///
+  /// The attack exists to wreck the monthly-budget ring; raised from Home (as
+  /// the launch scold always is) it would otherwise spend itself on a generic
+  /// spot beside the profile icon, which is the weaker version of the moment.
+  /// Holding it means a user who reacts to "you're over budget" by going to
+  /// look at their budgets gets the real thing, and one who doesn't still
+  /// sees it a few seconds later wherever they are — never nothing.
+  void _startOrPark(_Routine r) {
+    if (r == _Routine.smash && _resolveChartTarget() == null) {
+      _parkSmash();
+      return;
+    }
+    _play(r);
+  }
+
+  /// How long a scold waits for the Budgets gauge before giving up and
+  /// playing wherever the user is. Long enough to cover a deliberate walk to
+  /// the tab, short enough that the reaction still reads as a response.
+  static const Duration _smashParkGrace = Duration(seconds: 6);
+
+  Timer? _parkedSmashTimer;
+
+  void _parkSmash() {
+    _parkedSmashTimer?.cancel();
+    _parkedSmashTimer = Timer(
+      RoyalReactionHost.debugSmashParkGrace ?? _smashParkGrace,
+      () => _releaseParkedSmash(force: true),
+    );
+  }
+
+  /// Play a parked scold. Called on every tab change (where it only fires once
+  /// the gauge is genuinely on screen) and by the grace timer with
+  /// [force] — at which point it plays anywhere rather than being lost.
+  void _releaseParkedSmash({bool force = false}) {
+    if (_parkedSmashTimer == null || !mounted) return;
+    if (!force && _resolveChartTarget() == null) return;
+    _parkedSmashTimer!.cancel();
+    _parkedSmashTimer = null;
+    if (_routine != null) {
+      _pending = _Routine.smash;
+      return;
+    }
+    _play(_Routine.smash);
   }
 
   void _playPending() {
     final p = _pending;
     if (p == null || !mounted || _routine != null) return;
     _pending = null;
-    // A short beat between routines, so they read as separate thoughts.
+    // A short beat between routines, so they read as separate thoughts. The
+    // launch scold always arrives here (queued behind the welcome parade), so
+    // it goes through the same gauge-seeking policy as a live one.
     Future.delayed(const Duration(milliseconds: 350), () {
-      if (mounted && _routine == null) _play(p);
+      if (mounted && _routine == null) _startOrPark(p);
     });
   }
 
@@ -523,7 +646,16 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
   /// Landing on another tab occasionally invites a cameo there — that's what
   /// makes the court feel at home on every page, not just Home.
   void _onTabChange() {
-    if (!mounted || _royal == null || _routine != null) return;
+    if (!mounted || _royal == null) return;
+    // Landing on Budgets is what a parked scold has been waiting for. The
+    // gauge needs a frame to lay out before its anchor resolves.
+    if (_parkedSmashTimer != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _releaseParkedSmash();
+      });
+      return;
+    }
+    if (_routine != null) return;
     if (!_customAnimations) return;
     if (DateTime.now().difference(_lastPlayEnd) <
         const Duration(seconds: 75)) {
