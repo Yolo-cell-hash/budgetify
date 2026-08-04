@@ -63,10 +63,13 @@ class _MerchantDetailScreenState extends State<MerchantDetailScreen> {
     });
   }
 
-  double get _monthTotal => _txns.fold(0.0, (s, t) => s + t.amount);
+  // Split bills count only the user's own share, so what this merchant
+  // actually costs them matches every other total in the app.
+  double get _monthTotal => _txns.fold(0.0, (s, t) => s + t.effectiveAmount);
   double get _avg => _txns.isEmpty ? 0 : _monthTotal / _txns.length;
-  double get _largest =>
-      _txns.isEmpty ? 0 : _txns.map((t) => t.amount).reduce((a, b) => a > b ? a : b);
+  double get _largest => _txns.isEmpty
+      ? 0
+      : _txns.map((t) => t.effectiveAmount).reduce((a, b) => a > b ? a : b);
 
   /// Percent change vs the previous month from the trend (null if not enough).
   double? get _vsLastMonth {

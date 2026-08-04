@@ -465,7 +465,8 @@ class _ExpenseChartWidgetState extends State<ExpenseChartWidget> {
             ExpenseCategories.isExpenseCategory(t.category) &&
             t.detectedAt.isAfter(startOfDay) &&
             t.detectedAt.isBefore(endOfDay)) {
-          total += t.amount;
+          // Only the user's own share of a split bill is their spend.
+          total += t.effectiveAmount;
         }
       }
 
@@ -490,7 +491,7 @@ class _ExpenseChartWidgetState extends State<ExpenseChartWidget> {
       if (t.type == TransactionType.debit &&
           ExpenseCategories.isExpenseCategory(t.category) &&
           t.detectedAt.isAfter(sevenDaysAgo)) {
-        total += t.amount;
+        total += t.effectiveAmount;
       }
     }
     return total;

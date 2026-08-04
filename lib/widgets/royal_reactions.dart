@@ -201,10 +201,25 @@ class RoyalMood {
   /// month. Removed on load so no stale state lingers.
   static const String _legacyBreachKey = 'royal_scolded_breach_v1';
 
+  /// Key for [_breachOwed].
+  static const String owedPrefsKey = 'royal_breach_owed_v1';
+
   /// The breach state as of the last observation: a [breachSignature] while
   /// over budget, null while within. Persisted so it survives the app being
   /// closed — comparing the live picture against it is the crossing test.
   static String? _lastBreach;
+
+  /// Whether a crossing has been detected but not yet *shown* to the user.
+  ///
+  /// The reaction is owed until it is actually delivered, and delivery only
+  /// happens on the Budgets screen — the app no longer drags the user there,
+  /// so the attack waits for them to open it themselves, however many
+  /// launches later. Persisted for exactly that reason: a debt that expires
+  /// when the app closes is the bug this whole area kept having.
+  static bool _breachOwed = false;
+
+  /// Whether the court still owes the user an over-budget reaction.
+  static bool get breachOwed => _breachOwed;
 
   /// Load the remembered breach state. Called once at startup, before the
   /// first snapshot lands — without it every launch would re-fire for a
@@ -213,6 +228,7 @@ class RoyalMood {
     try {
       final prefs = await SharedPreferences.getInstance();
       _lastBreach = prefs.getString(breachPrefsKey);
+      _breachOwed = prefs.getBool(owedPrefsKey) ?? false;
       await prefs.remove(_legacyBreachKey);
     } catch (_) {
       // Cosmetic feature — a prefs failure must never break startup.
@@ -232,6 +248,25 @@ class RoyalMood {
       // Worst case the reaction repeats on the next launch.
     }
   }
+
+  static Future<void> _setOwed(bool owed) async {
+    if (_breachOwed == owed) return;
+    _breachOwed = owed;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (owed) {
+        await prefs.setBool(owedPrefsKey, true);
+      } else {
+        await prefs.remove(owedPrefsKey);
+      }
+    } catch (_) {
+      // Worst case the reaction replays once on the next launch.
+    }
+  }
+
+  /// The attack has been played — the debt is settled. Called by the host the
+  /// moment the routine actually starts, never when it is merely requested.
+  static void markBreachShown() => _setOwed(false);
 
   /// A stable id for "this particular over-budget situation": the month, plus
   /// every envelope currently blown. Null when nothing is over budget.
@@ -265,13 +300,12 @@ class RoyalMood {
 
   static void _scold(String signature) {
     _persist(signature);
-    // Take the user to the thing that's wrong. Being told "you're over
-    // budget" and having to go find out which one is the weaker half of the
-    // moment — and on a cold start the news arrives on Home, where the gauge
-    // that would show it isn't. The tab request is deliberately independent
-    // of the animation: showing someone their blown budget is useful whether
-    // or not a royal is equipped to dramatise it.
-    mainShellTabRequest.value = 1;
+    // Owed, not yet shown. The app deliberately does NOT navigate to the
+    // Budgets tab: being thrown onto a screen you didn't ask for reads as
+    // the app malfunctioning, not as feedback. The debt simply waits — the
+    // attack plays the next time the user opens their budgets, which is
+    // where it belongs and where they'll understand it.
+    _setOwed(true);
     requestRoyalReaction(RoyalReaction.scold);
   }
 
@@ -320,11 +354,12 @@ class RoyalMood {
   }
 
   @visibleForTesting
-  static void reset({String? lastBreach}) {
+  static void reset({String? lastBreach, bool breachOwed = false}) {
     _wasOverBudget = null;
     _wasHealthy = null;
     _launchCheerDone = false;
     _lastBreach = lastBreach;
+    _breachOwed = breachOwed;
   }
 }
 
@@ -558,6 +593,15 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
       _scheduleCameo();
       return;
     }
+    // An attack owed from a previous launch, with the user already sitting on
+    // Budgets when the profile finished loading.
+    if (_owesSmash &&
+        mainShellTabIndex.value == 1 &&
+        _parkedSmashTimer == null &&
+        context.read<AppPreferences>().gamifiedMode) {
+      _bootedThisSession = true;
+      _startSmashWatch();
+    }
     // A one-time welcome when a royal is equipped and gamified is on — but only
     // once the Home profile icon is actually on screen, so the royal really
     // does jump out of that circle (not out of a splash/onboarding screen).
@@ -640,15 +684,14 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
     _startOrPark(routine);
   }
 
-  /// Begin [r] now, unless it is the over-budget attack and the gauge it is
-  /// *about* isn't reachable yet — then hold it and keep checking.
+  /// Begin [r] now, unless it is the over-budget attack and the user isn't
+  /// looking at their budgets — then let the debt stand.
   ///
-  /// The attack exists to wreck the monthly-budget ring, so it should land on
-  /// the ring. It rarely can at the moment it is raised: on a cold start the
-  /// news breaks on Home, and after an edit the budget dialog is still
-  /// unwinding. [_scold] has already asked the shell for the Budgets tab, so
-  /// the gauge is usually seconds away — [_parkSmash] waits for it rather
-  /// than firing into whatever happens to be on screen.
+  /// The attack wrecks the monthly-budget ring, so it only makes sense on the
+  /// ring, and the app no longer drags anyone there to see it: being thrown
+  /// onto a screen you didn't ask for reads as a malfunction. Instead the
+  /// reaction stays owed ([RoyalMood.breachOwed], persisted) and is delivered
+  /// the next time the user opens Budgets — this launch or a later one.
   void _startOrPark(_Routine r) {
     if (r == _Routine.smash && !_canStageSmash()) {
       _parkSmash();
@@ -657,20 +700,38 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
     _play(r);
   }
 
-  /// Whether the attack can be staged on the gauge right now.
+  /// Whether the attack can be staged right now: the user is on the Budgets
+  /// tab, with the gauge laid out and no sheet over it.
   bool _canStageSmash() => !_popupOpen && _resolveChartTarget() != null;
 
-  /// How often a parked scold re-checks for the gauge, and how many checks it
-  /// makes before playing wherever the user is instead. ~12s of looking: long
-  /// enough for the tab switch, the screen's first load and its layout, short
-  /// enough that the reaction still reads as a response to what just happened.
+  /// While the user is on Budgets, how often to re-check for the gauge and
+  /// how many checks before giving up on it. The screen loads asynchronously
+  /// and its ring needs a frame, so arrival and readiness aren't the same
+  /// moment; ~4s covers the gap. Giving up doesn't lose the reaction — the
+  /// debt is persisted and retried on the next visit.
   static const Duration _smashParkPoll = Duration(milliseconds: 300);
-  static const int _smashParkAttempts = 40;
+  static const int _smashParkAttempts = 14;
 
   Timer? _parkedSmashTimer;
   int _parkedSmashChecks = 0;
 
+  /// This host's own record of an undelivered attack. [RoyalMood.breachOwed]
+  /// is the durable one (it outlives the process); this covers a scold raised
+  /// by any other route, so the host never depends on someone else's
+  /// bookkeeping to remember what it still owes.
+  bool _smashOwed = false;
+
+  bool get _owesSmash => _smashOwed || RoyalMood.breachOwed;
+
   void _parkSmash() {
+    _stopSmashWatch();
+    _smashOwed = true;
+    // Only worth watching while the user is actually on Budgets; landing
+    // there later starts this again (see _onTabChange).
+    if (mainShellTabIndex.value == 1) _startSmashWatch();
+  }
+
+  void _startSmashWatch() {
     _parkedSmashTimer?.cancel();
     _parkedSmashChecks = 0;
     _parkedSmashTimer = Timer.periodic(
@@ -685,23 +746,27 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
     // Something else is playing (the launch parade, usually) — keep waiting
     // rather than stacking two routines on top of each other.
     if (_routine != null) return;
-    final exhausted = _parkedSmashChecks >=
-        (RoyalReactionHost.debugSmashParkAttempts ?? _smashParkAttempts);
     if (_canStageSmash()) {
       _releaseParkedSmash();
       return;
     }
-    // Out of patience: play it anywhere rather than lose it — the breach has
-    // already been marked as reacted to, so a dropped scold is a scold the
-    // user never gets. A modal popup is the one thing worth waiting out
-    // regardless, since the court must never paint over a sheet.
-    if (exhausted && !_popupOpen) _releaseParkedSmash();
+    // The user left Budgets, or the ring never appeared (they're on the
+    // Categories sub-tab, or an older month). Stop looking — the debt is
+    // persisted, so the next visit picks it up.
+    final exhausted = _parkedSmashChecks >=
+        (RoyalReactionHost.debugSmashParkAttempts ?? _smashParkAttempts);
+    if (exhausted || mainShellTabIndex.value != 1) _stopSmashWatch();
   }
 
-  void _releaseParkedSmash() {
+  void _stopSmashWatch() {
     _parkedSmashTimer?.cancel();
     _parkedSmashTimer = null;
     _parkedSmashChecks = 0;
+  }
+
+  void _releaseParkedSmash() {
+    _stopSmashWatch();
+    _smashOwed = false;
     _play(_Routine.smash);
   }
 
@@ -762,16 +827,17 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
   /// makes the court feel at home on every page, not just Home.
   void _onTabChange() {
     if (!mounted || _royal == null) return;
-    // Landing on Budgets is what a parked scold has been waiting for — check
-    // straight away instead of on the next poll tick. The gauge needs a frame
-    // to lay out first, so this rides a post-frame callback.
-    if (_parkedSmashTimer != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _parkedSmashTimer != null && _routine == null) {
-          _pollParkedSmash();
-        }
-      });
-      return;
+    // Opening Budgets is what an owed attack has been waiting for — possibly
+    // since a previous launch. Start watching for the ring; the screen loads
+    // asynchronously, so it won't be there on this frame.
+    if (mainShellTabIndex.value == 1) {
+      if (_owesSmash &&
+          context.read<AppPreferences>().gamifiedMode &&
+          _parkedSmashTimer == null) {
+        _startSmashWatch();
+      }
+    } else {
+      _stopSmashWatch();
     }
     if (_routine != null) return;
     if (!_customAnimations) return;
@@ -835,6 +901,10 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
     _impactsFired = 0;
     _fxSeed = _rng.nextInt(1 << 30);
     _chartTarget = r == _Routine.smash ? _resolveChartTarget() : null;
+    // The debt is settled when the attack actually starts — never when it is
+    // merely requested. Marking it earlier is what used to lose the reaction
+    // whenever a gate swallowed it.
+    if (r == _Routine.smash) RoyalMood.markBreachShown();
     setState(() => _routine = r);
     if (!_isCameo(r)) royalCharacterOut.value = true;
     _ctrl
