@@ -2424,8 +2424,46 @@ class AppStrings {
         'మీరు తర్వాత సెటిల్ చేయగలిగేలా దీన్ని లెడ్జర్‌లో నమోదు చేస్తుంది',
         'நீங்கள் பிறகு தீர்க்கும் வகையில் இதை லெட்ஜரில் பதிவு செய்கிறது',
       );
-  String owesAmount(String share) =>
-      _t('owes $share', '$share बकाया', '$share देणे', '$share পাওনা', '$share బాకీ', '$share தரவேண்டும்');
+  String splitUnallocated(String amount) => _t(
+        '$amount of the bill is unassigned',
+        'बिल का $amount किसी को नहीं सौंपा गया',
+        'बिलाचे $amount कोणालाही दिलेले नाही',
+        'বিলের $amount কাউকে দেওয়া হয়নি',
+        'బిల్లులో $amount ఎవరికీ కేటాయించలేదు',
+        'பில்லில் $amount யாருக்கும் ஒதுக்கப்படவில்லை',
+      );
+  String splitOverAllocated(String amount) => _t(
+        "$amount more than the bill is split",
+        'बिल से $amount अधिक बाँटा गया है',
+        'बिलापेक्षा $amount जास्त वाटले आहे',
+        'বিলের চেয়ে $amount বেশি ভাগ করা হয়েছে',
+        'బిల్లు కంటే $amount ఎక్కువ విభజించారు',
+        'பில்லை விட $amount அதிகமாகப் பிரிக்கப்பட்டுள்ளது',
+      );
+  String get evenItOut => _t('Even it out', 'बराबर करें', 'समान करा', 'সমান করুন', 'సమానం చేయి', 'சமன் செய்');
+  String get splitDoesntAddUp => _t(
+        "Amounts don't add up",
+        'राशियाँ मेल नहीं खातीं',
+        'रकमा जुळत नाहीत',
+        'পরিমাণগুলো মিলছে না',
+        'మొత్తాలు సరిపోలడం లేదు',
+        'தொகைகள் பொருந்தவில்லை',
+      );
+  String splitGapExplainer(String allocated, String total) => _t(
+        'The shares add up to $allocated, but the bill is $total. '
+            'Save it as you entered it?',
+        'हिस्सों का योग $allocated है, जबकि बिल $total का है। '
+            'जैसा दर्ज किया है वैसा ही सहेजें?',
+        'वाट्यांची बेरीज $allocated आहे, पण बिल $total चे आहे. '
+            'जसे प्रविष्ट केले तसेच जतन करायचे?',
+        'ভাগের যোগফল $allocated, কিন্তু বিল $total। '
+            'আপনি যেমন লিখেছেন তেমনই সেভ করবেন?',
+        'వాటాల మొత్తం $allocated, కానీ బిల్లు $total. '
+            'మీరు నమోదు చేసినట్టే సేవ్ చేయాలా?',
+        'பங்குகளின் கூட்டுத்தொகை $allocated, ஆனால் பில் $total. '
+            'நீங்கள் உள்ளிட்டபடியே சேமிக்கவா?',
+      );
+  String get saveAnyway => _t('Save anyway', 'फिर भी सहेजें', 'तरीही जतन करा', 'তবুও সেভ করুন', 'అయినా సేవ్ చేయి', 'இருப்பினும் சேமி');
   String get removeSplit => _t('Remove split', 'विभाजन हटाएँ', 'विभाजन काढा', 'স্প্লিট সরান', 'స్ప్లిట్ తీసివేయి', 'பிரிப்பை அகற்று');
   String get splitSavedToast =>
       _t('Split saved', 'विभाजन सहेजा गया', 'विभाजन जतन केले', 'স্প্লিট সেভ হয়েছে', 'స్ప్లిట్ సేవ్ అయింది', 'பிரிப்பு சேமிக்கப்பட்டது');
