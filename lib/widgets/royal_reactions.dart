@@ -162,20 +162,28 @@ void requestRoyalCameo(RoyalCameo cameo) {
 /// Watches financial-health snapshots and fires scold/cheer on meaningful
 /// changes (over budget, or newly healthy).
 ///
-/// The cheer is per-session and in-memory. The **scold is per-breach and
-/// persisted**, which is what makes it survive the app being closed: it used
-/// to fire only on a false→true transition observed *within one session*, so
-/// a user who blew their budget yesterday and reopened the app today never
-/// saw it — the first snapshot silently adopted "over budget" as the baseline
-/// and the transition it was waiting for had already happened off-screen.
-/// That made the whole attack animation invisible to exactly the users it is
-/// for. Now a session that OPENS over budget scolds too, and
-/// [breachSignature] keeps that to once per breach rather than once per
-/// launch: same blown budgets in the same month → already reacted to; a new
-/// budget going over, or a new month, is a new breach.
+/// The cheer is per-session and in-memory. The scold is driven by a
+/// **persisted picture of which envelopes were over budget at the last
+/// observation** ([_lastBreach]), and fires on every *crossing*: whenever the
+/// live picture shows an envelope over budget that the remembered picture
+/// doesn't (or a different month). That definition is what makes all of
+/// these behave, where two earlier designs failed:
+///
+///  - reopening the app on a budget blown while it was closed → the stored
+///    picture still says "within budget" → fires (the in-session-transition
+///    design silently adopted "over" as its baseline here);
+///  - reopening again on the SAME blown budget → stored picture already says
+///    so → quiet (once per crossing, not once per launch);
+///  - dropping back under and then going over again — same envelope, same
+///    month → the under-budget observation cleared the stored picture, so
+///    the second crossing fires (the once-per-signature design stayed
+///    silent for the rest of the month);
+///  - cutting the budget below what's already spent → a crossing with no new
+///    charge → fires;
+///  - a second envelope going over while the first is still blown → fires.
 ///
 /// Still pure with respect to the database — the only thing it persists is
-/// the one signature string, through [loadBreach]/[_saveBreach].
+/// the one signature string, through [loadBreach]/[_persist].
 class RoyalMood {
   RoyalMood._();
 
@@ -184,29 +192,44 @@ class RoyalMood {
 
   static bool _launchCheerDone = false;
 
-  /// SharedPreferences key for [_scoldedBreach].
-  static const String breachPrefsKey = 'royal_scolded_breach_v1';
+  /// SharedPreferences key for [_lastBreach].
+  static const String breachPrefsKey = 'royal_breach_state_v1';
 
-  /// The breach the court has already reacted to, remembered across launches.
-  static String? _scoldedBreach;
+  /// The pre-v1.59 key. It remembered only the last breach *scolded* — and
+  /// was written at request time, so a reaction the host then dropped (gates
+  /// off, royal still loading) still counted as delivered and silenced the
+  /// month. Removed on load so no stale state lingers.
+  static const String _legacyBreachKey = 'royal_scolded_breach_v1';
 
-  /// Load the remembered breach. Called once at startup, before the first
-  /// snapshot lands — without it every launch would re-scold the same breach.
+  /// The breach state as of the last observation: a [breachSignature] while
+  /// over budget, null while within. Persisted so it survives the app being
+  /// closed — comparing the live picture against it is the crossing test.
+  static String? _lastBreach;
+
+  /// Load the remembered breach state. Called once at startup, before the
+  /// first snapshot lands — without it every launch would re-fire for a
+  /// breach the user has already been shown.
   static Future<void> loadBreach() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      _scoldedBreach = prefs.getString(breachPrefsKey);
+      _lastBreach = prefs.getString(breachPrefsKey);
+      await prefs.remove(_legacyBreachKey);
     } catch (_) {
       // Cosmetic feature — a prefs failure must never break startup.
     }
   }
 
-  static Future<void> _saveBreach(String signature) async {
+  static Future<void> _persist(String? signature) async {
+    _lastBreach = signature;
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(breachPrefsKey, signature);
+      if (signature == null) {
+        await prefs.remove(breachPrefsKey);
+      } else {
+        await prefs.setString(breachPrefsKey, signature);
+      }
     } catch (_) {
-      // Same: worst case the scold repeats on the next launch.
+      // Worst case the reaction repeats on the next launch.
     }
   }
 
@@ -226,15 +249,28 @@ class RoyalMood {
     return '$month|${over.join(',')}';
   }
 
+  /// Whether [current] contains a breach the remembered [prev] state hasn't
+  /// covered: any envelope newly over budget, or a different month entirely.
+  /// A *shrunken* set is not new — one budget recovering while another stays
+  /// blown is old news, not a fresh crossing.
+  static bool _isNewBreach(String? prev, String current) {
+    if (prev == null || prev.isEmpty) return true;
+    final p = prev.indexOf('|');
+    final c = current.indexOf('|');
+    if (p < 0 || c < 0) return true;
+    if (prev.substring(0, p) != current.substring(0, c)) return true;
+    final covered = prev.substring(p + 1).split(',').toSet();
+    return current.substring(c + 1).split(',').any((e) => !covered.contains(e));
+  }
+
   static void _scold(String signature) {
-    _scoldedBreach = signature;
-    _saveBreach(signature);
+    _persist(signature);
     // Take the user to the thing that's wrong. Being told "you're over
     // budget" and having to go find out which one is the weaker half of the
     // moment — and on a cold start the news arrives on Home, where the gauge
-    // that would show it isn't. The tab request is deliberately outside the
-    // animation gate below: showing someone their blown budget is useful
-    // whether or not they've turned the court's theatrics on.
+    // that would show it isn't. The tab request is deliberately independent
+    // of the animation: showing someone their blown budget is useful whether
+    // or not a royal is equipped to dramatise it.
     mainShellTabRequest.value = 1;
     requestRoyalReaction(RoyalReaction.scold);
   }
@@ -245,40 +281,50 @@ class RoyalMood {
     final overBudget = signature != null;
     final band = health.band;
     final healthy = band == HealthBand.good || band == HealthBand.excellent;
+    final firstThisSession = _wasOverBudget == null;
 
-    // First observation this session: adopt the state as the baseline. When
-    // that baseline is already GOOD — budgets adhered to, healthy score — the
-    // royal opens the session by celebrating the user (once per session; the
-    // host holds it until the welcome routine finishes). When it is already
-    // BAD, the scold fires here rather than being swallowed, so reopening the
-    // app on a blown budget is reacted to exactly like blowing it live.
-    if (_wasOverBudget == null) {
-      _wasOverBudget = overBudget;
-      _wasHealthy = healthy;
-      if (overBudget) {
-        if (signature != _scoldedBreach) _scold(signature);
-      } else if (healthy && !_launchCheerDone) {
-        _launchCheerDone = true;
-        requestRoyalReaction(RoyalReaction.cheer);
+    if (overBudget) {
+      if (_isNewBreach(_lastBreach, signature)) {
+        // A crossing: an envelope is over that the remembered state didn't
+        // have (or a new month). Fires on a cold start exactly like live —
+        // the stored picture, not the session, is the baseline.
+        _scold(signature);
+      } else if (signature != _lastBreach) {
+        // Same month, fewer envelopes over — nothing new to react to, but
+        // remember the shrunken state so re-blowing one later counts as the
+        // fresh crossing it is.
+        _persist(signature);
       }
-      return;
-    }
-    // Newly over budget, or over a budget the court hasn't reacted to yet.
-    if (overBudget && signature != _scoldedBreach) {
-      _scold(signature);
-    } else if (!overBudget && healthy && !(_wasHealthy ?? false)) {
-      requestRoyalReaction(RoyalReaction.cheer);
+    } else {
+      if (_lastBreach != null) {
+        // Back within budget: clean slate. The next crossing fires even if
+        // it's the same envelope in the same month — that's a new event to
+        // the user, whatever the signature says.
+        _persist(null);
+      }
+      if (healthy) {
+        if (firstThisSession) {
+          // A session that OPENS healthy and adherent gets the one launch
+          // celebration (the host holds it until the welcome parade ends).
+          if (!_launchCheerDone) {
+            _launchCheerDone = true;
+            requestRoyalReaction(RoyalReaction.cheer);
+          }
+        } else if (!(_wasHealthy ?? false)) {
+          requestRoyalReaction(RoyalReaction.cheer);
+        }
+      }
     }
     _wasOverBudget = overBudget;
     _wasHealthy = healthy;
   }
 
   @visibleForTesting
-  static void reset({String? scoldedBreach}) {
+  static void reset({String? lastBreach}) {
     _wasOverBudget = null;
     _wasHealthy = null;
     _launchCheerDone = false;
-    _scoldedBreach = scoldedBreach;
+    _lastBreach = lastBreach;
   }
 }
 
@@ -482,7 +528,9 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
     _customAnimEnabled = on;
     if (!on) {
       _cameoTimer?.cancel();
-      _pending = null;
+      // A queued smash survives the toggle flipping off — it's feedback,
+      // not one of the decorations the toggle governs.
+      if (_pending != _Routine.smash) _pending = null;
     } else if (_royal != null) {
       _scheduleBoot();
       _scheduleCameo();
@@ -496,6 +544,18 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
     setState(() => _royal = royal);
     if (royal == null) {
       _cameoTimer?.cancel();
+      return;
+    }
+    // A scold that arrived while the profile was still loading plays now —
+    // and outranks the welcome parade, same as in _onReaction: the user is
+    // being told they blew their budget, not welcomed.
+    if (_pending == _Routine.smash &&
+        _routine == null &&
+        context.read<AppPreferences>().gamifiedMode) {
+      _bootedThisSession = true;
+      _pending = null;
+      _startOrPark(_Routine.smash);
+      _scheduleCameo();
       return;
     }
     // A one-time welcome when a royal is equipped and gamified is on — but only
@@ -536,21 +596,46 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
     final ev = royalReactionRequest.value;
     if (ev == null || ev.nonce == _lastNonce || !mounted) return;
     _lastNonce = ev.nonce;
-    if (_royal == null) return;
     if (!context.read<AppPreferences>().gamifiedMode) return;
-    if (!_customAnimations) return;
     final routine = switch (ev.reaction) {
       RoyalReaction.scold => _Routine.smash,
       RoyalReaction.cheer => _Routine.praise,
       RoyalReaction.taught => _Routine.praise,
       RoyalReaction.strike => _Routine.strike,
     };
-    // A reaction that lands during another routine (or before the welcome
-    // parade has run) waits its turn instead of being dropped — the launch
-    // cheer always arrives while the boot is playing. Latest one wins.
-    if (_routine != null || !_bootedThisSession) {
+    // The over-budget attack is FEEDBACK about the user's money; the parade,
+    // cameos and cheers are decoration. Only the decoration sits behind the
+    // "Enable Custom Animations" opt-in — that toggle defaults to off, and
+    // gating the smash behind it made the flagship moment of Gamified
+    // Budgets invisible to every user who never found the switch, which is
+    // most of them.
+    final isSmash = routine == _Routine.smash;
+    if (!isSmash && !_customAnimations) return;
+    // The equipped royal loads asynchronously at startup, and on a cold
+    // start the scold can beat it here. Dropping the reaction lost it for
+    // the whole session (the breach used to be marked handled anyway) —
+    // queue it instead; _loadRoyal flushes the queue when the royal is in.
+    if (_royal == null) {
       _pending = routine;
       return;
+    }
+    // A reaction that lands during another routine waits its turn instead of
+    // being dropped — the launch cheer always arrives while the boot is
+    // playing. Latest one wins.
+    if (_routine != null) {
+      _pending = routine;
+      return;
+    }
+    if (!_bootedThisSession) {
+      if (isSmash) {
+        // Feedback outranks ceremony: skip the welcome parade rather than
+        // holding the attack behind ~6s of pageantry — or forever, when
+        // custom animations are off and the parade would never have run.
+        _bootedThisSession = true;
+      } else {
+        _pending = routine;
+        return;
+      }
     }
     _startOrPark(routine);
   }

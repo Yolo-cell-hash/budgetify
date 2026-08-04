@@ -4,6 +4,33 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.59.0] — 2026-08-04
+
+### Fixed
+
+- **The over-budget attack no longer hides behind a switch.** The full-body
+  royal attack was gated behind **Enable Custom Animations** — an opt-in,
+  default **off**, buried in the avatar picker. The flagship moment of
+  Gamified Budgets was invisible to everyone who never found the toggle,
+  which is nearly everyone. The attack is *feedback about your money*, not
+  decoration, so it now plays whenever a royal is equipped and Gamified
+  Budgets is on. The toggle keeps governing the decorations: the welcome
+  parade, the ambient cameos, the cheers.
+- **One gated attempt no longer silences the month.** The breach was marked
+  "reacted to" the moment the reaction was *requested* — even if it was then
+  dropped because the toggle was off or the royal hadn't finished loading.
+  One swallowed attempt meant silence for the rest of the month. The record
+  is now a picture of *which budgets were over at the last look*, and the
+  reaction fires on every **crossing**: reopening on the same blown budget
+  stays quiet, but going over → back under → over again fires each time —
+  ₹790 of ₹800, close the app, spend ₹20, reopen: Budgets screen, ₹810,
+  attack.
+- **A scold can't outrun the royal any more.** On a cold start the
+  over-budget verdict often arrived before the equipped royal had finished
+  loading, and the reaction was silently discarded. It now waits for the
+  royal, and — being feedback — jumps ahead of the welcome parade instead of
+  queueing behind six seconds of pageantry.
+
 ## [1.58.0] — 2026-08-04
 
 ### Added

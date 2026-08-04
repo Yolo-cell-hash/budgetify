@@ -120,7 +120,7 @@ void main() {
       expect(signature, isNotNull);
 
       // Next launch: the remembered signature is restored from storage.
-      RoyalMood.reset(scoldedBreach: signature);
+      RoyalMood.reset(lastBreach: signature);
       final events = capture(() {
         RoyalMood.observe(health, now: DateTime(2026, 8, 4));
       });
@@ -131,7 +131,7 @@ void main() {
       final health =
           _health(income: 100, expenses: 150, limit: 100, spent: 150);
       final july = RoyalMood.breachSignature(health, DateTime(2026, 7, 20));
-      RoyalMood.reset(scoldedBreach: july);
+      RoyalMood.reset(lastBreach: july);
       final events = capture(() {
         RoyalMood.observe(health, now: DateTime(2026, 8, 4));
       });
@@ -192,6 +192,51 @@ void main() {
       );
     });
 
+    test('dipping back under budget re-arms the reaction', () {
+      // The reported bug in full: over earlier in the month (reacted to),
+      // back under, then a ₹20 charge tips it over again. The once-per-
+      // signature design saw the same month + same envelope and stayed
+      // silent for the rest of the month; a crossing is a crossing.
+      final when = DateTime(2026, 8, 4);
+      final events = capture(() {
+        RoyalMood.observe(
+            _health(income: 2000, expenses: 810, limit: 800, spent: 810),
+            now: when);
+        RoyalMood.observe(
+            _health(income: 2000, expenses: 700, limit: 800, spent: 700),
+            now: when);
+        RoyalMood.observe(
+            _health(income: 2000, expenses: 810, limit: 800, spent: 810),
+            now: when);
+      });
+      expect(events, [RoyalReaction.scold, RoyalReaction.scold],
+          reason: 'each crossing fires; the under-budget dip re-arms it');
+    });
+
+    test('a shrunken breach is tracked; re-blowing that envelope fires', () {
+      final when = DateTime(2026, 8, 4);
+      FinancialHealth two({required bool shoppingOver}) => FinancialHealth(
+            income: 100,
+            expenses: 90,
+            budgets: [
+              const BudgetUsage(
+                  limit: 100, spent: 150, label: 'Food & Dining'),
+              BudgetUsage(
+                  limit: 100,
+                  spent: shoppingOver ? 120 : 40,
+                  label: 'Shopping'),
+            ],
+          );
+      final events = capture(() {
+        RoyalMood.observe(two(shoppingOver: true), now: when); // both over
+        RoyalMood.observe(two(shoppingOver: false), now: when); // recovers
+        RoyalMood.observe(two(shoppingOver: true), now: when); // blown again
+      });
+      // One budget recovering while the other stays blown is old news (no
+      // event), but blowing it again is a fresh crossing.
+      expect(events, [RoyalReaction.scold, RoyalReaction.scold]);
+    });
+
     test('cutting the budget below what is spent counts as going over', () {
       // ₹1000 budget, ₹900 spent — fine. Drop the budget to ₹800 and the user
       // is over without spending another rupee, which is just as much a
@@ -235,7 +280,7 @@ void main() {
       final health =
           _health(income: 100, expenses: 150, limit: 100, spent: 150);
       final sig = RoyalMood.breachSignature(health, DateTime(2026, 8, 4));
-      RoyalMood.reset(scoldedBreach: sig);
+      RoyalMood.reset(lastBreach: sig);
       addTearDown(() => mainShellTabRequest.value = null);
       mainShellTabRequest.value = null;
       RoyalMood.observe(health, now: DateTime(2026, 8, 4));
@@ -569,8 +614,9 @@ void main() {
       expect(royalCharacterOut.value, isFalse, reason: 'no welcome parade');
       expect(_hasCharacter(tester), isFalse);
 
-      // Neither a reaction nor a cameo may summon the full-body character.
-      requestRoyalReaction(RoyalReaction.scold);
+      // Neither a decorative reaction nor a cameo may summon the character.
+      // (The over-budget smash is exempt — it's feedback, covered below.)
+      requestRoyalReaction(RoyalReaction.cheer);
       requestRoyalCameo(RoyalCameo.stroll);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
@@ -584,6 +630,50 @@ void main() {
       }
       expect(_hasCharacter(tester), isTrue,
           reason: 'enabling custom animations starts the entrance');
+    });
+
+    testWidgets('the over-budget smash plays even with custom animations OFF',
+        (tester) async {
+      // The toggle governs decoration (parade, cameos, cheers). The smash is
+      // feedback about the user's money and defaulted to invisible behind an
+      // opt-in nobody finds — the root of "the animation never shows".
+      final sovereign = kRoyalAvatars.firstWhere((r) => r.id == 'sovereign');
+      SharedPreferences.setMockInitialValues({
+        'gamification_v1': jsonEncode({
+          'profile': {
+            'avatarKind': 'pixel',
+            'avatarValue': '${sovereign.spriteIndex}',
+          },
+          'unlockedRoyals': ['sovereign'],
+        }),
+        // Custom animations left OFF (the real default).
+      });
+      final prefs = AppPreferences();
+      await prefs.initialize();
+      expect(prefs.royalCustomAnimations, isFalse);
+      // No gauge in this tree — cut the park wait short.
+      RoyalReactionHost.debugSmashParkPoll = const Duration(milliseconds: 100);
+      RoyalReactionHost.debugSmashParkAttempts = 1;
+
+      await tester.pumpWidget(_host(prefs));
+      for (var i = 0; i < 6; i++) {
+        await tester.pump(const Duration(milliseconds: 40));
+      }
+      expect(_hasCharacter(tester), isFalse, reason: 'no parade either way');
+
+      requestRoyalReaction(RoyalReaction.scold);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 150)); // park gives up
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1700)); // mid-slash
+      expect(_characterPainter(tester)?.action, RoyalAction.slash,
+          reason: 'feedback plays without the opt-in');
+      expect(_hasShatter(tester), isTrue);
+
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(_hasCharacter(tester), isFalse);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('the budget smash vibrates at impact', (tester) async {
