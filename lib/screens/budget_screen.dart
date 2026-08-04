@@ -115,6 +115,12 @@ class _BudgetScreenState extends State<BudgetScreen>
     _overviewPageController = PageController();
     _generateAvailableMonths();
     _loadData();
+    // The shell keeps this screen alive in an IndexedStack, so initState runs
+    // once per launch. Anything that changes what's been spent — retagging a
+    // transaction elsewhere, a new SMS debit, a deletion — has to pull it back
+    // in, or the figures here are whatever they were when the tab was first
+    // opened.
+    appDataRevision.addListener(_onExternalDataChange);
     TutorialService.instance.addListener(_onTutorialTick);
     WidgetsBinding.instance
         .addPostFrameCallback((_) => _maybeShowTutorialTip());
@@ -122,10 +128,26 @@ class _BudgetScreenState extends State<BudgetScreen>
 
   @override
   void dispose() {
+    appDataRevision.removeListener(_onExternalDataChange);
     TutorialService.instance.removeListener(_onTutorialTick);
     _tabController.dispose();
     _overviewPageController.dispose();
     super.dispose();
+  }
+
+  /// Reload after data changed elsewhere. Guarded because a budget save
+  /// broadcasts from inside the dialog and the caller reloads again once it
+  /// closes — without this the screen would run two overlapping loads and
+  /// flash its spinner twice for one edit.
+  bool _reloading = false;
+  Future<void> _onExternalDataChange() async {
+    if (!mounted || _reloading) return;
+    _reloading = true;
+    try {
+      await _loadData();
+    } finally {
+      _reloading = false;
+    }
   }
 
   void _onTutorialTick() {

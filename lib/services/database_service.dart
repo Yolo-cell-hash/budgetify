@@ -1081,12 +1081,19 @@ class DatabaseService {
   /// Update a transaction
   Future<int> updateTransaction(TransactionModel transaction) async {
     final db = await database;
-    return await db.update(
+    final n = await db.update(
       'transactions',
       transaction.toMap(),
       where: 'id = ?',
       whereArgs: [transaction.id],
     );
+    // Retagging changes what counts as spending — moving a transaction to
+    // Self Transfer or Investments takes it out of every total. Screens that
+    // are alive but off-screen (the shell keeps them in an IndexedStack) hold
+    // figures computed before the edit, so without this the Budgets tab kept
+    // showing the pre-retag amount until it was rebuilt from scratch.
+    notifyAppDataChanged();
+    return n;
   }
 
   /// Set (or clear, with null) the tax-deduction bucket on one transaction.
