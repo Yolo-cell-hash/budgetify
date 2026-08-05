@@ -1108,6 +1108,16 @@ class DatabaseService {
     );
   }
 
+  /// Every tax bucket is a payment the user *made* — a premium, an instalment,
+  /// rent, a donation. Money coming the other way (an LIC maturity payout, a
+  /// health-insurance claim settlement, a policy refund) is never a deduction,
+  /// so credits are excluded from every tax query below.
+  ///
+  /// Applied at read time rather than by cleaning the column, so rows tagged
+  /// by the earlier type-blind "Apply to all" simply stop counting instead of
+  /// needing a destructive migration.
+  static const String _taxDebitOnly = 'type = ?';
+
   /// Sum of transaction amounts per tax bucket within the half-open window
   /// [start, endExclusive) — the FY window. Returns bucket id → total, only
   /// for buckets that have at least one tagged transaction. Uses the full
@@ -1121,10 +1131,14 @@ class DatabaseService {
     final rows = await db.rawQuery(
       'SELECT tax_bucket AS bucket, SUM(amount) AS total '
       'FROM transactions '
-      'WHERE tax_bucket IS NOT NULL '
+      'WHERE tax_bucket IS NOT NULL AND $_taxDebitOnly '
       'AND detected_at >= ? AND detected_at < ? '
       'GROUP BY tax_bucket',
-      [start.millisecondsSinceEpoch, endExclusive.millisecondsSinceEpoch],
+      [
+        TransactionType.debit.index,
+        start.millisecondsSinceEpoch,
+        endExclusive.millisecondsSinceEpoch,
+      ],
     );
     return {
       for (final r in rows)
@@ -1134,7 +1148,8 @@ class DatabaseService {
 
   /// The transactions tagged to [bucketId] within [start, endExclusive),
   /// newest first — the contributing rows a bucket's detail view (and the
-  /// Phase-3 export) lists.
+  /// Phase-3 export) lists. Debits only, so the list always adds up to the
+  /// total [sumByTaxBucket] reports for the same bucket.
   Future<List<TransactionModel>> transactionsForTaxBucket({
     required String bucketId,
     required DateTime start,
@@ -1143,9 +1158,11 @@ class DatabaseService {
     final db = await database;
     final maps = await db.query(
       'transactions',
-      where: 'tax_bucket = ? AND detected_at >= ? AND detected_at < ?',
+      where: 'tax_bucket = ? AND $_taxDebitOnly '
+          'AND detected_at >= ? AND detected_at < ?',
       whereArgs: [
         bucketId,
+        TransactionType.debit.index,
         start.millisecondsSinceEpoch,
         endExclusive.millisecondsSinceEpoch,
       ],
@@ -1214,8 +1231,12 @@ class DatabaseService {
     final db = await database;
     final norm = _normTaxPayee(payee);
     if (norm.isEmpty) return 0;
+    // Debits only: "apply to all from LIC" means every premium paid, never the
+    // maturity payout that shares the payee name.
     final rows = await db.query('transactions',
-        columns: ['id', 'merchant_name'], where: 'tax_bucket IS NULL');
+        columns: ['id', 'merchant_name'],
+        where: 'tax_bucket IS NULL AND $_taxDebitOnly',
+        whereArgs: [TransactionType.debit.index]);
     var tagged = 0;
     for (final row in rows) {
       final m = row['merchant_name'] as String?;
@@ -1239,8 +1260,11 @@ class DatabaseService {
     final rules = await getActiveTaxRules();
     if (rules.isEmpty) return 0;
     final db = await database;
+    // Debits only — see [_taxDebitOnly].
     final rows = await db.query('transactions',
-        columns: ['id', 'merchant_name'], where: 'tax_bucket IS NULL');
+        columns: ['id', 'merchant_name'],
+        where: 'tax_bucket IS NULL AND $_taxDebitOnly',
+        whereArgs: [TransactionType.debit.index]);
     var applied = 0;
     for (final row in rows) {
       final m = row['merchant_name'] as String?;
