@@ -4,6 +4,27 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.62.0] — 2026-08-05
+
+### Fixed
+
+- **A credit card arriving is not money arriving.** "Your Credit Card ending
+  with XX39 have a Credit Limit of INR 4,00,000 is Dispatched" was logged as
+  ₹4,00,000 of income, and two Kotak "card of Limit Rs.3,55,000/- is approved"
+  notices the same way — the figure in all three is the card's *limit*, and no
+  money moved. They arrived on the banks' own trusted headers, so the
+  promotional-route filter never saw them. The parser now refuses a card being
+  approved or dispatched, while a card being *used* still parses even when the
+  alert quotes the very same limit.
+- **Old false positives clear themselves on upgrade.** A parser fix only ever
+  applied to messages read after it shipped; anything already logged kept its
+  original reading forever — two of the three card promos above were already
+  unreadable by the parser and had simply never been re-read. This release goes
+  back over stored transactions and removes the ones today's parser refuses, so
+  years of "Not a transaction" tidying you'd otherwise do by hand is done for
+  you. Manual entries, imported statements, and anything you've split or filed
+  under a tax section are left untouched.
+
 ## [1.61.0] — 2026-08-05
 
 ### Added

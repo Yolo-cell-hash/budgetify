@@ -2158,6 +2158,25 @@ class SmsParserService {
       // above and "will be debited" cover those explicitly).
       RegExp(r'\bAUTOPAY\b'),
       RegExp(r'E-?MANDATE'),
+      // A card being *issued* rather than used: the figure is the card's
+      // credit limit, and no money has moved. Reported from a device on
+      // 2026-08-05, all from allowlisted bank headers — so the -P promo route
+      // filter never saw them, and the limit-increase rejects above only cover
+      // a card the user already holds:
+      //   "Your Credit Card ending with XX39 have a Credit Limit of INR
+      //    4,00,000 is Dispatched"        (AUBANK)  → logged as ₹4,00,000 income
+      //   "Your Kotak Credit card of Limit Rs.3,55,000/- is approved"  (KTKBNK)
+      // Both patterns describe the card *arriving*, never the word "limit" on
+      // its own: a genuine spend alert can quote the same limit ("Rs.2,500
+      // spent ... your credit limit of INR 4,00,000 is now INR 3,97,500"), and
+      // matching that phrase alone dragged the spend into this soft-reject
+      // path, where a two-digit card tail ("XX39") isn't recognised as account
+      // evidence and the real ₹2,500 debit was dropped. An approval or
+      // dispatch notice, by contrast, has no settled verb at all.
+      RegExp(r'CARD\s+OF\s+LIMIT\b'),
+      RegExp(
+        r'\bCARD\b[\s\S]{0,80}\bIS\s+(?:APPROVED|DISPATCHED|DELIVERED|SHIPPED|COURIERED)\b',
+      ),
     ];
     if (softRejectPatterns.any((p) => p.hasMatch(upperMessage))) {
       final hasTransactionVerb = _transactionVerbRegex.hasMatch(upperMessage);
@@ -2904,6 +2923,29 @@ class SmsParserService {
     return tail != null &&
         RegExp(r'^\d{4,6}$').hasMatch(n) &&
         n.endsWith(tail);
+  }
+
+  /// Whether a row **already stored** holds a message today's parser would
+  /// refuse to log — the test behind the schema-31 heal in [DatabaseService].
+  ///
+  /// A parser fix only ever reaches messages read *after* it ships; rows
+  /// already in the table keep whatever reading they were given, which is why
+  /// a card-approval promo logged as ₹4,00,000 of income stays in the user's
+  /// totals until something re-reads it.
+  ///
+  /// Only the *message* is allowed to be the reason. A row whose header no
+  /// longer carries trust is kept: an allowlist that narrows, or a header the
+  /// directory renames, must never delete a genuine transaction someone
+  /// already has. The caller adds the row-level guards (manual entries,
+  /// imported statements, rows the user has built a split or a tax section on).
+  static bool wouldRejectStoredMessage(
+    String sender,
+    String message,
+    DateTime detectedAt,
+  ) {
+    if (message.trim().isEmpty) return false;
+    if (!isBankSms(sender)) return false;
+    return parseTransaction(sender, message, detectedAt) == null;
   }
 
   /// Clean up extracted merchant string
