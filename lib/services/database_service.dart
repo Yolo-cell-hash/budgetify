@@ -2784,6 +2784,55 @@ class DatabaseService {
     notifyAppDataChanged();
   }
 
+  /// Put back the review flags [confirmTransactionReview] cleared — the undo
+  /// behind a mis-tapped "Looks right" in Tidy up. Restoring the exact reason
+  /// string (rather than re-deriving it) means the row returns to the queue
+  /// reading exactly as it did before, which is the whole point of an undo.
+  Future<void> restoreTransactionReview(int id, String? reasons) async {
+    final db = await database;
+    await db.update(
+      'transactions',
+      {'review_reasons': (reasons?.isEmpty ?? true) ? null : reasons},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    notifyAppDataChanged();
+  }
+
+  /// Undo a direction flip: [original] is the row exactly as it was before
+  /// [flipTransactionType] touched it.
+  ///
+  /// The teaching that flip installed is withdrawn as well — leaving it would
+  /// mean the app kept "learning" from a correction the user just took back,
+  /// and every future SMS of that shape would carry the wrong direction with
+  /// no visible cause.
+  Future<void> undoTypeFlip(TransactionModel original) async {
+    final db = await database;
+    if (original.id != null) {
+      await db.update(
+        'transactions',
+        {
+          'type': original.type.index,
+          'review_reasons': original.reviewReasons,
+          'fingerprint': original.fingerprint,
+        },
+        where: 'id = ?',
+        whereArgs: [original.id],
+      );
+    }
+    if (!original.isManual && original.message.isNotEmpty) {
+      await db.delete(
+        'parse_overrides',
+        where: 'sender_core = ? AND signature = ?',
+        whereArgs: [
+          SmsParserService.normalizeSender(original.sender),
+          messageSignature(original.message),
+        ],
+      );
+    }
+    notifyAppDataChanged();
+  }
+
   /// Shape signature of an SMS: the template skeleton with every digit run
   /// collapsed to '#' and whitespace normalised. Two instances of the same
   /// bank/promo template (same wording, different amounts/dates/refs) share
