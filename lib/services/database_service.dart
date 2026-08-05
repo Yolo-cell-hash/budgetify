@@ -13,6 +13,10 @@ import '../models/recurring_payment.dart';
 import '../models/restore_merge.dart';
 import '../models/upi_mandate.dart';
 import 'sms_parser_service.dart';
+// For `senderPrefix` only — the marker on rows that came from a statement
+// import rather than an SMS, which the schema-31 heal must not re-parse.
+// A compile-time const, so the import cycle back to this file is inert.
+import 'statement_import_service.dart';
 import 'app_events.dart';
 
 /// Database service for persisting transactions and budgets
@@ -38,7 +42,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 30,
+      version: 31,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -865,6 +869,75 @@ class DatabaseService {
       // additive — a new table nothing else reads, filled by the next scan.
       await db.execute(_createUpiMandatesTable);
     }
+
+    if (oldVersion < 31) {
+      // v1.62.0 taught the parser to refuse credit-card approval and dispatch
+      // notices, where the figure quoted is the card's limit and no money has
+      // moved. Three were reported from one device — a ₹4,00,000 "Credit Limit
+      // ... is Dispatched" and two Kotak "card of Limit ... is approved" — all
+      // sitting in the totals as income.
+      //
+      // Two of those three were already unreadable by the parser *before* this
+      // release: they were logged by an older build and simply never re-read,
+      // which is the point of this pass. Nothing re-reads a stored row, so
+      // every past tightening of the gate — mandate registrations, limit
+      // increases, "will be credited" promises — is still sitting in the
+      // history of anyone who had it logged once.
+      //
+      // Deleting is safe here in a way it usually isn't: the criterion *is*
+      // that today's parser refuses the message, so a rescan cannot put the
+      // row back, and no tombstone is needed to hold it out.
+      await _dropRowsTodayRefuses(db);
+    }
+  }
+
+  /// Delete stored rows whose message today's parser would refuse to log.
+  ///
+  /// Deliberately narrow about what it will touch, because this is the one
+  /// migration that destroys data rather than correcting it:
+  ///
+  /// * **Manual entries** are the user's own typing, not a parse.
+  /// * **Imported rows** (`IMPORT-…` senders) carry statement narrations the
+  ///   parser was never meant to read — re-parsing those would delete every
+  ///   imported transaction in the app.
+  /// * **Untrusted headers** keep their rows: [SmsParserService
+  ///   .wouldRejectStoredMessage] insists the message be the reason, so a
+  ///   change in the sender allowlist can't take genuine history with it.
+  /// * **Rows carrying a split or a tax section** are left alone even when the
+  ///   message is junk: the user built something on that row that reaches into
+  ///   the ledger and the tax screens, and quietly removing one end of it is
+  ///   worse than leaving a wrong row they can delete themselves.
+  ///
+  /// Returns how many rows were removed (used by the test; nothing in the UI
+  /// reports it — an upgrade that silently stops lying about your income is
+  /// not an event worth interrupting someone for).
+  Future<int> _dropRowsTodayRefuses(Database db) async {
+    final rows = await db.query(
+      'transactions',
+      columns: ['id', 'sender', 'message', 'detected_at'],
+      where: 'is_manual = 0 AND sender NOT LIKE ? '
+          'AND split_share IS NULL AND tax_bucket IS NULL',
+      whereArgs: ['${StatementImportService.senderPrefix}%'],
+    );
+    final doomed = <int>[];
+    for (final row in rows) {
+      final id = row['id'] as int?;
+      if (id == null) continue;
+      final detectedAt = DateTime.fromMillisecondsSinceEpoch(
+        row['detected_at'] as int? ?? 0,
+      );
+      if (SmsParserService.wouldRejectStoredMessage(
+        row['sender'] as String? ?? '',
+        row['message'] as String? ?? '',
+        detectedAt,
+      )) {
+        doomed.add(id);
+      }
+    }
+    for (final id in doomed) {
+      await db.delete('transactions', where: 'id = ?', whereArgs: [id]);
+    }
+    return doomed.length;
   }
 
   /// Re-read the payee of every stored row the parser could not name, using
