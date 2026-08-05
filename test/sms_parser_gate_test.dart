@@ -152,6 +152,53 @@ void main() {
             'Alternate mode.',
         expectParsed: false,
       ),
+      // ── A card arriving is not money arriving (device report, 2026-08-05) ─
+      // Three of these were sitting in one user's income: the amount quoted is
+      // the card's credit limit. All came from allowlisted headers, so the
+      // promotional-route filter never saw them.
+      const _GateCase(
+        name: 'AU card dispatch notice is not a ₹4,00,000 credit',
+        sender: 'AUBANK',
+        message: 'OUT FOR DELIVERY-Your Credit Card ending with XX39 have a '
+            'Credit Limit of INR 4,00,000 is Dispatched, For more benefits '
+            'Check here https://o4l.me/4913/i0Egc1',
+        expectParsed: false,
+      ),
+      const _GateCase(
+        name: 'Kotak card approval notice is not a ₹3,55,000 credit',
+        sender: 'KTKBNK',
+        message: 'Good News 8104605209- Your Kotak Credit card of Limit '
+            'Rs.3,55,000/- is approved. Please Confirm Your details: '
+            'https://v6e.in/jxFFh',
+        expectParsed: false,
+      ),
+      const _GateCase(
+        name: 'Kotak card approval, unspaced limit, is not a credit',
+        sender: 'KOTAKB',
+        message: 'Hello 8104605209- Your Kotak Credit card of Limit '
+            'Rs.3,15000/- is approved. Please Confirm Your details: '
+            'https://v6e.in/k0siX',
+        expectParsed: false,
+      ),
+      // The other side of that rule: a card being *used* still parses, even
+      // when the alert quotes the very same limit. The reject keys on the card
+      // arriving ("is approved"/"is dispatched"), never on the word "limit" —
+      // an earlier draft matched "credit limit of" outright and swallowed this
+      // ₹2,500 debit, because a two-digit card tail isn't account evidence.
+      const _GateCase(
+        name: 'card spend quoting the credit limit still parses',
+        sender: 'AUBANK',
+        message: 'Rs.2,500.00 spent on your AU Credit Card XX39 at SWIGGY. '
+            'Your credit limit of INR 4,00,000 is now INR 3,97,500',
+        expectParsed: true,
+      ),
+      const _GateCase(
+        name: 'card spend with an available-limit footer still parses',
+        sender: 'VM-HDFCBK-S',
+        message: 'Rs.2,500.00 spent on your HDFC Bank Credit Card xx1234 at '
+            'AMAZON on 05-08-26. Avl Lmt: Rs 55,000. Not you? Call 18002586161',
+        expectParsed: true,
+      ),
     ];
 
     for (final c in cases) {
@@ -343,6 +390,77 @@ void main() {
           DatabaseService.isAccountFallbackPayee('JAY RAJESH KEER', null),
           isFalse);
       expect(DatabaseService.isAccountFallbackPayee(null, 'XX7531'), isFalse);
+    });
+  });
+
+  // The schema-31 heal: a parser fix reaches messages read after it ships, but
+  // the rows already in the table keep whatever reading they were given. Two of
+  // the three card promos reported on 2026-08-05 were *already* unreadable by
+  // the parser — they had simply never been re-read, and sat in the user's
+  // income for months.
+  group('stored rows today\'s parser refuses', () {
+    test('a card-dispatch promo already logged is dropped', () {
+      expect(
+        SmsParserService.wouldRejectStoredMessage(
+          'AUBANK',
+          'OUT FOR DELIVERY-Your Credit Card ending with XX39 have a Credit '
+              'Limit of INR 4,00,000 is Dispatched, For more benefits Check '
+              'here https://o4l.me/4913/i0Egc1',
+          now,
+        ),
+        isTrue,
+      );
+    });
+
+    test('a genuine stored debit is kept', () {
+      expect(
+        SmsParserService.wouldRejectStoredMessage(
+          'JD-ABCBANK-S',
+          'Rs.250.00 debited from A/c XX9912 on 05-Jul-26 for UPI payment to '
+              'SWIGGY. Refno 719912345678. Avl Bal Rs.10,201.55',
+          now,
+        ),
+        isFalse,
+      );
+    });
+
+    test('a row whose header lost trust is kept, message notwithstanding', () {
+      // The sender must never be the reason a stored row is deleted: an
+      // allowlist that narrows would otherwise take genuine history with it.
+      expect(SmsParserService.isBankSms('AX-NETFLX-T'), isFalse);
+      expect(
+        SmsParserService.wouldRejectStoredMessage(
+          'AX-NETFLX-T',
+          'Your subscription is active.',
+          now,
+        ),
+        isFalse,
+      );
+    });
+
+    test('a row with no message behind it is kept', () {
+      expect(
+        SmsParserService.wouldRejectStoredMessage('Manual entry', '   ', now),
+        isFalse,
+      );
+    });
+
+    test('imported statement rows need the caller\'s guard, not this test', () {
+      // A statement import writes `IMPORT-<LABEL>` senders and narrations the
+      // parser was never meant to read. "IMPORT-HDFC BANK" contains BANK, so
+      // it clears the header net and its narration parses to nothing — this
+      // predicate alone would delete every imported row. The migration's
+      // `sender NOT LIKE 'IMPORT-%'` guard is what holds them out, and this
+      // test fails loudly if anyone decides that guard looks redundant.
+      expect(SmsParserService.isBankSms('IMPORT-HDFC BANK'), isTrue);
+      expect(
+        SmsParserService.wouldRejectStoredMessage(
+          'IMPORT-HDFC BANK',
+          'POS PURCHASE BIG BAZAAR (Ref 88213)',
+          now,
+        ),
+        isTrue,
+      );
     });
   });
 
