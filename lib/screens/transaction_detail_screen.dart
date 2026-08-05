@@ -1107,8 +1107,13 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
               const SizedBox(height: 16),
             ] else ...[
               _buildSettlementCard(colors, isSettlement),
-              const SizedBox(height: 12),
-              _buildTaxSectionRow(colors, cardColor, textColor, subtextColor),
+              // Deduction sections are all money the user PAID OUT, so a credit
+              // never earns one — see [typeCanCarryTaxBucket]. Settlement
+              // *debits* keep the row: they're still money leaving.
+              if (typeCanCarryTaxBucket(_transaction.type)) ...[
+                const SizedBox(height: 12),
+                _buildTaxSectionRow(colors, cardColor, textColor, subtextColor),
+              ],
               const SizedBox(height: 16),
             ],
 
@@ -1865,6 +1870,8 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   /// user-taught rule), shown as a one-tap chip while the row is untagged.
   Future<void> _maybeSuggestTaxBucket() async {
     if (_transaction.taxBucket != null) return;
+    // Nothing to suggest on money coming in — see [typeCanCarryTaxBucket].
+    if (!typeCanCarryTaxBucket(_transaction.type)) return;
     final suggestion =
         await TaxService().suggestionFor(_transaction.merchantName);
     if (mounted && suggestion != null && _taxBucket == null) {

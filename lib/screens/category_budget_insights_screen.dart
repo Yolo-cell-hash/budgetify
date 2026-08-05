@@ -283,7 +283,7 @@ class _CategoryBudgetInsightsScreenState
     if (!isCurrentMonth || remaining < 0) return const SizedBox.shrink();
 
     final end = budget?.currentPeriodEnd ??
-        DateTime(now.year, now.month + 1, 0);
+        DateTime(now.year, now.month + 1, 0, 23, 59, 59);
     final daysLeft = end.difference(DateTime(now.year, now.month, now.day)).inDays + 1;
     if (daysLeft <= 0) return const SizedBox.shrink();
     final perDay = remaining / daysLeft;

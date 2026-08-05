@@ -7,6 +7,8 @@
 /// liability or asserts an amount is deductible.
 library;
 
+import 'transaction_model.dart' show TransactionType;
+
 /// Which regime the user files under. The new regime (default since FY23-24)
 /// disallows almost all of these deductions, so the whole feature is gated on
 /// this: new-regime users are shown an honest explainer, not buckets that
@@ -219,3 +221,18 @@ bool isIdentifyingTaxPayee(String? payee) {
   if (RegExp(r'^[X*]{2,}\d{3,}$').hasMatch(p)) return false; // masked account
   return normalizeTaxPayee(payee).length >= 2;
 }
+
+/// Whether a transaction of [type] can carry a tax bucket at all.
+///
+/// Every bucket in [kTaxBuckets] is money the user PAID OUT — a premium, an
+/// NPS instalment, home-loan interest, rent, a donation. Money arriving is
+/// never one of those: an LIC maturity payout, a health-insurance claim
+/// settlement and a policy refund all share the payee name of the premium
+/// that earned the tag, so a type-blind "apply to all from LIC" would file a
+/// ₹3,00,000 credit under 80C and report the ₹1,50,000 cap as full — telling
+/// the user not to invest, on the strength of money they received.
+///
+/// The tax queries in DatabaseService enforce the same rule in SQL, so rows
+/// tagged before this guard existed simply stop counting.
+bool typeCanCarryTaxBucket(TransactionType type) =>
+    type == TransactionType.debit;

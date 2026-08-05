@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:budget_tracker/models/tax_bucket.dart';
+import 'package:budget_tracker/models/transaction_model.dart';
 import 'package:budget_tracker/services/tax_service.dart';
 
 void main() {
@@ -134,6 +135,28 @@ void main() {
       expect(isIdentifyingTaxPayee('**1234'), isFalse);
       expect(isIdentifyingTaxPayee(null), isFalse);
       expect(isIdentifyingTaxPayee(''), isFalse);
+    });
+  });
+
+  group('typeCanCarryTaxBucket (direction guard)', () {
+    test('only debits can carry a bucket', () {
+      expect(typeCanCarryTaxBucket(TransactionType.debit), isTrue);
+      expect(typeCanCarryTaxBucket(TransactionType.credit), isFalse);
+    });
+
+    // The failure this guards against: an LIC maturity payout and an LIC
+    // premium share a payee, so a type-blind "apply to all from LIC → 80C"
+    // filed the credit as a deduction. A ₹3,00,000 payout then reported the
+    // ₹1,50,000 80C cap as full — the screen telling the user not to invest,
+    // on the strength of money they had received rather than paid.
+    test('every bucket is money paid out, so no bucket accepts a credit', () {
+      for (final b in kTaxBuckets) {
+        expect(
+          typeCanCarryTaxBucket(TransactionType.credit),
+          isFalse,
+          reason: '${b.id} must never be filled by an incoming payment',
+        );
+      }
     });
   });
 }
