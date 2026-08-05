@@ -4,6 +4,27 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.63.0] — 2026-08-05
+
+### Changed
+
+- **Tidy up now tells you what you just did.** Answering an entry swapped one
+  card for another and nothing else moved — so with two ₹100 credits back to
+  back, there was no way to tell a registered answer from an ignored tap, or
+  which of the two you had actually answered. Every answer is now named on a
+  strip above the next entry, against the entry it was given to: *"Kept as it
+  was · +₹100 · KOTAKB · 5 Aug, 4:41 PM"*. A mis-tap costs one tap to fix —
+  **Undo** puts the answer back and returns you to that entry, including
+  taking back a direction correction the app had already learned from.
+- **The screen reads at a glance.** The amount leads the card with its
+  direction spelled out beside it, and the timestamp is no longer fine print:
+  when two entries carry the same amount from the same sender, it is the only
+  thing that tells them apart. Progress moved out of the app bar into a bar
+  that visibly fills as you work, with how many are left.
+
+No extra taps: answering is still one tap, and the three answers are still the
+same three buttons.
+
 ## [1.62.0] — 2026-08-05
 
 ### Fixed
