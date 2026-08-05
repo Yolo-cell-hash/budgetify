@@ -10,6 +10,7 @@ import '../models/sip.dart';
 import '../models/ledger_models.dart';
 import '../models/savings_goal.dart';
 import '../models/recurring_payment.dart';
+import '../models/restore_merge.dart';
 import '../models/upi_mandate.dart';
 import 'sms_parser_service.dart';
 import 'app_events.dart';
@@ -3561,18 +3562,20 @@ class DatabaseService {
       }
 
       if (existing.isNotEmpty) {
-        // The backup is authoritative for tags: re-apply the backed-up
-        // category/notes onto the row the rescan created untagged, so tags
-        // survive a reinstall. Only overwrite when the backup actually had
-        // a category (don't wipe a local tag with a blank one).
-        if (row['category'] != null) {
+        // Re-apply every decision the user made onto the row the rescan
+        // re-created bare — the tag, the note, the confirmed review verdict,
+        // the tax section, the split share. [RestoreMerge] owns which of
+        // those the backup is allowed to win, and is one-directional
+        // throughout: it fills gaps and clears flags the user already
+        // cleared, but a blank in the backup never wipes local work.
+        final updates = RestoreMerge.updatesFor(
+          backup: row,
+          local: existing.first,
+        );
+        if (updates.isNotEmpty) {
           await db.update(
             'transactions',
-            {
-              'category': row['category'],
-              'is_classified': row['is_classified'] ?? 1,
-              'notes': row['notes'],
-            },
+            updates,
             where: 'id = ?',
             whereArgs: [existing.first['id']],
           );
