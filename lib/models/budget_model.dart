@@ -105,12 +105,24 @@ class Budget {
     return DateTime(now.year, now.month, 1);
   }
 
+  /// The last instant of the current period — the period's final *day*, at
+  /// 23:59:59.
+  ///
+  /// The time matters: every spend query bounds on `detected_at <= end`, so a
+  /// midnight end silently drops the whole of the last day. That put the
+  /// budget gauge, the threshold alerts and the home widget a day behind
+  /// everything else on the 31st, and made the widget disagree with its own
+  /// "spent this month" figure — which is computed to 23:59:59 like the rest
+  /// of the app.
   DateTime get currentPeriodEnd {
     final now = DateTime.now();
     if (period == 'weekly') {
-      return currentPeriodStart.add(const Duration(days: 6));
+      final s = currentPeriodStart;
+      // Built by calendar arithmetic rather than `add(Duration(days: 6))` so
+      // the end lands on the right *date* regardless of any offset shift.
+      return DateTime(s.year, s.month, s.day + 6, 23, 59, 59);
     }
-    return DateTime(now.year, now.month + 1, 0);
+    return DateTime(now.year, now.month + 1, 0, 23, 59, 59);
   }
 
   /// Stable identifier for the current period, used to reset alert state when

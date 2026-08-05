@@ -74,6 +74,11 @@ class TransactionModel {
   bool get needsReview => reviewReasonList.isNotEmpty;
 
   /// Copy with the review flags cleared (copyWith can't null them out).
+  ///
+  /// Every other field is carried across verbatim. That is load-bearing: the
+  /// detail screen keeps this instance as its live state and later saves it
+  /// through `updateTransaction`, which writes the whole row — so a field
+  /// dropped here is a field erased from the database.
   TransactionModel confirmedReview() {
     return TransactionModel(
       id: id,
@@ -92,6 +97,7 @@ class TransactionModel {
       splitShare: splitShare,
       reviewReasons: null,
       parseSource: parseSource,
+      taxBucket: taxBucket,
     );
   }
 

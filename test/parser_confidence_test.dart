@@ -357,6 +357,37 @@ void main() {
       expect(confirmed.amount, 1);
     });
 
+    // "Everything else" is load-bearing, and the tax bucket is the field that
+    // proved it: the detail screen keeps the confirmed instance as its live
+    // state and later saves it through updateTransaction, which writes the
+    // whole row. Dropping a field here erased it from the database — tapping
+    // "Looks right" on an 80C-tagged LIC premium and then saving a category
+    // silently untagged the deduction.
+    test('confirmedReview keeps the tax bucket, and toMap still writes it', () {
+      final txn = TransactionModel(
+        amount: 12000,
+        type: TransactionType.debit,
+        sender: 'VM-HDFCBK-S',
+        message: 'LIC premium debited',
+        detectedAt: now,
+        merchantName: 'LIC',
+        category: 'Health & Medical',
+        splitShare: 6000,
+        notes: 'annual premium',
+        taxBucket: '80C',
+        reviewReasons: ReviewReasons.payeeUnknown,
+      );
+      final confirmed = txn.confirmedReview();
+
+      expect(confirmed.taxBucket, '80C');
+      expect(confirmed.toMap()['tax_bucket'], '80C');
+      // The other fields a whole-row write would clobber, for the same reason.
+      expect(confirmed.splitShare, 6000);
+      expect(confirmed.category, 'Health & Medical');
+      expect(confirmed.notes, 'annual premium');
+      expect(confirmed.merchantName, 'LIC');
+    });
+
     test('review columns survive a map round-trip', () {
       final txn = TransactionModel(
         amount: 5,
