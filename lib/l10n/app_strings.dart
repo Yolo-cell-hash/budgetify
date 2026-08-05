@@ -542,6 +542,42 @@ class AppStrings {
         '$totalలో $done',
         '$total இல் $done',
       );
+  // What you just did, named on the strip above the next entry — so two
+  // ₹100 credits in a row can't leave you wondering which one you answered.
+  String get tidyUpDidConfirm => _t(
+        'Kept as it was',
+        'जैसा था वैसा रखा',
+        'होते तसेच ठेवले',
+        'যেমন ছিল তেমনই রাখা হয়েছে',
+        'ఉన్నట్టుగానే ఉంచారు',
+        'இருந்தபடியே வைக்கப்பட்டது',
+      );
+  String get tidyUpDidFlip => _t(
+        'Direction corrected',
+        'दिशा सुधारी',
+        'दिशा दुरुस्त केली',
+        'দিক সংশোধন করা হয়েছে',
+        'దిశ సరిచేయబడింది',
+        'திசை சரிசெய்யப்பட்டது',
+      );
+  String get tidyUpDidRemove => _t('Removed', 'हटाया', 'काढले', 'সরানো হয়েছে',
+      'తీసివేయబడింది', 'அகற்றப்பட்டது');
+  String get tidyUpUndone => _t(
+        'Brought back',
+        'वापस लाया',
+        'परत आणले',
+        'ফিরিয়ে আনা হয়েছে',
+        'తిరిగి తీసుకురాబడింది',
+        'மீண்டும் கொண்டுவரப்பட்டது',
+      );
+  String tidyUpLeft(int n) => _t(
+        '$n left',
+        '$n बाकी',
+        '$n बाकी',
+        '$n বাকি',
+        '$n మిగిలింది',
+        '$n மீதம்',
+      );
   String get tidyUpAllSet => _t('All set', 'सब हो गया', 'सर्व झाले',
       'সব ঠিক আছে', 'అంతా సిద్ధం', 'அனைத்தும் தயார்');
   String get tidyUpAllSetBody => _t(
