@@ -8,8 +8,10 @@ import '../providers/theme_provider.dart';
 import '../services/app_events.dart';
 import '../services/database_service.dart';
 import '../services/removal_service.dart';
+import '../widgets/motion.dart';
 import '../widgets/privacy_amount.dart';
 import '../widgets/removal_choice_dialog.dart';
+import '../widgets/tidy_up_receipt.dart';
 
 /// "Tidy up": work through the rows the parser was unsure about, one at a time.
 ///
@@ -39,6 +41,16 @@ class _TidyUpScreenState extends State<TidyUpScreen> {
   bool _loading = true;
   bool _changed = false;
 
+  /// What the last tap did, kept until the next one replaces it. Shown above
+  /// the entry now on screen and undoable from there — the answer to "did that
+  /// register, and was it this one or the one before?", which two identical
+  /// ₹100 credits back to back made impossible to tell.
+  _LastAction? _last;
+
+  /// Brief "brought back" acknowledgement, so undo gets the same courtesy the
+  /// actions do. Cleared as soon as the next answer replaces it.
+  bool _undoNotice = false;
+
   @override
   void initState() {
     super.initState();
@@ -59,10 +71,12 @@ class _TidyUpScreenState extends State<TidyUpScreen> {
   TransactionModel? get _current =>
       _index < _queue.length ? _queue[_index] : null;
 
-  void _advance() {
+  void _advance(_LastAction done) {
     setState(() {
       _handled++;
       _index++;
+      _last = done;
+      _undoNotice = false;
     });
   }
 
@@ -71,7 +85,7 @@ class _TidyUpScreenState extends State<TidyUpScreen> {
     if (t?.id == null) return;
     await _db.confirmTransactionReview(t!.id!);
     _changed = true;
-    _advance();
+    _advance(_LastAction(kind: _ActionKind.confirmed, transaction: t));
   }
 
   Future<void> _flipDirection() async {
@@ -85,7 +99,7 @@ class _TidyUpScreenState extends State<TidyUpScreen> {
     );
     _changed = true;
     requestRoyalReaction(RoyalReaction.taught);
-    _advance();
+    _advance(_LastAction(kind: _ActionKind.flipped, transaction: t));
   }
 
   Future<void> _remove() async {
@@ -99,9 +113,60 @@ class _TidyUpScreenState extends State<TidyUpScreen> {
       canMute: RemovalService.canMute(t),
     );
     if (choice == null || !mounted) return;
-    await RemovalService.instance.remove([t], choice);
+    final receipt = await RemovalService.instance.remove([t], choice);
     _changed = true;
-    _advance();
+    _advance(_LastAction(
+      kind: _ActionKind.removed,
+      transaction: t,
+      receipt: receipt,
+    ));
+  }
+
+  /// Put the last answer back and return to that entry, so a mis-tap costs one
+  /// tap to fix instead of a hunt through the transaction list afterwards.
+  Future<void> _undoLast() async {
+    final last = _last;
+    if (last == null) return;
+    final t = last.transaction;
+
+    switch (last.kind) {
+      case _ActionKind.confirmed:
+        if (t.id != null) {
+          await _db.restoreTransactionReview(t.id!, t.reviewReasons);
+        }
+      case _ActionKind.flipped:
+        await _db.undoTypeFlip(t);
+      case _ActionKind.removed:
+        final receipt = last.receipt;
+        if (receipt == null || !receipt.isRestorable) return;
+        await RemovalService.instance.undo(receipt);
+    }
+    // Read the row back rather than trusting the copy held here: undo has just
+    // rewritten it, and a restored removal is re-inserted. It keeps its id —
+    // the table is AUTOINCREMENT, so nothing can have taken it — but the
+    // database is the authority, not this screen.
+    final restored = t.id == null ? null : await _db.getTransactionById(t.id!);
+    if (!mounted) return;
+    if (restored == null) {
+      // The row didn't come back where it was expected. Rebuilding the queue
+      // from scratch is always right, and beats showing a card whose buttons
+      // would quietly act on nothing.
+      setState(() {
+        _last = null;
+        _undoNotice = true;
+      });
+      await _load();
+      return;
+    }
+    setState(() {
+      // Step back onto the entry that was just answered, holding whatever the
+      // database says it is now.
+      if (_index > 0) _index--;
+      if (_handled > 0) _handled--;
+      _queue[_index] = restored;
+      _last = null;
+      _undoNotice = true;
+    });
   }
 
   @override
@@ -116,34 +181,167 @@ class _TidyUpScreenState extends State<TidyUpScreen> {
       },
       child: Scaffold(
         backgroundColor: colors.background,
-        appBar: AppBar(
-          title: Text(l10n.tidyUp),
-          actions: [
-            if (!_loading && _queue.isNotEmpty && _current != null)
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.only(right: 16),
-                  child: Text(
-                    l10n.tidyUpProgress(_handled, _queue.length),
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: colors.textSecondary,
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
+        appBar: AppBar(title: Text(l10n.tidyUp)),
         body: SafeArea(
           child: _loading
               ? const Center(child: CircularProgressIndicator())
               : _current == null
                   ? _buildAllSet(colors, l10n)
-                  : _buildCard(colors, l10n, _current!),
+                  : Column(
+                      children: [
+                        _buildProgress(colors, l10n),
+                        Expanded(
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildReceipt(colors, l10n),
+                                // Keyed by row id, so answering one entry
+                                // visibly swaps in a different card instead of
+                                // silently redrawing the same rectangle.
+                                AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 260),
+                                  switchInCurve: Curves.easeOutCubic,
+                                  switchOutCurve: Curves.easeInCubic,
+                                  transitionBuilder: (child, animation) =>
+                                      FadeTransition(
+                                    opacity: animation,
+                                    child: SlideTransition(
+                                      position: Tween(
+                                        begin: const Offset(0.06, 0),
+                                        end: Offset.zero,
+                                      ).animate(animation),
+                                      child: child,
+                                    ),
+                                  ),
+                                  child: KeyedSubtree(
+                                    key: ValueKey(_current!.id ??
+                                        _current!.detectedAt
+                                            .millisecondsSinceEpoch),
+                                    child: _buildCard(colors, l10n, _current!),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
         ),
       ),
     );
+  }
+
+  /// A bar that visibly moves on every answer, with the count beside it. The
+  /// old screen carried the same numbers as plain text in the app bar, where a
+  /// tap changed "2 of 12" to "3 of 12" and nothing else on screen moved.
+  Widget _buildProgress(AppColors colors, AppStrings l10n) {
+    final total = _queue.length;
+    final left = total - _handled;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  l10n.tidyUpTagline,
+                  style:
+                      TextStyle(fontSize: 13.5, color: colors.textSecondary),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                l10n.tidyUpProgress(_handled, total),
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: colors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          AnimatedProgressBar(
+            value: total == 0 ? 0 : _handled / total,
+            color: colors.success,
+            backgroundColor: colors.cardAlt,
+            height: 5,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            l10n.tidyUpLeft(left),
+            style: TextStyle(fontSize: 11.5, color: colors.textTertiary),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// What the last tap did, named against the entry it happened to, with an
+  /// Undo. This is the acknowledgement the screen never gave: without it, two
+  /// identical amounts in a row make it impossible to tell a registered answer
+  /// from an ignored one.
+  Widget _buildReceipt(AppColors colors, AppStrings l10n) {
+    final last = _last;
+    final showing = last != null || _undoNotice;
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      alignment: Alignment.topCenter,
+      child: !showing
+          ? const SizedBox(width: double.infinity)
+          : Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: _undoNotice
+                  ? TidyUpReceipt(
+                      accent: colors.textSecondary,
+                      icon: Icons.undo_rounded,
+                      label: l10n.tidyUpUndone,
+                      undoLabel: l10n.commonUndo,
+                    )
+                  : TidyUpReceipt(
+                      undoLabel: l10n.commonUndo,
+                      accent: switch (last!.kind) {
+                        _ActionKind.confirmed => colors.success,
+                        _ActionKind.flipped => colors.accent,
+                        _ActionKind.removed => colors.warning,
+                      },
+                      icon: switch (last.kind) {
+                        _ActionKind.confirmed => Icons.check_rounded,
+                        _ActionKind.flipped => Icons.swap_vert_rounded,
+                        _ActionKind.removed => Icons.playlist_remove_rounded,
+                      },
+                      label: switch (last.kind) {
+                        _ActionKind.confirmed => l10n.tidyUpDidConfirm,
+                        _ActionKind.flipped => l10n.tidyUpDidFlip,
+                        _ActionKind.removed => l10n.tidyUpDidRemove,
+                      },
+                      // Names the entry it happened to, not just the verb.
+                      detail: _identity(last.transaction),
+                      onUndo: last.kind == _ActionKind.removed &&
+                              !(last.receipt?.isRestorable ?? false)
+                          ? null
+                          : _undoLast,
+                    ),
+            ),
+    );
+  }
+
+  /// One line that identifies an entry: amount, who, and the time it landed.
+  /// The time is what separates two ₹100 credits from the same sender.
+  String _identity(TransactionModel t) {
+    final money =
+        NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
+    final who = t.merchantName?.trim().isNotEmpty == true
+        ? t.merchantName!.trim()
+        : t.sender;
+    final sign = t.type == TransactionType.credit ? '+' : '-';
+    return '$sign${money.format(t.amount)} · $who · '
+        '${DateFormat('d MMM, h:mm a').format(t.detectedAt)}';
   }
 
   /// The finish line. Reaching it is the reward — the queue is empty, the royal
@@ -222,16 +420,9 @@ class _TidyUpScreenState extends State<TidyUpScreen> {
     final money = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
     final typeColor = isCredit ? colors.success : colors.danger;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
-      child: Column(
+    return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            l10n.tidyUpTagline,
-            style: TextStyle(fontSize: 13.5, color: colors.textSecondary),
-          ),
-          const SizedBox(height: 16),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(18),
@@ -243,43 +434,78 @@ class _TidyUpScreenState extends State<TidyUpScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // The amount leads, with the direction spelled out beside it —
+                // direction is the thing most often wrong, and the thing the
+                // middle button changes.
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Expanded(
-                      child: Text(
-                        t.merchantName?.trim().isNotEmpty == true
-                            ? t.merchantName!
-                            : t.sender,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w700,
-                          color: colors.text,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Flexible(
                       child: FittedBox(
                         fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerRight,
+                        alignment: Alignment.centerLeft,
                         child: PrivacyAmount(
                           '${isCredit ? '+' : '-'} ${money.format(t.amount)}',
                           style: TextStyle(
-                            fontSize: 19,
-                            fontWeight: FontWeight.w700,
+                            fontSize: 28,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.6,
                             color: typeColor,
                           ),
                         ),
                       ),
                     ),
+                    const SizedBox(width: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: typeColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        isCredit ? l10n.commonIncome : l10n.commonExpenses,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: typeColor,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 10),
                 Text(
-                  DateFormat('MMM d, h:mm a').format(t.detectedAt),
-                  style: TextStyle(fontSize: 12.5, color: colors.textTertiary),
+                  t.merchantName?.trim().isNotEmpty == true
+                      ? t.merchantName!
+                      : t.sender,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w700,
+                    color: colors.text,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                // Promoted from tertiary fine print: when two entries carry the
+                // same amount from the same sender, this is the only thing that
+                // tells them apart.
+                Row(
+                  children: [
+                    Icon(Icons.schedule_rounded,
+                        size: 13, color: colors.textSecondary),
+                    const SizedBox(width: 5),
+                    Text(
+                      DateFormat('EEE, d MMM yyyy · h:mm a')
+                          .format(t.detectedAt),
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 14),
                 // Why this row is here at all — the same reasons the detail
@@ -359,7 +585,6 @@ class _TidyUpScreenState extends State<TidyUpScreen> {
             onTap: _remove,
           ),
         ],
-      ),
     );
   }
 
@@ -410,4 +635,23 @@ class _TidyUpScreenState extends State<TidyUpScreen> {
         ReviewReasons.amountUncertain => l10n.reviewReasonAmount,
         _ => reason,
       };
+}
+
+enum _ActionKind { confirmed, flipped, removed }
+
+/// The answer just given, kept so the screen can name it and take it back.
+/// [transaction] is the row *as it was before* the answer, which is exactly
+/// what each undo needs to restore.
+class _LastAction {
+  final _ActionKind kind;
+  final TransactionModel transaction;
+
+  /// Only for [_ActionKind.removed] — RemovalService's own undo contract.
+  final RemovalReceipt? receipt;
+
+  const _LastAction({
+    required this.kind,
+    required this.transaction,
+    this.receipt,
+  });
 }
