@@ -4,6 +4,73 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.65.0] — 2026-08-06
+
+### Added
+
+- **A Sunday-morning tidy-up nudge that alternates.** One weekend it offers to
+  help you tag the month's untagged spends; the next it points at the entries
+  the reader wasn't sure about. Never both, and never when the week's queue is
+  empty — a quiet fortnight is the point, not a gap. The review nudge also
+  holds itself to a floor: it stays silent for one small uncertainty and speaks
+  up for a handful of entries, or for a single one carrying real money. It
+  names the rupee amount, because "₹10,240 of your August spending came from
+  entries we weren't sure about" is a reason to open the app in a way that "3
+  entries need a check" isn't. Tapping either goes straight to the matching
+  queue.
+
+### Changed
+
+- **The tagging reminder now arrives on a weekend.** It used to fire on
+  whatever weekday you happened to install the app, every week. It is now
+  Sunday morning, every other Sunday.
+
+### Fixed
+
+- **Muting a reminder no longer mutes your transaction alerts.** Both weekend
+  nudges used to post on the same Android notification channel as real
+  transaction alerts, so anyone who turned off the weekly reminder in system
+  settings also turned off the notifications the app exists to send. They now
+  have their own **Tidy-up Reminders** channel, at a quieter importance, which
+  you can silence on its own. If you muted transaction alerts to stop the old
+  reminder, you may want to turn them back on.
+
+## [1.64.0] — 2026-08-06
+
+### Added
+
+- **The month's total now carries its own doubt.** When some of your spending
+  came from entries the reader wasn't sure about, the hero card says so
+  directly under the figure — "Includes ₹10,240 to check" — and tapping it
+  opens the tidy-up queue. The rupee amount is deliberate: a count can't tell
+  you whether two flagged entries are ₹40 of noise or ₹10,240 that changes the
+  picture, so it would send you to the queue just to find out. Entries waiting
+  to be checked have always counted toward your totals, because a payment the
+  reader mislabelled is still a payment; what was missing was any sign of that
+  on the number itself. With nothing to check the line isn't there at all.
+
+## [1.63.2] — 2026-08-06
+
+### Fixed
+
+- **Changing a bank limit is no longer logged as a spend.** Every bank
+  confirms a new transfer, ATM or card cap by SMS — "Transfer Limit Updated!
+  … Third Party Transfer limit is set to Rs. 10000" — and Budgetify was
+  reading that cap as a ₹10,000 payment. It landed in *Needs review* rather
+  than silently, but it should never have been picked up at all, and because
+  people move their limits up and down routinely it came back on every change.
+  Limit notices are now refused outright, in either wording order ("limit is
+  set to", "we have updated your limit") and for every cap a bank names.
+  A spend that happens to report the remaining limit in the same message is
+  untouched — the rule only applies to messages with no completed payment in
+  them.
+- **Limit notices already in your history are removed on upgrade.** A parser
+  fix only ever reaches messages read after it ships, so the pass added in
+  1.62 runs again over every stored row: past limit changes, and anything else
+  today's parser refuses, clear themselves out of your totals. Manual entries,
+  imported statement rows, and anything you've split or filed under a tax
+  section are left alone.
+
 ## [1.63.1] — 2026-08-06
 
 ### Changed
