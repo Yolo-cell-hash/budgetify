@@ -2041,6 +2041,32 @@ class SmsParserService {
     r'|\bLIMITED\s+(?:TIME|PERIOD)\b|\bPRE-?APPROVED\b',
   );
 
+  /// Wording that announces a **change to a limit** rather than a payment:
+  /// a transfer/ATM/card cap being set, updated, revised or reset.
+  ///
+  /// Always the word LIMIT paired with a change verb, never LIMIT on its own
+  /// — genuine spend alerts quote the cap too ("Avl Limit: INR 1,38,058",
+  /// "your credit limit of INR 4,00,000 is now INR 3,97,500"), and matching
+  /// the bare word swallows the real debit along with the notice. The pair
+  /// may arrive in either order ("limit is set to", "updated your limit"),
+  /// so both directions are listed.
+  static final List<RegExp> _limitChangeRejects = [
+    // "Third Party Transfer limit is set to Rs. 10000", "Transfer Limit
+    // Updated!", "daily limits have been updated", "limit stands revised".
+    RegExp(
+      r'\bLIMITS?\b[\s\S]{0,24}?\b(?:SET|UPDAT(?:E|ED)|CHANG(?:E|ED)|'
+      r'MODIF(?:Y|IED)|REVIS(?:E|ED)|RESET|ENHANC(?:E|ED)|REDUC(?:E|ED)|'
+      r'LOWER(?:ED)?|AMEND(?:ED)?)\b',
+    ),
+    // Headline-first phrasing: "We have updated your daily transfer limit",
+    // "Request to modify your ATM limit is complete".
+    RegExp(
+      r'\b(?:SET|UPDAT(?:E|ED)|CHANG(?:E|ED)|MODIF(?:Y|IED)|REVIS(?:E|ED)|'
+      r'RESET|ENHANC(?:E|ED)|REDUC(?:E|ED)|LOWER(?:ED)?|AMEND(?:ED)?)\b'
+      r'[\s\S]{0,30}?\bLIMITS?\b',
+    ),
+  ];
+
   /// Whether the message carries the structural markers of a real bank
   /// alert: an account/card number, a numeric reference (Ref/RRN/UTR/txn
   /// id), or a numeric balance/limit fragment. Promos pitch amounts too,
@@ -2115,6 +2141,28 @@ class SmsParserService {
       RegExp(r'PAYMENT[\s\S]{0,60}RECEIVED[\s\S]{0,60}CREDIT\s*CARD'),
     ];
     if (hardRejectPatterns.any((p) => p.hasMatch(upperMessage))) {
+      return true;
+    }
+
+    // A limit being changed. Banks confirm every change to a transfer, ATM or
+    // card cap by SMS on the transactional -S route, so the promo filter never
+    // sees them, and the cap they quote is an amount with nothing else around
+    // it to object:
+    //   "Transfer Limit Updated! HDFC Bank Third Party Transfer limit is set
+    //    to Rs. 10000. Limit applicable per Customer ID per day. Not you?"
+    // That landed as a ₹10,000 debit — and again on every later change, which
+    // people make often. The limit rejects above only cover an *offer* to
+    // raise a credit limit and a card being issued; neither reaches a customer
+    // setting their own cap.
+    //
+    // Guarded on the settled verb rather than rejected outright: a genuine
+    // alert may report the remaining cap in the same breath, and if a bank
+    // ever words that as "...spent... available limit updated to Rs X", the
+    // spend must still be logged. No limit-change notice carries a settled
+    // verb — "set"/"updated" is all they have — so the guard costs nothing
+    // here while keeping a real debit out of reach.
+    if (!_transactionVerbRegex.hasMatch(upperMessage) &&
+        _limitChangeRejects.any((p) => p.hasMatch(upperMessage))) {
       return true;
     }
 

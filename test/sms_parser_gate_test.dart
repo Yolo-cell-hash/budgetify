@@ -199,6 +199,51 @@ void main() {
             'AMAZON on 05-08-26. Avl Lmt: Rs 55,000. Not you? Call 18002586161',
         expectParsed: true,
       ),
+      // ── Changing a limit is not spending it (device report, 2026-08-06) ───
+      // The reported message, logged as a ₹10,000 debit in "Needs review", and
+      // logged again on every later change — which is the whole problem, since
+      // people move their transfer cap up and down routinely.
+      const _GateCase(
+        name: 'HDFC third-party transfer limit is not a ₹10,000 debit',
+        sender: 'VM-HDFCBK-S',
+        message: 'Transfer Limit Updated! HDFC Bank Third Party Transfer '
+            'limit is set to Rs. 10000. Limit applicable per Customer ID per '
+            'day. Not you? Call 18002586161',
+        expectParsed: false,
+      ),
+      const _GateCase(
+        name: 'HDFC own-account transfer limit is not a ₹5,00,000 debit',
+        sender: 'VM-HDFCBK-S',
+        message: 'Transfer Limit Updated! HDFC Bank Own Account Transfer '
+            'limit is set to Rs. 500000. Limit applicable per Customer ID per '
+            'day. Not you? Call 18002586161',
+        expectParsed: false,
+      ),
+      const _GateCase(
+        name: 'debit-card usage limits being updated is not a transaction',
+        sender: 'AD-HDFCBK-S',
+        message: 'Dear Customer, the daily limits on your HDFC Bank Debit '
+            'Card XX1234 have been updated. ATM: Rs.25000, POS: Rs.50000, '
+            'Online: Rs.100000.',
+        expectParsed: false,
+      ),
+      const _GateCase(
+        name: 'UPI limit changed, verb-first phrasing, is not a transaction',
+        sender: 'VM-HDFCBK-S',
+        message: 'As requested, we have updated your daily UPI transfer limit '
+            'to Rs. 25000. Not you? Call 18002586161',
+        expectParsed: false,
+      ),
+      // The other side of that rule, and the reason it is guarded on a settled
+      // verb rather than rejecting the word "limit" outright: an alert that
+      // reports the remaining cap alongside a spend is still a spend.
+      const _GateCase(
+        name: 'spend that reports the updated limit still parses',
+        sender: 'VM-HDFCBK-S',
+        message: 'Rs.2,500.00 spent on your HDFC Bank Credit Card xx1234 at '
+            'AMAZON on 06-08-26. Available limit updated to Rs 3,97,500.',
+        expectParsed: true,
+      ),
     ];
 
     for (final c in cases) {
@@ -406,6 +451,21 @@ void main() {
           'OUT FOR DELIVERY-Your Credit Card ending with XX39 have a Credit '
               'Limit of INR 4,00,000 is Dispatched, For more benefits Check '
               'here https://o4l.me/4913/i0Egc1',
+          now,
+        ),
+        isTrue,
+      );
+    });
+
+    test('a limit-change notice already logged is dropped', () {
+      // What the schema-32 pass is for: this one repeats, so a user who has
+      // been changing their transfer cap has a row per change to clear.
+      expect(
+        SmsParserService.wouldRejectStoredMessage(
+          'VM-HDFCBK-S',
+          'Transfer Limit Updated! HDFC Bank Third Party Transfer limit is '
+              'set to Rs. 10000. Limit applicable per Customer ID per day. '
+              'Not you? Call 18002586161',
           now,
         ),
         isTrue,
