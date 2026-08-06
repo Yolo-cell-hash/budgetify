@@ -37,49 +37,54 @@ final _SplashSkin _defaultSkin = _SplashSkin(
   logoAsset: kBrandLogoAsset,
 );
 
+/// The gem's vivid signature, from the table that also describes the launcher
+/// icons ([kRoyalGemAccent]) — so the splash and the icon it is standing in
+/// for can never drift apart on what "silver" looks like.
+Color _gem(String variant) => kRoyalGemAccent[variant]!;
+
 /// Per-gem splash skins, keyed by the RoyalAppIcon variant name. Each ground
 /// is a deep, desaturated tint of the gem so the glowing mark reads clearly;
 /// the accent is the gem's vivid signature (replacing the gold).
 final Map<String, _SplashSkin> _gemSkins = {
   'ruby': _SplashSkin(
     bg: const [Color(0xFF2A0B12), Color(0xFF0C0304)],
-    accent: const Color(0xFFFF4658),
-    glowTop: const Color(0xFFFF4658).withValues(alpha: 0.16),
+    accent: _gem('ruby'),
+    glowTop: _gem('ruby').withValues(alpha: 0.16),
     glowBottom: const Color(0xFF7A1020).withValues(alpha: 0.22),
     logoAsset: _royalLogo('ruby'),
   ),
   'amethyst': _SplashSkin(
     bg: const [Color(0xFF1E0E2E), Color(0xFF0A0516)],
-    accent: const Color(0xFFC08CFF),
-    glowTop: const Color(0xFFC08CFF).withValues(alpha: 0.16),
+    accent: _gem('amethyst'),
+    glowTop: _gem('amethyst').withValues(alpha: 0.16),
     glowBottom: const Color(0xFF4A2A7A).withValues(alpha: 0.24),
     logoAsset: _royalLogo('amethyst'),
   ),
   'emerald': _SplashSkin(
     bg: const [Color(0xFF0A2A1E), Color(0xFF03110B)],
-    accent: const Color(0xFF34E0A8),
-    glowTop: const Color(0xFF34E0A8).withValues(alpha: 0.14),
+    accent: _gem('emerald'),
+    glowTop: _gem('emerald').withValues(alpha: 0.14),
     glowBottom: const Color(0xFF0E5A40).withValues(alpha: 0.24),
     logoAsset: _royalLogo('emerald'),
   ),
   'golden': _SplashSkin(
     bg: const [Color(0xFF2A2410), Color(0xFF0E0B02)],
-    accent: const Color(0xFFFFC93C),
-    glowTop: const Color(0xFFFFC93C).withValues(alpha: 0.14),
+    accent: _gem('golden'),
+    glowTop: _gem('golden').withValues(alpha: 0.14),
     glowBottom: const Color(0xFF5A4A10).withValues(alpha: 0.22),
     logoAsset: _royalLogo('golden'),
   ),
   'bronze': _SplashSkin(
     bg: const [Color(0xFF2A1A0E), Color(0xFF0E0803)],
-    accent: const Color(0xFFE0A96B),
-    glowTop: const Color(0xFFE0A96B).withValues(alpha: 0.15),
+    accent: _gem('bronze'),
+    glowTop: _gem('bronze').withValues(alpha: 0.15),
     glowBottom: const Color(0xFF6A4522).withValues(alpha: 0.22),
     logoAsset: _royalLogo('bronze'),
   ),
   'silver': _SplashSkin(
     bg: const [Color(0xFF1B1F27), Color(0xFF080A0E)],
-    accent: const Color(0xFFCBD5E1),
-    glowTop: const Color(0xFFCBD5E1).withValues(alpha: 0.12),
+    accent: _gem('silver'),
+    glowTop: _gem('silver').withValues(alpha: 0.12),
     glowBottom: const Color(0xFF3A4150).withValues(alpha: 0.20),
     logoAsset: _royalLogo('silver'),
   ),
