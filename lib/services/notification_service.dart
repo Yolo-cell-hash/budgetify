@@ -6,6 +6,7 @@ import '../screens/transactions_screen.dart';
 import '../screens/net_worth_screen.dart';
 import '../screens/plus_screen.dart';
 import '../screens/recurring_screen.dart';
+import '../screens/tidy_up_screen.dart';
 import 'entitlement_service.dart';
 import 'royal_notification_skin.dart';
 import 'sip_service.dart';
@@ -93,6 +94,10 @@ class NotificationService {
 
   /// Payload that routes to the unclassified-transactions list.
   static const String openUnclassifiedPayload = 'open_unclassified';
+
+  /// Payload that routes to the tidy-up queue — the entries the reader
+  /// wasn't sure about. The same destination as the hero card's caveat.
+  static const String openNeedsReviewPayload = 'open_needs_review';
 
   /// Payload that routes to the Net Worth tab to confirm a due SIP/RD.
   static const String openSipReviewPayload = 'open_sip_review';
@@ -184,6 +189,21 @@ class NotificationService {
           'Bill Reminders',
           description: 'Reminders for upcoming subscriptions, rent and bills',
           importance: Importance.high,
+        ),
+      );
+
+      // The weekend tidy-up nudges. Default importance, not high: these are
+      // housekeeping on a Sunday morning, not something to make a sound over,
+      // and they are the alerts a user is most likely to want quieter. Their
+      // own channel is what makes "quieter" possible without also silencing
+      // the transaction alerts they used to share.
+      await androidPlugin?.createNotificationChannel(
+        const AndroidNotificationChannel(
+          'reminder_channel',
+          'Tidy-up Reminders',
+          description:
+              'Occasional weekend nudges to tag and check your transactions',
+          importance: Importance.defaultImportance,
         ),
       );
 
@@ -310,6 +330,10 @@ class NotificationService {
           builder: (_) =>
               const TransactionsScreen(initialUnclassifiedOnly: true),
         ),
+      );
+    } else if (payload == openNeedsReviewPayload) {
+      navigatorKey.currentState?.push(
+        MaterialPageRoute(builder: (_) => const TidyUpScreen()),
       );
     } else if (payload == openSipReviewPayload) {
       navigatorKey.currentState?.push(
@@ -601,7 +625,24 @@ class NotificationService {
     );
   }
 
-  /// Weekly nudge to tag the month's unclassified transactions. Tapping it
+  /// Channel for the weekend tidy-up nudges — the tagging reminder and the
+  /// review reminder.
+  ///
+  /// Their own channel on purpose. Both used to post on `transaction_channel`,
+  /// which meant anyone who muted the weekly nudge in Android's settings also
+  /// muted every real transaction alert — the app's whole point, switched off
+  /// to stop a Sunday reminder. Every other recurring alert (SIP, bills,
+  /// streaks, budgets) already has its own channel; these were the exception.
+  Future<AndroidNotificationDetails> _reminderChannel() => _android(
+        channelId: 'reminder_channel',
+        channelName: 'Tidy-up Reminders',
+        channelDescription:
+            'Occasional weekend nudges to tag and check your transactions',
+        importance: Importance.defaultImportance,
+        priority: Priority.defaultPriority,
+      );
+
+  /// Weekend nudge to tag the month's unclassified transactions. Tapping it
   /// opens the transactions list pre-filtered to Unclassified.
   Future<void> showUnclassifiedReminder({
     required int count,
@@ -611,18 +652,47 @@ class NotificationService {
     if (count <= 0) return;
 
     await _notifications.show(
-      3000, // Fixed ID so the weekly reminder updates rather than stacks
+      3000, // Fixed ID so the reminder updates rather than stacks
       '🏷️ $count transaction${count == 1 ? '' : 's'} need${count == 1 ? 's' : ''} a tag',
       'You have $count unclassified transaction${count == 1 ? '' : 's'} in '
           '$monthLabel. Tap to organize them.',
-      NotificationDetails(
-        android: await _android(
-          channelId: 'transaction_channel',
-          channelName: 'Transaction Alerts',
-          channelDescription: 'Notifications for detected bank transactions',
-        ),
-      ),
+      NotificationDetails(android: await _reminderChannel()),
       payload: openUnclassifiedPayload,
+    );
+  }
+
+  /// Weekend nudge to work through the review queue — the entries the reader
+  /// wasn't sure about. Tapping it opens the tidy-up flow, the same place the
+  /// hero card's "Includes ₹X to check" caveat leads.
+  ///
+  /// Names the rupee amount when the flagged rows account for real spending,
+  /// because that is what makes it worth opening: "3 entries need a check" is
+  /// a chore, "₹10,240 of this month's spending needs a check" is a reason.
+  Future<void> showReviewReminder({
+    required int count,
+    required double unconfirmedSpend,
+    required String monthLabel,
+  }) async {
+    if (!_isInitialized) await initialize();
+    if (count <= 0) return;
+
+    final fmt = NumberFormat.currency(
+      locale: 'en_IN',
+      symbol: '₹',
+      decimalDigits: 0,
+    );
+    final body = unconfirmedSpend > 0
+        ? '${fmt.format(unconfirmedSpend)} of your $monthLabel spending came '
+            'from entries we weren\'t sure about. Tap to check them.'
+        : 'You have $count entr${count == 1 ? 'y' : 'ies'} in $monthLabel the '
+            'reader wasn\'t sure about. Tap to check them.';
+
+    await _notifications.show(
+      3001, // Sits beside the tagging nudge (3000); one slot each
+      '🔍 $count entr${count == 1 ? 'y' : 'ies'} need${count == 1 ? 's' : ''} a check',
+      body,
+      NotificationDetails(android: await _reminderChannel()),
+      payload: openNeedsReviewPayload,
     );
   }
 

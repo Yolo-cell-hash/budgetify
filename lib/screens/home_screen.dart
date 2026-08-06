@@ -5,6 +5,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../l10n/l10n.dart';
 import '../models/bank_summary.dart';
+import '../models/month_totals.dart';
 import '../models/plus_products.dart';
 import '../models/transaction_model.dart';
 import '../providers/theme_provider.dart';
@@ -31,6 +32,7 @@ import '../widgets/insights_card.dart';
 import '../widgets/savings_summary.dart';
 import '../widgets/privacy_amount.dart';
 import '../widgets/royal_reactions.dart';
+import '../widgets/unconfirmed_caveat.dart';
 import '../widgets/upcoming_recurring_card.dart';
 import '../widgets/motion.dart';
 import '../widgets/permission_request_card.dart';
@@ -86,6 +88,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   /// Rows the parser flagged. Drives the tidy-up prompt, which is hidden
   /// entirely at zero — the dashboard should never nag about an empty queue.
   int _needsReviewCount = 0;
+
+  /// How much of [_monthlyExpenses] came from flagged rows. Shown as a caveat
+  /// under the hero total so the number carries its own doubt; zero hides the
+  /// line completely, which is the common case.
+  double _unconfirmedExpenses = 0;
   List<TransactionModel> _recentTransactions = [];
   List<TransactionModel> _allTransactions = [];
   List<TransactionModel> _cashTransactions = [];
@@ -359,24 +366,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final totalCash = cashTxns.fold(0.0, (sum, t) => sum + t.amount);
 
       // Calculate monthly income/expenses
-      double monthlyIncome = 0;
-      double monthlyExpenses = 0;
-      final thisMonth = <TransactionModel>[];
-      for (final t in transactions) {
-        if (inThisMonth(t.detectedAt)) {
-          thisMonth.add(t);
-          if (t.type == TransactionType.credit) {
-            // Self-transfers and investment redemptions aren't real income.
-            if (ExpenseCategories.isIncomeCategory(t.category)) {
-              monthlyIncome += t.amount;
-            }
-          } else if (ExpenseCategories.isExpenseCategory(t.category)) {
-            // Self transfers and investments aren't spending; a split
-            // transaction counts only the user's own share.
-            monthlyExpenses += t.effectiveAmount;
-          }
-        }
-      }
+      final thisMonth =
+          transactions.where((t) => inThisMonth(t.detectedAt)).toList();
+      final totals = MonthTotals.fromTransactions(thisMonth);
+      final monthlyIncome = totals.income;
+      final monthlyExpenses = totals.expenses;
 
       // Recurring investments due today and not yet logged.
       final dueSips = await SipService().pendingDueSips();
@@ -400,6 +394,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         _totalCash = totalCash;
         _monthlyIncome = monthlyIncome;
         _monthlyExpenses = monthlyExpenses;
+        _unconfirmedExpenses = totals.unconfirmedExpenses;
         _bankBreakdown = BankBreakdown.fromTransactions(thisMonth);
         _dueSipCount = dueSips.length;
         _health = health;
@@ -985,7 +980,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               color: hero.foreground,
             ),
           ),
-          const SizedBox(height: 22),
+          if (_unconfirmedExpenses > 0) ...[
+            const SizedBox(height: 8),
+            UnconfirmedCaveat(
+              amount: _unconfirmedExpenses,
+              onTap: _openTidyUp,
+            ),
+            const SizedBox(height: 16),
+          ] else
+            const SizedBox(height: 22),
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(

@@ -42,7 +42,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 31,
+      version: 32,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -889,6 +889,20 @@ class DatabaseService {
       // row back, and no tombstone is needed to hold it out.
       await _dropRowsTodayRefuses(db);
     }
+
+    if (oldVersion < 32) {
+      // v1.63.2 taught the parser to refuse limit-change notices — the SMS a
+      // bank sends when you raise or lower a transfer, ATM or card cap. The
+      // cap was being logged as a spend of that size, and unlike a one-off
+      // promo this repeats: a reporter had it every single time they touched
+      // their HDFC transfer limit.
+      //
+      // Same sweep as schema 31, run again because the set of messages the
+      // parser refuses has grown. It re-reads every stored row, so it also
+      // clears out anything the earlier tightenings would refuse but that was
+      // logged before they shipped.
+      await _dropRowsTodayRefuses(db);
+    }
   }
 
   /// Delete stored rows whose message today's parser would refuse to log.
@@ -1518,6 +1532,48 @@ class DatabaseService {
       "WHERE review_reasons IS NOT NULL AND review_reasons != ''",
     );
     return (rows.first['n'] as int?) ?? 0;
+  }
+
+  /// The review backlog for a period, as the weekend nudge needs to see it:
+  /// how many rows are flagged, and how much of the period's *spending* they
+  /// account for.
+  ///
+  /// Two figures because either one alone sends the wrong notification. A
+  /// count can't tell three ₹40 uncertainties from one ₹10,000 phantom, and
+  /// an amount alone stays silent on a pile of small unnamed payees.
+  ///
+  /// [unconfirmedSpend] is deliberately the same set the hero card's caveat
+  /// shows: debits only, non-expense categories excluded, the user's split
+  /// share where there is one. Mirrors `MonthTotals.fromTransactions` — that
+  /// one folds loaded rows, this one asks SQLite, and they must agree or the
+  /// notification will quote a figure the dashboard doesn't show.
+  Future<({int count, double unconfirmedSpend})> reviewBacklogForPeriod(
+    DateTime start,
+    DateTime end,
+  ) async {
+    final db = await database;
+    const flagged = "review_reasons IS NOT NULL AND review_reasons != ''";
+    final countRows = await db.rawQuery(
+      'SELECT COUNT(*) AS c FROM transactions '
+      'WHERE $flagged AND detected_at >= ? AND detected_at <= ?',
+      [start.millisecondsSinceEpoch, end.millisecondsSinceEpoch],
+    );
+    final (clause, exArgs) = _nonExpenseExclusion();
+    final sumRows = await db.rawQuery(
+      'SELECT SUM(COALESCE(split_share, amount)) AS t FROM transactions '
+      'WHERE $flagged AND type = ? AND detected_at >= ? AND detected_at <= ? '
+      'AND $clause',
+      [
+        TransactionType.debit.index,
+        start.millisecondsSinceEpoch,
+        end.millisecondsSinceEpoch,
+        ...exArgs,
+      ],
+    );
+    return (
+      count: (countRows.first['c'] as int?) ?? 0,
+      unconfirmedSpend: (sumRows.first['t'] as num?)?.toDouble() ?? 0.0,
+    );
   }
 
   /// Get transactions by category

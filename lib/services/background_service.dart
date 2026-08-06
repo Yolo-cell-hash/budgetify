@@ -22,10 +22,45 @@ class BackgroundService {
   static const String scanTaskName = 'sms_scan_task';
   static const String scanTaskUniqueName = 'budget_tracker_sms_scan';
 
-  // Weekly "tag your transactions" reminder
-  static const String weeklyReminderTaskName = 'weekly_unclassified_reminder';
+  // Retired: the original weekly "tag your transactions" reminder. It fired on
+  // whatever weekday the app happened to be installed, because its initial
+  // delay was simply "7 days from now". Kept only so [initialize] can cancel
+  // it — registration used ExistingPeriodicWorkPolicy.keep, so re-anchoring the
+  // same unique name to Sunday would be a silent no-op on every install that
+  // already has it, and those users would keep their install-day slot forever.
   static const String weeklyReminderUniqueName =
       'budget_tracker_weekly_reminder';
+
+  // The weekend tidy-up nudge. ONE task, not two: it alternates between the
+  // tagging reminder and the review reminder by the parity of the week it
+  // actually fires in (see [performWeekendNudge]).
+  //
+  // Two fortnightly tasks would have been the obvious build and the wrong one.
+  // WorkManager periodic work isn't exact — Doze defers it and every reschedule
+  // shifts the anchor — so two independent 14-day tasks drift relative to each
+  // other and eventually land on the same weekend, which is the one thing the
+  // alternation exists to prevent. Deciding from the calendar at fire time
+  // can't drift: a late run still knows which week it is in.
+  static const String weekendNudgeTaskName = 'weekend_tidy_up_nudge';
+  static const String weekendNudgeUniqueName =
+      'budget_tracker_weekend_nudge';
+
+  /// Sunday, late morning. Saturday mornings people are out; 8 PM already
+  /// belongs to the streak reminder, and stacking two nudges in one evening is
+  /// how both get muted.
+  static const int weekendNudgeWeekday = DateTime.sunday;
+  static const int weekendNudgeHour = 11;
+
+  /// Below this, a review nudge isn't worth a Sunday interruption. One
+  /// uncertain payee is a chore; three entries, or one flagged entry carrying
+  /// real money, is a reason to open the app.
+  static const int reviewNudgeMinCount = 3;
+  static const double reviewNudgeMinAmount = 1000;
+
+  /// Last week index a weekend nudge was actually posted for. Makes the nudge
+  /// exactly-once-per-week even if WorkManager runs the task late enough to
+  /// land twice inside one parity window.
+  static const String _lastNudgeWeekKey = 'last_weekend_nudge_week';
 
   // Daily SIP/RD "Investment Alert" prompts: noon (~12 PM) and evening (~8 PM).
   // The evening one only fires if the noon prompt went unanswered.
@@ -80,7 +115,7 @@ class BackgroundService {
   static Future<void> initialize() async {
     await _ensureWorkmanager();
     await _ensureScheduled();
-    await _ensureWeeklyReminder();
+    await _ensureWeekendNudge();
     await _ensureSipPrompts();
     await _ensureBillPrompts();
     await _ensureStreakReminder();
@@ -121,14 +156,41 @@ class BackgroundService {
     );
   }
 
-  /// Register the weekly unclassified-transactions reminder. Independent of
-  /// auto-scan — it nudges the user to tag whatever has accumulated.
-  static Future<void> _ensureWeeklyReminder() async {
+  /// Register the Sunday-morning tidy-up nudge, and retire the old
+  /// install-day weekly reminder it replaces. Independent of auto-scan — it
+  /// nudges about whatever has accumulated either way.
+  static Future<void> _ensureWeekendNudge() async {
+    await Workmanager().cancelByUniqueName(weeklyReminderUniqueName);
+    await _registerWeeklyOn(
+      weekendNudgeUniqueName,
+      weekendNudgeTaskName,
+      weekendNudgeWeekday,
+      weekendNudgeHour,
+    );
+  }
+
+  /// Register a weekly task anchored to the next [weekday] at [hour] local.
+  static Future<void> _registerWeeklyOn(
+    String uniqueName,
+    String taskName,
+    int weekday,
+    int hour,
+  ) async {
+    final now = DateTime.now();
+    // Rebuilt from parts rather than advanced by Duration(days: 1): adding a
+    // fixed 24 hours drifts the wall-clock hour across a DST boundary, and
+    // this needs to stay at [hour] wherever the user is.
+    var firstRun = DateTime(now.year, now.month, now.day, hour);
+    for (var i = 0; i < 8; i++) {
+      if (firstRun.weekday == weekday && firstRun.isAfter(now)) break;
+      firstRun =
+          DateTime(firstRun.year, firstRun.month, firstRun.day + 1, hour);
+    }
     await Workmanager().registerPeriodicTask(
-      weeklyReminderUniqueName,
-      weeklyReminderTaskName,
+      uniqueName,
+      taskName,
       frequency: const Duration(days: 7),
-      initialDelay: const Duration(days: 7),
+      initialDelay: firstRun.difference(now),
       constraints: Constraints(networkType: NetworkType.notRequired),
       existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
     );
@@ -314,25 +376,109 @@ class BackgroundService {
 
   /// Weekly reminder: count this month's unclassified transactions and, if
   /// any, post a notification nudging the user to tag them.
-  static Future<void> performWeeklyReminder() async {
+  /// Whole weeks between [day] and a fixed Monday. Only its parity is used —
+  /// the absolute value is meaningless, and it deliberately isn't the ISO week
+  /// number (which resets each year and would double-up or skip a nudge at
+  /// every year boundary).
+  ///
+  /// Computed in UTC so the subtraction is exact: `inDays` over local midnights
+  /// returns 0 for a 23-hour DST day, which would stall the alternation for a
+  /// week in any region that observes it.
+  static int weekIndexFor(DateTime day) {
+    final epoch = DateTime.utc(2024, 1, 1); // a Monday
+    final d = DateTime.utc(day.year, day.month, day.day);
+    return d.difference(epoch).inDays ~/ 7;
+  }
+
+  /// Whether [day] falls in a tagging week (the alternative is a review week).
+  static bool isTaggingWeek(DateTime day) => weekIndexFor(day) % 2 == 0;
+
+  /// The Sunday-morning tidy-up nudge: tagging one week, review the next.
+  ///
+  /// Sends nothing when the week's chosen queue is empty. It deliberately does
+  /// *not* fall back to the other nudge — substituting would mean there is
+  /// always a Sunday notification, which is the habit this alternation exists
+  /// to avoid. A quiet fortnight is the feature.
+  static Future<void> performWeekendNudge() async {
     try {
       final db = DatabaseService();
       final now = DateTime.now();
+      final week = weekIndexFor(now);
+
+      // Exactly once per parity window, however late WorkManager runs it.
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getInt(_lastNudgeWeekKey) == week) return;
+
       final monthStart = DateTime(now.year, now.month, 1);
       final monthEnd = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
-
-      final count = await db.countUnclassifiedInPeriod(monthStart, monthEnd);
-      if (count <= 0) return;
+      final monthLabel = DateFormat('MMMM').format(now);
 
       final ns = NotificationService();
-      await ns.initialize();
-      await ns.showUnclassifiedReminder(
-        count: count,
-        monthLabel: DateFormat('MMMM').format(now),
-      );
+      final posted = isTaggingWeek(now)
+          ? await _nudgeTagging(db, ns, monthStart, monthEnd, monthLabel)
+          : await _nudgeReview(db, ns, monthStart, monthEnd, monthLabel);
+
+      if (posted) await prefs.setInt(_lastNudgeWeekKey, week);
     } catch (e) {
       // Best-effort reminder
     }
+  }
+
+  /// "Tag your transactions." Scoped to the month in progress: an all-time
+  /// backlog is a number that never reaches zero, and a nudge you can't
+  /// finish is one you learn to ignore.
+  static Future<bool> _nudgeTagging(
+    DatabaseService db,
+    NotificationService ns,
+    DateTime monthStart,
+    DateTime monthEnd,
+    String monthLabel,
+  ) async {
+    final count = await db.countUnclassifiedInPeriod(monthStart, monthEnd);
+    if (count <= 0) return false;
+    await ns.initialize();
+    await ns.showUnclassifiedReminder(count: count, monthLabel: monthLabel);
+    return true;
+  }
+
+  /// "Check the entries the reader wasn't sure about."
+  ///
+  /// Held to a floor, unlike the tagging nudge. Most review queues are one or
+  /// two rows, and a Sunday interruption for a single uncertain payee spends
+  /// attention the app will want later. Either a handful of entries or one
+  /// carrying real money clears the bar — the amount test is what catches the
+  /// case this whole feature came from, a lone phantom worth ₹10,000.
+  static Future<bool> _nudgeReview(
+    DatabaseService db,
+    NotificationService ns,
+    DateTime monthStart,
+    DateTime monthEnd,
+    String monthLabel,
+  ) async {
+    final backlog = await db.reviewBacklogForPeriod(monthStart, monthEnd);
+    if (!reviewNudgeClears(
+      count: backlog.count,
+      unconfirmedSpend: backlog.unconfirmedSpend,
+    )) {
+      return false;
+    }
+    await ns.initialize();
+    await ns.showReviewReminder(
+      count: backlog.count,
+      unconfirmedSpend: backlog.unconfirmedSpend,
+      monthLabel: monthLabel,
+    );
+    return true;
+  }
+
+  /// Whether a review backlog is worth interrupting a Sunday for.
+  static bool reviewNudgeClears({
+    required int count,
+    required double unconfirmedSpend,
+  }) {
+    if (count <= 0) return false;
+    return count >= reviewNudgeMinCount ||
+        unconfirmedSpend >= reviewNudgeMinAmount;
   }
 
   /// Send the noon / evening "Investment Alert" Yes/No prompt for any recurring
@@ -393,8 +539,8 @@ void callbackDispatcher() {
   Workmanager().executeTask((taskName, inputData) async {
     if (taskName == BackgroundService.scanTaskName) {
       await BackgroundService.performBackgroundScan();
-    } else if (taskName == BackgroundService.weeklyReminderTaskName) {
-      await BackgroundService.performWeeklyReminder();
+    } else if (taskName == BackgroundService.weekendNudgeTaskName) {
+      await BackgroundService.performWeekendNudge();
     } else if (taskName == BackgroundService.sipNoonTaskName) {
       await BackgroundService.performSipPromptCheck(evening: false);
     } else if (taskName == BackgroundService.sipEveningTaskName) {
