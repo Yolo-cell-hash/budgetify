@@ -22,10 +22,11 @@ without adding any network access.
   royal's gem, deepened so it reads against the notification shade: copper for
   the Sovereign, amber for the Prince, ruby for the Dark Prince, amethyst for
   the Empress, emerald for the Royal Medic, slate for the Princess. No two
-  courts look alike. Whether it shows depends on the phone: Android
-  paints the circle behind Budgetify's mark with it, but newer versions and
-  some manufacturer skins draw the app icon there instead and ignore the
-  colour. With no royal equipped, alerts look exactly as they did.
+  courts look alike. Whether it shows depends on the phone: up to Android 15
+  the system paints the circle behind Budgetify's mark with it, while Android
+  16 and later — and some manufacturer skins before that — draw the app icon
+  there instead and ignore the colour. With no royal equipped, alerts look
+  exactly as they did.
 
 ## [1.63.0] — 2026-08-05
 
