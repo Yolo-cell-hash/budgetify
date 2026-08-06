@@ -19,8 +19,10 @@ without adding any network access.
   transaction and budget alerts, bill and investment reminders, streak nudges,
   goal celebrations, the tag reminder, including the ones posted by the
   background scan while the app is closed — is tinted with the equipped
-  royal's court: crimson for the Sovereign, violet for the Empress, rose for
-  the Princess, and so on. Whether it shows depends on the phone: Android
+  royal's gem, deepened so it reads against the notification shade: copper for
+  the Sovereign, amber for the Prince, ruby for the Dark Prince, amethyst for
+  the Empress, emerald for the Royal Medic, slate for the Princess. No two
+  courts look alike. Whether it shows depends on the phone: Android
   paints the circle behind Budgetify's mark with it, but newer versions and
   some manufacturer skins draw the app icon there instead and ignore the
   colour. With no royal equipped, alerts look exactly as they did.
