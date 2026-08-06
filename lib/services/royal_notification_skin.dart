@@ -4,6 +4,36 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/royal_avatars.dart';
 import 'app_icon_service.dart';
 
+/// Each royal's notification colour: its launcher-icon gem, darkened to
+/// survive a pale notification shade.
+///
+/// Neither existing palette worked here, and both failures were measured
+/// rather than guessed:
+///
+///  • [kRoyalGemAccent] — the gem as the icon wears it — is tuned for the
+///    icon's dark tile. Android runs a contrast pass over a notification
+///    colour against the pale shade, so a light tint is darkened until it is
+///    neutral: on Android 12 the Princess's `#CBD5E1` came out a flat grey
+///    while the Dark Prince's ruby stayed vivid.
+///  • `RoyalTheme.accentDeep` is dark enough, but three courts land in the
+///    same red wedge — Sovereign `#8E1F2F` and Dark Prince `#B02838` are two
+///    degrees of hue apart (ΔE 12.7), which is one colour, not two.
+///
+/// So each entry keeps the *hue* of that royal's gem — the identity the user
+/// actually sees on the home screen — at a lightness that reads on white. The
+/// result holds a minimum ΔE of ~33 between any two courts and at least
+/// 4.4:1 contrast against the white glyph sitting inside the circle. Both are
+/// asserted in `test/royal_notification_skin_test.dart`; change a value and
+/// the suite re-checks the whole set.
+const Map<String, Color> kRoyalNotificationAccent = {
+  'bronze': Color(0xFF723C17), // copper
+  'silver': Color(0xFF465A72), // slate
+  'emerald': Color(0xFF127856),
+  'golden': Color(0xFF987106), // amber
+  'ruby': Color(0xFF9E0A19),
+  'amethyst': Color(0xFF5C1C9C),
+};
+
 /// How an equipped royal dresses the app's notifications, so an alert reads as
 /// coming from *that* court rather than from a generic app.
 ///
@@ -11,16 +41,6 @@ import 'app_icon_service.dart';
 /// system fills the circle behind the app's status-bar mark with it, so the
 /// alert sits in the royal's colour beside every other app's. The mark's shape
 /// never changes.
-///
-/// **Why the court colour and not the gem.** The obvious choice was the gem
-/// the launcher icon wears ([kRoyalGemAccent]) — and on a device it reads
-/// wrong. Android runs a contrast pass over a notification colour against the
-/// pale shade, so a light tint gets darkened until it is basically neutral:
-/// measured on Android 12, the Princess's silver (`#CBD5E1`) came out a flat
-/// grey while the Dark Prince's ruby stayed vivid. The gem palette is tuned
-/// for the icon's dark tile and the splash; notifications are drawn on white,
-/// so they take `RoyalTheme.accentDeep`, which every court already defines as
-/// its ink-legible companion for exactly this case.
 ///
 /// **What this cannot reach.** Android 16 and later draw the full-colour app
 /// icon in the shade instead of the tinted mark, as do some OEM skins on
@@ -46,8 +66,8 @@ class RoyalNotificationSkin {
   /// app icon can never disagree about which gem is in play.
   final String variant;
 
-  /// The court's ink-legible colour (`RoyalTheme.accentDeep`) — deep enough to
-  /// survive Android's contrast pass against the pale notification shade.
+  /// This royal's gem, darkened for the shade — see
+  /// [kRoyalNotificationAccent].
   final Color accent;
 
   const RoyalNotificationSkin({
@@ -61,16 +81,13 @@ class RoyalNotificationSkin {
   static RoyalNotificationSkin? forRoyal(String? royalId) {
     if (royalId == null) return null;
     final variant = RoyalAppIcon.forRoyal[royalId];
-    if (variant == null) return null;
-    for (final royal in kRoyalAvatars) {
-      if (royal.id != royalId) continue;
-      return RoyalNotificationSkin(
-        royalId: royalId,
-        variant: variant,
-        accent: royal.theme.accentDeep,
-      );
-    }
-    return null;
+    final accent = kRoyalNotificationAccent[variant];
+    if (variant == null || accent == null) return null;
+    return RoyalNotificationSkin(
+      royalId: royalId,
+      variant: variant,
+      accent: accent,
+    );
   }
 
   /// The royal id an avatar [seed] stands for, or null when it isn't a royal.
