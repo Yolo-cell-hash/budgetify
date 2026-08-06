@@ -16,6 +16,7 @@ import 'package:budget_tracker/services/bank_alias_service.dart';
 import 'package:budget_tracker/services/custom_tag_service.dart';
 import 'package:budget_tracker/services/gamification_service.dart';
 import 'package:budget_tracker/services/entitlement_service.dart';
+import 'package:budget_tracker/services/royal_notification_skin.dart';
 import 'package:budget_tracker/providers/theme_provider.dart';
 import 'package:budget_tracker/providers/app_preferences.dart';
 import 'package:budget_tracker/providers/locale_provider.dart';
@@ -121,6 +122,12 @@ Future<void> _initDeferredServices(ThemeProvider themeProvider) async {
   // every avatar save. (After a backup restore the dress refreshes on next
   // launch.) Applied a beat after the first frame rather than before it — the
   // splash covers the swap, so an equipped royal sees no flash.
+  //
+  // The same profile read also mirrors the equipped royal for NOTIFICATIONS
+  // (see RoyalSkinService), which paints its alerts in that royal's gem. It
+  // has to be mirrored here, from the UI isolate: the background isolate that
+  // posts transaction alerts can't load the profile itself, so what it reads
+  // is what this leaves behind in SharedPreferences.
   try {
     final profile = await GamificationService().loadProfile();
     themeProvider.setThemeDress(
@@ -128,12 +135,20 @@ Future<void> _initDeferredServices(ThemeProvider themeProvider) async {
           ? courtDressFor(profile.avatarKind, profile.avatarValue)
           : null,
     );
+    await RoyalSkinService.sync(int.tryParse(profile.avatarValue) ?? -1);
   } catch (e) {
     debugPrint('GamificationService.loadProfile failed: $e');
   }
-  GamificationService.onProfileSaved = (p) => themeProvider.setThemeDress(
-    p.applyRoyalTheme ? courtDressFor(p.avatarKind, p.avatarValue) : null,
-  );
+  GamificationService.onProfileSaved = (p) {
+    themeProvider.setThemeDress(
+      p.applyRoyalTheme ? courtDressFor(p.avatarKind, p.avatarValue) : null,
+    );
+    // Unlike the theme dress, the notification skin is NOT tied to the
+    // applyRoyalTheme toggle: that switch is about the app's own surfaces,
+    // and a user who keeps the app in its default colours still equipped a
+    // royal and should still see it on their alerts.
+    unawaited(RoyalSkinService.sync(int.tryParse(p.avatarValue) ?? -1));
+  };
 
   // Notification channels. HomeScreen also (re)initializes this before it posts
   // anything, so here it is just an early warm-up.

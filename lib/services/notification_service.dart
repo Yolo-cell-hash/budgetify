@@ -7,6 +7,7 @@ import '../screens/net_worth_screen.dart';
 import '../screens/plus_screen.dart';
 import '../screens/recurring_screen.dart';
 import 'entitlement_service.dart';
+import 'royal_notification_skin.dart';
 import 'sip_service.dart';
 import 'recurring_service.dart';
 import 'package:intl/intl.dart';
@@ -31,6 +32,10 @@ const String billSkipAction = 'bill_skip';
 /// can't see the reference and strips the drawable unless it is pinned in
 /// `android/app/src/main/res/raw/keep.xml`. Keep that file in sync with this
 /// constant — without it, notifications break in release builds only.
+///
+/// One glyph for every notification the app ever posts, royal or not: the
+/// brand mark is the constant, and an equipped royal changes its *colour*
+/// only (see [_android]).
 const String _notificationIcon = 'ic_stat_notify';
 
 /// Fallback small icon if [_notificationIcon] can't be resolved in this build.
@@ -208,6 +213,53 @@ class NotificationService {
     }
   }
 
+  /// Build the Android side of a notification, dressed in the equipped
+  /// royal's court.
+  ///
+  /// Every notification this service posts goes through here, so the court is
+  /// applied in one place instead of nine — and a new alert added later
+  /// inherits it for free. With no royal equipped, every skin field is null
+  /// and the result is byte-for-byte the pre-royal notification.
+  ///
+  /// The icon itself never changes: the Budgetify mark is the constant across
+  /// the launcher, the splash and the status bar. What a royal changes is its
+  /// colour.
+  ///
+  /// The skin is resolved per call rather than cached: notifications fire from
+  /// the background isolate too, whose cache would start cold anyway, and a
+  /// cached-prefs read is far cheaper than a notification.
+  Future<AndroidNotificationDetails> _android({
+    required String channelId,
+    required String channelName,
+    required String channelDescription,
+    Importance importance = Importance.high,
+    Priority priority = Priority.high,
+    bool showWhen = true,
+    StyleInformation? styleInformation,
+    List<AndroidNotificationAction>? actions,
+  }) async {
+    final skin = await RoyalSkinService.current();
+    return AndroidNotificationDetails(
+      channelId,
+      channelName,
+      channelDescription: channelDescription,
+      importance: importance,
+      priority: priority,
+      showWhen: showWhen,
+      styleInformation: styleInformation,
+      actions: actions,
+      // The gem the equipped royal's launcher icon wears. Android paints the
+      // small icon and the app-name row in the shade with it, so the brand
+      // mark stays the brand mark and only its colour follows the court —
+      // silver for the Princess, golden for the Prince, and so on. This is
+      // the ONLY notification surface Android hands an app: the full-colour
+      // app icon some OEM shades draw beside an alert is the package's
+      // install-time application icon, which no runtime API can change (the
+      // royal activity-alias swap re-skins the launcher, not that).
+      color: skin?.accent,
+    );
+  }
+
   void _onNotificationTapped(NotificationResponse response) {
     final actionId = response.actionId;
     if (actionId == sipYesAction || actionId == sipNoAction) {
@@ -302,16 +354,14 @@ class NotificationService {
         'Your free 3 months are over, so spending, bill and investment alerts '
             'have stopped. Everything you have tracked is still here — tap to '
             'see what keeps them running.',
-        const NotificationDetails(
-          android: AndroidNotificationDetails(
-            'plus_channel',
-            'Budgetify Plus',
+        NotificationDetails(
+          android: await _android(
+            channelId: 'plus_channel',
+            channelName: 'Budgetify Plus',
             channelDescription:
                 'Tells you when Plus-only alerts pause, so they never just '
                 'stop without explanation',
-            importance: Importance.high,
-            priority: Priority.high,
-            styleInformation: BigTextStyleInformation(''),
+            styleInformation: const BigTextStyleInformation(''),
           ),
         ),
         payload: openPlusPayload,
@@ -380,14 +430,11 @@ class NotificationService {
       transactionNotificationId(transaction),
       isCredit ? '💰 Money Credited' : '💸 Money Debited',
       buildTransactionBody(transaction),
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'transaction_channel',
-          'Transaction Alerts',
+      NotificationDetails(
+        android: await _android(
+          channelId: 'transaction_channel',
+          channelName: 'Transaction Alerts',
           channelDescription: 'Notifications for detected bank transactions',
-          importance: Importance.high,
-          priority: Priority.high,
-          showWhen: true,
         ),
       ),
       payload: transaction.id?.toString(),
@@ -486,14 +533,13 @@ class NotificationService {
       notificationId ?? (1000 + threshold),
       title,
       body,
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'budget_channel',
-          'Budget Alerts',
+      NotificationDetails(
+        android: await _android(
+          channelId: 'budget_channel',
+          channelName: 'Budget Alerts',
           channelDescription: 'Notifications for budget thresholds',
           importance: Importance.max,
           priority: Priority.max,
-          showWhen: true,
         ),
       ),
       payload: category != null ? 'budget_cat_$category' : 'budget_$threshold',
@@ -518,14 +564,11 @@ class NotificationService {
       2000, // Fixed ID so repeated scans update rather than stack
       '🧾 $count new transactions found',
       'Totalling ${fmt.format(totalAmount)} — tap to review and categorize',
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'transaction_channel',
-          'Transaction Alerts',
+      NotificationDetails(
+        android: await _android(
+          channelId: 'transaction_channel',
+          channelName: 'Transaction Alerts',
           channelDescription: 'Notifications for detected bank transactions',
-          importance: Importance.high,
-          priority: Priority.high,
-          showWhen: true,
         ),
       ),
       payload: 'scan_summary',
@@ -547,14 +590,11 @@ class NotificationService {
       4100 + (name.hashCode.abs() % 1000),
       '🎉 Goal reached: $name',
       'You saved ${fmt.format(amount)} — congratulations!',
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'transaction_channel',
-          'Transaction Alerts',
+      NotificationDetails(
+        android: await _android(
+          channelId: 'transaction_channel',
+          channelName: 'Transaction Alerts',
           channelDescription: 'Notifications for detected bank transactions',
-          importance: Importance.high,
-          priority: Priority.high,
-          showWhen: true,
         ),
       ),
       payload: 'goal_achieved',
@@ -575,14 +615,11 @@ class NotificationService {
       '🏷️ $count transaction${count == 1 ? '' : 's'} need${count == 1 ? 's' : ''} a tag',
       'You have $count unclassified transaction${count == 1 ? '' : 's'} in '
           '$monthLabel. Tap to organize them.',
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'transaction_channel',
-          'Transaction Alerts',
+      NotificationDetails(
+        android: await _android(
+          channelId: 'transaction_channel',
+          channelName: 'Transaction Alerts',
           channelDescription: 'Notifications for detected bank transactions',
-          importance: Importance.high,
-          priority: Priority.high,
-          showWhen: true,
         ),
       ),
       payload: openUnclassifiedPayload,
@@ -622,15 +659,12 @@ class NotificationService {
       6000 + sipId, // one slot per plan; noon prompt is replaced at 8 PM
       '🔔 Investment Alert',
       body,
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'sip_channel',
-          'SIP & RD Reminders',
+      NotificationDetails(
+        android: await _android(
+          channelId: 'sip_channel',
+          channelName: 'SIP & RD Reminders',
           channelDescription: 'Reminders to log your recurring investments',
-          importance: Importance.high,
-          priority: Priority.high,
-          showWhen: true,
-          actions: <AndroidNotificationAction>[
+          actions: const <AndroidNotificationAction>[
             AndroidNotificationAction(
               sipYesAction,
               'Yes, I did',
@@ -683,16 +717,13 @@ class NotificationService {
       7000 + planId, // one slot per plan; noon prompt is replaced at 8 PM
       title,
       body,
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'recurring_channel',
-          'Bill Reminders',
+      NotificationDetails(
+        android: await _android(
+          channelId: 'recurring_channel',
+          channelName: 'Bill Reminders',
           channelDescription:
               'Reminders for upcoming subscriptions, rent and bills',
-          importance: Importance.high,
-          priority: Priority.high,
-          showWhen: true,
-          actions: <AndroidNotificationAction>[
+          actions: const <AndroidNotificationAction>[
             AndroidNotificationAction(
               billPaidAction,
               'Yes, paid',
@@ -738,14 +769,11 @@ class NotificationService {
       8000, // fixed slot: each evening's reminder replaces the previous one
       title,
       body,
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'streak_channel',
-          'Streak Reminders',
+      NotificationDetails(
+        android: await _android(
+          channelId: 'streak_channel',
+          channelName: 'Streak Reminders',
           channelDescription: 'Daily nudges to keep your usage streak going',
-          importance: Importance.high,
-          priority: Priority.high,
-          showWhen: true,
         ),
       ),
       payload: 'streak_reminder',

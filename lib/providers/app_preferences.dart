@@ -51,12 +51,20 @@ class AppPreferences extends ChangeNotifier {
   // is something the user turns on deliberately from the avatar picker.
   bool _royalCustomAnimations = false;
 
-  // Match app icon to the equipped royal (default OFF). When on, the Android
+  // Match app icon to the equipped royal (default ON). When on, the Android
   // launcher icon follows the equipped royal avatar's court (Dark Prince →
   // ruby, Empress → amethyst, …); a non-royal avatar restores the default
   // Budgetify icon. Applying it lives with the equip flow (which knows the
   // avatar); this flag only records the opt-in. See AppIconService.
-  bool _royalAppIcon = false;
+  //
+  // Defaults ON because equipping a royal is already the deliberate act — a
+  // second, default-off switch buried in the royal's sheet meant the icon
+  // (and, on launchers that draw the app icon into the notification shade,
+  // the icon on every alert) silently stayed the stock gold for almost
+  // everyone. Nothing happens behind the user's back: the swap closes the app,
+  // so the equip flow always asks first (see confirmRoyalAppIcon) and doing
+  // nothing leaves the icon alone.
+  bool _royalAppIcon = true;
 
   bool get isOnboardingComplete => _isOnboardingComplete;
   bool get isInitialized => _isInitialized;
@@ -84,7 +92,7 @@ class AppPreferences extends ChangeNotifier {
     _gamifiedMode = prefs.getBool(_gamifiedModeKey) ?? true;
     _royalCustomAnimations =
         prefs.getBool(_royalCustomAnimationsKey) ?? false;
-    _royalAppIcon = prefs.getBool(_royalAppIconKey) ?? false;
+    _royalAppIcon = prefs.getBool(_royalAppIconKey) ?? true;
     _dismissedBudgetSuggestions =
         (prefs.getStringList(_dismissedBudgetSuggestionsKey) ?? const [])
             .toSet();
