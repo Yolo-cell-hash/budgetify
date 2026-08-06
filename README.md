@@ -9,7 +9,7 @@ Budgetify reads your bank SMS on-device, turns them into a clean spending pictur
 
 <br/>
 
-![Version](https://img.shields.io/badge/version-1.64.0-C8A75E?style=for-the-badge)
+![Version](https://img.shields.io/badge/version-1.65.0-C8A75E?style=for-the-badge)
 ![Platform](https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)
 ![Flutter](https://img.shields.io/badge/Flutter-02569B?style=for-the-badge&logo=flutter&logoColor=white)
 ![Offline](https://img.shields.io/badge/100%25-Offline-1B7F5C?style=for-the-badge)
@@ -78,6 +78,7 @@ Most people in India already get a text message for **every** bank transaction �
 
 | Version | What landed |
 |---|---|
+| **1.65** | **One Sunday-morning nudge, alternating** — tag your month's untagged spends one week, check the uncertain entries the next, and nothing at all when there's nothing to do. Both moved off the transaction-alert channel, so muting a reminder no longer mutes your actual transaction alerts |
 | **1.64** | **The month's total says how much of it is unchecked** — when the reader wasn't sure about an entry, the hero card names the rupee amount involved right under the figure, and one tap opens the tidy-up queue. Nothing to check, nothing shown |
 | **1.63.2** | **Changing your bank's transfer limit is no longer a spend** — HDFC (and every other bank) confirms a new ATM/transfer/card cap by SMS, and the cap was being logged as a payment of that size, every single time it changed. Rows already logged are dropped on upgrade |
 | **1.63** | **Tidy up tells you what you just did** — every answer is named against the entry it was given to, with one-tap Undo, a progress bar that moves, and the timestamp promoted so two identical ₹100 credits can't be confused |
