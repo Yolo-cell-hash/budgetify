@@ -42,12 +42,20 @@ const Map<String, Color> kRoyalNotificationAccent = {
 /// alert sits in the royal's colour beside every other app's. The mark's shape
 /// never changes.
 ///
-/// **What this cannot reach.** Android 16 and later draw the full-colour app
-/// icon in the shade instead of the tinted mark, as do some OEM skins on
-/// earlier versions, and there the colour simply doesn't appear. That icon is
-/// the package's install-time application icon, which no runtime API can vary
-/// — the royal activity-alias swap re-skins the *launcher* entry, not the
-/// application record the shade reads. The one documented exception, filing
+/// **What this cannot reach.** Measured: Android 12 and 15 paint the circle
+/// behind the mark with it; Android 16 and 17 draw the full-colour app icon
+/// there instead and ignore the colour entirely, as do some OEM skins on
+/// earlier versions. So this is a treatment for Android 15 and below, and its
+/// reach shrinks as 16 rolls out — it is deliberately the kind of thing whose
+/// absence nobody notices.
+///
+/// That app icon cannot be made to follow the royal either. It is the
+/// package's install-time application icon, which no runtime API can vary; the
+/// royal activity-alias swap re-skins the *launcher* entry, not the
+/// application record the shade reads. Confirmed side by side on a Samsung
+/// S24 Ultra (Android 16) with the Princess equipped: the home screen showed
+/// the silver alias icon while, in the same moment, its notification showed
+/// the default gold one. The one documented exception, filing
 /// alerts as conversations so a chosen avatar takes that circle, was
 /// prototyped and rejected: Android's guidance reserves it for "real-time
 /// conversations", not "activities unrelated to conversations", and
