@@ -4,6 +4,27 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.63.1] — 2026-08-06
+
+### Changed
+
+- **Picking a royal now changes your app icon.** Matching the home-screen icon
+  to your royal existed already, but as a second switch that shipped off and
+  sat inside the royal's own sheet — so most people who equipped the Princess
+  never saw a silver anything. It is now on by default: equip a royal and the
+  app offers its icon straight away. Nothing happens behind your back, because
+  changing the icon closes the app — you are still asked first, and declining
+  leaves the icon exactly as it was.
+- **Alerts carry your royal's colour.** Every notification Budgetify posts —
+  transaction and budget alerts, bill and investment reminders, streak nudges,
+  goal celebrations, the tag reminder, including the ones posted by the
+  background scan while the app is closed — is tinted with the equipped
+  royal's court: crimson for the Sovereign, violet for the Empress, rose for
+  the Princess, and so on. Whether it shows depends on the phone: Android
+  paints the circle behind Budgetify's mark with it, but newer versions and
+  some manufacturer skins draw the app icon there instead and ignore the
+  colour. With no royal equipped, alerts look exactly as they did.
+
 ## [1.63.0] — 2026-08-05
 
 ### Changed

@@ -1,9 +1,25 @@
 import 'dart:io' show Platform;
+import 'dart:ui' show Color;
 
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../widgets/royal_avatars.dart';
+
+/// The gem signature of each launcher-icon variant — the one vivid colour that
+/// tells the six royal app icons apart, as the icon artwork itself wears it.
+///
+/// Tuned for a DARK ground (the icon tile, the splash), which is why these are
+/// bright tints. Anything drawing on a light surface wants the royal's
+/// `RoyalTheme.accentDeep` instead — see [RoyalNotificationSkin].
+const Map<String, Color> kRoyalGemAccent = {
+  'bronze': Color(0xFFE0A96B),
+  'silver': Color(0xFFCBD5E1),
+  'emerald': Color(0xFF34E0A8),
+  'golden': Color(0xFFFFC93C),
+  'ruby': Color(0xFFFF4658),
+  'amethyst': Color(0xFFC08CFF),
+};
 
 /// The launcher-icon variants that ship as activity-aliases (see
 /// `android/app/src/main/AndroidManifest.xml`), one per royal avatar.
