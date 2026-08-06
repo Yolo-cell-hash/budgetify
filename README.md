@@ -9,7 +9,7 @@ Budgetify reads your bank SMS on-device, turns them into a clean spending pictur
 
 <br/>
 
-![Version](https://img.shields.io/badge/version-1.63.0-C8A75E?style=for-the-badge)
+![Version](https://img.shields.io/badge/version-1.63.2-C8A75E?style=for-the-badge)
 ![Platform](https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)
 ![Flutter](https://img.shields.io/badge/Flutter-02569B?style=for-the-badge&logo=flutter&logoColor=white)
 ![Offline](https://img.shields.io/badge/100%25-Offline-1B7F5C?style=for-the-badge)
@@ -78,6 +78,7 @@ Most people in India already get a text message for **every** bank transaction �
 
 | Version | What landed |
 |---|---|
+| **1.63.2** | **Changing your bank's transfer limit is no longer a spend** — HDFC (and every other bank) confirms a new ATM/transfer/card cap by SMS, and the cap was being logged as a payment of that size, every single time it changed. Rows already logged are dropped on upgrade |
 | **1.63** | **Tidy up tells you what you just did** — every answer is named against the entry it was given to, with one-tap Undo, a progress bar that moves, and the timestamp promoted so two identical ₹100 credits can't be confused |
 | **1.62** | **A credit card arriving is no longer income** — card approval and dispatch promos quote the card's *limit*, and three were sitting in one tester's income as ₹4,00,000 and ₹3,55,000 credits. The upgrade also re-reads history and drops rows today's parser refuses, so old false positives clear themselves |
 | **1.61** | **Set each person's share of a split by hand** — type one amount and the people you haven't touched absorb the rest; a warning (never a block) when the parts don't add up to the bill. The transaction list keeps your scroll position when you come back to it |

@@ -42,7 +42,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 31,
+      version: 32,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -887,6 +887,20 @@ class DatabaseService {
       // Deleting is safe here in a way it usually isn't: the criterion *is*
       // that today's parser refuses the message, so a rescan cannot put the
       // row back, and no tombstone is needed to hold it out.
+      await _dropRowsTodayRefuses(db);
+    }
+
+    if (oldVersion < 32) {
+      // v1.63.2 taught the parser to refuse limit-change notices — the SMS a
+      // bank sends when you raise or lower a transfer, ATM or card cap. The
+      // cap was being logged as a spend of that size, and unlike a one-off
+      // promo this repeats: a reporter had it every single time they touched
+      // their HDFC transfer limit.
+      //
+      // Same sweep as schema 31, run again because the set of messages the
+      // parser refuses has grown. It re-reads every stored row, so it also
+      // clears out anything the earlier tightenings would refuse but that was
+      // logged before they shipped.
       await _dropRowsTodayRefuses(db);
     }
   }

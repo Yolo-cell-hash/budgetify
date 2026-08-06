@@ -4,6 +4,28 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.63.2] — 2026-08-06
+
+### Fixed
+
+- **Changing a bank limit is no longer logged as a spend.** Every bank
+  confirms a new transfer, ATM or card cap by SMS — "Transfer Limit Updated!
+  … Third Party Transfer limit is set to Rs. 10000" — and Budgetify was
+  reading that cap as a ₹10,000 payment. It landed in *Needs review* rather
+  than silently, but it should never have been picked up at all, and because
+  people move their limits up and down routinely it came back on every change.
+  Limit notices are now refused outright, in either wording order ("limit is
+  set to", "we have updated your limit") and for every cap a bank names.
+  A spend that happens to report the remaining limit in the same message is
+  untouched — the rule only applies to messages with no completed payment in
+  them.
+- **Limit notices already in your history are removed on upgrade.** A parser
+  fix only ever reaches messages read after it ships, so the pass added in
+  1.62 runs again over every stored row: past limit changes, and anything else
+  today's parser refuses, clear themselves out of your totals. Manual entries,
+  imported statement rows, and anything you've split or filed under a tax
+  section are left alone.
+
 ## [1.63.1] — 2026-08-06
 
 ### Changed
