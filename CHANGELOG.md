@@ -4,6 +4,20 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.64.0] — 2026-08-06
+
+### Added
+
+- **The month's total now carries its own doubt.** When some of your spending
+  came from entries the reader wasn't sure about, the hero card says so
+  directly under the figure — "Includes ₹10,240 to check" — and tapping it
+  opens the tidy-up queue. The rupee amount is deliberate: a count can't tell
+  you whether two flagged entries are ₹40 of noise or ₹10,240 that changes the
+  picture, so it would send you to the queue just to find out. Entries waiting
+  to be checked have always counted toward your totals, because a payment the
+  reader mislabelled is still a payment; what was missing was any sign of that
+  on the number itself. With nothing to check the line isn't there at all.
+
 ## [1.63.2] — 2026-08-06
 
 ### Fixed

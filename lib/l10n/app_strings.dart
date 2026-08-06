@@ -369,6 +369,17 @@ class AppStrings {
       );
   String get looksRight =>
       _t('Looks right', 'सही है', 'बरोबर आहे', 'ঠিক আছে', 'సరైనది', 'சரியானது');
+
+  /// Caveat under the month's expense total naming how much of it comes from
+  /// rows the reader wasn't sure about. [amount] arrives pre-formatted.
+  String unconfirmedInTotal(String amount) => _t(
+        'Includes $amount to check',
+        '$amount जाँचना बाकी है',
+        '$amount तपासणे बाकी आहे',
+        '$amount যাচাই করা বাকি',
+        '$amount తనిఖీ చేయాల్సి ఉంది',
+        '$amount சரிபார்க்க வேண்டும்',
+      );
   String get reviewReasonUnknownSender => _t(
         "This sender isn't a bank we recognise yet",
         'यह भेजने वाला अभी हमारी बैंक सूची में नहीं है',
