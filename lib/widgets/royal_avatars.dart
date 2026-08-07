@@ -255,7 +255,15 @@ ThemeDress? courtDressFor(String avatarKind, String avatarValue) {
       chipTheme: isDark
           ? base.chipTheme.copyWith(selectedColor: tint)
           : base.chipTheme,
-      extensions: [AppPalette(colors: colors, hero: hero)],
+      // The dress swaps colours only — the theme's display face rides along
+      // untouched, so a court can never quietly re-set the type.
+      extensions: [
+        AppPalette(
+          colors: colors,
+          hero: hero,
+          displayFamily: palette.displayFamily,
+        ),
+      ],
     );
   };
 }

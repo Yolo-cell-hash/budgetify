@@ -1094,6 +1094,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                       value: _spent,
                       formatter: fmt,
                       style: TextStyle(
+                        fontFamily: AppPalette.displayFamilyOf(context),
                         fontSize: 21,
                         fontWeight: FontWeight.w700,
                         letterSpacing: -0.5,

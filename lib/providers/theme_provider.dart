@@ -3,9 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// The set of selectable app themes. [light] and [dark] are always available;
-/// [smokyIvory], [seashellMauve], [onyxAmber] and [royalIndigo] are unlocked as
-/// streak rewards (see `models/streak_reward.dart`). [dark] and [onyxAmber] are
-/// dark-brightness; the rest are light-brightness.
+/// the rest are unlocked as streak rewards (see `models/streak_reward.dart`).
+/// [dark], [onyxAmber], [midnightIndigo] and [vellum] are dark-brightness; the
+/// rest are light-brightness.
 enum AppThemeVariant {
   light,
   dark,
@@ -14,6 +14,7 @@ enum AppThemeVariant {
   onyxAmber,
   royalIndigo,
   midnightIndigo,
+  vellum,
 }
 
 /// Provider for managing the active app theme variant.
@@ -448,6 +449,20 @@ class AppTheme {
         onAccent: const Color(0xFF0D1430),
       );
 
+  // ======= DARK-BRIGHTNESS STREAK REWARD THEME: "Vellum" (60-day) =======
+  // The editorial reward, and the first variant whose hero runs *lighter* than
+  // its canvas: warm near-black paper stock carrying parchment marquee cards
+  // printed in deep ink. Everything else the app draws — list rows, section
+  // rules, the nav bar — stays light-on-dark, so the cream cards read as pages
+  // laid on the desk rather than as a theme that can't decide its brightness.
+  static ThemeData get vellumTheme => _darkVariantTheme(
+        AppColors.vellum,
+        accent: AppColors.vellum.accent,
+        hero: HeroStyle._vellum,
+        onAccent: const Color(0xFF14120D),
+        displayFamily: kVellumDisplayFamily,
+      );
+
   /// The [ThemeData] for any [AppThemeVariant].
   static ThemeData of(AppThemeVariant v) => switch (v) {
         AppThemeVariant.light => lightTheme,
@@ -457,6 +472,7 @@ class AppTheme {
         AppThemeVariant.onyxAmber => onyxAmberTheme,
         AppThemeVariant.royalIndigo => royalIndigoTheme,
         AppThemeVariant.midnightIndigo => midnightIndigoTheme,
+        AppThemeVariant.vellum => vellumTheme,
       };
 
   /// Builds a light-brightness theme from a palette + a single [accent] colour
@@ -600,16 +616,21 @@ class AppTheme {
   /// the dark counterpart to [_lightVariantTheme], used for dark streak-reward
   /// variants. [onAccent] is painted on top of the accent (buttons, FAB,
   /// snackbar text); pass a dark ink for light accents like amber.
+  /// [displayFamily] overrides the face used for marquee figures and the
+  /// wordmark; null leaves them in the app's Manrope.
   static ThemeData _darkVariantTheme(
     AppColors c, {
     required Color accent,
     required HeroStyle hero,
     required Color onAccent,
+    String? displayFamily,
   }) {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
-      extensions: [AppPalette(colors: c, hero: hero)],
+      extensions: [
+        AppPalette(colors: c, hero: hero, displayFamily: displayFamily),
+      ],
       primaryColor: accent,
       colorScheme: ColorScheme.dark(
         primary: accent,
@@ -1033,6 +1054,29 @@ class AppColors {
     warning: warningDark,
   );
 
+  // "Vellum" (dark-brightness, 60-day): warm near-black paper stock — the
+  // canvas is browner and softer than the base dark theme's neutral charcoal,
+  // so the parchment hero (see HeroStyle._vellum) reads as the same material
+  // under a lamp rather than as a white card dropped on a black screen. Ink is
+  // warm parchment, and parchment is also the interactive accent: this theme
+  // has no coloured highlight at all, which is the point of it.
+  static const vellum = AppColors._(
+    background: Color(0xFF0F0E0B), // warm near-black
+    surface: Color(0xFF16140F),
+    card: Color(0xFF16140F),
+    cardAlt: Color(0xFF1E1B15),
+    border: Color(0xFF2A261D),
+    text: Color(0xFFF2EAD9), // warm parchment ink
+    textSecondary: Color(0xFFA79C86),
+    textTertiary: Color(0xFF776E5C),
+    accent: Color(0xFFE8DCC0), // parchment — the only "highlight" there is
+    brandAccent: Color(0xFFE8DCC0),
+    brandAccentDeep: Color(0xFFC9B98F),
+    success: successDark,
+    danger: dangerDark,
+    warning: warningDark,
+  );
+
   /// The palette backing a given [AppThemeVariant].
   static AppColors forVariant(AppThemeVariant v) => switch (v) {
         AppThemeVariant.light => light,
@@ -1042,6 +1086,7 @@ class AppColors {
         AppThemeVariant.onyxAmber => onyxAmber,
         AppThemeVariant.royalIndigo => royalIndigo,
         AppThemeVariant.midnightIndigo => midnightIndigo,
+        AppThemeVariant.vellum => vellum,
       };
 
   static AppColors of(BuildContext context) {
@@ -1051,6 +1096,15 @@ class AppColors {
   }
 }
 
+/// The display face for the Vellum theme's marquee figures and wordmark.
+///
+/// Vellum is drawn to be set in an editorial serif; until one is licensed and
+/// bundled it runs on the app's Manrope, which is what `null` selects. To turn
+/// the serif on: add the font to `pubspec.yaml` and name its family here — every
+/// display-sized figure in the app picks it up at once, because they all read
+/// [AppPalette.displayFamily]. Nothing else needs to change.
+const String? kVellumDisplayFamily = null;
+
 /// Bundles the active variant's [AppColors] + [HeroStyle] onto its [ThemeData],
 /// so `AppColors.of` / `HeroStyle.of` resolve the correct palette per variant
 /// (not just by brightness). Registered via `ThemeData.extensions`.
@@ -1058,11 +1112,33 @@ class AppPalette extends ThemeExtension<AppPalette> {
   final AppColors colors;
   final HeroStyle hero;
 
-  const AppPalette({required this.colors, required this.hero});
+  /// Font family for marquee figures and the wordmark — the app's Manrope when
+  /// null, which is every theme but Vellum. See [displayFamilyOf].
+  final String? displayFamily;
+
+  const AppPalette({
+    required this.colors,
+    required this.hero,
+    this.displayFamily,
+  });
+
+  /// The active theme's display face, or null to stay in Manrope. Read this
+  /// (rather than hardcoding a family) anywhere a figure is set large enough
+  /// to carry the theme's voice.
+  static String? displayFamilyOf(BuildContext context) =>
+      Theme.of(context).extension<AppPalette>()?.displayFamily;
 
   @override
-  AppPalette copyWith({AppColors? colors, HeroStyle? hero}) =>
-      AppPalette(colors: colors ?? this.colors, hero: hero ?? this.hero);
+  AppPalette copyWith({
+    AppColors? colors,
+    HeroStyle? hero,
+    String? displayFamily,
+  }) =>
+      AppPalette(
+        colors: colors ?? this.colors,
+        hero: hero ?? this.hero,
+        displayFamily: displayFamily ?? this.displayFamily,
+      );
 
   // Themes are discrete, so a snap at the midpoint is fine (no colour tween).
   @override
@@ -1114,8 +1190,14 @@ class HeroStyle {
   final Color positive;
   final Color negative;
 
-  /// Whether the surface itself is dark (drives child widgets like the
+  /// Whether the hero surface itself is dark (drives child widgets like the
   /// savings-rate bar that have their own on-dark styling).
+  ///
+  /// This tracks the *hero*, not the canvas, and the two are free to disagree —
+  /// Vellum prints a light parchment hero on a near-black canvas. So widgets
+  /// drawn on a hero must take their colours from this [HeroStyle] and never
+  /// from the palette: `AppColors.of(context).textSecondary` is the right grey
+  /// for the canvas and the wrong one for the card sitting on it.
   final bool onDark;
 
   /// Whether to paint the premium concentric-ring "aura" behind the hero
@@ -1292,6 +1374,37 @@ class HeroStyle {
     divider: Colors.white.withValues(alpha: 0.18),
     onDark: true,
     showAura: true,
+  );
+
+  // Vellum hero: the app's only LIGHT hero on a DARK canvas — a sheet of warm
+  // parchment printed in deep ink, laid on the near-black desk. Everything the
+  // hero needs is declared here rather than inferred from the palette, which is
+  // what lets the two brightnesses disagree: widgets drawn on this surface read
+  // `foreground`/`mutedForeground`/`positive`/`negative` off the HeroStyle, so
+  // they ink themselves for the parchment while the canvas around them stays
+  // light-on-dark. The accent is a muted ink-gold for the letterspaced eyebrow
+  // labels — deliberately quiet, because on Vellum the paper is the flourish.
+  static final HeroStyle _vellum = HeroStyle(
+    gradientColors: const [Color(0xFFF3EADA), Color(0xFFE4D7BE)],
+    border: const Color(0xFFC9B98F).withValues(alpha: 0.55),
+    shadow: [
+      // Deeper and softer than the light themes' shadows: this card has a
+      // genuinely dark canvas to sit on, so it can cast a real one.
+      BoxShadow(
+        color: Colors.black.withValues(alpha: 0.45),
+        blurRadius: 28,
+        offset: const Offset(0, 14),
+      ),
+    ],
+    foreground: const Color(0xFF1A1712), // deep warm ink
+    mutedForeground: const Color(0xFF1A1712).withValues(alpha: 0.58),
+    accent: const Color(0xFF8A7A55), // muted ink-gold for eyebrow labels
+    positive: AppColors.successLight,
+    negative: AppColors.dangerLight,
+    innerFill: Colors.white.withValues(alpha: 0.50),
+    innerBorder: const Color(0xFF1A1712).withValues(alpha: 0.10),
+    divider: const Color(0xFF1A1712).withValues(alpha: 0.14),
+    onDark: false,
   );
 
   // Midnight-indigo hero: a rich violet gradient lifted off the dark navy

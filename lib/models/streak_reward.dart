@@ -171,6 +171,22 @@ const List<StreakReward> kStreakRewards = [
     emblem: '🌌',
     swatch: [Color(0xFF27C0F5), Color(0xFF0D1430)],
   ),
+  // The end of the road, for now: two months unbroken. Vellum is the only
+  // theme that inverts the app's usual figure/ground — parchment cards on a
+  // near-black canvas — so it reads as a different object, not a recolour.
+  StreakReward(
+    id: 'theme_vellum',
+    days: 60,
+    name: 'Vellum',
+    blurb:
+        'Two months unbroken. Your figures printed in deep ink on parchment, '
+        'laid on near-black paper stock. Unlocked at a 60-day streak.',
+    kind: StreakRewardKind.theme,
+    themeVariant: AppThemeVariant.vellum,
+    rarity: BadgeRarity.diamond, // the road's new summit, above 45-day ruby
+    emblem: '📜',
+    swatch: [Color(0xFFE8DCC0), Color(0xFF0F0E0B)],
+  ),
 ];
 
 /// Streak lengths (in days) that each grant one royal-avatar pick. Kept in

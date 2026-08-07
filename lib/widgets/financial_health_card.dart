@@ -7,36 +7,36 @@ import '../providers/theme_provider.dart';
 import '../services/financial_health_service.dart';
 import 'app_dialog.dart';
 
-/// Design-system colour for a health band. On a dark surface ([onDark], e.g. the
-/// balance card) the band tracks the active [hero] so the gauge stays tuned to
-/// the reward themes' coloured heroes (instead of a stray champagne gold / dull
-/// green); on a normal card the theme-aware palette is used. [hero] is only
-/// consulted when [onDark]; pass it from any hero surface.
+/// Design-system colour for a health band. Pass the [hero] when the gauge sits
+/// on a marquee card and leave it null on a normal one: the band then tracks
+/// the hero so it stays tuned to the reward themes' coloured surfaces (instead
+/// of a stray champagne gold / dull green), and falls back to the theme-aware
+/// palette otherwise.
+///
+/// Note that only [HealthBand.needsWork] asks whether the surface is *dark* —
+/// every other band has a hero slot tuned for its own surface, and a hero's
+/// brightness no longer follows the canvas (Vellum's is parchment on near-black).
 Color healthBandColor(
   HealthBand band, {
-  required bool onDark,
   required AppColors colors,
   HeroStyle? hero,
 }) =>
     switch (band) {
-      HealthBand.excellent =>
-        onDark ? (hero?.positive ?? AppColors.successDark) : colors.success,
-      HealthBand.good => onDark ? (hero?.accent ?? AppColors.gold) : colors.brandAccent,
+      HealthBand.excellent => hero?.positive ?? colors.success,
+      HealthBand.good => hero?.accent ?? colors.brandAccent,
       HealthBand.fair => const Color(0xFFD79A3C),
-      HealthBand.needsWork =>
-        onDark ? const Color(0xFFE0904A) : const Color(0xFFD2772F),
-      HealthBand.atRisk =>
-        onDark ? (hero?.negative ?? AppColors.dangerDark) : colors.danger,
+      HealthBand.needsWork => (hero?.onDark ?? false)
+          ? const Color(0xFFE0904A)
+          : const Color(0xFFD2772F),
+      HealthBand.atRisk => hero?.negative ?? colors.danger,
     };
 
 Color _scoreColor(
   double score, {
-  required bool onDark,
   required AppColors colors,
   HeroStyle? hero,
 }) =>
-    healthBandColor(FinancialHealth.bandFor(score),
-        onDark: onDark, colors: colors, hero: hero);
+    healthBandColor(FinancialHealth.bandFor(score), colors: colors, hero: hero);
 
 /// Dashboard card for the **Financial Health Score** — a single 0–100 number
 /// (100 healthy, 0 poor) blending savings rate, budget adherence, recurring
@@ -53,7 +53,7 @@ class FinancialHealthCard extends StatelessWidget {
     final colors = AppColors.of(context);
     final hasScore = health.hasScore;
     final accent = hasScore
-        ? _scoreColor(health.scoreValue!, onDark: false, colors: colors)
+        ? _scoreColor(health.scoreValue!, colors: colors)
         : colors.textTertiary;
 
     return Container(
@@ -181,7 +181,7 @@ class FinancialHealthCard extends StatelessWidget {
   Widget _pillar(AppColors colors, String label, double? score) {
     final available = score != null;
     final color =
-        available ? _scoreColor(score, onDark: false, colors: colors) : colors.textTertiary;
+        available ? _scoreColor(score, colors: colors) : colors.textTertiary;
     final fraction = available ? (score / 100).clamp(0.0, 1.0) : 0.0;
 
     return Column(
@@ -260,12 +260,17 @@ class FinancialHealthCard extends StatelessWidget {
 /// the same explainer as the full card.
 class FinancialHealthInline extends StatelessWidget {
   final FinancialHealth health;
-  final bool onDark;
+
+  /// The surface this sits on — non-null on a marquee card, null on a normal
+  /// one. A [HeroStyle] rather than an `onDark` flag because a hero's
+  /// brightness is its own: Vellum prints a light hero on a dark canvas, so
+  /// only the surface can say how to ink what sits on it.
+  final HeroStyle? hero;
 
   const FinancialHealthInline({
     super.key,
     required this.health,
-    this.onDark = false,
+    this.hero,
   });
 
   @override
@@ -273,13 +278,12 @@ class FinancialHealthInline extends StatelessWidget {
     final colors = AppColors.of(context);
     if (!health.hasScore) return const SizedBox.shrink();
 
-    final hero = onDark ? HeroStyle.of(context) : null;
+    final hero = this.hero;
     final score = health.score!;
-    final color = _scoreColor(health.scoreValue!,
-        onDark: onDark, colors: colors, hero: hero);
-    final labelColor = onDark ? hero!.accent : colors.textSecondary;
-    final muted =
-        onDark ? Colors.white.withValues(alpha: 0.55) : colors.textTertiary;
+    final color =
+        _scoreColor(health.scoreValue!, colors: colors, hero: hero);
+    final labelColor = hero?.accent ?? colors.textSecondary;
+    final muted = hero?.foregroundAlpha(0.55) ?? colors.textTertiary;
 
     return Row(
       children: [
@@ -376,7 +380,7 @@ Widget _explainRow(
 ) {
   final available = score != null;
   final color =
-      available ? _scoreColor(score, onDark: false, colors: colors) : colors.textTertiary;
+      available ? _scoreColor(score, colors: colors) : colors.textTertiary;
   return Padding(
     padding: const EdgeInsets.only(bottom: 14),
     child: Row(
