@@ -28,9 +28,10 @@ import '../providers/theme_provider.dart';
 /// The signature weapon/ability each royal wields in the cosmetic reaction
 /// animations (see royal_reactions.dart). Rendering only — never gameplay.
 /// Each weapon also decides HOW its royal attacks the screen (and what the
-/// shatter looks like): sword slashes, lance slices, club smashes, bow
-/// shoots, orbs are hurled, the med kit slams a shock pulse.
-enum RoyalWeapon { lance, warClub, bow, medKit, orbs, sword }
+/// shatter looks like): the sword of state slashes, the knight's sword lunges,
+/// the club smashes, the bow shoots, orbs are hurled, the med kit slams a
+/// shock pulse.
+enum RoyalWeapon { knightSword, warClub, bow, medKit, orbs, sword }
 
 /// One royal character: identity, base art, animation frames and theme.
 class RoyalAvatar {
@@ -56,6 +57,17 @@ class RoyalAvatar {
   /// The royal's signature weapon, shown in reaction animations.
   final RoyalWeapon weapon;
 
+  /// How many LEADING columns of [rows] hold the carried weapon rather than
+  /// the character (the left-hand weapon lane; 0 when the art has none).
+  ///
+  /// The 16×16 sprite is a whole portrait, weapon included, and that is what
+  /// the avatar circle should show. The full-body chibi in royal_character.dart
+  /// uses the same rows for the HEAD alone and draws a real weapon in the
+  /// character's hand — so without this the sprite's weapon was rendered a
+  /// second time, floating beside the face (the Prince's lance became a fat
+  /// bar through his cheek, the Dark Prince's club head a little flag).
+  final int weaponCols;
+
   const RoyalAvatar({
     required this.id,
     required this.spriteIndex,
@@ -68,7 +80,18 @@ class RoyalAvatar {
     required this.eyesRight,
     required this.theme,
     required this.weapon,
+    this.weaponCols = 0,
   });
+
+  /// One row with its weapon lane blanked out.
+  String stripWeaponLane(String row) => weaponCols <= 0
+      ? row
+      : '${'.' * weaponCols}${row.substring(weaponCols)}';
+
+  /// [rows] with the weapon lane blanked out — the head on its own, for the
+  /// full-body rig. Identical to [rows] when the art has no weapon lane.
+  List<String> get headRows =>
+      weaponCols <= 0 ? rows : [for (final r in rows) stripWeaponLane(r)];
 }
 
 /// The custom look a royal lends to surfaces that honour it (profile card).
@@ -352,34 +375,37 @@ const Map<String, Color> _queenPalette = {
 };
 
 // ── The Prince (heir): gold coronet over chestnut hair, gilded plate
-// armour, and a steel-tipped lance held upright in the left hand. The
-// waving right hand stays free. ─────────────────────────────────────────────
+// armour, and his arming sword held point-up in the left hand — steel blade,
+// gold crossguard, ruby pommel. The waving right hand stays free.
+//
+// He carried a lance until v1.69.0. At chibi scale it was taller than he was
+// and read as a pole leaning on him rather than a weapon he owned; a blade
+// sized to the man suits the heir far better. ───────────────────────────────
 const List<String> _princeRows = [
+  '..S.............',
   '.SS.............',
   '.SS.............',
-  '.LL.............',
-  '.LL.XCCGCCGCCX..',
-  '.LL.XHHHHHHHHX..',
-  '.LL.XKKKKKKKKX..',
-  '.LL.XKWWKKWWKX..',
-  '.LL.XKIIKKIIKX..',
-  '.LL.XKKKKKKKKX..',
-  '.LL.XKKKkkKKKX..',
-  '.LL..XKKKKKKX...',
-  '.LL.XXAAAAAAXX..',
+  '.SS.XCCGCCGCCX..',
+  '.SS.XHHHHHHHHX..',
+  '.SS.XKKKKKKKKX..',
+  '.SS.XKWWKKWWKX..',
+  '.SS.XKIIKKIIKX..',
+  '.SS.XKKKKKKKKX..',
+  '.SS.XKKKkkKKKX..',
+  'CCCC.XKKKKKKX...',
+  '.cc.XXAAAAAAXX..',
   '.KKKXATAAAATAX..',
-  '.LL.XATAAAATAX..',
-  '.LL.XAaAGGAaAX..',
-  '.LL.XXaAAAAaXX..',
+  '.cc.XATAAAATAX..',
+  '.GG.XAaAGGAaAX..',
+  '....XXaAAAAaXX..',
 ];
 
 const Map<String, Color> _princePalette = {
   'X': _outline,
-  'S': Color(0xFFD7DCE4), // steel lance tip
-  'L': Color(0xFFC09232), // gilded lance shaft
-  'C': _gold,
-  'c': _goldDeep,
-  'G': Color(0xFFE23B4E), // ruby
+  'S': Color(0xFFD7DCE4), // steel blade
+  'C': _gold, // crossguard
+  'c': _goldDeep, // wrapped grip
+  'G': Color(0xFFE23B4E), // ruby (coronet + pommel)
   'H': Color(0xFF6B4423), // chestnut hair
   'h': Color(0xFF4A2E16),
   'K': Color(0xFFF2C9A0),
@@ -393,11 +419,15 @@ const Map<String, Color> _princePalette = {
 
 // ── The Dark Prince: iron coronet, black plate, ember eyes, and a studded
 // war club in the left hand. Same body plan as the Prince — the palette and
-// weapon tell the two brothers apart. ───────────────────────────────────────
+// weapon tell the two brothers apart.
+//
+// The club head sits inside the 4-column weapon lane (see [RoyalAvatar.
+// weaponCols]) and centred over its own haft; it used to run one column wider,
+// which both overhung the haft and collided with the head outline below. ────
 const List<String> _darkPrinceRows = [
-  'XMMMX...........',
-  'XMSMX...........',
-  'XMMMX...........',
+  'XMMX............',
+  'XMSX............',
+  'XMMX............',
   '.LL.XCCGGCCCCX..',
   '.LL.XHHHHHHHHX..',
   '.LL.XKKKKKKKKX..',
@@ -598,14 +628,15 @@ const List<RoyalAvatar> kRoyalAvatars = [
   RoyalAvatar(
     id: 'prince',
     spriteIndex: 20,
-    weapon: RoyalWeapon.lance,
+    weapon: RoyalWeapon.knightSword,
     rows: _princeRows,
     palette: _princePalette,
+    weaponCols: 4,
     eyeRowWhites: 6,
     eyeRowIris: 7,
-    eyesClosed: ['.LL.XKKKKKKKKX..', '.LL.XKkkKKkkKX..'],
-    eyesLeft: ['.LL.XKWWKKWWKX..', '.LL.XKIWKKIWKX..'],
-    eyesRight: ['.LL.XKWWKKWWKX..', '.LL.XKWIKKWIKX..'],
+    eyesClosed: ['.SS.XKKKKKKKKX..', '.SS.XKkkKKkkKX..'],
+    eyesLeft: ['.SS.XKWWKKWWKX..', '.SS.XKIWKKIWKX..'],
+    eyesRight: ['.SS.XKWWKKWWKX..', '.SS.XKWIKKWIKX..'],
     theme: RoyalTheme(
       cardGradient: [Color(0xFF4A3808), Color(0xFF241B03), Color(0xFF0E0A01)],
       ringColors: [_gold, Color(0xFFFFE9B0), Color(0xFFD4A72C), _gold],
@@ -624,6 +655,7 @@ const List<RoyalAvatar> kRoyalAvatars = [
     weapon: RoyalWeapon.warClub,
     rows: _darkPrinceRows,
     palette: _darkPrincePalette,
+    weaponCols: 4,
     eyeRowWhites: 6,
     eyeRowIris: 7,
     eyesClosed: ['.LL.XKKKKKKKKX..', '.LL.XKkkKKkkKX..'],
