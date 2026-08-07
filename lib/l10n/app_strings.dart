@@ -3169,6 +3169,8 @@ class AppStrings {
       _t('Midnight Indigo', 'मिडनाइट इंडिगो', 'मिडनाइट इंडिगो', 'মিডনাইট ইন্ডিগো', 'మిడ్‌నైట్ ఇండిగో', 'மிட்நைட் இண்டிகோ');
   String get themeNameVellum =>
       _t('Vellum', 'वेलम', 'वेलम', 'ভেলাম', 'వెల్లమ్', 'வெல்லம்');
+  String get themePreviewAction =>
+      _t('Preview', 'झलक देखें', 'झलक पहा', 'প্রিভিউ', 'ప్రివ్యూ', 'முன்னோட்டம்');
 
   // ── Onboarding ────────────────────────────────────────────────────────────
   String get chooseLanguageTitle => _t('Choose your language',
