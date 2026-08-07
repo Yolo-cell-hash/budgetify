@@ -859,6 +859,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     Text(
                       'Budgetify',
                       style: TextStyle(
+                        fontFamily: AppPalette.displayFamilyOf(context),
                         fontSize: 26,
                         fontWeight: FontWeight.w700,
                         letterSpacing: -0.6,
@@ -974,6 +975,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             value: _monthlyExpenses,
             formatter: formatter,
             style: TextStyle(
+              fontFamily: AppPalette.displayFamilyOf(context),
               fontSize: 38,
               fontWeight: FontWeight.w700,
               letterSpacing: -1.2,
@@ -1101,7 +1103,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           SavingsRateBar(
             income: _monthlyIncome,
             expenses: _monthlyExpenses,
-            onDark: hero.onDark,
+            hero: hero,
           ),
           // Compact Financial Health indicator, shown here under the savings
           // rate when the detailed card is turned off.
@@ -1109,7 +1111,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             const SizedBox(height: 16),
             Container(height: 1, color: hero.divider),
             const SizedBox(height: 14),
-            FinancialHealthInline(health: _health!, onDark: hero.onDark),
+            FinancialHealthInline(health: _health!, hero: hero),
           ],
               ],
             ),

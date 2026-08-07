@@ -4,6 +4,37 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.66.0] — 2026-08-07
+
+### Added
+
+- **Vellum — a new theme, earned at a 60-day streak.** The Streak Reward Road
+  now runs two months, and what waits at the end reads less like a recolour
+  than like a different object. Vellum prints your figures in deep ink on
+  parchment cards and lays them on near-black paper stock: warm, editorial,
+  quiet. It is the first theme in the app whose cards run *lighter* than the
+  screen behind them — everything else you see, the bank rows, the section
+  rules, the nav bar, stays light-on-dark, so the cards read as pages on a desk
+  rather than as a theme that couldn't decide. Like every road reward it unlocks
+  against your *longest* streak, so a bad week never takes it back.
+- **Two Streak Freezes at 52 days.** The climb from Midnight Indigo to Vellum is
+  the longest stretch on the road, and the hardest; it now has a stop in the
+  middle rather than a fortnight of nothing.
+
+### Fixed
+
+- **Figures on a marquee card now take their colours from the card, not the
+  screen.** The savings-rate bar and the inline Financial Health score used to
+  ask whether the *app* was in a dark theme and colour themselves from the
+  screen's palette. That happened to work while every card matched its
+  background, and would have painted screen-grey text onto Vellum's parchment.
+  They now read the surface they are actually drawn on. The visible effects on
+  existing themes are small and in the right direction: on a dark theme, an
+  overspent savings bar on a normal card now uses the lifted red that is legible
+  there instead of the dark-on-dark one, and on the light theme the SAVINGS RATE
+  and FINANCIAL HEALTH labels now match the gold eyebrow already above them on
+  the same card.
+
 ## [1.65.0] — 2026-08-06
 
 ### Added

@@ -1,3 +1,5 @@
+import 'package:budget_tracker/l10n/app_strings.dart';
+import 'package:budget_tracker/models/achievement.dart';
 import 'package:budget_tracker/models/streak_reward.dart';
 import 'package:budget_tracker/providers/locale_provider.dart';
 import 'package:budget_tracker/providers/theme_provider.dart';
@@ -43,12 +45,66 @@ void main() {
       expect(unlockedStreakRewards(100).length, kStreakRewards.length);
     });
 
-    test('freeze packs sit at 5, 18 and 36 days with positive grants', () {
+    test('every milestone has a real localised name and blurb', () {
+      // streakRewardName/Blurb fall through to `return id` / `return ''`, so a
+      // catalog entry with no string lands on the road showing its own id. That
+      // is silent in analysis and in every test that does not look at the road,
+      // so pin it here where adding a milestone is the thing being done.
+      for (final lang in AppLanguage.values) {
+        final l10n = AppStrings(lang);
+        for (final r in kStreakRewards) {
+          final name = l10n.streakRewardName(r.id);
+          expect(name, isNotEmpty, reason: '${r.id}/${lang.name} has no name');
+          expect(name, isNot(r.id),
+              reason: '${r.id}/${lang.name} fell through to its id');
+          expect(l10n.streakRewardBlurb(r.id), isNotEmpty,
+              reason: '${r.id}/${lang.name} has no blurb');
+        }
+      }
+    });
+
+    test('the road has no gap wider than the pre-existing 36→45 one', () {
+      // A stretch with nothing on it is a stretch with nothing to come back
+      // for. 9 days (36→45) is the widest that has ever shipped; the 45→60 run
+      // is now broken at 52 so it does not become the new worst.
+      final gaps = {
+        for (var i = 1; i < kStreakRewards.length; i++)
+          '${kStreakRewards[i - 1].days}→${kStreakRewards[i].days}':
+              kStreakRewards[i].days - kStreakRewards[i - 1].days,
+      };
+      expect(gaps.values.reduce((a, b) => a > b ? a : b), 9);
+      expect(gaps['45→52'], 7);
+      expect(gaps['52→60'], 8);
+    });
+
+    test('vellum sits at the top of the road, 60 days in', () {
+      final vellum = streakRewardById('theme_vellum')!;
+      expect(vellum.days, 60);
+      expect(vellum.themeVariant, AppThemeVariant.vellum);
+      expect(vellum.kind, StreakRewardKind.theme);
+      // The road's summit outranks the 45-day ruby.
+      expect(vellum.rarity, BadgeRarity.diamond);
+      expect(kStreakRewards.last.id, 'theme_vellum');
+
+      // Locked at 59 days, unlocked at 60 — and it is the last thing to land.
+      expect(vellum.isUnlocked(59), isFalse);
+      expect(vellum.isUnlocked(60), isTrue);
+      expect(unlockedStreakRewardIds(59).contains('theme_vellum'), isFalse);
+      expect(unlockedStreakRewards(60).length, kStreakRewards.length);
+    });
+
+    test('freeze packs sit at 5, 18, 36 and 52 days with positive grants', () {
       final packs = kStreakRewards
           .where((r) => r.kind == StreakRewardKind.freeze)
           .toList();
-      expect(packs.map((r) => r.days), [5, 18, 36]);
-      expect(packs.map((r) => r.freezeCount), [1, 2, 2]);
+      expect(packs.map((r) => r.days), [5, 18, 36, 52]);
+      expect(packs.map((r) => r.freezeCount), [1, 2, 2, 2]);
+      // No pack grants more than the stash can hold, or it reads as a bigger
+      // reward on the road than it can ever actually be.
+      for (final p in packs) {
+        expect(p.freezeCount, lessThanOrEqualTo(GamificationService.maxFreezes),
+            reason: '${p.id} grants past the stash cap');
+      }
       // Only freeze packs grant freezes.
       for (final r in kStreakRewards) {
         expect(r.freezeCount > 0, r.kind == StreakRewardKind.freeze,
@@ -121,15 +177,68 @@ void main() {
       }
     });
 
-    test('dark and onyxAmber are the dark-brightness variants', () {
+    test('dark, onyxAmber, midnightIndigo and vellum are dark-brightness', () {
       expect(AppTheme.of(AppThemeVariant.dark).brightness, Brightness.dark);
       expect(
           AppTheme.of(AppThemeVariant.onyxAmber).brightness, Brightness.dark);
+      expect(AppTheme.of(AppThemeVariant.midnightIndigo).brightness,
+          Brightness.dark);
+      expect(AppTheme.of(AppThemeVariant.vellum).brightness, Brightness.dark);
       expect(AppTheme.of(AppThemeVariant.light).brightness, Brightness.light);
       expect(
           AppTheme.of(AppThemeVariant.smokyIvory).brightness, Brightness.light);
       expect(AppTheme.of(AppThemeVariant.seashellMauve).brightness,
           Brightness.light);
+      expect(AppTheme.of(AppThemeVariant.royalIndigo).brightness,
+          Brightness.light);
+    });
+
+    test('vellum is the only LIGHT hero on a DARK canvas', () {
+      // Dark-hero-on-light-canvas was always allowed (smoky/seashell/royal all
+      // do it) and was safe, because the on-dark branch hardcoded white and
+      // white works on any dark hero. The inverse is what Vellum introduces:
+      // a light hero over a dark canvas, where falling back to palette colours
+      // paints canvas-grey onto parchment. That is why SavingsRateBar and
+      // FinancialHealthInline take a HeroStyle instead of an `onDark` flag.
+      final lightHeroOnDarkCanvas = [
+        for (final v in AppThemeVariant.values)
+          if (AppTheme.of(v).brightness == Brightness.dark &&
+              !AppTheme.of(v).extension<AppPalette>()!.hero.onDark)
+            v,
+      ];
+      expect(lightHeroOnDarkCanvas, [AppThemeVariant.vellum]);
+
+      // And Vellum really is that shape: near-black canvas, parchment hero.
+      final vellum = AppTheme.of(AppThemeVariant.vellum);
+      expect(vellum.brightness, Brightness.dark);
+      final hero = vellum.extension<AppPalette>()!.hero;
+      expect(hero.onDark, isFalse);
+      // The hero's own ink is dark and the canvas text is light — the two
+      // surfaces genuinely disagree, which is the point of the theme.
+      expect(hero.foreground.computeLuminance(), lessThan(0.2));
+      expect(AppColors.vellum.text.computeLuminance(), greaterThan(0.7));
+    });
+
+    test('vellum carries the display-face hook; every other variant is Manrope',
+        () {
+      // The hook exists so bundling a serif is a one-line change in
+      // theme_provider (kVellumDisplayFamily) rather than a sweep of TextStyles.
+      for (final v in AppThemeVariant.values) {
+        final family = AppTheme.of(v).extension<AppPalette>()!.displayFamily;
+        expect(family, v == AppThemeVariant.vellum ? kVellumDisplayFamily : null,
+            reason: '$v display family');
+      }
+    });
+
+    test('every variant is reachable from the picker and the palette map', () {
+      // AppThemeVariant.values drives the Appearance picker directly, so a
+      // variant that AppTheme.of or AppColors.forVariant forgot would throw
+      // there rather than here. Both switches are exhaustive by construction;
+      // this pins that they stay that way as variants are added.
+      for (final v in AppThemeVariant.values) {
+        expect(() => AppTheme.of(v), returnsNormally);
+        expect(() => AppColors.forVariant(v), returnsNormally);
+      }
     });
   });
 
@@ -174,6 +283,27 @@ void main() {
 
       // First-ever pop adopts both already-earned themes — no celebration.
       expect(await seed.popNewlyUnlockedStreakRewards(), isEmpty);
+    });
+
+    test('the 52-day pack lands in the stash, once, and is capped', () async {
+      final svc = GamificationService();
+      for (var d = 1; d <= 51; d++) {
+        await svc.recordActiveDay(now: DateTime(2026, 6, 1).add(Duration(days: d - 1)));
+      }
+      expect((await svc.streakInfo()).longest, 51);
+      final before = (await svc.freezeInfo()).available;
+
+      // Day 52 grants the pack on top of whatever the 5-day interval earned,
+      // and the stash never runs past its cap.
+      await svc.recordActiveDay(now: DateTime(2026, 6, 1).add(const Duration(days: 51)));
+      expect((await svc.streakInfo()).longest, 52);
+      final after = (await svc.freezeInfo()).available;
+      expect(after, greaterThanOrEqualTo(before));
+      expect(after, lessThanOrEqualTo(GamificationService.maxFreezes));
+
+      // Carrying on does not grant it a second time.
+      await svc.recordActiveDay(now: DateTime(2026, 6, 1).add(const Duration(days: 52)));
+      expect((await svc.freezeInfo()).available, lessThanOrEqualTo(GamificationService.maxFreezes));
     });
 
     test('royal picks track earned-minus-spent, and unlocks persist',
@@ -261,9 +391,9 @@ void main() {
       expect(find.text('Soft Seashell & Dusty Mauve'), findsOneWidget);
       expect(find.textContaining('Reach a 3-day streak'), findsOneWidget);
       expect(find.text('More streak rewards on the way.'), findsOneWidget);
-      // The freeze packs appear on the road (5-, 18- and 36-day milestones).
+      // The freeze packs appear on the road (5-, 18-, 36- and 52-day stops).
       expect(find.text('+1 Streak Freeze'), findsOneWidget);
-      expect(find.text('+2 Streak Freezes'), findsNWidgets(2));
+      expect(find.text('+2 Streak Freezes'), findsNWidgets(3));
       // Nothing unlocked yet, so no apply control is shown.
       expect(find.text('Apply theme'), findsNothing);
       expect(find.text('Added to your freeze stash'), findsNothing);
