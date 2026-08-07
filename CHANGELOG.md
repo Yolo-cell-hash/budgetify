@@ -30,9 +30,12 @@ without adding any network access.
   snaps her kit open and takes your vitals: a heartbeat writes itself across
   the air beside her, healing plus-signs rise out of the glow, and a clean
   pulse ring signs you off — which in a budgeting app is barely a joke, since
-  the Financial Health score is a vital sign already. The Prince keeps the
-  wave; somebody should, or the sequence turns into a variety act, and his
-  entrance already carries the newest thing about him.
+  the Financial Health score is a vital sign already. The Prince salutes with
+  his new sword: blade up to the vertical in front of his face, light running
+  up the steel, then recovered to his side for a short sharp bow. They are
+  deliberately not all the same KIND of move — two are theatre, two are
+  affection, one is a threat and one is drill — because a court where everyone
+  mugs at the camera the same way is six copies of one idea.
 - **The Sovereign actually reads as fast now.** His dash conveyed speed with
   position alone, so a fully-drawn body appearing somewhere new looked like
   dropped frames rather than movement. During a burst the solid body now fades

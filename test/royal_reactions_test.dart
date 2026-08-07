@@ -402,25 +402,25 @@ void main() {
       }
     });
 
-    test('every royal has a signature move, and it is one it can perform', () {
-      // Five characterful ones; the Prince keeps the plain wave deliberately,
-      // so the sequence stays an entrance rather than a variety act.
+    test('every royal has a signature move, and no two share one', () {
       const expected = {
         'empress': RoyalAction.spell,
         'princess': RoyalAction.kiss,
         'darkprince': RoyalAction.menace,
         'sovereign': RoyalAction.roar,
         'royalmedic': RoyalAction.mend,
-        'prince': RoyalAction.wave,
+        'prince': RoyalAction.salute,
       };
       for (final r in kRoyalAvatars) {
         expect(expected.containsKey(r.id), isTrue,
             reason: '${r.id} has no signature declared');
       }
-      // No two royals share a signature apart from the deliberate wave.
       final signatures = expected.values.toList();
       expect(signatures.toSet().length, signatures.length,
           reason: 'a signature is only a signature if it is unique');
+      // The generic wave is the fallback for royals added later, so no
+      // shipped royal should be resolving to it.
+      expect(signatures, isNot(contains(RoyalAction.wave)));
     });
 
     test('the full-body head drops the sprite weapon lane, and only that', () {
