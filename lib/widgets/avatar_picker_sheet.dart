@@ -47,13 +47,18 @@ Future<GamiProfile?> showAvatarPicker(
 
 /// After an avatar is saved, bring the Android launcher icon in step with the
 /// equipped royal — only when the "match app icon" opt-in is on and the swap
-/// would actually change the icon. Android swaps it by disabling the running
-/// launcher component, which closes the app; so we ask first and, on confirm,
-/// apply then close cleanly (reopening shows the new icon) so it reads as
-/// intentional rather than a crash. A no-op off-Android or when unchanged.
+/// would actually change the icon. Android applies alternate icons by toggling
+/// launcher components, and launchers only pick the new artwork up reliably
+/// once the app has been through a fresh start; so we ask first and, on
+/// confirm, apply and RESTART. A no-op off-Android or when unchanged.
 ///
-/// Call this *after* the profile is persisted, so the close can never lose the
-/// equip.
+/// The restart used to be a plain close, leaving the user on their home screen
+/// to reopen the app themselves — an errand handed out for a cosmetic change
+/// they made two taps ago. [AppIconService.relaunch] brings it straight back
+/// up instead; closing is only the fallback for when the platform can't.
+///
+/// Call this *after* the profile is persisted, so the restart can never lose
+/// the equip.
 Future<void> confirmRoyalAppIcon(
   BuildContext context,
   GamiProfile profile,
@@ -85,9 +90,11 @@ Future<void> confirmRoyalAppIcon(
   );
   if (confirmed != true) return;
   await AppIconService.sync(equippedSeed: seed, enabled: enabled);
-  // Icon swapped — close so the app reopens wearing it (launchers refresh the
-  // icon on a fresh start). The user agreed and the profile is already saved.
-  await SystemNavigator.pop();
+  // Icon swapped — take the fresh start that makes launchers show it, by
+  // relaunching rather than closing. The user agreed and the profile is
+  // already saved, so either path is safe.
+  if (await AppIconService.relaunch()) return;
+  await SystemNavigator.pop(); // platform couldn't relaunch — close instead
 }
 
 class _AvatarPickerSheet extends StatefulWidget {
