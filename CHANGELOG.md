@@ -8,6 +8,21 @@ without adding any network access.
 
 ### Fixed
 
+- **Backing out of the "apply to similar" sheet no longer tags the
+  transaction anyway.** Saving a tag wrote the row to the database *before*
+  asking how far the tag should reach, so dismissing that sheet left the
+  transaction tagged as though you had picked "Only this one" — the one
+  gesture available for saying "actually, no" did the opposite. The scope is
+  now asked first and nothing is written until it is answered, which is the
+  contract clearing a tag has always had. The two are the same decision in
+  opposite directions and now behave identically.
+- **Changing the app icon to match your royal restarts the app instead of
+  just closing it.** Android only shows new launcher artwork after a fresh
+  start, and the app took that by shutting down and leaving you on your home
+  screen to open it again — an errand for a cosmetic change made two taps
+  earlier. It now comes straight back up on its own; closing remains the
+  fallback if the platform can't relaunch.
+
 - **The launch parade no longer gets stuck in the corner.** The entrance
   picked its far point as an absolute screen fraction rather than a distance
   from where the royal started. The Home profile circle sits in the top-right

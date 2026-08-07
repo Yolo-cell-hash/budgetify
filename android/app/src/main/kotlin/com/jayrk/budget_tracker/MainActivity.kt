@@ -2,8 +2,11 @@ package com.jayrk.budget_tracker
 
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -46,13 +49,18 @@ class MainActivity : FlutterFragmentActivity() {
         // failure must never crash the app, so errors resolve to false.
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "budgetify/app_icon")
             .setMethodCallHandler { call, result ->
-                if (call.method != "setIcon") {
-                    result.notImplemented()
-                    return@setMethodCallHandler
-                }
                 try {
-                    setLauncherIcon(call.argument<String>("icon"))
-                    result.success(true)
+                    when (call.method) {
+                        "setIcon" -> {
+                            setLauncherIcon(call.argument<String>("icon"))
+                            result.success(true)
+                        }
+                        // Bring the app straight back up on the newly enabled
+                        // launcher component, instead of leaving the user on
+                        // their home screen to reopen it by hand.
+                        "relaunch" -> result.success(relaunch())
+                        else -> result.notImplemented()
+                    }
                 } catch (e: Exception) {
                     result.success(false)
                 }
@@ -151,6 +159,35 @@ class MainActivity : FlutterFragmentActivity() {
                 PackageManager.DONT_KILL_APP,
             )
         }
+    }
+
+    /** Restart the app on whichever launcher component is currently enabled.
+     *
+     *  Used right after an icon swap. The swap itself does not kill us —
+     *  [setLauncherIcon] passes DONT_KILL_APP — but the running task is
+     *  attached to a component that has just been disabled, and launchers
+     *  pick the new icon up reliably once the app has been through a fresh
+     *  start. Rather than closing and asking the user to reopen it by hand,
+     *  we relaunch: same fresh start, no trip to the home screen.
+     *
+     *  The target is resolved through the package manager rather than
+     *  hardcoded, so it always lands on whichever alias `setLauncherIcon`
+     *  just enabled. Returns false when no launch intent resolves, which lets
+     *  Dart fall back to simply closing. */
+    private fun relaunch(): Boolean {
+        val intent = packageManager.getLaunchIntentForPackage(packageName)
+            ?: return false
+        intent.addFlags(
+            Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK,
+        )
+        // A beat for the component change to settle before the new task
+        // resolves against it; without it the relaunch can race the swap and
+        // come back up on the component we just disabled.
+        Handler(Looper.getMainLooper()).postDelayed({
+            startActivity(intent)
+            finish()
+        }, 220)
+        return true
     }
 
     private fun vibrator(): Vibrator =
