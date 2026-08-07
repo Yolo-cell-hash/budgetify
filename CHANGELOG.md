@@ -4,6 +4,27 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.67.0] — 2026-08-07
+
+### Added
+
+- **See a theme before you wear it.** Every swatch in Settings → Appearance now
+  has a preview button, and tapping a locked theme opens the same still instead
+  of a message telling you to come back later. The still shows the month card
+  and the screen around it together, which is the part a two-colour swatch
+  cannot describe: Vellum's swatch shows the right two tones but no way to tell
+  that the parchment is a *card sitting on* the dark screen rather than a colour
+  used on it. Six of the eight themes are locked on a fresh install, and until
+  now the only thing you could learn about them was two rectangles and a number
+  of days.
+
+### Changed
+
+- **A locked theme no longer dead-ends in a message.** Tapping one used to show
+  "Reach a 60-day streak to unlock this theme" and nothing else — asking for two
+  months of patience toward something you had never been shown. It now opens the
+  preview, and says the same line underneath it.
+
 ## [1.66.0] — 2026-08-07
 
 ### Added
