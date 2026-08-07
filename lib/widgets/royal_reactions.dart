@@ -408,16 +408,21 @@ _BootStyle _bootStyleFor(String id) => switch (id) {
 ///
 /// The parade already gave each royal its own way of crossing the screen, but
 /// every one of them still ENDED on the same generic wave. The signature is
-/// the beat the user actually remembers, so it belongs to the character:
-/// the Empress conjures, the Princess blows a kiss, the Dark Prince plants his
-/// club, and the Sovereign's lion roars straight down the lens. The Prince and
-/// the Medic keep the wave on purpose — not everyone needs a catchphrase, and
-/// two plain ones make the other four land harder.
+/// the beat the user actually remembers, so it belongs to the character: the
+/// Empress conjures, the Princess blows a kiss, the Dark Prince plants his
+/// club, the Sovereign's lion roars straight down the lens, and the Medic
+/// takes your vitals — which in a budgeting app is not only a joke, since the
+/// Financial Health score is exactly a pulse reading.
+///
+/// The Prince keeps the wave. Somebody should: with all six mugging at the
+/// camera the sequence turns into a variety act, and his entrance already
+/// carries the newest thing about him (the sword).
 RoyalAction _signatureActionFor(String id) => switch (id) {
       'empress' => RoyalAction.spell,
       'princess' => RoyalAction.kiss,
       'darkprince' => RoyalAction.menace,
       'sovereign' => RoyalAction.roar,
+      'royalmedic' => RoyalAction.mend,
       _ => RoyalAction.wave,
     };
 

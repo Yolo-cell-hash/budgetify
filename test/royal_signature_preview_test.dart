@@ -20,6 +20,7 @@ RoyalAction _signatureOf(String id) => switch (id) {
       'princess' => RoyalAction.kiss,
       'darkprince' => RoyalAction.menace,
       'sovereign' => RoyalAction.roar,
+      'royalmedic' => RoyalAction.mend,
       _ => RoyalAction.wave,
     };
 
