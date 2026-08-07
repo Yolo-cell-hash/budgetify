@@ -28,18 +28,23 @@ class SavingsStats {
 }
 
 /// Compact "income vs expense vs savings rate" summary: a labelled percentage,
-/// an animated fill bar, and a caption. Adapts to a dark hero surface
-/// ([onDark]) or a normal themed card, and respects privacy mode for figures.
+/// an animated fill bar, and a caption. Respects privacy mode for figures.
+///
+/// Pass the [hero] when this sits on a marquee card, and leave it null on a
+/// normal themed one. It takes a [HeroStyle] rather than an `onDark` flag
+/// because a hero's brightness is its own — Vellum prints a light parchment
+/// hero on a near-black canvas — so "which surface am I on" and "is that
+/// surface dark" are two different questions, and only the surface knows.
 class SavingsRateBar extends StatelessWidget {
   final double income;
   final double expenses;
-  final bool onDark;
+  final HeroStyle? hero;
 
   const SavingsRateBar({
     super.key,
     required this.income,
     required this.expenses,
-    this.onDark = false,
+    this.hero,
   });
 
   @override
@@ -49,14 +54,12 @@ class SavingsRateBar extends StatelessWidget {
     final fmt =
         NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
 
-    final hero = HeroStyle.of(context);
-    final labelColor = onDark ? hero.accent : colors.textSecondary;
-    final subText =
-        onDark ? Colors.white.withValues(alpha: 0.62) : colors.textSecondary;
-    final track =
-        onDark ? Colors.white.withValues(alpha: 0.12) : colors.border;
-    final pos = onDark ? hero.positive : AppColors.successLight;
-    final neg = onDark ? hero.negative : AppColors.dangerLight;
+    final hero = this.hero;
+    final labelColor = hero?.accent ?? colors.textSecondary;
+    final subText = hero?.mutedForeground ?? colors.textSecondary;
+    final track = hero?.foregroundAlpha(0.12) ?? colors.border;
+    final pos = hero?.positive ?? colors.success;
+    final neg = hero?.negative ?? colors.danger;
 
     final rate = stats.ratePercent;
     final rateColor =

@@ -104,6 +104,10 @@ void main() {
       ('onyx_privacy', AppTheme.of(AppThemeVariant.onyxAmber), false, null),
       ('royalindigo_privacy', AppTheme.of(AppThemeVariant.royalIndigo), false, null),
       ('midnight_amounts', AppTheme.of(AppThemeVariant.midnightIndigo), true, null),
+      // Vellum is the one variant whose hero runs lighter than its canvas, so
+      // its sheet is the one worth eyeballing when the card changes.
+      ('vellum_privacy', AppTheme.of(AppThemeVariant.vellum), false, null),
+      ('vellum_amounts', AppTheme.of(AppThemeVariant.vellum), true, null),
       (
         'dark_darkprince',
         courtDressFor('pixel', '21')!(

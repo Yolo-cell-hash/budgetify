@@ -1135,6 +1135,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         AppThemeVariant.onyxAmber => context.l10n.themeNameAmber,
         AppThemeVariant.royalIndigo => context.l10n.themeNameRoyalIndigo,
         AppThemeVariant.midnightIndigo => context.l10n.themeNameMidnightIndigo,
+        AppThemeVariant.vellum => context.l10n.themeNameVellum,
       };
 
   /// The Budgetify Plus section — where a lapsed user goes to buy.

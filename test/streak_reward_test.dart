@@ -1,3 +1,4 @@
+import 'package:budget_tracker/models/achievement.dart';
 import 'package:budget_tracker/models/streak_reward.dart';
 import 'package:budget_tracker/providers/locale_provider.dart';
 import 'package:budget_tracker/providers/theme_provider.dart';
@@ -41,6 +42,22 @@ void main() {
         ],
       );
       expect(unlockedStreakRewards(100).length, kStreakRewards.length);
+    });
+
+    test('vellum sits at the top of the road, 60 days in', () {
+      final vellum = streakRewardById('theme_vellum')!;
+      expect(vellum.days, 60);
+      expect(vellum.themeVariant, AppThemeVariant.vellum);
+      expect(vellum.kind, StreakRewardKind.theme);
+      // The road's summit outranks the 45-day ruby.
+      expect(vellum.rarity, BadgeRarity.diamond);
+      expect(kStreakRewards.last.id, 'theme_vellum');
+
+      // Locked at 59 days, unlocked at 60 — and it is the last thing to land.
+      expect(vellum.isUnlocked(59), isFalse);
+      expect(vellum.isUnlocked(60), isTrue);
+      expect(unlockedStreakRewardIds(59).contains('theme_vellum'), isFalse);
+      expect(unlockedStreakRewards(60).length, kStreakRewards.length);
     });
 
     test('freeze packs sit at 5, 18 and 36 days with positive grants', () {
@@ -121,15 +138,68 @@ void main() {
       }
     });
 
-    test('dark and onyxAmber are the dark-brightness variants', () {
+    test('dark, onyxAmber, midnightIndigo and vellum are dark-brightness', () {
       expect(AppTheme.of(AppThemeVariant.dark).brightness, Brightness.dark);
       expect(
           AppTheme.of(AppThemeVariant.onyxAmber).brightness, Brightness.dark);
+      expect(AppTheme.of(AppThemeVariant.midnightIndigo).brightness,
+          Brightness.dark);
+      expect(AppTheme.of(AppThemeVariant.vellum).brightness, Brightness.dark);
       expect(AppTheme.of(AppThemeVariant.light).brightness, Brightness.light);
       expect(
           AppTheme.of(AppThemeVariant.smokyIvory).brightness, Brightness.light);
       expect(AppTheme.of(AppThemeVariant.seashellMauve).brightness,
           Brightness.light);
+      expect(AppTheme.of(AppThemeVariant.royalIndigo).brightness,
+          Brightness.light);
+    });
+
+    test('vellum is the only LIGHT hero on a DARK canvas', () {
+      // Dark-hero-on-light-canvas was always allowed (smoky/seashell/royal all
+      // do it) and was safe, because the on-dark branch hardcoded white and
+      // white works on any dark hero. The inverse is what Vellum introduces:
+      // a light hero over a dark canvas, where falling back to palette colours
+      // paints canvas-grey onto parchment. That is why SavingsRateBar and
+      // FinancialHealthInline take a HeroStyle instead of an `onDark` flag.
+      final lightHeroOnDarkCanvas = [
+        for (final v in AppThemeVariant.values)
+          if (AppTheme.of(v).brightness == Brightness.dark &&
+              !AppTheme.of(v).extension<AppPalette>()!.hero.onDark)
+            v,
+      ];
+      expect(lightHeroOnDarkCanvas, [AppThemeVariant.vellum]);
+
+      // And Vellum really is that shape: near-black canvas, parchment hero.
+      final vellum = AppTheme.of(AppThemeVariant.vellum);
+      expect(vellum.brightness, Brightness.dark);
+      final hero = vellum.extension<AppPalette>()!.hero;
+      expect(hero.onDark, isFalse);
+      // The hero's own ink is dark and the canvas text is light — the two
+      // surfaces genuinely disagree, which is the point of the theme.
+      expect(hero.foreground.computeLuminance(), lessThan(0.2));
+      expect(AppColors.vellum.text.computeLuminance(), greaterThan(0.7));
+    });
+
+    test('vellum carries the display-face hook; every other variant is Manrope',
+        () {
+      // The hook exists so bundling a serif is a one-line change in
+      // theme_provider (kVellumDisplayFamily) rather than a sweep of TextStyles.
+      for (final v in AppThemeVariant.values) {
+        final family = AppTheme.of(v).extension<AppPalette>()!.displayFamily;
+        expect(family, v == AppThemeVariant.vellum ? kVellumDisplayFamily : null,
+            reason: '$v display family');
+      }
+    });
+
+    test('every variant is reachable from the picker and the palette map', () {
+      // AppThemeVariant.values drives the Appearance picker directly, so a
+      // variant that AppTheme.of or AppColors.forVariant forgot would throw
+      // there rather than here. Both switches are exhaustive by construction;
+      // this pins that they stay that way as variants are added.
+      for (final v in AppThemeVariant.values) {
+        expect(() => AppTheme.of(v), returnsNormally);
+        expect(() => AppColors.forVariant(v), returnsNormally);
+      }
     });
   });
 

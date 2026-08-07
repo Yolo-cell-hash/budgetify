@@ -213,6 +213,7 @@ On by default, and switchable off in Settings. Daily **streaks** (with freezes, 
 | **24 days** | **A second royal pick** |
 | 30 days | Royal Indigo theme |
 | 45 days | Midnight Indigo theme |
+| **60 days** | **Vellum theme** — parchment cards on near-black paper stock |
 
 The **ROYALTY** avatars are fully-animated characters that dress the app's hero surfaces in their own court colours, react to your budgeting, and — if you opt in — bring custom animations and haptics.
 
