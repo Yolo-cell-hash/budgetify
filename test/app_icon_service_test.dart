@@ -70,4 +70,14 @@ void main() {
       expect(RoyalAppIcon.desiredIcon(seed: -1, enabled: true), isNull);
     });
   });
+
+  group('relaunch', () {
+    test('reports failure off-Android instead of throwing', () async {
+      // The caller closes the app only when this comes back false, so a throw
+      // here would strand the user mid-swap with neither a restart nor a
+      // close. Host tests are not Android, which is the same shape as a
+      // device where no launch intent resolves.
+      await expectLater(AppIconService.relaunch(), completion(isFalse));
+    });
+  });
 }

@@ -330,6 +330,17 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
         message: context.l10nRead.tagRestored, type: AppToastType.info);
   }
 
+  /// Save the tag the user picked — but only once they've said how far it
+  /// should reach.
+  ///
+  /// The scope sheet is asked FIRST and a dismissal cancels the whole save,
+  /// which is the same contract [_clearTag] has always had. This used to write
+  /// the transaction before opening the sheet, on the reasoning that "nothing
+  /// is lost" if the sheet was then dismissed — but something was: the user's
+  /// consent. Backing out of the sheet silently left the row tagged as though
+  /// they had chosen "Only this one", so the one gesture available for saying
+  /// "actually, no" did the opposite. Tagging and clearing are the same
+  /// decision in two directions and now behave identically.
   Future<void> _saveClassification() async {
     if (_transaction.id == null) return;
 
@@ -337,53 +348,96 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     // that follows carries the tour's explainer banner.
     TutorialService.instance.advanceFrom(TutorialStep.saveTag);
 
-    setState(() => _isSaving = true);
+    final notes = _notesController.text.trim().isEmpty
+        ? null
+        : _notesController.text.trim();
 
-    try {
-      final notes = _notesController.text.trim().isEmpty
-          ? null
-          : _notesController.text.trim();
-
-      if (_selectedCategory == null) {
-        // Deselecting the chip and pressing the "Clear" button above are the
-        // same intent, so both go through the one place that asks how far the
-        // clear should reach. Which gesture the user happened to find must
-        // not decide whether ten transactions keep a tag they shouldn't have.
+    if (_selectedCategory == null) {
+      // Deselecting the chip and pressing the "Clear" button above are the
+      // same intent, so both go through the one place that asks how far the
+      // clear should reach. Which gesture the user happened to find must
+      // not decide whether ten transactions keep a tag they shouldn't have.
+      setState(() => _isSaving = true);
+      try {
         if (notes != null && notes != _transaction.notes) {
           await _dbService.updateTransaction(
             _transaction.copyWith(notes: notes),
           );
           await _refreshTransaction();
         }
-        if (!mounted) return;
-        setState(() => _isSaving = false);
-        await _clearTag();
-        return;
+      } catch (e) {
+        if (mounted) {
+          showAppToast(context,
+              message: context.l10nRead.errorSaving(e),
+              type: AppToastType.error);
+        }
       }
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      await _clearTag();
+      return;
+    }
 
-      final updatedTransaction = _transaction.copyWith(
-        category: _selectedCategory,
-        notes: notes,
-        isClassified: true,
+    // How far should it reach? Nothing has been written yet, so backing out
+    // here leaves the transaction exactly as it was found.
+    final scope = await _askApplyScope();
+
+    if (!mounted) return;
+    // The tour treats the sheet as seen whether it was chosen or dismissed.
+    final wasTourClassification =
+        TutorialService.instance.isAt(TutorialStep.applyOptions);
+    final navigator = Navigator.of(context);
+    TutorialService.instance.advanceFrom(TutorialStep.applyOptions);
+
+    if (scope == null) return; // dismissed — nothing to save
+
+    // Plus gate (dormant during the free window): only "Apply to All" (1) —
+    // the future+existing sweep — locks after the free window. "Apply to All
+    // Existing" (2) and "Only this one" (3) stay free forever. When locked the
+    // paywall opens and, unless Plus was bought right there, the save degrades
+    // to the free single-transaction path rather than failing outright.
+    var effective = scope;
+    if (scope == 1) {
+      final allowed =
+          await PlusScreen.maybePush(context, PlusFeature.tagApplyToAll);
+      if (!mounted) return;
+      if (!allowed) effective = 3;
+    }
+
+    setState(() => _isSaving = true);
+    try {
+      await _dbService.updateTransaction(
+        _transaction.copyWith(
+          category: _selectedCategory,
+          notes: notes,
+          isClassified: true,
+        ),
       );
-
-      await _dbService.updateTransaction(updatedTransaction);
-
-      if (mounted) {
-        // Show bulk flagging options dialog
-        await _showBulkFlaggingDialog();
-      }
+      if (!mounted) return;
+      await _processBulkFlagging(effective);
     } catch (e) {
       if (mounted) {
         showAppToast(context,
             message: context.l10nRead.errorSaving(e), type: AppToastType.error);
       }
     } finally {
-      setState(() => _isSaving = false);
+      if (mounted) setState(() => _isSaving = false);
+    }
+
+    // The tour continues on Home, so once the save settles pop the whole way
+    // back there in one motion instead of stranding the user on the list.
+    if (wasTourClassification) {
+      navigator.popUntil((route) => route.isFirst);
     }
   }
 
-  Future<void> _showBulkFlaggingDialog() async {
+  /// Ask how far the new tag should reach: 1 = this and every future one from
+  /// this payee, 2 = every existing one, 3 = only this transaction. Null when
+  /// the user backed out, which cancels the save.
+  ///
+  /// Purely a question — it writes nothing and navigates nowhere, so the
+  /// caller stays in control of whether anything happens at all.
+  Future<int?> _askApplyScope() async {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final colors = AppColors.of(context);
     final cardColor = isDark ? const Color(0xFF16181E) : Colors.white;
@@ -499,39 +553,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
         ),
       ),
     );
-
-    // Guided tour: the options sheet has been seen (chosen or dismissed).
-    // The tour continues on Home, so after the save settles we pop the whole
-    // way back there in one motion instead of stranding the user on the list.
-    final wasTourClassification =
-        TutorialService.instance.isAt(TutorialStep.applyOptions);
-    final navigator = Navigator.of(context);
-    TutorialService.instance.advanceFrom(TutorialStep.applyOptions);
-
-    if (result != null && mounted) {
-      // Plus gate (dormant during the free window): only "Apply to All" (1) —
-      // the future+existing sweep — locks after the free window. "Apply to All
-      // Existing" (2) and "Only this one" (3) stay free forever. When locked,
-      // the paywall opens and, unless Plus was bought right there, the save
-      // gracefully degrades to the free single-transaction path. The
-      // transaction itself was already saved above — nothing is lost.
-      var effective = result;
-      if (result == 1) {
-        final allowed =
-            await PlusScreen.maybePush(context, PlusFeature.tagApplyToAll);
-        if (!allowed) effective = 3;
-      }
-      if (!mounted) return;
-      await _processBulkFlagging(effective);
-    } else if (mounted) {
-      // User dismissed the dialog — transaction was already saved above,
-      // so pop with true to signal the calling screen to refresh.
-      Navigator.pop(context, true);
-    }
-
-    if (wasTourClassification) {
-      navigator.popUntil((route) => route.isFirst);
-    }
+    return result;
   }
 
   Widget _buildOption(

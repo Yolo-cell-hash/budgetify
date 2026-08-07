@@ -4,6 +4,87 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.69.0] — 2026-08-08
+
+### Fixed
+
+- **Backing out of the "apply to similar" sheet no longer tags the
+  transaction anyway.** Saving a tag wrote the row to the database *before*
+  asking how far the tag should reach, so dismissing that sheet left the
+  transaction tagged as though you had picked "Only this one" — the one
+  gesture available for saying "actually, no" did the opposite. The scope is
+  now asked first and nothing is written until it is answered, which is the
+  contract clearing a tag has always had. The two are the same decision in
+  opposite directions and now behave identically.
+- **Changing the app icon to match your royal restarts the app instead of
+  just closing it.** Android only shows new launcher artwork after a fresh
+  start, and the app took that by shutting down and leaving you on your home
+  screen to open it again — an errand for a cosmetic change made two taps
+  earlier. It now comes straight back up on its own; closing remains the
+  fallback if the platform can't relaunch.
+
+- **The launch parade no longer gets stuck in the corner.** The entrance
+  picked its far point as an absolute screen fraction rather than a distance
+  from where the royal started. The Home profile circle sits in the top-right
+  corner, so on any launch that set off rightwards the "far" point landed
+  *inboard* of the start: the royal shuffled a few dozen pixels and came back.
+  Roughly half of all launches, and worst for the Prince and the Empress,
+  whose styles have no arc or burst to disguise it. The parade now measures the
+  runway either side of the anchor, sets off toward the side that has one, and
+  travels a real distance along it.
+
+### Changed
+
+- **Each royal signs off its entrance with a move only it could make.** All six
+  used to end on the same wave. The Empress now conjures — a turning rune
+  circle, her orbs winding in and bursting overhead, and a curtsy through the
+  falling light. The Princess blows a kiss, the hearts growing as they come at
+  you. The Dark Prince drives his club into the ground and holds a low guard
+  while embers climb off the plate. The Sovereign stays in the saddle and his
+  lion turns to roar down the lens, which rocks the screen. The Royal Medic
+  snaps her kit open and takes your vitals: a heartbeat writes itself across
+  the air beside her, healing plus-signs rise out of the glow, and a clean
+  pulse ring signs you off — which in a budgeting app is barely a joke, since
+  the Financial Health score is a vital sign already. The Prince salutes with
+  his new sword: blade up to the vertical in front of his face, light running
+  up the steel, then recovered to his side for a short sharp bow. They are
+  deliberately not all the same KIND of move — two are theatre, two are
+  affection, one is a threat and one is drill — because a court where everyone
+  mugs at the camera the same way is six copies of one idea.
+- **The Sovereign actually reads as fast now.** His dash conveyed speed with
+  position alone, so a fully-drawn body appearing somewhere new looked like
+  dropped frames rather than movement. During a burst the solid body now fades
+  to almost nothing and a stretched trail of afterimages carries the motion —
+  visible because he is too quick to see, not because he stuttered.
+- **The Dark Prince rides armoured.** A visored great helm over the face, and
+  a heater shield with his blood-red chevron strapped to the free arm. His war
+  horse gained a spiked chanfron over its face, overlapping criniere plates
+  down the neck and a spiked crupper, on top of the flank and chest plate it
+  already wore — a barded body with a friendly horse head on the end of it was
+  reading as a costume. He is a knight, not a monster: no horns, and a man's
+  eyes behind the visor.
+- **The Prince carries a sword.** The lance stood taller than he did and read
+  as scaffolding he was leaning on. He now has an arming sword sized to him,
+  with a winged crossguard and a ruby pommel, in both the pixel portrait and
+  the full-body rig.
+- **The Princess's pegasus has wings you can identify as wings**, ivory with
+  accent-tinted tips instead of pink-on-pink, drawn as one swept silhouette
+  with scalloped primaries rather than a fan of separate quills.
+
+### Fixed (art)
+
+- The full-body rig drew each royal's weapon TWICE — once properly in the hand,
+  and once more as part of the head sprite, which carries the weapon in its
+  left-hand columns. That is where the Prince's fat lance through his cheek and
+  the Dark Prince's floating club head came from. The chibi head now renders
+  without the sprite's weapon lane; the avatar circle still shows the whole
+  portrait, weapon included.
+- Mounts had missing or unconvincing legs: the pegasus flew as a legless swan
+  and the roaring lion stood on nothing. Every mount's leg is now drawn as
+  thigh plus cannon over a knee so it clears the belly, the flier canters
+  through the air with its legs raked back, and a halted beast braces on all
+  four.
+
 ## [1.68.0] — 2026-08-07
 
 ### Changed

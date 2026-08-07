@@ -155,4 +155,22 @@ class AppIconService {
       return false;
     }
   }
+
+  /// Restart the app onto the launcher component [sync] just enabled.
+  ///
+  /// An icon swap wants a fresh start before launchers reliably show the new
+  /// artwork, and the app used to get that by closing and asking the user to
+  /// reopen it — which drops them on their home screen mid-task for a change
+  /// they made two taps ago. This does the same restart without the errand.
+  ///
+  /// Returns false when the platform can't (non-Android, no resolvable launch
+  /// intent, channel missing in tests), so callers can fall back to closing.
+  static Future<bool> relaunch() async {
+    if (!Platform.isAndroid) return false;
+    try {
+      return await _channel.invokeMethod<bool>('relaunch') ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
 }
