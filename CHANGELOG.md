@@ -4,6 +4,40 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.68.0] — 2026-08-07
+
+### Changed
+
+- **Every royal now rides differently.** Four of the six shared one gallop and
+  differed only by coat colour, a horn and a mane — which is why the Prince, the
+  Dark Prince, the Princess and the Sovereign all looked like the same horse
+  wearing different paint. Each now has its own gait:
+  - **The Princess rides a pegasus.** Feathered wings, hooves tucked, and a
+    smooth airborne rise-and-fall with no ground contact anywhere in it. She
+    leaves motes of light where the others kick up dust.
+  - **The Dark Prince's steed is armoured** — gunmetal plate over the flank and
+    chest with accent rivets — and it *stomps*: it hangs at the top of the beat
+    and slams down with both leg pairs together, throwing a shock ring and grit
+    across the floor on every landing.
+  - **The Sovereign zips.** His lion covers ground in long low bounds, trailing
+    two smears of itself and a wash of arcane light, so he arrives faster than
+    he should be able to.
+  - **The Empress glides.** Her palanquin now moves on three different rhythms
+    at once — a slow rise, an even slower sway, and a roll that trails the rise
+    the way a boat's does — with silk streaming off the rear poles. Nothing
+    about it is in a hurry.
+  - **The Prince and the Royal Medic are untouched**, on purpose: the Prince's
+    canter is the baseline the others are measured against, and the Medic's cart
+    was already the most distinctive of the six.
+- **The launch parade stopped being the same every morning.** Every royal used
+  to hop out of the profile circle, ride left, turn, and ride back. The *style*
+  is now per royal — the Dark Prince charges and halts, the Princess flies an
+  arc that never touches the floor, the Sovereign crosses in bursts, the Empress
+  drifts out and back without ever turning around — while the direction and how
+  far they travel are picked fresh on each launch. Style stays fixed per royal
+  on purpose: one that entered differently every time would have no signature at
+  all.
+
 ## [1.67.0] — 2026-08-07
 
 ### Added
