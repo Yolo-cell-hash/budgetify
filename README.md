@@ -286,6 +286,7 @@ On by default, and switchable off in Settings. Daily **streaks** (with freezes, 
 | 30 days | Royal Indigo theme |
 | 36 days | 🧊 2 Streak Freezes |
 | 45 days | Midnight Indigo theme |
+| 52 days | 🧊 2 Streak Freezes |
 | **60 days** | **Vellum theme** — parchment cards on near-black paper stock |
 
 **Streak Freezes** cover a missed day so one busy Tuesday doesn't erase five weeks. They stack from the road and from regular intervals, and a freeze can be applied retroactively to save a streak you've already broken.
