@@ -410,19 +410,26 @@ _BootStyle _bootStyleFor(String id) => switch (id) {
 /// every one of them still ENDED on the same generic wave. The signature is
 /// the beat the user actually remembers, so it belongs to the character: the
 /// Empress conjures, the Princess blows a kiss, the Dark Prince plants his
-/// club, the Sovereign's lion roars straight down the lens, and the Medic
-/// takes your vitals — which in a budgeting app is not only a joke, since the
-/// Financial Health score is exactly a pulse reading.
+/// club, the Sovereign's lion roars straight down the lens, the Medic takes
+/// your vitals — which in a budgeting app is not only a joke, since the
+/// Financial Health score is exactly a pulse reading — and the Prince salutes
+/// with his new sword.
 ///
-/// The Prince keeps the wave. Somebody should: with all six mugging at the
-/// camera the sequence turns into a variety act, and his entrance already
-/// carries the newest thing about him (the sword).
+/// They are deliberately not all the same KIND of move: two are theatre (the
+/// roar, the spell), two are affection (the kiss, the vitals), one is a threat
+/// and one is drill. A court where everyone mugs at the camera the same way is
+/// six copies of one idea.
+///
+/// [RoyalAction.wave] stays the fallback for any royal added later that has no
+/// signature authored yet — better a plain hello than an assertion failure in
+/// a cosmetic overlay.
 RoyalAction _signatureActionFor(String id) => switch (id) {
       'empress' => RoyalAction.spell,
       'princess' => RoyalAction.kiss,
       'darkprince' => RoyalAction.menace,
       'sovereign' => RoyalAction.roar,
       'royalmedic' => RoyalAction.mend,
+      'prince' => RoyalAction.salute,
       _ => RoyalAction.wave,
     };
 

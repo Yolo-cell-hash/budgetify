@@ -21,6 +21,7 @@ RoyalAction _signatureOf(String id) => switch (id) {
       'darkprince' => RoyalAction.menace,
       'sovereign' => RoyalAction.roar,
       'royalmedic' => RoyalAction.mend,
+      'prince' => RoyalAction.salute,
       _ => RoyalAction.wave,
     };
 

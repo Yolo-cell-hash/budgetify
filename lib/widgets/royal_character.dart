@@ -64,6 +64,10 @@ enum RoyalAction {
   /// The Royal Medic takes your vitals: the kit comes up open, a heartbeat
   /// traces itself across the air, and she signs off that you'll live.
   mend,
+
+  /// The Prince's sword salute: blade up to the vertical, light running up the
+  /// steel, then swept out and down into a bow.
+  salute,
 }
 
 /// The attack verb a royal's weapon speaks: the Sovereign slashes, the Prince
@@ -1370,6 +1374,62 @@ class RoyalCharacterPainter extends CustomPainter {
             Paint()
               ..color = accent.withValues(alpha: 0.16 * pose.flourish)
               ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14));
+      case RoyalAction.salute:
+        // Light running up the held blade, then a gold arc trailing it as he
+        // sweeps out. The glint is the whole move: a sword held still is a
+        // prop, a sword catching the light is a salute.
+        //
+        // The blade's position is recomputed the way [_frontWeapon] does it.
+        // These accents paint outside the figure's squash transform, so it is
+        // off by the squash — under 6%, and invisible on a soft highlight.
+        final shoulder = Offset(w * 0.5 - w * 0.14, h * 0.575);
+        final arm = pose.armWeapon;
+        final hand =
+            shoulder + Offset(math.sin(arm), math.cos(arm)) * (h * 0.125);
+        final upright = arm.abs() < 0.6; // matches _weapon's rest band
+
+        final glint = ((t - 0.26) / 0.24).clamp(0.0, 1.0);
+        if (upright && glint > 0 && glint < 1) {
+          final guard = Offset(hand.dx, hand.dy - h * 0.010);
+          final tip = Offset(hand.dx, h * 0.085);
+          final at =
+              Offset.lerp(guard, tip, Curves.easeInOut.transform(glint))!;
+          final lum = math.sin(glint * math.pi);
+          canvas.drawCircle(
+              at,
+              w * 0.055,
+              Paint()
+                ..color = Colors.white.withValues(alpha: 0.50 * lum)
+                ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6));
+          canvas.drawLine(
+              at.translate(0, h * 0.028),
+              at.translate(0, -h * 0.028),
+              Paint()
+                ..strokeWidth = 2.4
+                ..strokeCap = StrokeCap.round
+                ..color = Colors.white.withValues(alpha: 0.90 * lum));
+          // A four-point star as the light leaves the point.
+          if (glint > 0.74) {
+            final k = (glint - 0.74) / 0.26;
+            _star(canvas, tip, w * 0.055 * k,
+                Colors.white.withValues(alpha: 0.95 * (1 - k)));
+          }
+        }
+
+        // Two motes of gold drifting off the steel while it is held. Enough to
+        // say "ceremonial", not enough to turn a salute into fireworks — his
+        // is the disciplined one of the six and the restraint IS the character.
+        if (upright && glint > 0) {
+          for (var i = 0; i < 2; i++) {
+            final p = ((t * 1.3 + i * 0.5) % 1.0);
+            _star(
+                canvas,
+                Offset(hand.dx + (i.isEven ? w : -w) * 0.055,
+                    h * 0.42 - p * h * 0.24),
+                w * 0.020 * (1 - p) * pose.flourish,
+                accent.withValues(alpha: 0.75 * (1 - p) * pose.flourish));
+          }
+        }
       case RoyalAction.mend:
         // A heartbeat writing itself across the air, a wash of green light out
         // of the open kit, and healing plus-signs rising. In a BUDGET app the
@@ -2907,6 +2967,42 @@ class RoyalCharacterPainter extends CustomPainter {
           gaze: 1,
           headTilt: 0.06 * lift - 0.09 * clear,
           flourish: 0.35 + 0.65 * math.max(read, clear),
+        );
+      case RoyalAction.salute:
+        // The heir's sword salute: blade to the vertical in front of the face,
+        // a crisp hold, then swept out to present and a short sharp bow. It is
+        // the most FORMAL of the six on purpose — he is the one royal whose
+        // signature is a piece of drill rather than a personality, which is
+        // exactly the joke about an eager heir showing off his new sword.
+        final raise = Curves.easeOutCubic.transform((t / 0.28).clamp(0.0, 1.0));
+        // Recover, not a flourish out to the side. The far shoulder sits left
+        // of centre and the arm is only 0.125h long, so a blade swung outward
+        // starts at his midriff and reads as running him through; bringing it
+        // back down to the order keeps the hilt clear of the silhouette and is
+        // the correct drill anyway.
+        final recover = Curves.easeInOutCubic
+            .transform(((t - 0.52) / 0.18).clamp(0.0, 1.0));
+        final bow = ((t - 0.70) / 0.30).clamp(0.0, 1.0);
+        final dip = math.sin(bow * math.pi);
+        return _Pose(
+          // Same lesson as the Empress's curtsy: on a bobblehead the head tilt
+          // has to stay well under the body's, or the head reads as coming
+          // loose. The bow is carried by the sink and the lean.
+          bob: -0.012 * raise + 0.034 * dip,
+          lean: 0.15 * dip,
+          squash: 1 - 0.02 * raise - 0.10 * dip,
+          // The whole move stays inside [_weapon]'s rest band (|angle| < 0.6),
+          // so the blade is vertical throughout: it rises to the centre of his
+          // face for the salute and slides back to his side for the order.
+          armWeapon: -0.25 + 0.80 * raise - 0.80 * recover,
+          // Heels-together stillness, then the free hand goes to the heart for
+          // the bow.
+          armFree: 0.20 + 0.15 * raise - 1.05 * bow,
+          stride: 0,
+          blink: bow > 0.25 && bow < 0.60, // eyes down through the bow
+          gaze: 1,
+          headTilt: -0.05 * raise + 0.10 * dip,
+          flourish: raise * (1 - bow * 0.4),
         );
       case RoyalAction.roar:
       case RoyalAction.ride:
