@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
@@ -10,28 +11,63 @@ import 'royal_avatars.dart';
 /// [RoyalAvatar]) rides a squat, rounded body barely one head tall, inked with
 /// the same outline + palette as the sprite so head and body read as one piece.
 /// Menace comes from the regalia — planted staffs, shoulder-carried clubs,
-/// lances taller than their owner — cuteness from the proportions, the mitten
+/// battle helms and barded steeds — cuteness from the proportions, the mitten
 /// hands and the squash-and-stretch in every move.
 ///
 /// One parametric rig animates the whole court, but each royal keeps a
 /// personality: motion timing ([_Motion]), outfit silhouette + detailing
-/// ([RoyalOutfit] + per-id decoration), a signature weapon idle, and its own
-/// royal ride for [RoyalAction.ride] (the princes' horses, the Empress's
-/// floating palanquin, the Sovereign's lion, the Princess's unicorn, the
-/// Medic's rolling supply cart). Cosmetic only; never part of core logic.
+/// ([RoyalOutfit] + per-id decoration), a signature weapon idle, its own royal
+/// ride for [RoyalAction.ride] (the Prince's horse, the Dark Prince's barded
+/// war horse, the Empress's floating palanquin, the Sovereign's lion, the
+/// Princess's pegasus, the Medic's rolling supply cart), and a signature move
+/// it signs off with ([RoyalAction.spell]/[RoyalAction.kiss]/
+/// [RoyalAction.menace]/[RoyalAction.roar]). Cosmetic only; never core logic.
 
 /// What the character is doing this frame. Besides the shared verbs, each
-/// weapon has its own attack: [slash] (sword), [slice] (lance), [shoot]
-/// (bow), [hurl] (orbs) — [smash] stays the blunt overhead slam (war club,
-/// med kit). Use [royalAttackActionFor] to pick the right one.
-enum RoyalAction { idle, walk, run, wave, smash, slash, slice, shoot, hurl, cheer, fume, ride }
+/// weapon has its own attack: [slash] (sword of state), [slice] (the knight's
+/// lunging cut), [shoot] (bow), [hurl] (orbs) — [smash] stays the blunt
+/// overhead slam (war club, med kit). Use [royalAttackActionFor] to pick the
+/// right one.
+///
+/// The last four are SIGNATURE moves — one per royal, played at the end of the
+/// launch entrance so each court member says hello in a way only they could
+/// (see `_signatureActionFor` in royal_reactions.dart).
+enum RoyalAction {
+  idle,
+  walk,
+  run,
+  wave,
+  smash,
+  slash,
+  slice,
+  shoot,
+  hurl,
+  cheer,
+  fume,
+  ride,
+
+  /// The Empress conjures: a rune circle blooms, her orbs spiral up and burst,
+  /// and she bows to the user through the falling light.
+  spell,
+
+  /// The Princess blows a kiss, hearts drifting out of the screen.
+  kiss,
+
+  /// The Dark Prince's parting threat: club planted, ember core flaring, head
+  /// low under the helm.
+  menace,
+
+  /// The Sovereign's lion turns and roars at the viewer. A ride-time action —
+  /// it goes through the mount pipeline, not the standing one.
+  roar,
+}
 
 /// The attack verb a royal's weapon speaks: the Sovereign slashes, the Prince
-/// slices, the Princess shoots, the Empress hurls, the Dark Prince and the
+/// lunges, the Princess shoots, the Empress hurls, the Dark Prince and the
 /// Medic smash. Keeps host choreography and painter poses in agreement.
 RoyalAction royalAttackActionFor(RoyalWeapon weapon) => switch (weapon) {
       RoyalWeapon.sword => RoyalAction.slash,
-      RoyalWeapon.lance => RoyalAction.slice,
+      RoyalWeapon.knightSword => RoyalAction.slice,
       RoyalWeapon.bow => RoyalAction.shoot,
       RoyalWeapon.orbs => RoyalAction.hurl,
       RoyalWeapon.warClub || RoyalWeapon.medKit => RoyalAction.smash,
@@ -199,7 +235,7 @@ class RoyalCharacterPainter extends CustomPainter {
       canvas.translate(size.width, 0);
       canvas.scale(-1, 1);
     }
-    if (action == RoyalAction.ride) {
+    if (action == RoyalAction.ride || action == RoyalAction.roar) {
       _paintRide(canvas, size);
     } else {
       _paintStanding(canvas, size, _poseFor(action, t));
@@ -255,9 +291,11 @@ class RoyalCharacterPainter extends CustomPainter {
     }
     _decorate(canvas, size, pose);
     _head(canvas, size, pose);
+    _headArmor(canvas, size, pose);
     _frontWeapon(canvas, size, farShoulder, pose);
     if (royal.weapon == RoyalWeapon.orbs) _orbs(canvas, size, front: true);
     _arm(canvas, nearShoulder, pose.armFree, pose.wiggle, size);
+    _shield(canvas, size, nearShoulder, pose.armFree);
   }
 
   /// The weapon + a fresh mitten over its grip, drawn in front of the head.
@@ -663,33 +701,68 @@ class RoyalCharacterPainter extends CustomPainter {
               ..color = _gold);
         _gemShape(canvas, guard - Offset(math.cos(bladeDir), math.sin(bladeDir)) * (h * 0.045),
             w * 0.038, body.gem);
-      case RoyalWeapon.lance:
-        // Taller than its owner, steel tip, pennant snapping in the wind.
-        final base = rest ? Offset(hand.dx, h * 0.945) : along(h * 0.18);
-        final tip = rest ? Offset(hand.dx, h * 0.10) : along(-h * 0.52);
-        _shaft(canvas, base, tip, w * 0.040,
-            royal.palette['L'] ?? _gold, _darken(_gold, 0.3));
-        final d = (tip - base).direction;
-        _triangle(canvas, tip, d, w * 0.10, w * 0.040,
-            royal.palette['S'] ?? const Color(0xFFD7DCE4));
-        final flagBase = Offset.lerp(base, tip, 0.82)!;
-        final flap = math.sin(t * 2 * math.pi * 2) * w * 0.02;
-        final flag = Path()
-          ..moveTo(flagBase.dx, flagBase.dy)
-          ..lineTo(flagBase.dx - w * 0.115, flagBase.dy + h * 0.023 + flap)
-          ..lineTo(flagBase.dx, flagBase.dy + h * 0.05)
-          ..close();
-        canvas.drawPath(flag, Paint()..color = royal.theme.accent);
-        canvas.drawPath(flag, _inkStroke..strokeWidth = 1.0);
+      case RoyalWeapon.knightSword:
+        // The heir's arming sword: sized to the man, not to the parade
+        // ground. At rest it stands point-UP beside him (a lance planted
+        // point-down needs a shaft taller than the character, which is what
+        // made the old one read as scaffolding); swung, it rides the arm.
+        final steel = royal.palette['S'] ?? const Color(0xFFD7DCE4);
+        final Offset guard, tip;
+        if (rest) {
+          guard = Offset(hand.dx, hand.dy - h * 0.010);
+          tip = Offset(hand.dx, h * 0.085);
+        } else {
+          guard = along(h * 0.025);
+          tip = along(-h * 0.40);
+        }
+        final bladeDir = (tip - guard).direction;
+        _shaft(canvas, guard, Offset.lerp(guard, tip, 0.88)!, w * 0.038, steel,
+            _darken(steel, 0.42));
+        // Fuller line down the middle of the blade.
+        canvas.drawLine(
+            Offset.lerp(guard, tip, 0.10)!,
+            Offset.lerp(guard, tip, 0.80)!,
+            Paint()
+              ..strokeWidth = 1.2
+              ..strokeCap = StrokeCap.round
+              ..color = Colors.white.withValues(alpha: 0.72));
+        _triangle(canvas, tip, bladeDir, w * 0.080, w * 0.027, steel);
+        // Winged crossguard: two swept quillons rather than a straight bar —
+        // the detail that tells the heir's blade from the Sovereign's.
+        final perp = Offset(-math.sin(bladeDir), math.cos(bladeDir));
+        final back = Offset(math.cos(bladeDir), math.sin(bladeDir));
+        for (final s in [-1.0, 1.0]) {
+          final quillon = Path()
+            ..moveTo(guard.dx, guard.dy)
+            ..quadraticBezierTo(
+                guard.dx + perp.dx * s * w * 0.048 - back.dx * h * 0.010,
+                guard.dy + perp.dy * s * w * 0.048 - back.dy * h * 0.010,
+                guard.dx + perp.dx * s * w * 0.062 - back.dx * h * 0.030,
+                guard.dy + perp.dy * s * w * 0.062 - back.dy * h * 0.030)
+            ..quadraticBezierTo(
+                guard.dx + perp.dx * s * w * 0.036 + back.dx * h * 0.004,
+                guard.dy + perp.dy * s * w * 0.036 + back.dy * h * 0.004,
+                guard.dx + back.dx * h * 0.014,
+                guard.dy + back.dy * h * 0.014)
+            ..close();
+          _fillInked(canvas, quillon, _gold);
+        }
+        // Wrapped grip + ruby pommel.
+        _shaft(canvas, guard + back * (h * 0.012), guard + back * (h * 0.042),
+            w * 0.026, _darken(_gold, 0.34), _darken(_gold, 0.55));
+        _gemShape(canvas, guard + back * (h * 0.052), w * 0.030, body.gem);
       case RoyalWeapon.warClub:
-        // Carried over the shoulder — casual, heavy, mildly threatening.
-        final overShoulder = rest;
-        final from = overShoulder
-            ? hand
-            : hand;
-        final to = overShoulder
-            ? hand + Offset(-w * 0.10, -h * 0.30)
-            : along(-h * 0.34);
+        // Carried over the shoulder — casual, heavy, mildly threatening. On
+        // the menace hold it goes the other way: driven into the ground and
+        // leaned on, which is the pose the whole move is built around.
+        final planted = action == RoyalAction.menace && rest;
+        final overShoulder = rest && !planted;
+        final from = hand;
+        final to = planted
+            ? Offset(hand.dx - w * 0.02, h * 0.90)
+            : overShoulder
+                ? hand + Offset(-w * 0.10, -h * 0.30)
+                : along(-h * 0.34);
         _shaft(canvas, from, to, w * 0.050, royal.palette['L'] ?? const Color(0xFF3E2A1A),
             const Color(0xFF241608));
         final headC = to + (to - from) * 0.12;
@@ -747,13 +820,22 @@ class RoyalCharacterPainter extends CustomPainter {
   /// Split into a back and front pass so they truly circle her.
   void _orbs(Canvas canvas, Size size, {required bool front}) {
     final w = size.width, h = size.height;
-    final c = Offset(w * 0.5, h * 0.66);
+    // Casting: the orbs wind in tight and fast, then are flung wide and high
+    // as the spell breaks. Idling, they just circle her at the waist.
+    final casting = action == RoyalAction.spell;
+    final wind = casting ? Curves.easeIn.transform((t / 0.42).clamp(0.0, 1.0)) : 0.0;
+    final fling =
+        casting ? Curves.easeOutBack.transform(((t - 0.42) / 0.24).clamp(0.0, 1.0)) : 0.0;
+    final c = Offset(w * 0.5, h * (0.66 - 0.22 * wind + 0.06 * fling));
+    final spread = 1 - 0.55 * wind + 1.05 * fling;
     for (var i = 0; i < 3; i++) {
-      final a = t * 2 * math.pi * 0.8 + i * (2 * math.pi / 3);
+      final a = t * 2 * math.pi * (0.8 + 2.6 * wind) + i * (2 * math.pi / 3);
       final inFront = math.sin(a) > 0;
       if (inFront != front) continue;
-      final p = c + Offset(math.cos(a) * w * 0.30, math.sin(a) * h * 0.055 - h * 0.02);
-      final r = w * (0.032 + 0.010 * math.sin(a));
+      final p = c +
+          Offset(math.cos(a) * w * 0.30 * spread,
+              math.sin(a) * h * (0.055 + 0.10 * fling) * spread - h * 0.02);
+      final r = w * (0.032 + 0.010 * math.sin(a)) * (1 + 0.35 * wind - 0.15 * fling);
       canvas.drawCircle(
           p,
           r * 2.1,
@@ -800,14 +882,17 @@ class RoyalCharacterPainter extends CustomPainter {
     final w = size.width, h = size.height;
     final box = w * 0.66;
     final origin = Offset((w - box) / 2, h * 0.03);
-    final rows = List<String>.from(royal.rows);
+    // headRows, not rows: the full body draws a real weapon in the hand, so
+    // the sprite's own weapon lane would be a second copy of it hanging beside
+    // the face.
+    final rows = List<String>.from(royal.headRows);
     if (pose.blink) {
-      rows[royal.eyeRowWhites] = royal.eyesClosed[0];
-      rows[royal.eyeRowIris] = royal.eyesClosed[1];
+      rows[royal.eyeRowWhites] = royal.stripWeaponLane(royal.eyesClosed[0]);
+      rows[royal.eyeRowIris] = royal.stripWeaponLane(royal.eyesClosed[1]);
     } else if (pose.gaze != 0) {
       final g = pose.gaze > 0 ? royal.eyesRight : royal.eyesLeft;
-      rows[royal.eyeRowWhites] = g[0];
-      rows[royal.eyeRowIris] = g[1];
+      rows[royal.eyeRowWhites] = royal.stripWeaponLane(g[0]);
+      rows[royal.eyeRowIris] = royal.stripWeaponLane(g[1]);
     }
     canvas.save();
     final pivot = Offset(w * 0.5, h * 0.50);
@@ -822,6 +907,206 @@ class RoyalCharacterPainter extends CustomPainter {
       canvas.scale(-1, 1);
     }
     paintRoyalGrid(canvas, Size(box, box), rows, royal.palette);
+    canvas.restore();
+  }
+
+  /// The Dark Prince's great helm, sealed over the head sprite.
+  ///
+  /// Full-body only — the avatar circle keeps his bare face, and this is him
+  /// having put the helm ON to ride out. Drawn AFTER [_head] and under the same
+  /// head tilt, so it moves as one piece with him.
+  ///
+  /// He is a knight, not a monster: no horns, and a man's eyes behind the
+  /// visor rather than a glowing slit. The first pass had both and read as a
+  /// demon — heavy plate does the intimidating on its own, and the moment a
+  /// face stops looking human the character stops being the exiled brother and
+  /// becomes something you fight.
+  void _headArmor(Canvas canvas, Size size, _Pose pose) {
+    if (royal.id != 'darkprince') return;
+    final w = size.width, h = size.height;
+    final cx = w * 0.5;
+    final box = w * 0.66;
+    // The sprite's head fills the middle ~10 of its 16 columns; the helm hugs
+    // that, not the whole box.
+    final half = box * 0.34;
+    final top = h * 0.03 + box * 0.14;
+    final chin = h * 0.03 + box * 0.80;
+    const plate = Color(0xFF2A2E38);
+    const plateDark = Color(0xFF16181F);
+    const plateLit = Color(0xFF5C6474);
+
+    canvas.save();
+    final pivot = Offset(w * 0.5, h * 0.50);
+    canvas.translate(pivot.dx, pivot.dy);
+    canvas.rotate(pose.headTilt);
+    canvas.translate(-pivot.dx, -pivot.dy);
+
+    // Skull: a domed bucket that flares out over the jaw.
+    final skull = Path()
+      ..moveTo(cx - half, top + h * 0.030)
+      ..quadraticBezierTo(cx - half, top, cx - half * 0.55, top - h * 0.006)
+      ..quadraticBezierTo(cx, top - h * 0.020, cx + half * 0.55, top - h * 0.006)
+      ..quadraticBezierTo(cx + half, top, cx + half, top + h * 0.030)
+      ..lineTo(cx + half * 0.95, chin - h * 0.030)
+      ..quadraticBezierTo(cx, chin + h * 0.014, cx - half * 0.95, chin - h * 0.030)
+      ..close();
+    _fillInked(canvas, skull, plate);
+
+    // Brow bevel — the lit edge that makes it plate instead of a hood.
+    canvas.drawLine(
+        Offset(cx - half * 0.86, top + h * 0.040),
+        Offset(cx + half * 0.86, top + h * 0.040),
+        Paint()
+          ..strokeWidth = h * 0.009
+          ..strokeCap = StrokeCap.round
+          ..color = plateLit);
+
+    // Visor: a sunken band across the eyes with a single ember slit. The brow
+    // dips to a V in the middle, which is what reads as a scowl.
+    final visorY = h * 0.03 + box * 0.42;
+    final visor = Path()
+      ..moveTo(cx - half * 0.92, visorY - h * 0.024)
+      ..lineTo(cx, visorY - h * 0.004)
+      ..lineTo(cx + half * 0.92, visorY - h * 0.024)
+      ..lineTo(cx + half * 0.92, visorY + h * 0.026)
+      ..lineTo(cx - half * 0.92, visorY + h * 0.026)
+      ..close();
+    canvas.drawPath(visor, Paint()..color = plateDark);
+
+    // The sight: a shadowed opening with an ordinary pair of eyes set back in
+    // it. Cool steel-blue irises, deliberately NOT the court's ember red —
+    // glowing eyes in a slit is the single cue that turns a helmet into a
+    // monster mask.
+    final sight = RRect.fromRectAndRadius(
+        Rect.fromCenter(
+            center: Offset(cx, visorY + h * 0.004),
+            width: half * 1.50,
+            height: h * 0.030),
+        Radius.circular(h * 0.010));
+    canvas.drawRRect(sight, Paint()..color = plateDark);
+    for (final s in [-1.0, 1.0]) {
+      final eye = Offset(cx + s * half * 0.44, visorY + h * 0.004);
+      canvas.drawOval(
+          Rect.fromCenter(center: eye, width: half * 0.42, height: h * 0.018),
+          Paint()..color = const Color(0xFFE9E4DA));
+      canvas.drawCircle(eye.translate(s * half * 0.03, 0), h * 0.0085,
+          Paint()..color = const Color(0xFF3E5B7A));
+      canvas.drawCircle(eye.translate(s * half * 0.03, 0), h * 0.004,
+          Paint()..color = body.ink);
+    }
+    // A nasal bar down the middle of the sight.
+    canvas.drawRect(
+        Rect.fromCenter(
+            center: Offset(cx, visorY + h * 0.026),
+            width: w * 0.032,
+            height: h * 0.068),
+        Paint()..color = plate);
+
+    // Breath grille under the visor.
+    final grille = Paint()
+      ..strokeWidth = h * 0.007
+      ..strokeCap = StrokeCap.round
+      ..color = plateDark;
+    for (var i = 0; i < 3; i++) {
+      final y = visorY + h * (0.046 + i * 0.018);
+      final gw = half * (0.66 - i * 0.13);
+      canvas.drawLine(Offset(cx - gw, y), Offset(cx + gw, y), grille);
+    }
+
+    // Cheek plates flaring off the jaw — the bulk that reads as heavy armour
+    // now that there are no horns doing it.
+    for (final s in [-1.0, 1.0]) {
+      final cheek = Path()
+        ..moveTo(cx + s * half * 0.94, visorY + h * 0.012)
+        ..lineTo(cx + s * half * 1.16, visorY + h * 0.034)
+        ..lineTo(cx + s * half * 1.02, chin - h * 0.014)
+        ..lineTo(cx + s * half * 0.86, chin - h * 0.020)
+        ..close();
+      _fillInked(canvas, cheek, plateDark);
+    }
+
+    // Comb: the raised steel ridge along the crown of a knight's helm.
+    final comb = Path()
+      ..moveTo(cx - half * 0.62, top + h * 0.006)
+      ..quadraticBezierTo(cx, top - h * 0.048, cx + half * 0.62, top + h * 0.006)
+      ..quadraticBezierTo(cx, top - h * 0.014, cx - half * 0.62, top + h * 0.006)
+      ..close();
+    _fillInked(canvas, comb, plateLit);
+
+    canvas.restore();
+  }
+
+  /// The Dark Prince's heater shield, strapped to his free arm.
+  ///
+  /// It rides the near hand and turns part-way with it, so raising the arm
+  /// raises the shield — a knight with a club in one hand and nothing in the
+  /// other was only half-equipped. Drawn last, over the arm, so the straps
+  /// read as being on this side of it.
+  void _shield(Canvas canvas, Size size, Offset shoulder, double armAngle) {
+    if (royal.id != 'darkprince') return;
+    final w = size.width, h = size.height;
+    final hand =
+        shoulder + Offset(math.sin(armAngle), math.cos(armAngle)) * (h * 0.125);
+    final accent = royal.theme.accent;
+    const face = Color(0xFF23262F);
+    const rim = Color(0xFF5B6474);
+    const rimLit = Color(0xFF8B95A8);
+
+    canvas.save();
+    canvas.translate(hand.dx + w * 0.055, hand.dy + h * 0.012);
+    // Only part of the arm's swing carries into the shield: a shield hanging
+    // off a forearm stays roughly upright however the elbow moves.
+    canvas.rotate(armAngle * 0.32 - 0.08);
+
+    final halfW = w * 0.135, top = -h * 0.085, tip = h * 0.105;
+    final heater = Path()
+      ..moveTo(-halfW, top + h * 0.012)
+      ..quadraticBezierTo(0, top - h * 0.010, halfW, top + h * 0.012)
+      ..cubicTo(halfW * 0.98, tip * 0.32, halfW * 0.66, tip * 0.78, 0, tip)
+      ..cubicTo(-halfW * 0.66, tip * 0.78, -halfW * 0.98, tip * 0.32, -halfW,
+          top + h * 0.012)
+      ..close();
+    _fillInked(canvas, heater, face);
+
+    // Rim.
+    canvas.drawPath(
+        heater,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = w * 0.026
+          ..strokeJoin = StrokeJoin.round
+          ..color = rim);
+    canvas.drawPath(
+        heater,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = w * 0.026
+          ..strokeJoin = StrokeJoin.round
+          ..color = _inkStroke.color);
+    canvas.drawLine(
+        Offset(-halfW * 0.78, top + h * 0.016),
+        Offset(halfW * 0.78, top + h * 0.016),
+        Paint()
+          ..strokeWidth = h * 0.008
+          ..strokeCap = StrokeCap.round
+          ..color = rimLit);
+
+    // Blood-red chevron device + a steel boss.
+    final chevron = Path()
+      ..moveTo(-halfW * 0.70, -h * 0.018)
+      ..lineTo(0, -h * 0.052)
+      ..lineTo(halfW * 0.70, -h * 0.018)
+      ..lineTo(halfW * 0.70, h * 0.010)
+      ..lineTo(0, -h * 0.024)
+      ..lineTo(-halfW * 0.70, h * 0.010)
+      ..close();
+    canvas.drawPath(chevron, Paint()..color = body.trim);
+    canvas.drawCircle(Offset(0, h * 0.030), w * 0.030, Paint()..color = rim);
+    canvas.drawCircle(
+        Offset(0, h * 0.030), w * 0.030, _inkStroke..strokeWidth = 1.1);
+    canvas.drawCircle(Offset(-w * 0.008, h * 0.024), w * 0.010,
+        Paint()..color = accent.withValues(alpha: 0.85));
+
     canvas.restore();
   }
 
@@ -901,6 +1186,164 @@ class RoyalCharacterPainter extends CustomPainter {
               w * 0.022 * pose.flourish,
               Colors.white.withValues(alpha: 0.8 * pose.flourish));
         }
+      case RoyalAction.spell:
+        // A rune circle on the floor under her, seen almost edge-on, turning;
+        // a rising column of motes; and the bloom of light she opens her hands
+        // into. The circle is the anchor — sparkles alone read as "sparkly",
+        // a drawn ring of glyphs reads as MAGIC.
+        final spin = t * 2 * math.pi * 0.55;
+        final ringR = w * (0.20 + 0.22 * pose.flourish);
+        final ringC = Offset(w * 0.5, h * 0.925);
+        for (final (rr, sw, al) in [
+          (ringR, 2.4, 0.75),
+          (ringR * 0.72, 1.4, 0.45),
+        ]) {
+          canvas.drawOval(
+              Rect.fromCenter(
+                  center: ringC, width: rr * 2, height: rr * 0.46),
+              Paint()
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = sw
+                ..color = accent.withValues(alpha: al * pose.flourish));
+        }
+        // Glyph ticks around the circle, turning with it.
+        for (var i = 0; i < 10; i++) {
+          final a = spin + i * (2 * math.pi / 10);
+          final p = ringC +
+              Offset(math.cos(a) * ringR, math.sin(a) * ringR * 0.23);
+          canvas.drawRect(
+              Rect.fromCenter(
+                  center: p, width: w * 0.016, height: h * 0.012),
+              Paint()
+                ..color = Color.lerp(Colors.white, accent, 0.4)!
+                    .withValues(alpha: 0.8 * pose.flourish));
+        }
+        // Motes climbing the column of the spell.
+        for (var i = 0; i < 7; i++) {
+          final p = ((t * 1.15 + i * 0.143) % 1.0);
+          final a = spin * 1.6 + i * 1.4;
+          final rr = ringR * (0.85 - p * 0.45);
+          final mp = Offset(ringC.dx + math.cos(a) * rr,
+              ringC.dy - p * h * 0.72 + math.sin(a) * rr * 0.16);
+          _star(canvas, mp, w * 0.020 * (1 - p * 0.5) * pose.flourish,
+              Color.lerp(Colors.white, accent, 0.35)!
+                  .withValues(alpha: 0.85 * (1 - p) * pose.flourish));
+        }
+        // The bloom overhead, at the moment her hands open. It sits ABOVE the
+        // crown and is finished before the curtsy begins — centred on the head
+        // it drew its rays straight across her face.
+        final bloom = ((t - 0.42) / 0.16).clamp(0.0, 1.0) *
+            (1 - ((t - 0.56) / 0.14).clamp(0.0, 1.0));
+        if (bloom > 0) {
+          final at = Offset(w * 0.5, h * 0.115);
+          canvas.drawCircle(
+              at,
+              w * (0.10 + 0.26 * bloom),
+              Paint()
+                ..color = accent.withValues(alpha: 0.30 * bloom)
+                ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12));
+          for (var i = 0; i < 8; i++) {
+            final a = i * math.pi / 4 + spin;
+            final r0 = w * 0.10 * bloom, r1 = w * (0.12 + 0.26 * bloom);
+            canvas.drawLine(
+                at + Offset(math.cos(a), math.sin(a)) * r0,
+                at + Offset(math.cos(a), math.sin(a)) * r1,
+                Paint()
+                  ..strokeWidth = 2.2 * (1 - bloom * 0.5)
+                  ..strokeCap = StrokeCap.round
+                  ..color = Colors.white.withValues(alpha: 0.7 * (1 - bloom)));
+          }
+          _star(canvas, at, w * 0.05 * bloom,
+              Colors.white.withValues(alpha: 0.9 * (1 - bloom * 0.4)));
+        }
+      case RoyalAction.kiss:
+        // Hearts leaving her lips and drifting OUT of the screen: each grows
+        // as it travels and fades at the end, which at this scale is the only
+        // way to say "toward you" on a flat canvas.
+        final lips = Offset(w * 0.56, h * 0.30);
+        for (var i = 0; i < 3; i++) {
+          final p = ((t - 0.40 - i * 0.11) / 0.55).clamp(0.0, 1.0);
+          if (p <= 0) continue;
+          // Out at roughly eye level, staying inside the box: hearts that leave
+          // the character's frame get clipped by the host's positioned box, and
+          // ones that climb steeply just tangle in her tiara.
+          final drift = Offset(
+              lips.dx + w * (0.24 + i * 0.05) * p,
+              lips.dy - h * 0.06 * p + math.sin(p * math.pi * 1.5 + i) * h * 0.022);
+          final grow = 0.7 + p * 2.4; // rushing at the viewer
+          final fade = (1 - p * p * 0.85);
+          canvas.save();
+          canvas.translate(drift.dx, drift.dy);
+          canvas.rotate(math.sin(p * 4 + i) * 0.22);
+          _heart(canvas, Offset.zero, w * 0.030 * grow,
+              accent.withValues(alpha: 0.9 * fade));
+          _heart(canvas, Offset(-w * 0.008 * grow, -w * 0.008 * grow),
+              w * 0.010 * grow, Colors.white.withValues(alpha: 0.7 * fade));
+          canvas.restore();
+        }
+        // A little sparkle puff right at the lips as it leaves.
+        final puff = pose.flourish;
+        if (puff > 0) {
+          for (var i = 0; i < 4; i++) {
+            final a = -math.pi * 0.15 + i * 0.30;
+            _star(
+                canvas,
+                lips + Offset(math.cos(a), math.sin(a)) * w * (0.05 + 0.06 * puff),
+                w * 0.016 * puff,
+                Colors.white.withValues(alpha: 0.75 * puff));
+          }
+        }
+      case RoyalAction.menace:
+        // The ground gives: a shock ring at the club's landing point, embers
+        // climbing off him, and a dark aura that stays for the hold.
+        final drop = (t / 0.22).clamp(0.0, 1.0);
+        final at = Offset(w * 0.26, h * 0.945);
+        if (drop >= 1 && t < 0.62) {
+          final s = ((t - 0.22) / 0.40).clamp(0.0, 1.0);
+          canvas.drawOval(
+              Rect.fromCenter(
+                  center: at,
+                  width: w * (0.30 + 1.05 * s),
+                  height: h * (0.030 + 0.075 * s)),
+              Paint()
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 3.4 * (1 - s) + 0.6
+                ..color = accent.withValues(alpha: 0.60 * (1 - s)));
+          // Cracks skittering out from the strike.
+          for (var i = 0; i < 5; i++) {
+            final a = math.pi + (i - 2) * 0.42;
+            final r0 = w * 0.06, r1 = w * (0.10 + 0.20 * s);
+            canvas.drawLine(
+                at + Offset(math.cos(a), math.sin(a) * 0.35) * r0,
+                at + Offset(math.cos(a), math.sin(a) * 0.35) * r1,
+                Paint()
+                  ..strokeWidth = 2.0 * (1 - s)
+                  ..strokeCap = StrokeCap.round
+                  ..color = accent.withValues(alpha: 0.5 * (1 - s)));
+          }
+        }
+        // Embers rising off the armour for the whole pose.
+        for (var i = 0; i < 6; i++) {
+          final p = ((t * 0.9 + i * 0.167) % 1.0);
+          final x = w * (0.30 + (i % 3) * 0.20) +
+              math.sin(p * 5 + i) * w * 0.035;
+          final y = h * 0.90 - p * h * 0.62;
+          canvas.drawCircle(
+              Offset(x, y),
+              w * 0.014 * (1 - p) + w * 0.004,
+              Paint()
+                ..color = Color.lerp(accent, const Color(0xFFFFC46B), p * 0.5)!
+                    .withValues(alpha: 0.75 * (1 - p) * pose.flourish));
+        }
+        // A low aura pooling around his feet.
+        canvas.drawOval(
+            Rect.fromCenter(
+                center: Offset(w * 0.5, h * 0.94),
+                width: w * 0.78,
+                height: h * 0.14),
+            Paint()
+              ..color = accent.withValues(alpha: 0.16 * pose.flourish)
+              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14));
       case RoyalAction.fume:
         // The classic anger cross-vein, pulsing beside the crown, plus two
         // little steam puffs rising off the royal head.
@@ -997,7 +1440,8 @@ class RoyalCharacterPainter extends CustomPainter {
             mane: const Color(0xFF6E4A2A),
             style: _BeastStyle.lion,
             gait: _Gait.prowl,
-            arcane: true);
+            arcane: true,
+            roaring: action == RoyalAction.roar);
     }
   }
 
@@ -1036,20 +1480,24 @@ class RoyalCharacterPainter extends CustomPainter {
     }
     _decorate(canvas, size, pose);
     _head(canvas, size, pose);
+    _headArmor(canvas, size, pose);
     _frontWeapon(canvas, size, farShoulder, pose);
     if (royal.weapon == RoyalWeapon.orbs) _orbs(canvas, size, front: true);
     _arm(canvas, nearShoulder, pose.armFree, 0, size);
+    _shield(canvas, size, nearShoulder, pose.armFree);
   }
 
   _Pose _riderPose(double cyc) => _Pose(
         armFree: 0.95, // reins hand forward
-        armWeapon: royal.weapon == RoyalWeapon.lance ||
+        armWeapon: royal.weapon == RoyalWeapon.knightSword ||
                 royal.weapon == RoyalWeapon.warClub ||
                 royal.weapon == RoyalWeapon.sword
-            ? -2.1 // charge!
+            // Charge! — and on the roar the blade goes all the way up, so the
+            // Sovereign is presenting his lion rather than riding past on it.
+            ? (action == RoyalAction.roar ? -2.6 : -2.1)
             : -0.35,
-        gaze: 1,
-        blink: _blink(t),
+        gaze: action == RoyalAction.roar ? 0 : 1,
+        blink: action == RoyalAction.roar ? false : _blink(t),
         headTilt: 0.03 * math.sin(cyc),
       );
 
@@ -1066,7 +1514,8 @@ class RoyalCharacterPainter extends CustomPainter {
       bool winged = false,
       bool barded = false,
       bool arcane = false,
-      bool emberEye = false}) {
+      bool emberEye = false,
+      bool roaring = false}) {
     final w = size.width, h = size.height;
     final uw = math.min(w, h * 1.7);
     final cx = w * 0.5;
@@ -1079,55 +1528,71 @@ class RoyalCharacterPainter extends CustomPainter {
     // sharp 0→1 spike at the moment of ground contact, which only the stomp
     // uses. See [_Gait] for what each is meant to feel like.
     final s01 = (math.sin(cyc) + 1) / 2; // 0 at the bottom, 1 at the top
-    final (bob, pitch, lift, phases, legSwing, strike) = switch (gait) {
-      _Gait.gallop => (
-          -math.sin(cyc).abs() * h * 0.032,
-          math.sin(cyc + 0.7) * 0.045,
-          0.0,
-          const [0.0, 0.15, 0.5, 0.65],
-          1.0,
-          0.0,
-        ),
-      // Hangs at the top, then slams — a power curve down, both leg pairs
-      // landing together instead of rolling through four beats.
-      _Gait.stomp => (
-          -math.pow(s01, 2.2).toDouble() * h * 0.055,
-          math.sin(cyc + 0.5) * 0.075,
-          0.0,
-          const [0.0, 0.06, 0.5, 0.56],
-          1.15,
-          math.pow(1 - s01, 3).toDouble(),
-        ),
-      // Airborne: a smooth both-ways sine with no ground slam anywhere in it,
-      // riding higher because nothing is holding it up.
-      _Gait.flight => (
-          math.sin(cyc) * h * 0.045,
-          math.sin(cyc + 1.1) * 0.030,
-          -h * 0.075,
-          const [0.0, 0.25, 0.5, 0.75],
-          0.45, // hooves tucked, barely cycling
-          0.0,
-        ),
-      // A long bound with a float at the apex: sharp push, long hang.
-      _Gait.prowl => (
-          -math.pow(s01, 0.55).toDouble() * h * 0.048,
-          math.sin(cyc + 0.9) * 0.060,
-          -h * 0.012,
-          const [0.0, 0.10, 0.46, 0.56],
-          1.25,
-          0.0,
-        ),
-    };
+    // Roaring is a HALT, not a gait: the beast plants, rocks back on its
+    // haunches and holds. Running the prowl underneath would have the lion
+    // bounding away while it bellows at the user.
+    final (bob, pitch, lift, phases, legSwing, strike) = roaring
+        ? (
+            -math.sin(t * math.pi).abs() * h * 0.020,
+            -0.10 * Curves.easeOut.transform((t / 0.24).clamp(0.0, 1.0)) +
+                0.06 * Curves.easeIn.transform(((t - 0.76) / 0.24).clamp(0.0, 1.0)),
+            0.0,
+            const [0.0, 0.0, 0.5, 0.5],
+            1.0, // full-length legs: a braced halt still stands on them
+            0.0,
+          )
+        : switch (gait) {
+            _Gait.gallop => (
+                -math.sin(cyc).abs() * h * 0.032,
+                math.sin(cyc + 0.7) * 0.045,
+                0.0,
+                const [0.0, 0.15, 0.5, 0.65],
+                1.0,
+                0.0,
+              ),
+            // Hangs at the top, then slams — a power curve down, both leg pairs
+            // landing together instead of rolling through four beats.
+            _Gait.stomp => (
+                -math.pow(s01, 2.2).toDouble() * h * 0.055,
+                math.sin(cyc + 0.5) * 0.075,
+                0.0,
+                const [0.0, 0.06, 0.5, 0.56],
+                1.15,
+                math.pow(1 - s01, 3).toDouble(),
+              ),
+            // Airborne: a smooth both-ways sine with no ground slam anywhere in
+            // it, riding higher because nothing is holding it up.
+            _Gait.flight => (
+                math.sin(cyc) * h * 0.045,
+                math.sin(cyc + 1.1) * 0.030,
+                -h * 0.075,
+                const [0.0, 0.25, 0.5, 0.75],
+                // Full-length: at 0.45 the legs vanished inside the belly and
+                // she flew as a legless swan.
+                1.0,
+                0.0,
+              ),
+            // A long bound with a float at the apex: sharp push, long hang.
+            _Gait.prowl => (
+                -math.pow(s01, 0.55).toDouble() * h * 0.048,
+                math.sin(cyc + 0.9) * 0.060,
+                -h * 0.012,
+                const [0.0, 0.10, 0.46, 0.56],
+                1.25,
+                0.0,
+              ),
+          };
 
     // Airborne mounts cast a smaller, softer shadow further below them.
     _shadow(canvas, Offset(cx, ground),
         uw * (gait == _Gait.flight ? 0.20 : 0.27), _Pose(bob: bob / h));
 
-    if (gait == _Gait.stomp) _stompImpact(canvas, size, strike);
+    if (gait == _Gait.stomp && !roaring) _stompImpact(canvas, size, strike);
 
     // The Sovereign's zip: two trailing smears of the whole rig, drawn before
-    // the real one so it reads as something outrunning its own image.
-    if (arcane) {
+    // the real one so it reads as something outrunning its own image. A halted
+    // beast has nothing to outrun, so the roar drops them.
+    if (arcane && !roaring) {
       for (var g = 2; g >= 1; g--) {
         canvas.saveLayer(
             Offset.zero & size,
@@ -1147,7 +1612,8 @@ class RoyalCharacterPainter extends CustomPainter {
             folded: gait == _Gait.flight,
             winged: winged,
             barded: barded,
-            emberEye: emberEye);
+            emberEye: emberEye,
+            planted: roaring);
         canvas.restore();
       }
     }
@@ -1165,10 +1631,13 @@ class RoyalCharacterPainter extends CustomPainter {
         folded: gait == _Gait.flight,
         winged: winged,
         barded: barded,
-        emberEye: emberEye);
+        emberEye: emberEye,
+        planted: roaring,
+        roaring: roaring);
 
     // Ground FX: dust for anything touching the ground, motes for the flier,
-    // arcane sparks for the Sovereign.
+    // arcane sparks for the Sovereign. A halt kicks up nothing.
+    if (roaring) return;
     switch (gait) {
       case _Gait.flight:
         _flightMotes(canvas, size);
@@ -1196,7 +1665,9 @@ class RoyalCharacterPainter extends CustomPainter {
       required bool folded,
       required bool winged,
       required bool barded,
-      required bool emberEye}) {
+      required bool emberEye,
+      bool planted = false,
+      bool roaring = false}) {
     final w = size.width, h = size.height;
     final uw = math.min(w, h * 1.7);
     final cx = w * 0.5;
@@ -1241,26 +1712,49 @@ class RoyalCharacterPainter extends CustomPainter {
     if (winged) _wing(canvas, size, mane, coat, far: true);
 
     // Four stubby legs. [phases] and [legSwing] come from the gait: a rolling
-    // four-beat for the gallop, paired for the stomp, barely moving (and
-    // tucked up) for the flier.
+    // four-beat for the gallop, paired for the stomp, folded for the flier,
+    // braced and still for a roaring halt.
+    //
+    // Every leg is drawn as thigh + cannon over a knee, because the belly of
+    // the body capsule reaches to ~0.74h: a single short capsule from the hip
+    // at 0.63h simply disappears inside it, which is how the pegasus and the
+    // roaring lion both ended up with no legs at all.
     final hipXs = [-0.135, -0.075, 0.065, 0.125];
     final legLen = h * 0.235 * legSwing;
     for (var i = 0; i < 4; i++) {
       final s = math.sin(cyc + phases[i] * 2 * math.pi);
       final hip = Offset(cx + uw * hipXs[i] - uw * 0.03, h * 0.63);
       final tuck = math.max(0.0, -s) * 0.30; // folds on the back-swing
-      final foot = folded
-          // A flier carries its legs tucked up and back under the belly.
-          // Simply shortening them instead leaves four stubs that read as
-          // wheels, which is the opposite of airborne.
-          ? hip +
-              Offset(-legLen * (0.62 + 0.10 * s), legLen * (0.34 + 0.08 * s))
-          : hip +
-              Offset(math.sin(s * 0.75) * legLen,
-                  math.cos(s * 0.75) * legLen * (1 - tuck));
-      _capsule(canvas, hip, foot, h * 0.075, i < 2 ? coatDark : coat);
-      canvas.drawCircle(
-          foot, h * 0.042, Paint()..color = _darken(coatDark, 0.3));
+      final Offset knee, foot;
+      if (planted) {
+        // A braced halt: hind legs gathered under the haunches, forelegs
+        // straight and locked out in front.
+        const brace = [-0.42, -0.26, 0.12, 0.26];
+        final a = brace[i];
+        knee = hip + Offset(math.sin(a) * legLen * 0.52, legLen * 0.50);
+        foot = knee + Offset(math.sin(a * 0.3) * legLen * 0.44, legLen * 0.50);
+      } else {
+        // The flier does NOT get its own folded pose. Two attempts at one gave
+        // four stubs in a row (wheels) and then four horizontal capsules
+        // (rollers) — at this scale a tucked limb has too little of itself
+        // showing past the belly to read as a limb at all. She canters through
+        // the air instead: the ordinary leg cycle, swung shallower and raked
+        // back, which is unmistakably legs and unmistakably not on the ground.
+        final bias = folded ? -0.42 : 0.0;
+        final a = s * (folded ? 0.45 : 0.75) + bias;
+        knee = hip +
+            Offset(math.sin(a) * legLen * 0.52,
+                math.cos(a) * legLen * 0.52 * (1 - tuck));
+        foot = knee +
+            Offset(math.sin(a * 1.25) * legLen * 0.48,
+                math.cos(a) * legLen * 0.48 * (1 - tuck));
+      }
+      final legColor = i < 2 ? coatDark : coat;
+      final hoof = h * (folded ? 0.032 : 0.042);
+      _capsule(canvas, hip, knee, h * 0.078, legColor);
+      _capsule(canvas, knee, foot, h * 0.062, legColor);
+      canvas.drawCircle(foot, hoof, Paint()..color = _darken(coatDark, 0.3));
+      canvas.drawCircle(foot, hoof, _inkStroke..strokeWidth = 1.0);
     }
 
     // Fat capsule body.
@@ -1368,6 +1862,9 @@ class RoyalCharacterPainter extends CustomPainter {
     canvas.drawCircle(eyeP.translate(-h * 0.006, -h * 0.006), h * 0.007,
         Paint()..color = Colors.white.withValues(alpha: 0.9));
 
+    // Head + neck armour goes on last, over the finished head.
+    if (barded) _bardingHead(canvas, size, neckRoot, headC, muzzleC);
+
     // Rein, from the rider's rein hand to the muzzle.
     canvas.drawLine(
         Offset(bodyC.dx + riderW * 0.20, h * 0.46),
@@ -1376,48 +1873,224 @@ class RoyalCharacterPainter extends CustomPainter {
           ..strokeWidth = 1.4
           ..color = _darken(body.main, 0.3));
 
+    // The roar replaces the profile head with a front-facing one, so it is
+    // aimed at the VIEWER rather than at whatever the lion is walking toward.
+    if (roaring) _lionRoar(canvas, size, headC);
+
     canvas.restore();
+  }
+
+  /// The Sovereign's lion turning out of the ride to roar at the user: the
+  /// muzzle swings around to face front, the jaws open, the mane flares, and
+  /// the sound leaves as rings expanding toward the viewer.
+  ///
+  /// Drawn over the profile head rather than instead of it — a lion mid-turn
+  /// keeps the near cheek and mane of the side view, so overpainting reads as
+  /// the head rotating rather than as two heads.
+  void _lionRoar(Canvas canvas, Size size, Offset headC) {
+    final h = size.height;
+    final accent = royal.theme.accent;
+    const coat = Color(0xFFD4A72C);
+    const coatDark = Color(0xFF9C7A16);
+    const maneC = Color(0xFF6E4A2A);
+    // One roar per action pass: wind up, blast, settle.
+    final open = Curves.easeOutBack
+        .transform(((t - 0.16) / 0.22).clamp(0.0, 1.0))
+        .clamp(0.0, 1.15);
+    final close = Curves.easeInOut.transform(((t - 0.74) / 0.26).clamp(0.0, 1.0));
+    final gape = (open * (1 - close)).clamp(0.0, 1.15);
+    final c = headC.translate(h * 0.045, h * 0.010);
+
+    // Mane flares outward with the roar.
+    final maneR = h * 0.205 * (1 + gape * 0.16);
+    for (var i = 0; i < 14; i++) {
+      final a = i / 14 * 2 * math.pi;
+      final spike = maneR * (1.06 + 0.16 * math.sin(i * 2.7 + t * 6));
+      canvas.drawCircle(c + Offset(math.cos(a), math.sin(a)) * spike * 0.72,
+          h * 0.058, Paint()..color = i.isEven ? maneC : _darken(maneC, 0.18));
+    }
+    canvas.drawCircle(c, maneR * 0.80, Paint()..color = _lighten(maneC, 0.10));
+    canvas.drawCircle(c, maneR * 0.80, _inkStroke..strokeWidth = 1.3);
+
+    // Face.
+    canvas.drawCircle(c, h * 0.135, Paint()..color = coat);
+    canvas.drawCircle(c, h * 0.135, _inkStroke..strokeWidth = 1.2);
+    // Brows down into a glare.
+    for (final s in [-1.0, 1.0]) {
+      canvas.drawLine(
+          c + Offset(s * h * 0.088, -h * 0.070),
+          c + Offset(s * h * 0.026, -h * 0.040),
+          Paint()
+            ..strokeWidth = h * 0.014
+            ..strokeCap = StrokeCap.round
+            ..color = body.ink);
+      // Eyes: hot slits under the brow.
+      canvas.drawOval(
+          Rect.fromCenter(
+              center: c + Offset(s * h * 0.055, -h * 0.022),
+              width: h * 0.040,
+              height: h * 0.028 * (1 - gape * 0.35)),
+          Paint()..color = _lighten(accent, 0.25));
+      canvas.drawCircle(c + Offset(s * h * 0.055, -h * 0.022), h * 0.010,
+          Paint()..color = body.ink);
+    }
+    // Muzzle + open jaw.
+    canvas.drawOval(
+        Rect.fromCenter(
+            center: c.translate(0, h * 0.048),
+            width: h * 0.130,
+            height: h * 0.080),
+        Paint()..color = _lighten(coat, 0.30));
+    _triangle(canvas, c.translate(0, h * 0.030), math.pi / 2, h * 0.026,
+        h * 0.020, body.ink);
+    final jaw = Rect.fromCenter(
+        center: c.translate(0, h * 0.090 + h * 0.030 * gape),
+        width: h * 0.115 * (1 + gape * 0.18),
+        height: h * 0.030 + h * 0.105 * gape);
+    canvas.drawOval(jaw, Paint()..color = const Color(0xFF3A1418));
+    canvas.drawOval(jaw, _inkStroke..strokeWidth = 1.2);
+    if (gape > 0.15) {
+      // Tongue + fangs, only once the jaw is genuinely open.
+      canvas.drawOval(
+          Rect.fromCenter(
+              center: jaw.center.translate(0, jaw.height * 0.20),
+              width: jaw.width * 0.46,
+              height: jaw.height * 0.44),
+          Paint()..color = const Color(0xFFCC5A66));
+      for (final s in [-1.0, 1.0]) {
+        _triangle(canvas, jaw.center + Offset(s * jaw.width * 0.26, -jaw.height * 0.10),
+            math.pi / 2, jaw.height * 0.34, h * 0.014, Colors.white);
+        _triangle(canvas, jaw.center + Offset(s * jaw.width * 0.24, jaw.height * 0.44),
+            -math.pi / 2, jaw.height * 0.26, h * 0.012, Colors.white);
+      }
+    }
+    // Whisker dots.
+    for (final s in [-1.0, 1.0]) {
+      for (var i = 0; i < 2; i++) {
+        canvas.drawCircle(
+            c + Offset(s * h * (0.042 + i * 0.018), h * 0.044),
+            h * 0.005,
+            Paint()..color = coatDark);
+      }
+    }
+
+    // The sound: rings racing out of the muzzle toward the viewer, growing and
+    // fading. Three staggered so it reads as a sustained roar, not one pop.
+    for (var i = 0; i < 3; i++) {
+      final p = ((t * 2.4 - i * 0.26) % 1.0);
+      if (t < 0.16 || close >= 1) break;
+      final rr = h * (0.16 + 0.62 * p);
+      canvas.drawCircle(
+          c,
+          rr,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = h * 0.026 * (1 - p) * gape
+            ..color = Color.lerp(Colors.white, accent, 0.45)!
+                .withValues(alpha: 0.42 * (1 - p) * gape));
+    }
   }
 
   /// One feathered wing for the Princess's pegasus. The far wing is drawn
   /// behind the body and the near one over the rider; both beat on the same
   /// cycle, the near one leading slightly so they don't read as one flat pair.
+  ///
+  /// The wings are IVORY with accent-tinted tips, not the accent itself: tinted
+  /// pink they landed on a pink gown over a pink caparison and vanished into
+  /// her, which is why the first pegasus read as a plain unicorn. They also
+  /// need a leading edge — a swept wing-arm with a covert row along it — or a
+  /// fan of feathers alone reads as a cape.
   void _wing(Canvas canvas, Size size, Color feather, Color coat,
       {required bool far}) {
     final w = size.width, h = size.height;
     final uw = math.min(w, h * 1.7);
-    final cyc = t * 2 * math.pi + (far ? 0.0 : 0.35);
+    final cyc = t * 2 * math.pi + (far ? 0.0 : 0.40);
     final beat = math.sin(cyc); // -1 down-stroke … +1 up-stroke
 
     // Rooted on the shoulder, ABOVE the body line, so the wing clears the
     // rider instead of fanning out beside the saddle.
-    final root = Offset(w * 0.5 - uw * 0.045, h * (far ? 0.500 : 0.525));
-    final span = uw * (far ? 0.30 : 0.34);
-    final tint = far ? Color.lerp(feather, coat, 0.50)! : feather;
+    final root = Offset(w * 0.5 - uw * 0.035, h * (far ? 0.485 : 0.515));
+    final span = uw * (far ? 0.36 : 0.42);
+    // Ivory in front, dimmed toward the coat behind, so the pair reads as two
+    // wings at different depths rather than one flat shape.
+    final quill = far
+        ? Color.lerp(const Color(0xFFF3ECFF), coat, 0.42)!
+        : const Color(0xFFFDFAFF);
+    final tipTint = far ? Color.lerp(feather, coat, 0.45)! : feather;
 
     canvas.save();
     canvas.translate(root.dx, root.dy);
-    canvas.rotate(beat * 0.42); // the beat itself
+    // Wings sweep forward on the down-stroke and rake back on the up-stroke;
+    // the vertical squeeze on the down-beat is the "grab" that sells lift.
+    canvas.rotate(beat * 0.46 - 0.06);
+    canvas.scale(1.0, 1.0 - beat * 0.12);
 
-    // Four primaries sweeping up and back, the leading one highest.
-    for (var i = 0; i < 4; i++) {
-      final len = span * (1.0 - i * 0.13);
-      final tip = Offset(-len * (0.55 + i * 0.12), -len * (0.72 - i * 0.20));
-      final feath = Path()
-        ..moveTo(0, 0)
-        ..quadraticBezierTo(tip.dx * 0.35, tip.dy * 0.85, tip.dx, tip.dy)
-        ..quadraticBezierTo(
-            tip.dx * 0.55, tip.dy * 0.45 + h * 0.045, 0, h * 0.038)
-        ..close();
-      canvas.drawPath(
-          feath,
-          Paint()
-            ..color = Color.lerp(Colors.white, tint, 0.20 + i * 0.20)!);
-      canvas.drawPath(feath, _inkStroke..strokeWidth = 1.0);
+    // ONE swept silhouette, then feather lines inside it. Drawing each primary
+    // as its own quad radiating from the shoulder gave a spiky starburst — a
+    // wing is a solid paddle whose trailing edge happens to be scalloped, and
+    // the eye reads the outline long before it reads the feathers.
+    final tip = Offset(-span * 0.97, -span * 0.30);
+    final heel = Offset(-span * 0.06, span * 0.30);
+    const scallops = 4;
+    final notches = <Offset>[];
+    final wing = Path()..moveTo(0, 0);
+    // Leading edge: bows upward out to the tip.
+    wing.quadraticBezierTo(-span * 0.42, -span * 0.50, tip.dx, tip.dy);
+    // Trailing edge: comes home in scallops, one per primary.
+    var prev = tip;
+    for (var i = 1; i <= scallops; i++) {
+      final p = Offset.lerp(tip, heel, i / scallops)!;
+      final mid = Offset.lerp(prev, p, 0.5)!
+          .translate(span * 0.05, span * 0.14);
+      wing.quadraticBezierTo(mid.dx, mid.dy, p.dx, p.dy);
+      notches.add(p);
+      prev = p;
     }
-    // Shoulder covert, hiding where the primaries meet the body.
-    canvas.drawCircle(Offset.zero, h * 0.050, Paint()..color = tint);
-    canvas.drawCircle(Offset.zero, h * 0.050, _inkStroke..strokeWidth = 1.0);
+    wing.close();
+
+    canvas.drawPath(wing, Paint()..color = quill);
+    // Accent wash gathering at the tip only.
+    canvas.drawPath(
+        wing,
+        Paint()
+          ..shader = ui.Gradient.linear(
+            Offset(tip.dx * 0.30, tip.dy * 0.30),
+            tip,
+            [tipTint.withValues(alpha: 0), tipTint.withValues(alpha: 0.80)],
+          ));
+    canvas.drawPath(wing, _inkStroke..strokeWidth = 1.2);
+
+    // Feather separation: a line from up near the leading edge down to each
+    // scallop notch.
+    final vane = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.3
+      ..strokeCap = StrokeCap.round
+      ..color = body.ink.withValues(alpha: 0.55);
+    for (var i = 0; i < notches.length; i++) {
+      final k = (i + 1) / (notches.length + 1);
+      final from = Offset.lerp(Offset(-span * 0.10, -span * 0.10), tip, k)!;
+      canvas.drawLine(from, notches[i], vane);
+    }
+
+    // Covert row along the leading edge, hiding where the vanes meet the arm.
+    // NO outline on these: ringed circles on a pale wing read as holes punched
+    // through it. They are a texture, not a part.
+    for (var i = 0; i < 4; i++) {
+      final k = 0.10 + i * 0.20;
+      final p = Offset.lerp(Offset.zero, tip, k)! +
+          Offset(0, -span * 0.08 * math.sin(k * math.pi));
+      final r = h * (0.044 - i * 0.005);
+      canvas.drawCircle(
+          p,
+          r,
+          Paint()
+            ..color = Color.lerp(quill, tipTint, 0.16 + i * 0.10)!
+                .withValues(alpha: 0.85));
+    }
+    // Shoulder covert.
+    canvas.drawCircle(Offset.zero, h * 0.052, Paint()..color = quill);
+    canvas.drawCircle(Offset.zero, h * 0.052, _inkStroke..strokeWidth = 1.0);
     canvas.restore();
   }
 
@@ -1477,6 +2150,95 @@ class RoyalCharacterPainter extends CustomPainter {
           ..color = plateLit);
     canvas.drawCircle(Offset(bodyC.dx + uw * 0.118, h * 0.678), h * 0.013,
         Paint()..color = accent.withValues(alpha: 0.9));
+
+    // Spiked crupper over the rump — the only piece visible from behind, and
+    // the one that makes the silhouette read as armoured rather than draped.
+    for (var i = 0; i < 3; i++) {
+      final base = Offset(
+          bodyC.dx - uw * (0.100 + i * 0.030), h * (0.516 + i * 0.004));
+      _triangle(canvas, base.translate(-uw * 0.014, -h * 0.042),
+          -math.pi / 2 - 0.35, h * 0.052, h * 0.016, plateLit);
+    }
+  }
+
+  /// The war horse's head and neck armour: a spiked chanfron over the face and
+  /// overlapping criniere lames down the crest.
+  ///
+  /// Painted AFTER the neck and head — [_barding] runs before them and anything
+  /// it puts up at the shoulder line is simply covered over. The face plate is
+  /// what does the intimidating: a barded body with a soft friendly horse head
+  /// on the end of it reads as a horse in a costume.
+  void _bardingHead(Canvas canvas, Size size, Offset neckRoot, Offset headC,
+      Offset muzzleC) {
+    final h = size.height;
+    final accent = royal.theme.accent;
+    const plate = Color(0xFF5B6474);
+    const plateLit = Color(0xFF8B95A8);
+    const plateDark = Color(0xFF343B47);
+
+    // Criniere: five lames stepping down the neck, each overlapping the last.
+    for (var i = 0; i < 5; i++) {
+      final k = i / 4;
+      final c = Offset.lerp(headC.translate(-h * 0.055, h * 0.030),
+          neckRoot.translate(-h * 0.020, -h * 0.020), k)!;
+      final lame = Path()
+        ..moveTo(c.dx - h * 0.052, c.dy - h * 0.020)
+        ..lineTo(c.dx + h * 0.052, c.dy - h * 0.034)
+        ..lineTo(c.dx + h * 0.046, c.dy + h * 0.016)
+        ..quadraticBezierTo(c.dx, c.dy + h * 0.034, c.dx - h * 0.050,
+            c.dy + h * 0.012)
+        ..close();
+      _fillInked(canvas, lame, i.isEven ? plate : plateDark);
+    }
+
+    // Chanfron: the face plate, from between the ears down over the muzzle,
+    // with a cut-out that leaves the ember eye glaring through.
+    final chanfron = Path()
+      ..moveTo(headC.dx - h * 0.070, headC.dy - h * 0.104)
+      ..quadraticBezierTo(headC.dx + h * 0.070, headC.dy - h * 0.130,
+          headC.dx + h * 0.104, headC.dy - h * 0.058)
+      ..lineTo(muzzleC.dx + h * 0.046, muzzleC.dy - h * 0.026)
+      ..quadraticBezierTo(muzzleC.dx + h * 0.052, muzzleC.dy + h * 0.030,
+          muzzleC.dx - h * 0.006, muzzleC.dy + h * 0.034)
+      ..lineTo(headC.dx - h * 0.010, headC.dy + h * 0.062)
+      ..quadraticBezierTo(headC.dx - h * 0.078, headC.dy + h * 0.010,
+          headC.dx - h * 0.070, headC.dy - h * 0.104)
+      ..close();
+    _fillInked(canvas, chanfron, plate);
+    // Lit ridge down the centre of the face.
+    canvas.drawLine(
+        headC.translate(h * 0.014, -h * 0.096),
+        muzzleC.translate(h * 0.010, -h * 0.010),
+        Paint()
+          ..strokeWidth = h * 0.010
+          ..strokeCap = StrokeCap.round
+          ..color = plateLit);
+    // Eye cut-out, ember burning inside it.
+    final eyeP = headC.translate(h * 0.022, -h * 0.022);
+    canvas.drawOval(
+        Rect.fromCenter(
+            center: eyeP, width: h * 0.062, height: h * 0.040),
+        Paint()..color = const Color(0xFF12141A));
+    final glow = 0.72 + 0.28 * math.sin(t * 2 * math.pi * 2);
+    canvas.drawCircle(
+        eyeP,
+        h * 0.040,
+        Paint()
+          ..color = accent.withValues(alpha: 0.34 * glow)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4));
+    canvas.drawCircle(
+        eyeP, h * 0.017, Paint()..color = accent.withValues(alpha: glow));
+
+    // The spike between the ears — a war horse's unicorn, and the single
+    // clearest "this one is armoured" cue at a glance.
+    _triangle(canvas, headC.translate(h * 0.030, -h * 0.250), -math.pi / 2 + 0.18,
+        h * 0.130, h * 0.026, plateLit);
+    // Ear guards.
+    for (final s in [-1.0, 1.0]) {
+      final ear = headC + Offset(s * h * 0.05 - h * 0.015, -h * 0.115);
+      _triangle(canvas, ear.translate(0, -h * 0.012), -math.pi / 2,
+          h * 0.070, h * 0.026, plateDark);
+    }
   }
 
   /// The shock of the Dark Prince's hooves landing: a widening ground ring and
@@ -1959,8 +2721,85 @@ class RoyalCharacterPainter extends CustomPainter {
           headTilt: shake * 0.055,
           flourish: 1,
         );
+      case RoyalAction.spell:
+        // The Empress's signature: gather the working with both hands, throw
+        // it open into a bloom of light, then bow to the user through it.
+        // She rises off her heels for the cast — the one time the serene float
+        // becomes an actual levitation.
+        final gather = Curves.easeInOut.transform((t / 0.42).clamp(0.0, 1.0));
+        final bloom =
+            Curves.easeOutBack.transform(((t - 0.42) / 0.16).clamp(0.0, 1.0));
+        final bow =
+            Curves.easeInOut.transform(((t - 0.66) / 0.34).clamp(0.0, 1.0));
+        // The bow reads as a curtsy: fold forward, settle back down.
+        final dip = math.sin(bow * math.pi);
+        return _Pose(
+          // The curtsy SINKS; it barely folds. Her gown is a bell, so a lean
+          // hardly shows in it — tilt the head to match and the head alone
+          // appears to slide off the body. Drop and squash instead, and keep
+          // the tilt small enough to read as lowered eyes.
+          bob: -0.055 * gather * (1 - bow) + 0.050 * dip,
+          lean: 0.13 * dip,
+          sway: math.sin(t * 2 * math.pi * 0.7) * 0.02,
+          squash: 1 + 0.03 * gather - 0.15 * dip,
+          // Hands come together low, then sweep wide open on the bloom, then
+          // one settles across the waist for the bow.
+          armFree: 0.55 - 0.30 * gather + 2.10 * bloom - 1.70 * bow,
+          armWeapon: -0.55 + 0.30 * gather - 2.10 * bloom + 1.35 * bow,
+          blink: bow > 0.35 && bow < 0.9, // eyes lowered through the curtsy
+          headTilt: -0.10 * gather + 0.07 * dip,
+          flourish: math.max(gather * 0.55, (1 - bow * 0.75)),
+        );
+      case RoyalAction.kiss:
+        // The Princess's signature: fingers to the lips, then a wide sweep
+        // out toward the user as the kiss leaves. The little hop at the end is
+        // what stops it reading as a salute.
+        final raise = Curves.easeOutCubic.transform((t / 0.34).clamp(0.0, 1.0));
+        final blow =
+            Curves.easeOutBack.transform(((t - 0.38) / 0.22).clamp(0.0, 1.0));
+        final settle =
+            Curves.easeInOut.transform(((t - 0.62) / 0.38).clamp(0.0, 1.0));
+        final hop = math.sin(((t - 0.38) / 0.34).clamp(0.0, 1.0) * math.pi);
+        return _Pose(
+          bob: -0.030 * hop,
+          sway: math.sin(t * 2 * math.pi) * 0.03,
+          squash: 1 + 0.03 * hop,
+          // 2.95 ≈ straight up: the mitten lands beside her mouth. Sweeping
+          // down to 1.75 throws it out and forward.
+          armFree: 0.20 + 2.75 * raise - 1.20 * blow + 0.35 * settle,
+          armWeapon: -0.25 - 0.15 * raise,
+          wiggle: blow * (1 - settle) * 0.55,
+          blink: raise > 0.75 && blow < 0.4, // a happy squint as she kisses
+          headTilt: 0.10 * raise - 0.05 * settle,
+          flourish: blow * (1 - settle * 0.55),
+        );
+      case RoyalAction.menace:
+        // The Dark Prince's parting shot: drop the club, let the shock roll
+        // out, then rise into a low guard and hold it. All the weight is in
+        // the hold — a pose is only badass if it stops moving.
+        final drop = Curves.easeInCubic.transform((t / 0.22).clamp(0.0, 1.0));
+        final rise =
+            Curves.easeOutCubic.transform(((t - 0.22) / 0.20).clamp(0.0, 1.0));
+        final breathe = math.sin(t * 2 * math.pi * 0.9);
+        return _Pose(
+          bob: 0.030 * drop - 0.022 * rise + 0.004 * breathe,
+          // Hunched over the planted club, head down under the helm.
+          lean: 0.26 * drop - 0.06 * rise,
+          squash: 1 - 0.16 * drop + 0.13 * rise + 0.006 * breathe,
+          // The club arm hauls up and then drives straight back down, ending
+          // inside the rest band so [_weapon] plants the club in the ground
+          // rather than leaving it waved out sideways at arm's length.
+          armWeapon: -0.30 - 0.95 * drop + 1.05 * rise + 0.20 * drop * rise,
+          armFree: 0.20 - 0.85 * drop + 0.25 * rise,
+          legPhase: 0.55 * drop,
+          stride: 0.7 * drop,
+          blink: false,
+          headTilt: 0.16 * drop - 0.06 * rise,
+          flourish: math.max(drop * (1 - rise * 0.4), 0.45),
+        );
+      case RoyalAction.roar:
       case RoyalAction.ride:
-        return const _Pose(); // ride has its own pipeline
+        return const _Pose(); // both go through the mount pipeline
     }
   }
 

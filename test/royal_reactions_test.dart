@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:budget_tracker/providers/app_preferences.dart';
 import 'package:budget_tracker/services/app_events.dart';
@@ -93,7 +94,7 @@ void main() {
       const expected = {
         'sovereign': RoyalWeapon.sword,
         'empress': RoyalWeapon.orbs,
-        'prince': RoyalWeapon.lance,
+        'prince': RoyalWeapon.knightSword,
         'darkprince': RoyalWeapon.warClub,
         'princess': RoyalWeapon.bow,
         'royalmedic': RoyalWeapon.medKit,
@@ -107,7 +108,7 @@ void main() {
 
     test('each weapon speaks its own attack verb', () {
       expect(royalAttackActionFor(RoyalWeapon.sword), RoyalAction.slash);
-      expect(royalAttackActionFor(RoyalWeapon.lance), RoyalAction.slice);
+      expect(royalAttackActionFor(RoyalWeapon.knightSword), RoyalAction.slice);
       expect(royalAttackActionFor(RoyalWeapon.bow), RoyalAction.shoot);
       expect(royalAttackActionFor(RoyalWeapon.orbs), RoyalAction.hurl);
       expect(royalAttackActionFor(RoyalWeapon.warClub), RoyalAction.smash);
@@ -400,6 +401,47 @@ void main() {
         }
       }
     });
+
+    test('every royal has a signature move, and it is one it can perform', () {
+      // The four characterful ones are the point of the feature; the Prince
+      // and the Medic keep the plain wave deliberately.
+      const expected = {
+        'empress': RoyalAction.spell,
+        'princess': RoyalAction.kiss,
+        'darkprince': RoyalAction.menace,
+        'sovereign': RoyalAction.roar,
+        'prince': RoyalAction.wave,
+        'royalmedic': RoyalAction.wave,
+      };
+      for (final r in kRoyalAvatars) {
+        expect(expected.containsKey(r.id), isTrue,
+            reason: '${r.id} has no signature declared');
+      }
+      expect(expected.values.toSet().length, 5);
+    });
+
+    test('the full-body head drops the sprite weapon lane, and only that', () {
+      for (final r in kRoyalAvatars) {
+        expect(r.headRows.length, r.rows.length, reason: r.id);
+        for (var i = 0; i < r.rows.length; i++) {
+          final base = r.rows[i], head = r.headRows[i];
+          expect(head.length, base.length, reason: r.id);
+          // Everything past the lane is untouched…
+          expect(head.substring(r.weaponCols), base.substring(r.weaponCols),
+              reason: '${r.id} row $i');
+          // …and the lane itself is empty.
+          expect(head.substring(0, r.weaponCols),
+              '.' * r.weaponCols, reason: '${r.id} row $i');
+        }
+      }
+      // The two brothers carry theirs in the art; nobody else has a lane, so
+      // blanking one would eat their head outline (which starts at column 2).
+      final laned = {
+        for (final r in kRoyalAvatars)
+          if (r.weaponCols > 0) r.id: r.weaponCols
+      };
+      expect(laned, {'prince': 4, 'darkprince': 4});
+    });
   });
 
   group('RoyalReactionHost', () {
@@ -411,6 +453,70 @@ void main() {
       // delivered the moment a host mounts on the Budgets tab.
       RoyalMood.reset();
       mainShellTabIndex.value = 0;
+    });
+
+    testWidgets(
+        'the launch parade crosses the screen whichever way it sets off',
+        (tester) async {
+      // The regression this pins: the parade's far point used to be an
+      // absolute screen fraction rather than a distance from the start. The
+      // Home profile anchor sits in the TOP-RIGHT corner, so a rightward
+      // launch put the "far" point inboard of the start and the royal
+      // shuffled ~28px and came back — which is what "stuck in the corner"
+      // looked like, on roughly half of all launches.
+      //
+      // Direction is sampled per launch, so this runs the entrance enough
+      // times to hit both.
+      final princess = kRoyalAvatars.firstWhere((r) => r.id == 'princess');
+      SharedPreferences.setMockInitialValues({
+        'gamification_v1': jsonEncode({
+          'profile': {
+            'avatarKind': 'pixel',
+            'avatarValue': '${princess.spriteIndex}',
+          },
+          'unlockedRoyals': ['princess'],
+        }),
+        'royal_custom_animations': true,
+      });
+      final prefs = AppPreferences();
+      await prefs.initialize();
+
+      double? characterX() {
+        final finder = find.byWidgetPredicate(
+            (w) => w is CustomPaint && w.painter is RoyalCharacterPainter);
+        if (finder.evaluate().isEmpty) return null;
+        // The real body is painted last, after any speed afterimages.
+        return tester.getCenter(finder.last).dx;
+      }
+
+      final screenW = tester.view.physicalSize.width / tester.view.devicePixelRatio;
+      for (var run = 0; run < 8; run++) {
+        // Tear the host down between runs: pumping the same widget type keeps
+        // the existing State alive, so initState never re-runs and the second
+        // parade would simply never start.
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump();
+        RoyalReactionHost.debugReset();
+        await tester.pumpWidget(_host(prefs));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 250));
+
+        var lo = double.infinity, hi = double.negativeInfinity;
+        for (var i = 0; i < 44; i++) {
+          await tester.pump(const Duration(milliseconds: 130));
+          final x = characterX();
+          if (x == null) continue;
+          lo = math.min(lo, x);
+          hi = math.max(hi, x);
+        }
+        expect(hi - lo, greaterThan(screenW * 0.30),
+            reason: 'run $run: the parade barely moved (${hi - lo}px of '
+                '${screenW}px) — it is stuck near its anchor again');
+
+        // Leave nothing running for the next iteration.
+        await tester.pump(const Duration(seconds: 7));
+        await tester.pump();
+      }
     });
 
     // A host that registers the popup observer (as the real MaterialApp does)
