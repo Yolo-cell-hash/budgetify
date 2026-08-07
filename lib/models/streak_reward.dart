@@ -171,6 +171,38 @@ const List<StreakReward> kStreakRewards = [
     emblem: '🌌',
     swatch: [Color(0xFF27C0F5), Color(0xFF0D1430)],
   ),
+  // 45 → 60 is the road's longest gap, and the hardest fortnight on it. This
+  // pack breaks the climb roughly in half so the stretch to Vellum has
+  // something to reach for.
+  StreakReward(
+    id: 'freeze_pack_4',
+    days: 52,
+    name: '+2 Streak Freezes',
+    blurb:
+        'Two Streak Freezes for the last stretch — cover for the hardest '
+        'fortnight on the road. Unlocked at a 52-day streak.',
+    kind: StreakRewardKind.freeze,
+    freezeCount: 2,
+    rarity: BadgeRarity.ruby,
+    emblem: '🧊',
+    swatch: [Color(0xFF27C0F5), Color(0xFF0D3B66)],
+  ),
+  // The end of the road, for now: two months unbroken. Vellum is the only
+  // theme that inverts the app's usual figure/ground — parchment cards on a
+  // near-black canvas — so it reads as a different object, not a recolour.
+  StreakReward(
+    id: 'theme_vellum',
+    days: 60,
+    name: 'Vellum',
+    blurb:
+        'Two months unbroken. Your figures printed in deep ink on parchment, '
+        'laid on near-black paper stock. Unlocked at a 60-day streak.',
+    kind: StreakRewardKind.theme,
+    themeVariant: AppThemeVariant.vellum,
+    rarity: BadgeRarity.diamond, // the road's new summit, above 45-day ruby
+    emblem: '📜',
+    swatch: [Color(0xFFE8DCC0), Color(0xFF0F0E0B)],
+  ),
 ];
 
 /// Streak lengths (in days) that each grant one royal-avatar pick. Kept in

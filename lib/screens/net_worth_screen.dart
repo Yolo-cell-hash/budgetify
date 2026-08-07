@@ -276,6 +276,7 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
             value: net,
             formatter: _fmt,
             style: TextStyle(
+              fontFamily: AppPalette.displayFamilyOf(context),
               fontSize: 36,
               fontWeight: FontWeight.w700,
               letterSpacing: -1.2,

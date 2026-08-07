@@ -82,6 +82,7 @@ class _NetWorthProjectionCardState extends State<NetWorthProjectionCard> {
           Text(
             _inrCompact(projected),
             style: TextStyle(
+              fontFamily: AppPalette.displayFamilyOf(context),
               fontSize: 30,
               fontWeight: FontWeight.w800,
               letterSpacing: -0.8,
