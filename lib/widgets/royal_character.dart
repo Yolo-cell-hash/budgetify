@@ -971,26 +971,33 @@ class RoyalCharacterPainter extends CustomPainter {
             coat: const Color(0xFFF4EFE6),
             coatDark: const Color(0xFFD8D2C4),
             mane: _gold,
-            style: _BeastStyle.horse);
+            style: _BeastStyle.horse,
+            gait: _Gait.gallop);
       case _Mount.darkhorse:
         _rideBeast(canvas, size,
             coat: const Color(0xFF3A3F4C), // a shade above the onyx armour
             coatDark: const Color(0xFF20232C),
             mane: royal.theme.accent,
             style: _BeastStyle.horse,
+            gait: _Gait.stomp,
+            barded: true,
             emberEye: true);
-      case _Mount.unicorn:
+      case _Mount.pegasus:
         _rideBeast(canvas, size,
             coat: const Color(0xFFF6F1E8),
             coatDark: const Color(0xFFDCD2C4),
             mane: royal.theme.accent,
-            style: _BeastStyle.unicorn);
+            style: _BeastStyle.unicorn,
+            gait: _Gait.flight,
+            winged: true);
       case _Mount.lion:
         _rideBeast(canvas, size,
             coat: const Color(0xFFD4A72C),
             coatDark: const Color(0xFF9C7A16),
             mane: const Color(0xFF6E4A2A),
-            style: _BeastStyle.lion);
+            style: _BeastStyle.lion,
+            gait: _Gait.prowl,
+            arcane: true);
     }
   }
 
@@ -1055,7 +1062,141 @@ class RoyalCharacterPainter extends CustomPainter {
       required Color coatDark,
       required Color mane,
       required _BeastStyle style,
+      required _Gait gait,
+      bool winged = false,
+      bool barded = false,
+      bool arcane = false,
       bool emberEye = false}) {
+    final w = size.width, h = size.height;
+    final uw = math.min(w, h * 1.7);
+    final cx = w * 0.5;
+    final ground = h * 0.94;
+    final cyc = t * 2 * math.pi;
+
+    // ── Gait ────────────────────────────────────────────────────────────────
+    // Where the four beasts stop being the same animal. Each supplies its own
+    // vertical motion, pitch, ride height and leg timing; `strike` is the
+    // sharp 0→1 spike at the moment of ground contact, which only the stomp
+    // uses. See [_Gait] for what each is meant to feel like.
+    final s01 = (math.sin(cyc) + 1) / 2; // 0 at the bottom, 1 at the top
+    final (bob, pitch, lift, phases, legSwing, strike) = switch (gait) {
+      _Gait.gallop => (
+          -math.sin(cyc).abs() * h * 0.032,
+          math.sin(cyc + 0.7) * 0.045,
+          0.0,
+          const [0.0, 0.15, 0.5, 0.65],
+          1.0,
+          0.0,
+        ),
+      // Hangs at the top, then slams — a power curve down, both leg pairs
+      // landing together instead of rolling through four beats.
+      _Gait.stomp => (
+          -math.pow(s01, 2.2).toDouble() * h * 0.055,
+          math.sin(cyc + 0.5) * 0.075,
+          0.0,
+          const [0.0, 0.06, 0.5, 0.56],
+          1.15,
+          math.pow(1 - s01, 3).toDouble(),
+        ),
+      // Airborne: a smooth both-ways sine with no ground slam anywhere in it,
+      // riding higher because nothing is holding it up.
+      _Gait.flight => (
+          math.sin(cyc) * h * 0.045,
+          math.sin(cyc + 1.1) * 0.030,
+          -h * 0.075,
+          const [0.0, 0.25, 0.5, 0.75],
+          0.45, // hooves tucked, barely cycling
+          0.0,
+        ),
+      // A long bound with a float at the apex: sharp push, long hang.
+      _Gait.prowl => (
+          -math.pow(s01, 0.55).toDouble() * h * 0.048,
+          math.sin(cyc + 0.9) * 0.060,
+          -h * 0.012,
+          const [0.0, 0.10, 0.46, 0.56],
+          1.25,
+          0.0,
+        ),
+    };
+
+    // Airborne mounts cast a smaller, softer shadow further below them.
+    _shadow(canvas, Offset(cx, ground),
+        uw * (gait == _Gait.flight ? 0.20 : 0.27), _Pose(bob: bob / h));
+
+    if (gait == _Gait.stomp) _stompImpact(canvas, size, strike);
+
+    // The Sovereign's zip: two trailing smears of the whole rig, drawn before
+    // the real one so it reads as something outrunning its own image.
+    if (arcane) {
+      for (var g = 2; g >= 1; g--) {
+        canvas.saveLayer(
+            Offset.zero & size,
+            Paint()
+              ..color = Colors.white.withValues(alpha: 0.26 / g));
+        canvas.translate(-uw * 0.055 * g, h * 0.004 * g);
+        _beastRig(canvas, size,
+            coat: coat,
+            coatDark: coatDark,
+            mane: mane,
+            style: style,
+            bob: bob,
+            pitch: pitch,
+            lift: lift,
+            phases: phases,
+            legSwing: legSwing,
+            folded: gait == _Gait.flight,
+            winged: winged,
+            barded: barded,
+            emberEye: emberEye);
+        canvas.restore();
+      }
+    }
+
+    _beastRig(canvas, size,
+        coat: coat,
+        coatDark: coatDark,
+        mane: mane,
+        style: style,
+        bob: bob,
+        pitch: pitch,
+        lift: lift,
+        phases: phases,
+        legSwing: legSwing,
+        folded: gait == _Gait.flight,
+        winged: winged,
+        barded: barded,
+        emberEye: emberEye);
+
+    // Ground FX: dust for anything touching the ground, motes for the flier,
+    // arcane sparks for the Sovereign.
+    switch (gait) {
+      case _Gait.flight:
+        _flightMotes(canvas, size);
+      case _Gait.prowl:
+        _arcaneStreaks(canvas, size, cyc);
+        _dust(canvas, size, cyc);
+      case _Gait.gallop:
+      case _Gait.stomp:
+        _dust(canvas, size, cyc);
+    }
+  }
+
+  /// One frame of the quadruped itself. Split out of [_rideBeast] so the
+  /// Sovereign can draw it more than once for its afterimage trail.
+  void _beastRig(Canvas canvas, Size size,
+      {required Color coat,
+      required Color coatDark,
+      required Color mane,
+      required _BeastStyle style,
+      required double bob,
+      required double pitch,
+      required double lift,
+      required List<double> phases,
+      required double legSwing,
+      required bool folded,
+      required bool winged,
+      required bool barded,
+      required bool emberEye}) {
     final w = size.width, h = size.height;
     final uw = math.min(w, h * 1.7);
     final cx = w * 0.5;
@@ -1063,16 +1204,11 @@ class RoyalCharacterPainter extends CustomPainter {
     final cyc = t * 2 * math.pi;
     final lion = style == _BeastStyle.lion;
 
-    final bob = -math.sin(cyc).abs() * h * 0.032;
-    final pitch = math.sin(cyc + 0.7) * 0.045;
-
-    _shadow(canvas, Offset(cx, ground), uw * 0.27, _Pose(bob: bob / h));
-
     canvas.save();
     canvas.translate(cx, ground);
     canvas.rotate(pitch);
     canvas.translate(-cx, -ground);
-    canvas.translate(0, bob);
+    canvas.translate(0, bob + lift);
 
     final bodyC = Offset(cx - uw * 0.03, h * 0.605);
     final halfLen = uw * 0.150;
@@ -1101,17 +1237,27 @@ class RoyalCharacterPainter extends CustomPainter {
       canvas.drawPath(tail, _inkStroke..strokeWidth = 1.1);
     }
 
-    // Four stubby legs, rotary gallop.
+    // The far wing, behind the body, so the near one can layer over the rider.
+    if (winged) _wing(canvas, size, mane, coat, far: true);
+
+    // Four stubby legs. [phases] and [legSwing] come from the gait: a rolling
+    // four-beat for the gallop, paired for the stomp, barely moving (and
+    // tucked up) for the flier.
     final hipXs = [-0.135, -0.075, 0.065, 0.125];
-    final phases = [0.0, 0.15, 0.5, 0.65];
-    final legLen = h * 0.235;
+    final legLen = h * 0.235 * legSwing;
     for (var i = 0; i < 4; i++) {
       final s = math.sin(cyc + phases[i] * 2 * math.pi);
       final hip = Offset(cx + uw * hipXs[i] - uw * 0.03, h * 0.63);
       final tuck = math.max(0.0, -s) * 0.30; // folds on the back-swing
-      final foot = hip +
-          Offset(math.sin(s * 0.75) * legLen,
-              math.cos(s * 0.75) * legLen * (1 - tuck));
+      final foot = folded
+          // A flier carries its legs tucked up and back under the belly.
+          // Simply shortening them instead leaves four stubs that read as
+          // wheels, which is the opposite of airborne.
+          ? hip +
+              Offset(-legLen * (0.62 + 0.10 * s), legLen * (0.34 + 0.08 * s))
+          : hip +
+              Offset(math.sin(s * 0.75) * legLen,
+                  math.cos(s * 0.75) * legLen * (1 - tuck));
       _capsule(canvas, hip, foot, h * 0.075, i < 2 ? coatDark : coat);
       canvas.drawCircle(
           foot, h * 0.042, Paint()..color = _darken(coatDark, 0.3));
@@ -1143,6 +1289,10 @@ class RoyalCharacterPainter extends CustomPainter {
           ..strokeWidth = h * 0.018
           ..color = _gold);
 
+    // Barding: plate over the caparison, so the Dark Prince's steed is armoured
+    // like its rider rather than merely painted darker.
+    if (barded) _barding(canvas, size, bodyC, uw, coatDark);
+
     // The rider, astride the caparison.
     final riderH = h * 0.66;
     final riderW = riderH * 0.78;
@@ -1150,6 +1300,10 @@ class RoyalCharacterPainter extends CustomPainter {
     canvas.translate(bodyC.dx - riderW / 2, h * 0.525 - riderH * 0.80);
     _figureSeated(canvas, Size(riderW, riderH), _riderPose(cyc));
     canvas.restore();
+
+    // The near wing, over the rider — this is what sells "astride a flier"
+    // rather than "standing behind a pair of wings".
+    if (winged) _wing(canvas, size, mane, coat, far: false);
 
     // Neck + head, in front of the rider's leading leg.
     final neckRoot = Offset(cx + uw * 0.10, h * 0.56);
@@ -1223,8 +1377,180 @@ class RoyalCharacterPainter extends CustomPainter {
           ..color = _darken(body.main, 0.3));
 
     canvas.restore();
+  }
 
-    _dust(canvas, size, cyc);
+  /// One feathered wing for the Princess's pegasus. The far wing is drawn
+  /// behind the body and the near one over the rider; both beat on the same
+  /// cycle, the near one leading slightly so they don't read as one flat pair.
+  void _wing(Canvas canvas, Size size, Color feather, Color coat,
+      {required bool far}) {
+    final w = size.width, h = size.height;
+    final uw = math.min(w, h * 1.7);
+    final cyc = t * 2 * math.pi + (far ? 0.0 : 0.35);
+    final beat = math.sin(cyc); // -1 down-stroke … +1 up-stroke
+
+    // Rooted on the shoulder, ABOVE the body line, so the wing clears the
+    // rider instead of fanning out beside the saddle.
+    final root = Offset(w * 0.5 - uw * 0.045, h * (far ? 0.500 : 0.525));
+    final span = uw * (far ? 0.30 : 0.34);
+    final tint = far ? Color.lerp(feather, coat, 0.50)! : feather;
+
+    canvas.save();
+    canvas.translate(root.dx, root.dy);
+    canvas.rotate(beat * 0.42); // the beat itself
+
+    // Four primaries sweeping up and back, the leading one highest.
+    for (var i = 0; i < 4; i++) {
+      final len = span * (1.0 - i * 0.13);
+      final tip = Offset(-len * (0.55 + i * 0.12), -len * (0.72 - i * 0.20));
+      final feath = Path()
+        ..moveTo(0, 0)
+        ..quadraticBezierTo(tip.dx * 0.35, tip.dy * 0.85, tip.dx, tip.dy)
+        ..quadraticBezierTo(
+            tip.dx * 0.55, tip.dy * 0.45 + h * 0.045, 0, h * 0.038)
+        ..close();
+      canvas.drawPath(
+          feath,
+          Paint()
+            ..color = Color.lerp(Colors.white, tint, 0.20 + i * 0.20)!);
+      canvas.drawPath(feath, _inkStroke..strokeWidth = 1.0);
+    }
+    // Shoulder covert, hiding where the primaries meet the body.
+    canvas.drawCircle(Offset.zero, h * 0.050, Paint()..color = tint);
+    canvas.drawCircle(Offset.zero, h * 0.050, _inkStroke..strokeWidth = 1.0);
+    canvas.restore();
+  }
+
+  /// Plate barding for the Dark Prince's steed: a chest peytral and a flank
+  /// plate, both onyx with an accent rivet line.
+  void _barding(
+      Canvas canvas, Size size, Offset bodyC, double uw, Color coatDark) {
+    final h = size.height;
+    final accent = royal.theme.accent;
+    // Deliberately NOT the coat's own dark: onyx plate on an onyx horse under
+    // an onyx caparison is invisible. Gunmetal reads as armour against all
+    // three, with a lit top edge to sell the metal.
+    const plate = Color(0xFF5B6474);
+    const plateLit = Color(0xFF8B95A8);
+
+    // Flank plate over the caparison.
+    final flank = Path()
+      ..moveTo(bodyC.dx - uw * 0.075, h * 0.560)
+      ..lineTo(bodyC.dx + uw * 0.070, h * 0.560)
+      ..lineTo(bodyC.dx + uw * 0.058, h * 0.668)
+      ..quadraticBezierTo(
+          bodyC.dx, h * 0.700, bodyC.dx - uw * 0.062, h * 0.668)
+      ..close();
+    _fillInked(canvas, flank, plate);
+    // Lit top edge — the bevel that makes it read as plate, not a patch.
+    canvas.drawLine(
+        Offset(bodyC.dx - uw * 0.072, h * 0.567),
+        Offset(bodyC.dx + uw * 0.067, h * 0.567),
+        Paint()
+          ..strokeWidth = h * 0.011
+          ..strokeCap = StrokeCap.round
+          ..color = plateLit);
+    for (var i = 0; i < 3; i++) {
+      canvas.drawCircle(
+          Offset(bodyC.dx - uw * 0.045 + i * uw * 0.045, h * 0.604),
+          h * 0.011,
+          Paint()..color = accent.withValues(alpha: 0.9));
+    }
+
+    // Peytral across the chest. Sits BELOW the neck root: the neck capsule is
+    // painted after the barding, so anything up at the shoulder line is simply
+    // covered over.
+    final peytral = Path()
+      ..moveTo(bodyC.dx + uw * 0.085, h * 0.628)
+      ..lineTo(bodyC.dx + uw * 0.158, h * 0.640)
+      ..lineTo(bodyC.dx + uw * 0.145, h * 0.716)
+      ..quadraticBezierTo(bodyC.dx + uw * 0.112, h * 0.735,
+          bodyC.dx + uw * 0.078, h * 0.706)
+      ..close();
+    _fillInked(canvas, peytral, plate);
+    canvas.drawLine(
+        Offset(bodyC.dx + uw * 0.090, h * 0.638),
+        Offset(bodyC.dx + uw * 0.152, h * 0.650),
+        Paint()
+          ..strokeWidth = h * 0.010
+          ..strokeCap = StrokeCap.round
+          ..color = plateLit);
+    canvas.drawCircle(Offset(bodyC.dx + uw * 0.118, h * 0.678), h * 0.013,
+        Paint()..color = accent.withValues(alpha: 0.9));
+  }
+
+  /// The shock of the Dark Prince's hooves landing: a widening ground ring and
+  /// a spray of grit, both keyed to [strike] (1 at the instant of contact).
+  void _stompImpact(Canvas canvas, Size size, double strike) {
+    if (strike < 0.02) return;
+    final w = size.width, h = size.height;
+    final uw = math.min(w, h * 1.7);
+    final ground = h * 0.945;
+    final accent = royal.theme.accent;
+
+    // Ring, widening and fading as the shock spreads out.
+    final spread = 1 - strike;
+    canvas.drawOval(
+        Rect.fromCenter(
+            center: Offset(w * 0.5, ground),
+            width: uw * (0.20 + spread * 0.42),
+            height: h * (0.030 + spread * 0.055)),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = h * 0.012 * strike
+          ..color = accent.withValues(alpha: 0.55 * strike));
+
+    // Grit thrown out sideways along the ground.
+    for (var i = 0; i < 5; i++) {
+      final dir = i.isEven ? -1.0 : 1.0;
+      final k = (i + 1) / 5;
+      canvas.drawCircle(
+          Offset(w * 0.5 + dir * uw * 0.10 * k * (1 + spread * 1.6),
+              ground - h * 0.055 * strike * k),
+          h * 0.016 * strike * (1 - k * 0.5),
+          Paint()..color = body.ink.withValues(alpha: 0.22 * strike));
+    }
+  }
+
+  /// The pegasus leaves motes of light where a galloping mount would leave
+  /// dust — nothing it does touches the ground.
+  void _flightMotes(Canvas canvas, Size size) {
+    final w = size.width, h = size.height;
+    final accent = royal.theme.accent;
+    for (var i = 0; i < 5; i++) {
+      final p = ((t * 1.3 + i * 0.2) % 1.0);
+      final drift = Offset(w * 0.26 - p * w * 0.22, h * 0.70 + p * h * 0.10);
+      final fade = (1 - p);
+      _star(canvas, drift, w * 0.016 * fade + w * 0.004,
+          Color.lerp(Colors.white, accent, 0.5)!.withValues(alpha: 0.8 * fade));
+    }
+  }
+
+  /// Speed smears behind the Sovereign — the drawn half of "zipping about".
+  void _arcaneStreaks(Canvas canvas, Size size, double cyc) {
+    final w = size.width, h = size.height;
+    final uw = math.min(w, h * 1.7);
+    final accent = royal.theme.accent;
+    for (var i = 0; i < 4; i++) {
+      final p = ((t * 2.2 + i * 0.25) % 1.0);
+      final y = h * (0.50 + i * 0.085);
+      final x0 = w * 0.44 - p * uw * 0.30;
+      canvas.drawLine(
+          Offset(x0, y),
+          Offset(x0 - uw * 0.11 * (1 - p * 0.4), y),
+          Paint()
+            ..strokeWidth = h * 0.011 * (1 - p)
+            ..strokeCap = StrokeCap.round
+            ..color = Color.lerp(Colors.white, accent, 0.65)!
+                .withValues(alpha: 0.45 * (1 - p)));
+    }
+    // A soft aura riding with the beast.
+    canvas.drawCircle(
+        Offset(w * 0.5, h * 0.60),
+        uw * 0.24,
+        Paint()
+          ..color = accent.withValues(alpha: 0.10 + 0.04 * math.sin(cyc))
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14));
   }
 
   /// The Empress's ride: a floating gold palanquin drifting on a cushion of
@@ -1234,9 +1560,35 @@ class RoyalCharacterPainter extends CustomPainter {
     final uw = math.min(w, h * 1.7);
     final cx = w * 0.5;
     final cyc = t * 2 * math.pi;
-    final hover = math.sin(cyc) * h * 0.025 - h * 0.05;
+
+    // Elegance is compound motion at different rates. A single sine reads as a
+    // machine bobbing; a slow rise crossed with an even slower sway, plus a
+    // roll that LAGS the rise the way a boat's does, reads as something being
+    // carried. Nothing here is fast — that is the point.
+    final rise = math.sin(cyc * 0.62) * h * 0.030;
+    final sway = math.sin(cyc * 0.37 + 1.1) * uw * 0.012;
+    final roll = math.sin(cyc * 0.62 - 0.85) * 0.030; // trails the rise
+    final hover = rise - h * 0.05;
 
     _shadow(canvas, Offset(cx, h * 0.94), uw * 0.24, const _Pose(bob: -0.05));
+
+    // Silk streamers off the rear poles, trailing the sway.
+    for (var i = 0; i < 2; i++) {
+      final anchor = Offset(cx - uw * 0.34, h * 0.700 + hover + i * h * 0.030);
+      final drift = math.sin(cyc * 0.5 - i * 0.7) * h * 0.030;
+      final silk = Path()
+        ..moveTo(anchor.dx, anchor.dy)
+        ..quadraticBezierTo(anchor.dx - uw * 0.09, anchor.dy + drift,
+            anchor.dx - uw * 0.17, anchor.dy + drift * 1.7)
+        ..quadraticBezierTo(anchor.dx - uw * 0.09,
+            anchor.dy + drift + h * 0.020, anchor.dx, anchor.dy + h * 0.016)
+        ..close();
+      canvas.drawPath(
+          silk,
+          Paint()
+            ..color = royal.theme.accent
+                .withValues(alpha: i == 0 ? 0.55 : 0.35));
+    }
 
     // Sparkle wake beneath the deck.
     for (var i = 0; i < 5; i++) {
@@ -1248,7 +1600,11 @@ class RoyalCharacterPainter extends CustomPainter {
     }
 
     canvas.save();
-    canvas.translate(0, hover);
+    canvas.translate(sway, hover);
+    // Roll about the deck's centre, so the whole litter tips as one.
+    canvas.translate(cx, h * 0.66);
+    canvas.rotate(roll);
+    canvas.translate(-cx, -h * 0.66);
 
     // Carry poles.
     canvas.drawLine(Offset(cx - uw * 0.40, h * 0.715),
@@ -1708,15 +2064,39 @@ class RoyalCharacterPainter extends CustomPainter {
 }
 
 /// The royal ride each character mounts for [RoyalAction.ride].
-enum _Mount { horse, darkhorse, unicorn, lion, palanquin, cart }
+enum _Mount { horse, darkhorse, pegasus, lion, palanquin, cart }
 
 /// Beast flavour for the shared quadruped painter.
 enum _BeastStyle { horse, unicorn, lion }
 
+/// How a mount carries itself.
+///
+/// The quadruped chassis is shared; the gait is not, and the gait is what makes
+/// a ride read as a different animal rather than a recolour. Four royals used
+/// to share one four-beat gallop and differ only by coat colour, a horn and a
+/// mane — which is why the Prince, Dark Prince, Princess and Sovereign all
+/// looked like the same horse wearing different paint.
+enum _Gait {
+  /// The Prince's four-beat canter — the baseline, deliberately unchanged.
+  gallop,
+
+  /// The Dark Prince: a heavy two-beat where both pairs land together, hanging
+  /// at the top and slamming down. Kicks up an impact ring on each strike.
+  stomp,
+
+  /// The Princess: airborne. Hooves tuck, the body rides a smooth sine instead
+  /// of a ground-slam, and the wingbeat carries the rhythm.
+  flight,
+
+  /// The Sovereign: long low bounds with a float at the apex, trailing
+  /// afterimages — a beast covering ground faster than it should.
+  prowl,
+}
+
 _Mount _mountOf(String id) => switch (id) {
       'prince' => _Mount.horse,
       'darkprince' => _Mount.darkhorse,
-      'princess' => _Mount.unicorn,
+      'princess' => _Mount.pegasus,
       'sovereign' => _Mount.lion,
       'empress' => _Mount.palanquin,
       _ => _Mount.cart,
