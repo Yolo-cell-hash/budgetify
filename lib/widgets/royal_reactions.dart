@@ -25,9 +25,10 @@ import 'royal_character.dart';
 ///
 /// The budget attack is per-royal — each weapon fights its own way and leaves
 /// its own damage ([_ShatterPainter]): the Sovereign slashes an X with his
-/// sword, the Prince slices a long gash with the lance, the Dark Prince's
-/// club blows a full spiderweb crater, the Princess feathers the screen with
-/// arrows, the Empress detonates hurled orbs, the Medic slams a shock pulse.
+/// sword of state, the Prince lunges his arming sword clean through in one
+/// long gash, the Dark Prince's club blows a full spiderweb crater, the
+/// Princess feathers the screen with arrows, the Empress detonates hurled
+/// orbs, the Medic slams a shock pulse.
 /// On the Budgets tab the strike lands on the MONTHLY BUDGET gauge
 /// ([royalBudgetChartAnchorKey]) — the royal runs in from its anchor, jumps
 /// up onto the ring, wrecks it and hops back down; elsewhere it plays out
@@ -403,6 +404,40 @@ _BootStyle _bootStyleFor(String id) => switch (id) {
       _ => _BootStyle.parade, // prince + royal medic, deliberately unchanged
     };
 
+/// The move a royal signs off its entrance with — how it says hello.
+///
+/// The parade already gave each royal its own way of crossing the screen, but
+/// every one of them still ENDED on the same generic wave. The signature is
+/// the beat the user actually remembers, so it belongs to the character: the
+/// Empress conjures, the Princess blows a kiss, the Dark Prince plants his
+/// club, the Sovereign's lion roars straight down the lens, the Medic takes
+/// your vitals — which in a budgeting app is not only a joke, since the
+/// Financial Health score is exactly a pulse reading — and the Prince salutes
+/// with his new sword.
+///
+/// They are deliberately not all the same KIND of move: two are theatre (the
+/// roar, the spell), two are affection (the kiss, the vitals), one is a threat
+/// and one is drill. A court where everyone mugs at the camera the same way is
+/// six copies of one idea.
+///
+/// [RoyalAction.wave] stays the fallback for any royal added later that has no
+/// signature authored yet — better a plain hello than an assertion failure in
+/// a cosmetic overlay.
+RoyalAction _signatureActionFor(String id) => switch (id) {
+      'empress' => RoyalAction.spell,
+      'princess' => RoyalAction.kiss,
+      'darkprince' => RoyalAction.menace,
+      'sovereign' => RoyalAction.roar,
+      'royalmedic' => RoyalAction.mend,
+      'prince' => RoyalAction.salute,
+      _ => RoyalAction.wave,
+    };
+
+/// Whether [a] is performed from the saddle (so the frame keeps the wide ride
+/// box) rather than on foot.
+bool _isMounted(RoyalAction a) =>
+    a == RoyalAction.ride || a == RoyalAction.roar;
+
 /// One frame of a routine: where the character is, what it's doing, and what
 /// damage/projectiles are live on screen this instant.
 class _CharFrame {
@@ -414,6 +449,14 @@ class _CharFrame {
   final double shake; // 0..1+ screen-shake intensity
   final List<_ImpactFx> impacts; // live shatter sites
   final List<_ProjFx> projectiles; // arrows / orbs in flight
+
+  /// How solid the character is this frame. Below 1 only for the Sovereign's
+  /// dash, where the body itself is what fades out (see [ghosts]).
+  final double opacity;
+
+  /// Afterimages of the character trailing the real one, nearest first.
+  final List<_Ghost> ghosts;
+
   const _CharFrame({
     required this.center,
     required this.scale,
@@ -423,7 +466,22 @@ class _CharFrame {
     this.shake = 0,
     this.impacts = const [],
     this.projectiles = const [],
+    this.opacity = 1,
+    this.ghosts = const [],
   });
+}
+
+/// One afterimage: the same pose, somewhere the character just was.
+///
+/// The Sovereign's entrance is meant to read as a man moving faster than the
+/// eye follows — so during a dash the SOLID body drops to a smear and what you
+/// actually see is the trail it left. Stretching each ghost horizontally is
+/// what turns a row of copies into motion blur.
+class _Ghost {
+  final Offset center;
+  final double opacity;
+  final double stretch; // horizontal scale
+  const _Ghost(this.center, this.opacity, this.stretch);
 }
 
 /// One live shatter site: where the blow landed, the direction it came in
@@ -964,7 +1022,7 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
   /// How long each weapon's screen attack runs, in ms.
   static int _attackDurationMs(RoyalWeapon w) => switch (w) {
         RoyalWeapon.sword => 5200, // two crossing cuts
-        RoyalWeapon.lance => 4800, // one driven slice
+        RoyalWeapon.knightSword => 4800, // one driven slice
         RoyalWeapon.warClub => 5000, // slam + aftershock
         RoyalWeapon.bow => 5400, // three-arrow volley
         RoyalWeapon.orbs => 5400, // two hurled orbs
@@ -976,7 +1034,7 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
   /// screen shake and the haptic schedule.
   static List<double> _impactTimesFor(RoyalWeapon w) => switch (w) {
         RoyalWeapon.sword => const [0.272, 0.432],
-        RoyalWeapon.lance => const [0.366],
+        RoyalWeapon.knightSword => const [0.366],
         RoyalWeapon.warClub => const [0.393, 0.47],
         RoyalWeapon.bow => const [0.296, 0.416, 0.536],
         RoyalWeapon.orbs => const [0.35, 0.53],
@@ -1017,7 +1075,7 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
         await Future.delayed(const Duration(milliseconds: 80));
         if (mounted) await HapticFeedback.heavyImpact();
       case RoyalWeapon.sword:
-      case RoyalWeapon.lance:
+      case RoyalWeapon.knightSword:
         _rumble(const [0, 55, 40, 75], const [235, 160]);
         await HapticFeedback.heavyImpact();
         await Future.delayed(const Duration(milliseconds: 60));
@@ -1133,17 +1191,31 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
     final standY = ground - _ch * 0.5;
     final rideY = ground - _rh * 0.5;
     final style = _bootStyleFor(_royal?.id ?? '');
-    final dir = _bootDir; // -1 sets off leftwards, +1 rightwards
+
+    // How much room the ride box has either side of the start point. The
+    // anchor is the Home profile circle, which lives in the TOP-RIGHT corner —
+    // so "rightwards" is a few dozen pixels of runway, not half a screen.
+    final half = _rw * 0.45;
+    final startX = _clampX(icon.dx, screen, half);
+    double runway(double d) =>
+        d < 0 ? startX - half : (screen.width - half) - startX;
+
+    // The far point used to be an absolute screen fraction (0.5 ± reach), not
+    // a distance from home. Out of the top-right corner that put the far point
+    // INBOARD of the start: a rightward parade travelled ~28px and came back,
+    // which is why the Prince and Empress looked stuck in the corner for half
+    // of all launches. Sample the direction, then honour it only if that side
+    // actually has somewhere to go.
+    var dir = _bootDir; // -1 sets off leftwards, +1 rightwards
+    if (runway(dir) < runway(-dir) * 0.6) dir = -dir;
+    final reach = math.min(screen.width * _bootReach, runway(dir));
 
     // The wave spot sits on the side they are about to travel toward, so the
     // hop out of the circle already commits to the direction.
     final waveC = Offset(_clampX(icon.dx + 30 * dir, screen), standY);
     final rideHomeC = Offset(waveC.dx, rideY);
-    final farC = Offset(
-        dir < 0
-            ? _clampX(screen.width * (0.5 - _bootReach), screen, _rw * 0.45)
-            : _clampX(screen.width * (0.5 + _bootReach), screen, _rw * 0.45),
-        rideY);
+    final farC =
+        Offset(_clampX(startX + dir * reach, screen, half), rideY);
 
     // Facing follows travel: out is `dir`, home is `-dir`.
     final outFace = dir;
@@ -1174,14 +1246,42 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
         case _BootStyle.blink:
           // Three bursts with a held beat between each: covered ground appears
           // to happen between frames.
-          const steps = 3;
-          final seg = (p * steps).floor().clamp(0, steps - 1);
-          final within = (p * steps) - seg;
-          // Most of each burst happens in the first third of its slot.
-          final eased = Curves.easeInExpo.transform(within.clamp(0.0, 1.0));
-          final k = (seg + eased) / steps;
+          final k = _blinkK(p);
           return _lerpO(a, b, k);
       }
+    }
+
+    /// The Sovereign's dash, as [_CharFrame] extras: during a burst the solid
+    /// body all but disappears and a stretched trail of afterimages carries the
+    /// motion instead. Holding still, everything returns to normal.
+    ///
+    /// Bursts used to be conveyed by position alone, which just looked like
+    /// dropped frames — the eye reads a fully-drawn body appearing somewhere
+    /// new as a teleport or a stutter, never as speed. Fading the body out is
+    /// what makes it "too fast to see" rather than "skipping".
+    ({double opacity, List<_Ghost> ghosts}) zip(
+        double p, {required bool outbound}) {
+      if (style != _BootStyle.blink) {
+        return (opacity: 1.0, ghosts: const <_Ghost>[]);
+      }
+      final here = travel(p, outbound: outbound);
+      // Speed from the curve itself, sampled rather than differentiated in
+      // closed form — the burst curve changes and this keeps following it.
+      final ahead = travel((p + 0.02).clamp(0.0, 1.0), outbound: outbound);
+      final behind = travel((p - 0.02).clamp(0.0, 1.0), outbound: outbound);
+      final v = (ahead - behind).distance / (screen.width * 0.055);
+      final blur = v.clamp(0.0, 1.0);
+      if (blur < 0.12) return (opacity: 1.0, ghosts: const <_Ghost>[]);
+      final ghosts = <_Ghost>[
+        for (var g = 1; g <= 4; g++)
+          _Ghost(
+            _lerpO(here, behind, g * 0.55),
+            0.30 * blur / g,
+            1 + blur * 0.55,
+          ),
+      ];
+      // Fully solid until it starts moving, then gone: 1 → ~0.06.
+      return (opacity: 1 - blur * 0.94, ghosts: ghosts);
     }
 
     if (t < 0.09) {
@@ -1214,13 +1314,17 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
     }
     if (t < 0.50) {
       // Out across the screen on the royal ride.
+      final p = _seg(t, 0.29, 0.50);
+      final fx = zip(p, outbound: true);
       return _CharFrame(
-          center: travel(_seg(t, 0.29, 0.50), outbound: true),
+          center: travel(p, outbound: true),
           scale: 1,
           action: RoyalAction.ride,
           // The Empress's ride cycles slowly; the rest keep the brisk tempo.
           actionT: _cyc(t, style == _BootStyle.glide ? 900 : 420),
-          facing: outFace);
+          facing: outFace,
+          opacity: fx.opacity,
+          ghosts: fx.ghosts);
     }
     if (t < 0.55) {
       // The beat at the far end, where each royal turns in its own way. The
@@ -1241,32 +1345,63 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
           }),
           facing: turned);
     }
-    if (t < 0.76) {
+    if (t < 0.72) {
+      final p = _seg(t, 0.55, 0.72);
+      final fx = zip(p, outbound: false);
       return _CharFrame(
-          center: travel(_seg(t, 0.55, 0.76), outbound: false),
+          center: travel(p, outbound: false),
           scale: 1,
           action: RoyalAction.ride,
           actionT: _cyc(t, style == _BootStyle.glide ? 900 : 420),
-          facing: style == _BootStyle.glide ? outFace : homeFace);
+          facing: style == _BootStyle.glide ? outFace : homeFace,
+          opacity: fx.opacity,
+          ghosts: fx.ghosts);
     }
-    if (t < 0.80) {
-      // Dismount beat.
+
+    // ── The signature ──────────────────────────────────────────────────────
+    // Every royal used to end on the same wave here. Now each signs off in its
+    // own way, and the Sovereign stays in the saddle for his, because the move
+    // is the lion's (see [_signatureActionFor]).
+    final sig = _signatureActionFor(_royal?.id ?? '');
+    final mounted = _isMounted(sig);
+    final sigC = mounted ? rideHomeC : waveC;
+    // Facing: the signature is aimed at the USER, so the royal turns to the
+    // roomier side of the screen rather than off the edge it came in from.
+    final sigFace = waveC.dx > screen.width * 0.5 ? -1.0 : 1.0;
+
+    if (t < 0.76) {
+      // Dismount / settle beat before the move.
+      return _CharFrame(
+          center: sigC,
+          scale: 1,
+          action: mounted ? RoyalAction.ride : RoyalAction.idle,
+          actionT: _cyc(t, mounted ? 700 : 1400),
+          facing: sigFace);
+    }
+    if (t < 0.90) {
+      final at = _seg(t, 0.76, 0.90);
+      return _CharFrame(
+          center: sigC,
+          scale: 1,
+          action: sig,
+          actionT: at,
+          facing: sigFace,
+          // The roar hits the room: a short shake as the sound lands.
+          shake: sig == RoyalAction.roar
+              ? _seg(at, 0.16, 0.30) * (1 - _seg(at, 0.34, 0.62)) * 0.55
+              : 0);
+    }
+    if (t < 0.93 && mounted) {
+      // A beat to dismount before diving home, so he doesn't take the lion in
+      // through the profile circle with him.
       return _CharFrame(
           center: waveC,
           scale: 1,
           action: RoyalAction.idle,
           actionT: _cyc(t, 1400),
-          facing: outFace);
+          facing: sigFace);
     }
-    if (t < 0.92) {
-      return _CharFrame(
-          center: waveC,
-          scale: 1,
-          action: RoyalAction.wave,
-          actionT: _seg(t, 0.80, 0.92),
-          facing: outFace);
-    }
-    final p = _seg(t, 0.92, 1.0);
+    final p = _seg(t, mounted ? 0.93 : 0.90, 1.0);
     final hop = -math.sin(p * math.pi) * 10;
     return _CharFrame(
         center: _lerpO(waveC, icon, Curves.easeIn.transform(p)).translate(0, hop),
@@ -1274,6 +1409,15 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
         action: RoyalAction.idle,
         actionT: _cyc(t, 1400),
         facing: outFace);
+  }
+
+  /// The blink dash's travel curve: [steps] bursts, each covering its slot in
+  /// the first fraction of the time available, then holding.
+  static double _blinkK(double p, {int steps = 3}) {
+    final seg = (p * steps).floor().clamp(0, steps - 1);
+    final within = (p * steps) - seg;
+    final eased = Curves.easeInExpo.transform(within.clamp(0.0, 1.0));
+    return (seg + eased) / steps;
   }
 
   /// The stand line beside the anchor, kept on-screen even when the anchor is
@@ -1371,7 +1515,7 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
           [impact, impact],
           [-0.62, 0.62], // two crossing diagonals → the X
         ),
-      RoyalWeapon.lance => ([impact], [0.14]), // one near-horizontal gash
+      RoyalWeapon.knightSword => ([impact], [0.14]), // one near-horizontal gash
       RoyalWeapon.warClub => ([impact, impact], [math.pi / 2, math.pi / 2]),
       RoyalWeapon.bow => (
           [
@@ -1425,7 +1569,7 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
     final shakeAmp = switch (w) {
       RoyalWeapon.warClub => 1.0,
       RoyalWeapon.medKit => 0.8,
-      RoyalWeapon.lance => 0.75,
+      RoyalWeapon.knightSword => 0.75,
       RoyalWeapon.sword => 0.7,
       RoyalWeapon.orbs => 0.6,
       RoyalWeapon.bow => 0.35,
@@ -1454,13 +1598,14 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
       RoyalWeapon.bow => (0.18, RoyalAction.walk), // light skip to range
       RoyalWeapon.orbs => (0.20, RoyalAction.walk), // a glide, never a run
       RoyalWeapon.medKit || RoyalWeapon.sword => (0.20, RoyalAction.run),
-      RoyalWeapon.lance => (0.22, RoyalAction.run),
+      RoyalWeapon.knightSword => (0.22, RoyalAction.run),
     };
-    // The lance charges THROUGH the target; everyone else fights on the spot.
-    final preStage = w == RoyalWeapon.lance
+    // The knight's lunge carries him THROUGH the target; everyone else fights
+    // on the spot.
+    final preStage = w == RoyalWeapon.knightSword
         ? Offset(_clampX(stage.dx - facing * 120, screen), stage.dy)
         : stage;
-    final postStage = w == RoyalWeapon.lance
+    final postStage = w == RoyalWeapon.knightSword
         ? Offset(_clampX(stage.dx + facing * 140, screen), stage.dy)
         : stage;
 
@@ -1514,7 +1659,7 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
         if (t < 0.80) {
           return cf(stage, action: RoyalAction.fume, actionT: _cyc(t, 720));
         }
-      case RoyalWeapon.lance:
+      case RoyalWeapon.knightSword:
         if (t < 0.50) {
           final at = _seg(t, 0.22, 0.50);
           // Drive through the target during the pose's lunge (sub 0.30-0.60).
@@ -1573,7 +1718,7 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
       RoyalWeapon.warClub || RoyalWeapon.bow || RoyalWeapon.orbs => 0.82,
       _ => 0.80,
     };
-    final from = w == RoyalWeapon.lance ? postStage : stage;
+    final from = w == RoyalWeapon.knightSword ? postStage : stage;
     if (t < 0.93) {
       if (elevated) {
         // Hop down from the chart to the bottom lane...
@@ -1798,9 +1943,36 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
         final icon = _anchorCenter(mq.size, mq.padding);
         final f = _frame(routine, _ctrl.value, icon, mq.size, mq.padding);
         final shakeOff = f.shake > 0 ? _shake(f.shake) : Offset.zero;
-        final wide = f.action == RoyalAction.ride;
+        final wide = _isMounted(f.action);
         final boxW = wide ? _rw : _cw;
         final boxH = wide ? _rh : _ch;
+
+        /// One draw of the character — the real one, or an afterimage.
+        Widget figure(Offset center,
+                {required double opacity, double stretch = 1}) =>
+            Positioned(
+              left: center.dx - boxW / 2,
+              top: center.dy - boxH / 2,
+              width: boxW,
+              height: boxH,
+              child: IgnorePointer(
+                child: Opacity(
+                  opacity: opacity.clamp(0.0, 1.0),
+                  child: Transform.scale(
+                    scaleX: f.scale * stretch,
+                    scaleY: f.scale,
+                    child: CustomPaint(
+                      painter: RoyalCharacterPainter(
+                        royal: royal,
+                        action: f.action,
+                        t: f.actionT,
+                        facing: f.facing,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
 
         return Stack(
           children: [
@@ -1819,25 +1991,11 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
                   ),
                 ),
               ),
-            Positioned(
-              left: f.center.dx - boxW / 2,
-              top: f.center.dy - boxH / 2,
-              width: boxW,
-              height: boxH,
-              child: IgnorePointer(
-                child: Transform.scale(
-                  scale: f.scale,
-                  child: CustomPaint(
-                    painter: RoyalCharacterPainter(
-                      royal: royal,
-                      action: f.action,
-                      t: f.actionT,
-                      facing: f.facing,
-                    ),
-                  ),
-                ),
-              ),
-            ),
+            // Afterimages first (furthest back last in the list, so they paint
+            // under the real body).
+            for (final g in f.ghosts.reversed)
+              figure(g.center, opacity: g.opacity, stretch: g.stretch),
+            figure(f.center, opacity: f.opacity),
           ],
         );
       },
@@ -1857,8 +2015,9 @@ Offset _lerpO(Offset a, Offset b, double x) =>
 /// light-loss vignette that gives the hit physical weight. Everything fades
 /// out together late in the routine as the damage "heals".
 ///
-/// Per weapon: the sword rips two crossing diagonal gashes (an X), the lance
-/// drags one long near-horizontal gash with sparks, the war club blows a
+/// Per weapon: the sword of state rips two crossing diagonal gashes (an X),
+/// the knight's lunge drags one long near-horizontal gash with sparks along
+/// it (the cut a thrust-and-draw leaves), the war club blows a
 /// full spiderweb crater that keeps propagating after the hit, arrows punch
 /// small dense webs and stay embedded (quivering), orbs detonate in accent-
 /// tinted shock rings with rising embers, the med kit slams a spiderweb plus
@@ -1924,7 +2083,7 @@ class _ShatterPainter extends CustomPainter {
           _gash(canvas, imp.at, imp.dir, size.shortestSide * 0.42, alpha, rng);
           _shards(canvas, imp.at, imp.age, imp.fade, rng, count: 7, speed: 75);
           _flashRing(canvas, size, imp.at, imp.age, imp.fade);
-        case RoyalWeapon.lance:
+        case RoyalWeapon.knightSword:
           _gash(canvas, imp.at, imp.dir, size.shortestSide * 0.60, alpha, rng,
               splinters: 9);
           // Sparks skitter along the fresh cut.
