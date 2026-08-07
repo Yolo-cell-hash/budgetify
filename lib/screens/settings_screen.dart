@@ -1020,6 +1020,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ThemeProvider themeProvider, {
     StreakReward? reward,
     required bool locked,
+    required bool earned,
   }) {
     showThemePreviewSheet(
       context,
@@ -1029,7 +1030,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
       active: themeProvider.variant == v,
       onApply: locked || themeProvider.variant == v
           ? null
-          : () => themeProvider.setVariant(v),
+          // Mirrors the tile's own tap exactly. Under dev mode an unearned
+          // theme is NOT locked, so applying it from here must still go through
+          // the dev overlay — writing it to the real theme_variant would
+          // survive switching dev mode off, which is the one thing the overlay
+          // exists to prevent.
+          : () {
+              if (!earned) {
+                DevMode.previewTheme(themeProvider, v);
+                return;
+              }
+              themeProvider.setVariant(v);
+              if (DevMode.isActive) DevMode.clearThemePreview();
+            },
     );
   }
 
@@ -1050,7 +1063,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       // toward something the user had never been shown.
       onTap: () {
         if (locked) {
-          _previewTheme(v, themeProvider, reward: reward, locked: true);
+          _previewTheme(v, themeProvider,
+              reward: reward, locked: true, earned: earned);
           return;
         }
         if (!earned) {
@@ -1152,6 +1166,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   themeProvider,
                   reward: reward,
                   locked: locked,
+                  earned: earned,
                 ),
                 radius: 18,
                 child: Padding(
