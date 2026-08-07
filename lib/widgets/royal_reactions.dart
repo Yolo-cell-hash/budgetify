@@ -367,6 +367,42 @@ class RoyalMood {
 /// icon-anchored reactions; the rest are ambient cameos.
 enum _Routine { boot, smash, praise, strike, stroll, dash, peek, twirl }
 
+/// How a royal makes its launch entrance.
+///
+/// The parade used to be one hardcoded path for all six — hop out, ride left,
+/// turn, ride back, hop in — so every royal arrived identically, every
+/// morning. The STYLE is now fixed per royal (that is the uniqueness) while
+/// the DIRECTION and the far-point are sampled per launch (that is the
+/// freshness). Style stays deterministic on purpose: a royal that entered
+/// differently each time would have no signature at all.
+enum _BootStyle {
+  /// Out and back along the ground — the Prince's canter, the Medic's cart.
+  parade,
+
+  /// Out hard, a stomping halt at the far end that shakes the floor, then a
+  /// charge home. The Dark Prince.
+  chargeHalt,
+
+  /// A rising arc out and a descending one back, never touching the floor.
+  /// The Princess.
+  soar,
+
+  /// Covered in bursts: gone, a beat at the far side, gone again — the
+  /// Sovereign outrunning the eye.
+  blink,
+
+  /// One long unhurried drift with no turnaround beat at all. The Empress.
+  glide,
+}
+
+_BootStyle _bootStyleFor(String id) => switch (id) {
+      'darkprince' => _BootStyle.chargeHalt,
+      'princess' => _BootStyle.soar,
+      'sovereign' => _BootStyle.blink,
+      'empress' => _BootStyle.glide,
+      _ => _BootStyle.parade, // prince + royal medic, deliberately unchanged
+    };
+
 /// One frame of a routine: where the character is, what it's doing, and what
 /// damage/projectiles are live on screen this instant.
 class _CharFrame {
@@ -468,6 +504,12 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
   static bool _bootedThisSession = false;
 
   final math.Random _rng = math.Random();
+
+  /// Sampled per launch in [_play]: which way the boot parade sets off, and
+  /// how far across the screen it goes. Keeps the same royal from replaying an
+  /// identical entrance every morning. See [_BootStyle].
+  double _bootDir = -1;
+  double _bootReach = 0.42;
   Timer? _cameoTimer;
   DateTime _lastPlayEnd = DateTime.fromMillisecondsSinceEpoch(0);
   // Per-cameo randomness, rolled once when the cameo starts.
@@ -874,6 +916,13 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
     // handled by _onPopupChanged, which cancels the one already playing.)
     if (_popupOpen) return;
     final weapon = _royal?.weapon ?? RoyalWeapon.sword;
+    if (r == _Routine.boot) {
+      // Sampled per launch, not per royal: which way they set off, and how far
+      // they go. Enough that two mornings don't look like a replay, while the
+      // style below keeps each royal recognisably itself.
+      _bootDir = _rng.nextBool() ? -1.0 : 1.0;
+      _bootReach = 0.34 + _rng.nextDouble() * 0.22; // 0.34–0.56 of the screen
+    }
     _durationMs = switch (r) {
       _Routine.boot => 5600,
       // Each weapon fights at its own tempo: the volley and the double-orb
@@ -1083,9 +1132,57 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
     final ground = _groundY(icon);
     final standY = ground - _ch * 0.5;
     final rideY = ground - _rh * 0.5;
-    final waveC = Offset(_clampX(icon.dx - 30, screen), standY);
+    final style = _bootStyleFor(_royal?.id ?? '');
+    final dir = _bootDir; // -1 sets off leftwards, +1 rightwards
+
+    // The wave spot sits on the side they are about to travel toward, so the
+    // hop out of the circle already commits to the direction.
+    final waveC = Offset(_clampX(icon.dx + 30 * dir, screen), standY);
     final rideHomeC = Offset(waveC.dx, rideY);
-    final leftC = Offset(_rw * 0.45, rideY);
+    final farC = Offset(
+        dir < 0
+            ? _clampX(screen.width * (0.5 - _bootReach), screen, _rw * 0.45)
+            : _clampX(screen.width * (0.5 + _bootReach), screen, _rw * 0.45),
+        rideY);
+
+    // Facing follows travel: out is `dir`, home is `-dir`.
+    final outFace = dir;
+    final homeFace = -dir;
+
+    /// Where the royal is at travel progress [p] (0 at home, 1 at the far
+    /// point), for whichever leg is running. The styles differ ONLY here and
+    /// in the beat at the far end — the pop-out, waves and hop-home are shared
+    /// so every royal still reads as coming out of, and going back into, the
+    /// same circle.
+    Offset travel(double p, {required bool outbound}) {
+      final a = outbound ? rideHomeC : farC;
+      final b = outbound ? farC : rideHomeC;
+      switch (style) {
+        case _BootStyle.parade:
+        case _BootStyle.chargeHalt:
+          return _lerpO(a, b, Curves.easeInOut.transform(p));
+        case _BootStyle.glide:
+          // Linear: no acceleration anywhere in it. That absence is the whole
+          // difference between drifting and being flung.
+          return _lerpO(a, b, p);
+        case _BootStyle.soar:
+          // Rises on the way out, settles on the way back — a real arc, so she
+          // is never on the floor at all.
+          final base = _lerpO(a, b, Curves.easeInOut.transform(p));
+          final arc = math.sin(p * math.pi) * _rh * (outbound ? 0.62 : 0.42);
+          return base.translate(0, -arc);
+        case _BootStyle.blink:
+          // Three bursts with a held beat between each: covered ground appears
+          // to happen between frames.
+          const steps = 3;
+          final seg = (p * steps).floor().clamp(0, steps - 1);
+          final within = (p * steps) - seg;
+          // Most of each burst happens in the first third of its slot.
+          final eased = Curves.easeInExpo.transform(within.clamp(0.0, 1.0));
+          final k = (seg + eased) / steps;
+          return _lerpO(a, b, k);
+      }
+    }
 
     if (t < 0.09) {
       // Pop out of the icon with a little hop.
@@ -1096,7 +1193,7 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
           scale: p.clamp(0.0, 1.0),
           action: RoyalAction.idle,
           actionT: _cyc(t, 1400),
-          facing: -1);
+          facing: outFace);
     }
     if (t < 0.24) {
       return _CharFrame(
@@ -1104,40 +1201,62 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
           scale: 1,
           action: RoyalAction.wave,
           actionT: _seg(t, 0.09, 0.24),
-          facing: -1);
+          facing: outFace);
     }
     if (t < 0.29) {
       // A beat before the mount appears.
       return _CharFrame(
-          center: waveC, scale: 1, action: RoyalAction.idle, actionT: _cyc(t, 1400), facing: -1);
+          center: waveC,
+          scale: 1,
+          action: RoyalAction.idle,
+          actionT: _cyc(t, 1400),
+          facing: outFace);
     }
     if (t < 0.50) {
-      // Ride out across the screen on the royal ride.
-      final p = Curves.easeInOut.transform(_seg(t, 0.29, 0.50));
+      // Out across the screen on the royal ride.
       return _CharFrame(
-          center: _lerpO(rideHomeC, leftC, p),
+          center: travel(_seg(t, 0.29, 0.50), outbound: true),
           scale: 1,
           action: RoyalAction.ride,
-          actionT: _cyc(t, 420),
-          facing: -1);
+          // The Empress's ride cycles slowly; the rest keep the brisk tempo.
+          actionT: _cyc(t, style == _BootStyle.glide ? 900 : 420),
+          facing: outFace);
     }
     if (t < 0.55) {
+      // The beat at the far end, where each royal turns in its own way. The
+      // Empress skips it entirely — she never stops, so there is nothing to
+      // turn around; the glide just carries straight on into the return.
+      final turned = style == _BootStyle.glide ? outFace : homeFace;
       return _CharFrame(
-          center: leftC, scale: 1, action: RoyalAction.ride, actionT: _cyc(t, 700), facing: 1);
-    }
-    if (t < 0.76) {
-      final p = Curves.easeInOut.transform(_seg(t, 0.55, 0.76));
-      return _CharFrame(
-          center: _lerpO(leftC, rideHomeC, p),
+          center: style == _BootStyle.glide
+              ? travel(1, outbound: true)
+              : farC,
           scale: 1,
           action: RoyalAction.ride,
-          actionT: _cyc(t, 420),
-          facing: 1);
+          // chargeHalt lands hard and holds; blink hangs a beat before going.
+          actionT: _cyc(t, switch (style) {
+            _BootStyle.chargeHalt => 240, // a short, heavy stamp in place
+            _BootStyle.blink => 900,
+            _ => 700,
+          }),
+          facing: turned);
+    }
+    if (t < 0.76) {
+      return _CharFrame(
+          center: travel(_seg(t, 0.55, 0.76), outbound: false),
+          scale: 1,
+          action: RoyalAction.ride,
+          actionT: _cyc(t, style == _BootStyle.glide ? 900 : 420),
+          facing: style == _BootStyle.glide ? outFace : homeFace);
     }
     if (t < 0.80) {
       // Dismount beat.
       return _CharFrame(
-          center: waveC, scale: 1, action: RoyalAction.idle, actionT: _cyc(t, 1400), facing: -1);
+          center: waveC,
+          scale: 1,
+          action: RoyalAction.idle,
+          actionT: _cyc(t, 1400),
+          facing: outFace);
     }
     if (t < 0.92) {
       return _CharFrame(
@@ -1145,7 +1264,7 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
           scale: 1,
           action: RoyalAction.wave,
           actionT: _seg(t, 0.80, 0.92),
-          facing: -1);
+          facing: outFace);
     }
     final p = _seg(t, 0.92, 1.0);
     final hop = -math.sin(p * math.pi) * 10;
@@ -1154,7 +1273,7 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
         scale: (1 - p).clamp(0.0, 1.0),
         action: RoyalAction.idle,
         actionT: _cyc(t, 1400),
-        facing: -1);
+        facing: outFace);
   }
 
   /// The stand line beside the anchor, kept on-screen even when the anchor is
