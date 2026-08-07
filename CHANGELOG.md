@@ -17,6 +17,9 @@ without adding any network access.
   rules, the nav bar, stays light-on-dark, so the cards read as pages on a desk
   rather than as a theme that couldn't decide. Like every road reward it unlocks
   against your *longest* streak, so a bad week never takes it back.
+- **Two Streak Freezes at 52 days.** The climb from Midnight Indigo to Vellum is
+  the longest stretch on the road, and the hardest; it now has a stop in the
+  middle rather than a fortnight of nothing.
 
 ### Fixed
 
