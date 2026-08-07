@@ -26,9 +26,13 @@ without adding any network access.
   falling light. The Princess blows a kiss, the hearts growing as they come at
   you. The Dark Prince drives his club into the ground and holds a low guard
   while embers climb off the plate. The Sovereign stays in the saddle and his
-  lion turns to roar down the lens, which rocks the screen. The Prince and the
-  Royal Medic keep the plain wave on purpose: two ordinary ones make the other
-  four land harder.
+  lion turns to roar down the lens, which rocks the screen. The Royal Medic
+  snaps her kit open and takes your vitals: a heartbeat writes itself across
+  the air beside her, healing plus-signs rise out of the glow, and a clean
+  pulse ring signs you off — which in a budgeting app is barely a joke, since
+  the Financial Health score is a vital sign already. The Prince keeps the
+  wave; somebody should, or the sequence turns into a variety act, and his
+  entrance already carries the newest thing about him.
 - **The Sovereign actually reads as fast now.** His dash conveyed speed with
   position alone, so a fully-drawn body appearing somewhere new looked like
   dropped frames rather than movement. During a burst the solid body now fades

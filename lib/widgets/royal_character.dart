@@ -29,7 +29,7 @@ import 'royal_avatars.dart';
 /// overhead slam (war club, med kit). Use [royalAttackActionFor] to pick the
 /// right one.
 ///
-/// The last four are SIGNATURE moves — one per royal, played at the end of the
+/// The last five are SIGNATURE moves — one per royal, played at the end of the
 /// launch entrance so each court member says hello in a way only they could
 /// (see `_signatureActionFor` in royal_reactions.dart).
 enum RoyalAction {
@@ -60,6 +60,10 @@ enum RoyalAction {
   /// The Sovereign's lion turns and roars at the viewer. A ride-time action —
   /// it goes through the mount pipeline, not the standing one.
   roar,
+
+  /// The Royal Medic takes your vitals: the kit comes up open, a heartbeat
+  /// traces itself across the air, and she signs off that you'll live.
+  mend,
 }
 
 /// The attack verb a royal's weapon speaks: the Sovereign slashes, the Prince
@@ -801,16 +805,38 @@ class RoyalCharacterPainter extends CustomPainter {
               ..color = body.pale.withValues(alpha: 0.9)
               ..strokeWidth = 1.2);
       case RoyalWeapon.medKit:
+        final emerald = royal.palette['E'] ?? const Color(0xFF2BB985);
+        final c = hand.translate(0, h * 0.012);
+        // On the mend signature the case is OPEN — a hinged lid tipped back
+        // with light coming out of it. A shut box held up says nothing.
+        final open = action == RoyalAction.mend
+            ? ((t - 0.14) / 0.18).clamp(0.0, 1.0) *
+                (1 - ((t - 0.80) / 0.20).clamp(0.0, 1.0))
+            : 0.0;
+        if (open > 0) {
+          canvas.save();
+          canvas.translate(c.dx - w * 0.082, c.dy - h * 0.048);
+          canvas.rotate(-open * 1.15); // lid swings back on its hinge
+          final lid = RRect.fromRectAndRadius(
+              Rect.fromLTWH(0, -h * 0.042, w * 0.165, h * 0.044),
+              Radius.circular(w * 0.02));
+          canvas.drawRRect(lid, Paint()..color = const Color(0xFFE4DED2));
+          canvas.drawRRect(lid, _inkStroke..strokeWidth = 1.1);
+          canvas.restore();
+          // Contents glowing in the tray.
+          canvas.drawRect(
+              Rect.fromCenter(
+                  center: c.translate(0, -h * 0.010),
+                  width: w * 0.130,
+                  height: h * 0.030),
+              Paint()..color = emerald.withValues(alpha: 0.55 * open));
+        }
         final kit = RRect.fromRectAndRadius(
-            Rect.fromCenter(
-                center: hand.translate(0, h * 0.012),
-                width: w * 0.165,
-                height: h * 0.10),
+            Rect.fromCenter(center: c, width: w * 0.165, height: h * 0.10),
             Radius.circular(w * 0.03));
         canvas.drawRRect(kit, Paint()..color = const Color(0xFFF6F2EA));
         canvas.drawRRect(kit, _inkStroke..strokeWidth = 1.2);
-        _plus(canvas, hand.translate(0, h * 0.012), w * 0.036,
-            royal.palette['E'] ?? const Color(0xFF2BB985));
+        _plus(canvas, c, w * 0.036, emerald);
       case RoyalWeapon.orbs:
         break; // painted by _orbs
     }
@@ -1344,6 +1370,60 @@ class RoyalCharacterPainter extends CustomPainter {
             Paint()
               ..color = accent.withValues(alpha: 0.16 * pose.flourish)
               ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14));
+      case RoyalAction.mend:
+        // A heartbeat writing itself across the air, a wash of green light out
+        // of the open kit, and healing plus-signs rising. In a BUDGET app the
+        // medic reading a pulse is the joke and the point at once — the whole
+        // Financial Health score is a vital sign.
+        final emerald = royal.palette['E'] ?? const Color(0xFF2BB985);
+        final write = ((t - 0.26) / 0.38).clamp(0.0, 1.0);
+        final held = 1 - ((t - 0.80) / 0.20).clamp(0.0, 1.0);
+
+        // Light spilling out of the opened case.
+        final open = ((t - 0.14) / 0.18).clamp(0.0, 1.0) * held;
+        if (open > 0) {
+          canvas.drawCircle(
+              Offset(w * 0.36, h * 0.44),
+              w * (0.10 + 0.14 * open),
+              Paint()
+                ..color = emerald.withValues(alpha: 0.26 * open)
+                ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10));
+        }
+
+        if (write > 0 && held > 0) {
+          _ecgTrace(canvas, size, write, emerald, held);
+        }
+
+        // Plus-signs drifting up out of the glow.
+        for (var i = 0; i < 5; i++) {
+          final p = ((t * 1.05 + i * 0.2) % 1.0);
+          final x = w * (0.24 + (i % 3) * 0.19) + math.sin(p * 4 + i) * w * 0.03;
+          final y = h * 0.60 - p * h * 0.50;
+          _plus(canvas, Offset(x, y), w * 0.026 * (1 - p * 0.55) + w * 0.006,
+              emerald.withValues(alpha: 0.72 * (1 - p) * held));
+        }
+
+        // The all-clear: a clean pulse ring and a scatter of sparks.
+        final clearP = ((t - 0.68) / 0.26).clamp(0.0, 1.0);
+        if (clearP > 0 && clearP < 1) {
+          canvas.drawCircle(
+              Offset(w * 0.5, h * 0.46),
+              w * (0.18 + 0.42 * clearP),
+              Paint()
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 3.0 * (1 - clearP) + 0.8
+                ..color = emerald.withValues(alpha: 0.55 * (1 - clearP)));
+          for (var i = 0; i < 6; i++) {
+            final a = i * math.pi / 3 - 0.4;
+            _star(
+                canvas,
+                Offset(w * 0.5, h * 0.46) +
+                    Offset(math.cos(a), math.sin(a)) * w * (0.20 + 0.22 * clearP),
+                w * 0.020 * (1 - clearP),
+                Color.lerp(Colors.white, emerald, 0.4)!
+                    .withValues(alpha: 0.85 * (1 - clearP)));
+          }
+        }
       case RoyalAction.fume:
         // The classic anger cross-vein, pulsing beside the crown, plus two
         // little steam puffs rising off the royal head.
@@ -2797,6 +2877,37 @@ class RoyalCharacterPainter extends CustomPainter {
           headTilt: 0.16 * drop - 0.06 * rise,
           flourish: math.max(drop * (1 - rise * 0.4), 0.45),
         );
+      case RoyalAction.mend:
+        // The Medic's signature: snap the kit up and open, read the heartbeat
+        // it draws in the air, then a brisk all-clear. She is the busiest of
+        // the six, so the whole thing keeps a bustle under it rather than
+        // settling into a held pose the way the Dark Prince's does.
+        final lift = Curves.easeOutBack
+            .transform((t / 0.26).clamp(0.0, 1.0))
+            .clamp(0.0, 1.12);
+        final read =
+            Curves.easeInOut.transform(((t - 0.26) / 0.38).clamp(0.0, 1.0));
+        final clear = Curves.easeOutBack
+            .transform(((t - 0.68) / 0.32).clamp(0.0, 1.0))
+            .clamp(0.0, 1.10);
+        final bustle = math.sin(t * 2 * math.pi * 2.2);
+        final hop = math.sin(((t - 0.68) / 0.32).clamp(0.0, 1.0) * math.pi);
+        return _Pose(
+          bob: -0.012 * lift - 0.042 * hop + 0.004 * bustle,
+          lean: 0.05 * read - 0.04 * clear,
+          sway: bustle * 0.02,
+          squash: 1 + 0.03 * lift - 0.02 * read + 0.05 * hop,
+          // Kit arm swings up and FORWARD (positive), presenting the open case
+          // across her chest where the light from it can be seen.
+          armWeapon: -0.30 + 2.35 * lift - 0.20 * clear,
+          // Free hand follows the trace out, then goes up on the all-clear.
+          armFree: 0.20 + 0.60 * read + 0.95 * clear,
+          wiggle: clear * 0.45 * math.sin(t * 2 * math.pi * 6),
+          blink: read > 0.30 && read < 0.52, // a squint at the readout
+          gaze: 1,
+          headTilt: 0.06 * lift - 0.09 * clear,
+          flourish: 0.35 + 0.65 * math.max(read, clear),
+        );
       case RoyalAction.roar:
       case RoyalAction.ride:
         return const _Pose(); // both go through the mount pipeline
@@ -2845,6 +2956,94 @@ class RoyalCharacterPainter extends CustomPainter {
       ..close();
     canvas.drawPath(path, Paint()..color = color);
     canvas.drawPath(path, _inkStroke..strokeWidth = 1.0);
+  }
+
+  /// A cardiac trace that DRAWS ITSELF left to right as [write] runs 0→1, with
+  /// a bright head at the pen.
+  ///
+  /// The reveal is the whole effect: a static zigzag is a decoration, a line
+  /// being written is a reading being taken. Points are normalized (x across
+  /// the span, y as a fraction of the amplitude, negative = up).
+  void _ecgTrace(
+      Canvas canvas, Size size, double write, Color color, double fade) {
+    final w = size.width, h = size.height;
+    const pts = <(double, double)>[
+      (0.00, 0.0),
+      (0.20, 0.0),
+      (0.26, -0.18), // P wave
+      (0.32, 0.0),
+      (0.40, 0.0),
+      (0.44, 0.22), // Q
+      (0.50, -1.00), // R — the spike
+      (0.56, 0.42), // S
+      (0.62, 0.0),
+      (0.72, 0.0),
+      (0.80, -0.30), // T wave
+      (0.88, 0.0),
+      (1.00, 0.0),
+    ];
+    // A bobblehead is head from 0.03h to 0.55h and two-thirds of the width, so
+    // there is no clear horizontal band to draw across — run the trace over
+    // her and it reads as a scratch on her face. It lives in the top-right
+    // corner, clear of everything but the shoulder of her cap.
+    final x0 = w * 0.50, span = w * 0.47;
+    final baseY = h * 0.105, amp = h * 0.062;
+    Offset at(int i) =>
+        Offset(x0 + span * pts[i].$1, baseY + amp * pts[i].$2);
+
+    // Walk the polyline in x, stopping wherever the pen has reached.
+    final penX = pts.first.$1 + (pts.last.$1 - pts.first.$1) * write;
+    final path = Path()..moveTo(at(0).dx, at(0).dy);
+    var pen = at(0);
+    for (var i = 1; i < pts.length; i++) {
+      if (pts[i].$1 <= penX) {
+        path.lineTo(at(i).dx, at(i).dy);
+        pen = at(i);
+        continue;
+      }
+      // Partial segment: interpolate to exactly where the pen is.
+      final k = ((penX - pts[i - 1].$1) / (pts[i].$1 - pts[i - 1].$1))
+          .clamp(0.0, 1.0);
+      pen = Offset.lerp(at(i - 1), at(i), k)!;
+      path.lineTo(pen.dx, pen.dy);
+      break;
+    }
+
+    // Three passes, and the ORDER matters for theme-independence: a blurred
+    // halo, a saturated emerald body that holds up against ivory, then a pale
+    // hairline down the middle that holds up against midnight. A single
+    // near-white stroke vanished on the light theme, and a backing panel to
+    // fix that just read as a black sticker across her cap.
+    Paint stroke(double width, Color c) => Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = width
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..color = c;
+    canvas.drawPath(
+        path,
+        stroke(5.5, color.withValues(alpha: 0.34 * fade))
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4));
+    canvas.drawPath(path, stroke(2.6, color.withValues(alpha: 0.95 * fade)));
+    canvas.drawPath(
+        path,
+        stroke(
+            1.0,
+            Color.lerp(Colors.white, color, 0.25)!
+                .withValues(alpha: 0.85 * fade)));
+
+    // The pen itself.
+    if (write < 1) {
+      canvas.drawCircle(pen, 3.4,
+          Paint()..color = Colors.white.withValues(alpha: 0.9 * fade));
+      canvas.drawCircle(
+          pen,
+          6.5,
+          Paint()
+            ..color = color.withValues(alpha: 0.5 * fade)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5));
+    }
+
   }
 
   void _plus(Canvas canvas, Offset c, double r, Color color) {
