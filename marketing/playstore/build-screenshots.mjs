@@ -79,6 +79,30 @@ const FRAMES = [
     sub: "Budgetify spots repeating payments on its own and nudges you before each one is due.",
     offset: 0,
   },
+  {
+    file: "localisation-hindi.png",
+    out: "06-your-language.png",
+    eyebrow: "Six languages",
+    headline: "Budgetify speaks\nyour language.",
+    sub: "Every screen, category and insight — in English, Hindi, Marathi, Bengali, Telugu or Tamil.",
+    offset: 0,
+  },
+  {
+    file: "royals.png",
+    out: "07-rewards.png",
+    eyebrow: "Rewards",
+    headline: "Earn trophies.\nEarn a court.",
+    sub: "A daily streak unlocks badges, titles and living royal avatars that blink, wave and bring their own court.",
+    offset: 200,
+  },
+  {
+    file: "settings-01.png",
+    out: "08-private-by-design.png",
+    eyebrow: "Private by design",
+    headline: "Runs entirely\non your phone.",
+    sub: "No account, no ads, no cloud. The release build ships with no internet permission at all.",
+    offset: 0,
+  },
 ];
 
 const dataUri = (p, mime) =>
