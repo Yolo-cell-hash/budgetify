@@ -1,0 +1,211 @@
+{
+ "budget tracker": {
+  "pos": null,
+  "n": 30,
+  "top5": [
+   "com.droid4you.application.wallet",
+   "com.raha.app.mymoney.free",
+   "com.freeman.moneymanager",
+   "com.thebudgetingapp.thebudgetingapp",
+   "com.budget.tracker_app"
+  ]
+ },
+ "expense tracker": {
+  "pos": null,
+  "n": 30,
+  "top5": [
+   "com.droid4you.application.wallet",
+   "com.raha.app.mymoney.free",
+   "com.freeman.moneymanager",
+   "com.budget.tracker_app",
+   "com.realbyteapps.moneymanagerfree"
+  ]
+ },
+ "money manager": {
+  "pos": null,
+  "n": 20,
+  "top5": [
+   "com.realbyteapps.moneymanagerfree",
+   "ru.innim.my_finance",
+   "com.ktwapps.walletmanager",
+   "com.droid4you.application.wallet",
+   "com.realbyteapps.moneya"
+  ]
+ },
+ "budget app": {
+  "pos": null,
+  "n": 13,
+  "top5": [
+   "app.bachatt.customer",
+   "com.droid4you.application.wallet",
+   "com.cleevio.spendee",
+   "com.thebudgetingapp.thebudgetingapp",
+   "com.raha.app.mymoney.free"
+  ]
+ },
+ "expense manager": {
+  "pos": null,
+  "n": 30,
+  "top5": [
+   "com.expensemanager",
+   "com.realbyteapps.moneymanagerfree",
+   "com.droid4you.application.wallet",
+   "com.seshadri.padmaja.expense",
+   "com.raha.app.mymoney.free"
+  ]
+ },
+ "spending tracker": {
+  "pos": null,
+  "n": 20,
+  "top5": [
+   "com.mhriley.spendingtracker",
+   "com.freeman.moneymanager",
+   "com.droid4you.application.wallet",
+   "com.cleevio.spendee",
+   "com.raha.app.mymoney.free"
+  ]
+ },
+ "budget planner": {
+  "pos": null,
+  "n": 12,
+  "top5": [
+   "com.raha.app.mymoney.free",
+   "com.droid4you.application.wallet",
+   "com.cleevio.spendee",
+   "com.budget.tracker_app",
+   "com.thebudgetingapp.thebudgetingapp"
+  ]
+ },
+ "sms expense tracker": {
+  "pos": null,
+  "n": 30,
+  "top5": [
+   "com.daamitt.walnut.app",
+   "com.finart",
+   "com.droid4you.application.wallet",
+   "com.realbyteapps.moneymanagerfree",
+   "com.amitm29.am.dailyexpensesmanager"
+  ]
+ },
+ "expense tracker sms": {
+  "pos": null,
+  "n": 13,
+  "top5": [
+   "com.daamitt.walnut.app",
+   "com.finart",
+   "com.droid4you.application.wallet",
+   "com.finance.expanager",
+   "com.pennywiseai.tracker"
+  ]
+ },
+ "offline expense tracker": {
+  "pos": null,
+  "n": 29,
+  "top5": [
+   "com.anotherwhy.zero",
+   "com.raha.app.mymoney.free",
+   "com.droid4you.application.wallet",
+   "com.realbyteapps.moneymanagerfree",
+   "app.vinztech.budgetit"
+  ]
+ },
+ "expense tracker without internet": {
+  "pos": null,
+  "n": 12,
+  "top5": [
+   "com.raha.app.mymoney.free",
+   "com.freeman.moneymanager",
+   "com.droid4you.application.wallet",
+   "com.daamitt.walnut.app",
+   "com.anotherwhy.zero"
+  ]
+ },
+ "private expense tracker": {
+  "pos": null,
+  "n": 13,
+  "top5": [
+   "com.realbyteapps.moneymanagerfree",
+   "com.freeman.moneymanager",
+   "com.daamitt.walnut.app",
+   "com.droid4you.application.wallet",
+   "com.raha.app.mymoney.free"
+  ]
+ },
+ "expense tracker no ads": {
+  "pos": null,
+  "n": 30,
+  "top5": [
+   "com.raha.app.mymoney.free",
+   "com.droid4you.application.wallet",
+   "com.realbyteapps.moneymanagerfree",
+   "com.amitm29.am.dailyexpensesmanager",
+   "com.freeman.moneymanager"
+  ]
+ },
+ "upi expense tracker": {
+  "pos": null,
+  "n": 12,
+  "top5": [
+   "com.daamitt.walnut.app",
+   "com.droid4you.application.wallet",
+   "com.raha.app.mymoney.free",
+   "app.vinztech.budgetit",
+   "com.realbyteapps.moneymanagerfree"
+  ]
+ },
+ "expense tracker india": {
+  "pos": null,
+  "n": 30,
+  "top5": [
+   "com.droid4you.application.wallet",
+   "com.daamitt.walnut.app",
+   "com.raha.app.mymoney.free",
+   "com.realbyteapps.moneymanagerfree",
+   "com.amitm29.am.dailyexpensesmanager"
+  ]
+ },
+ "automatic expense tracker": {
+  "pos": null,
+  "n": 27,
+  "top5": [
+   "com.daamitt.walnut.app",
+   "com.droid4you.application.wallet",
+   "com.raha.app.mymoney.free",
+   "com.realbyteapps.moneymanagerfree",
+   "com.finart"
+  ]
+ },
+ "offline budget app": {
+  "pos": null,
+  "n": 11,
+  "top5": [
+   "com.raha.app.mymoney.free",
+   "com.droid4you.application.wallet",
+   "com.nightowl.spendsmart",
+   "com.budget.tracker_app",
+   "com.cleevio.spendee"
+  ]
+ },
+ "expense tracker offline india": {
+  "pos": null,
+  "n": 14,
+  "top5": [
+   "com.raha.app.mymoney.free",
+   "com.freeman.moneymanager",
+   "com.amitm29.am.dailyexpensesmanager",
+   "com.daamitt.walnut.app",
+   "com.anotherwhy.zero"
+  ]
+ },
+ "budgetify": {
+  "pos": 1,
+  "n": 12,
+  "top5": [
+   "com.jayrk.budget_tracker",
+   "com.mrvampcruz.budgetify",
+   "com.monefy.app.lite",
+   "com.beyondbudget",
+   "com.plinhares.budgetfy"
+  ]
+ }
+}
