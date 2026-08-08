@@ -4,6 +4,33 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.70.0] — 2026-08-09
+
+### Added
+
+- **Budgetify asks for a Play Store rating, once, after you have had it four
+  weeks.** The app has never asked, and it shows: a listing with no ratings
+  has nothing to persuade the next person with, and rating count feeds Play's
+  own search ranking. The clock runs from **first install**, not from first
+  launch of the current data — it reuses the same anchor the free window
+  does, so clearing app data or reinstalling neither hands you a fresh four
+  weeks nor re-asks someone who already answered. There is no "Enjoying
+  Budgetify?" dialog in front of it: Google's guidelines forbid filtering who
+  gets asked by predicted sentiment, so the app asks everyone due or nobody.
+  It also stays quiet until you have at least five transactions logged, waits
+  for the guided tour to finish and for a moment when nothing else is on
+  screen, and gives up entirely after three attempts spread over four months.
+- **Settings → About → Rate Budgetify** opens the Play listing directly, for
+  anyone who wants to say something without waiting to be asked. It uses the
+  store listing rather than the in-app card on purpose: that card is
+  quota-limited and may show nothing, which would make a deliberate tap look
+  broken.
+
+The rating flow adds **no network permission**. `com.google.android.play:review`
+ships an empty manifest and talks to the Play Store app over IPC, exactly as
+billing does; the merged release manifest was checked and still has no
+`INTERNET`.
+
 ## [1.69.0] — 2026-08-08
 
 ### Fixed
