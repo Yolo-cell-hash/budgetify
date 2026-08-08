@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.69.0+80
+version: 1.70.0+81
 
 environment:
   sdk: ^3.9.0
@@ -82,6 +82,13 @@ dependencies:
   # system share sheet. Uses Android share intents + a FileProvider — it does
   # NOT add the INTERNET permission, so the offline guarantee is preserved.
   share_plus: ^10.1.4
+
+  # The Play in-app rating dialog, asked once the user has had the app a while.
+  # Verified NOT to add the INTERNET permission: com.google.android.play:review
+  # ships an AndroidManifest with no <uses-permission> at all — the flow binds
+  # to the Play Store app over IPC and that app does the network, exactly like
+  # billing. The offline guarantee is preserved.
+  in_app_review: ^2.0.12
 
 dev_dependencies:
   flutter_test:

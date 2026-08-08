@@ -5044,6 +5044,23 @@ class AppStrings {
         'வழிகாட்டப்பட்ட சுற்றுலாவை மீண்டும் இயக்கு',
       );
 
+  String get rateAppTitle => _t(
+        'Rate Budgetify',
+        'Budgetify को रेट करें',
+        'Budgetify ला रेट करा',
+        'Budgetify রেট করুন',
+        'Budgetify‌ను రేట్ చేయండి',
+        'Budgetify-ஐ மதிப்பிடுங்கள்',
+      );
+  String get rateAppDesc => _t(
+        'Leave a review on the Play Store',
+        'प्ले स्टोर पर समीक्षा लिखें',
+        'प्ले स्टोअरवर पुनरावलोकन लिहा',
+        'প্লে স্টোরে রিভিউ লিখুন',
+        'ప్లే స్టోర్‌లో సమీక్ష రాయండి',
+        'பிளே ஸ்டோரில் விமர்சனம் எழுதுங்கள்',
+      );
+
   // ── Budgetify Plus (paywall — shown only after the free window) ────────
   String get plusTitle => _t('Budgetify Plus', 'Budgetify Plus', 'Budgetify Plus', 'Budgetify Plus', 'Budgetify Plus', 'Budgetify Plus');
   String get plusTagline => _t(

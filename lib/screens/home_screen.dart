@@ -17,6 +17,7 @@ import '../services/gamification_service.dart';
 import '../services/sms_service.dart';
 import '../services/notification_service.dart';
 import '../services/background_service.dart';
+import '../services/rating_prompt_service.dart';
 import '../services/sip_service.dart';
 import '../services/widget_service.dart';
 import 'package:provider/provider.dart';
@@ -107,6 +108,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   // Latest Financial Health Score; recomputed on every data refresh so both
   // the full card and the compact balance-card indicator stay current.
   FinancialHealth? _health;
+
+  /// One rating attempt per app session, at most. The service still owns the
+  /// real gate (four weeks, then a 60-day gap); this just stops a tab switch
+  /// or a resume from re-entering the check over and over.
+  bool _askedForRatingThisSession = false;
 
   @override
   void initState() {
@@ -323,6 +329,28 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (_hasPermission) {
       await _autoScanSms();
     }
+
+    // Last, so the rating card never lands on top of a first-run scan or the
+    // tour. Everything else about the timing lives in the service.
+    _maybeAskForRating();
+  }
+
+  /// Offer the Play rating card, if the user has had the app long enough.
+  ///
+  /// Guards here are only about *this moment* being a calm one — Home visible,
+  /// nothing pushed over it, tour finished, data settled. Whether the user is
+  /// due at all is [RatingPromptService]'s decision, and it is the one that
+  /// persists state, so a session that never reaches a calm moment costs
+  /// nothing.
+  void _maybeAskForRating() {
+    if (_askedForRatingThisSession) return;
+    if (!mounted || _isLoading) return;
+    if (!TutorialService.instance.isDone) return;
+    if (mainShellTabIndex.value != 0) return;
+    final route = ModalRoute.of(context);
+    if (route != null && !route.isCurrent) return;
+    _askedForRatingThisSession = true;
+    RatingPromptService.instance.maybeAsk(transactionCount: _transactionCount);
   }
 
   Future<void> _checkPermission() async {
