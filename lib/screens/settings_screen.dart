@@ -24,6 +24,7 @@ import '../services/entitlement_service.dart';
 import '../services/gamification_service.dart';
 import '../services/statement_import_service.dart';
 import '../services/database_service.dart';
+import '../services/rating_prompt_service.dart';
 import '../services/tutorial_service.dart';
 import '../widgets/app_bar_title.dart';
 import '../widgets/app_dialog.dart';
@@ -869,6 +870,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     TutorialService.instance.restart();
                     mainShellTabRequest.value = 0;
                   },
+                ),
+                Divider(
+                  height: 1,
+                  indent: 16,
+                  endIndent: 16,
+                  color: isDark
+                      ? const Color(0xFF2E313A)
+                      : const Color(0xFFE9E9E4),
+                ),
+                // Opens the Play listing rather than the in-app rating card:
+                // that card is quota-limited and may show nothing at all, which
+                // would make a row the user deliberately tapped look broken.
+                ListTile(
+                  leading: const Icon(Icons.star_outline),
+                  title: Text(context.l10n.rateAppTitle),
+                  subtitle: Text(
+                    context.l10n.rateAppDesc,
+                    style: TextStyle(
+                      color: isDark
+                          ? const Color(0xFF8A8D96)
+                          : const Color(0xFF6E727C),
+                    ),
+                  ),
+                  trailing: const Icon(Icons.chevron_right, size: 20),
+                  onTap: () => RatingPromptService.instance.openStoreListing(),
                 ),
               ],
             ),
