@@ -3,74 +3,41 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Budgetify — Offline Personal Budgeting</title>
-<meta name="description" content="Budgetify is a 100% offline personal budgeting app. No accounts, no cloud, no ads. Read the FAQ, the Privacy Policy, and how to delete your data.">
-<link rel="icon" type="image/png" href="assets/icon.png">
-<link rel="apple-touch-icon" href="assets/icon.png">
-<link rel="stylesheet" href="assets/style.css">
+<title>Moved to budgetify.dev</title>
+<!--
+  This page has moved to budgetify.dev and only a redirect remains.
+
+  GitHub Pages cannot issue a server-side 301, so this uses the three signals
+  a static host has: a canonical tag so crawlers consolidate on the new URL, a
+  zero-delay meta refresh that search engines treat as a redirect, and a
+  location.replace() so a real visitor never gets a history entry pointing
+  back here.
+
+  Why it was retired rather than kept in sync: two copies of the same policy on
+  two domains drift, and this one was reachable only over plain HTTP — the
+  account's Pages custom domain (budgetify.me) has no TLS certificate. A
+  privacy policy served without encryption is a poor look for an app whose
+  entire argument is architectural privacy.
+-->
+<link rel="canonical" href="https://budgetify.dev/">
+<meta http-equiv="refresh" content="0; url=https://budgetify.dev/">
+<meta name="referrer" content="no-referrer">
+<style>
+  body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+    background:#f6f6f3;color:#1b1e28;
+    font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  main{max-width:34rem;padding:2rem;text-align:center}
+  h1{font-size:1.35rem;margin:0 0 .6rem}
+  p{margin:.4rem 0;color:#565a6b}
+  a{color:#7a5e28}
+</style>
 </head>
 <body>
-<header class="topbar">
-  <div class="wrap">
-    <a class="brand" href="./">
-      <img class="brandmark" src="assets/icon.png" alt="" width="26" height="26">
-      Budgetify
-    </a>
-    <nav class="topnav">
-      <a href="faq/">FAQ</a>
-      <a href="privacy-policy/">Privacy</a>
-      <a href="data-deletion/">Delete data</a>
-    </nav>
-  </div>
-</header>
-
-<section class="hero">
-  <div class="wrap">
-    <img class="hero-mark" src="assets/icon.png" alt="Budgetify app icon" width="76" height="76">
-    <h1>Budgetify</h1>
-    <p class="tag">Your money, beautifully tracked</p>
-    <p class="sub">A personal budgeting app that runs entirely on your phone. No accounts, no cloud, no ads — and it doesn't even ask for internet access. Your financial data never leaves your device.</p>
-    <div class="pills">
-      <span>100% Offline &amp; Private</span>
-      <span>Automatic SMS Tracking</span>
-      <span>No Ads · No Cloud</span>
-    </div>
-  </div>
-</section>
-
-<main class="wrap">
-  <div class="cards">
-    <a class="tile" href="faq/">
-      <div class="ic">💬</div>
-      <h3>FAQ</h3>
-      <p>Answers to common questions, plus a quick tour of what Budgetify can do.</p>
-      <span class="go">Browse the FAQ →</span>
-    </a>
-    <a class="tile" href="privacy-policy/">
-      <div class="ic">🔒</div>
-      <h3>Privacy Policy</h3>
-      <p>How Budgetify handles your information — and why, by design, it never leaves your phone.</p>
-      <span class="go">Read the policy →</span>
-    </a>
-    <a class="tile" href="data-deletion/">
-      <div class="ic">🗑️</div>
-      <h3>Delete your data</h3>
-      <p>Step-by-step instructions to erase everything Budgetify has stored on your device.</p>
-      <span class="go">How to delete →</span>
-    </a>
-  </div>
+<main>
+  <h1>Budgetify has moved</h1>
+  <p>This site now lives at <a href="https://budgetify.dev/">budgetify.dev</a>.</p>
+  <p>If you are not redirected automatically, follow the link above to reach Budgetify.</p>
 </main>
-
-<footer class="site">
-  <div class="wrap">
-    <div>© 2026 Budgetify. Offline by design — your financial life is yours alone.</div>
-    <div class="fnav">
-      <a href="faq/">FAQ</a>
-      <a href="privacy-policy/">Privacy Policy</a>
-      <a href="data-deletion/">Delete data</a>
-      <a href="mailto:budgetify.dev@gmail.com">Contact</a>
-    </div>
-  </div>
-</footer>
+<script>location.replace('https://budgetify.dev/');</script>
 </body>
 </html>
