@@ -976,7 +976,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               : const Color(0xFF6E727C),
                         ),
                       ),
-                      trailing: const Icon(Icons.chevron_right),
+                      trailing: const Icon(Icons.chevron_right_rounded),
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(
                             builder: (_) => const PlusScreen()),
