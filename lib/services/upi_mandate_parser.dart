@@ -37,6 +37,33 @@ class UpiMandateParser {
     caseSensitive: false,
   );
 
+  /// Wording for a mandate's *later life* rather than one of its charges: the
+  /// autopay being revoked, paused or modified, and the hold on the money
+  /// being lifted. Nothing settles at any of these moments — the block a
+  /// mandate places was never logged as a debit, so releasing it cannot be a
+  /// credit.
+  ///
+  /// Reported from a device on 2026-08-10, from an allowlisted header, so no
+  /// promo-route filter ever saw it:
+  ///
+  ///   "BOI UPI-Mandate revoked for Coursera Rs.2099.00.Funds unblocked from
+  ///    A/C No. XXXXXXXXXXX7848 Umn 6c33…@okicici Ref no 603466871809"
+  ///
+  /// "unblocked from A/C" scored as a credit and nothing objected, so a
+  /// cancelled subscription was logged as ₹2,099 of *income*.
+  /// [_creationPhrases] could not catch it twice over: this UMN is written
+  /// `Umn <id>` with no colon or dash, and "revoked" is not a registration
+  /// verb.
+  static final RegExp _lifecyclePhrases = RegExp(
+    r'\bMANDATE\b[\s\S]{0,60}?'
+    r'\b(?:REVOKED|CANCELLED|CANCELED|PAUSED|SUSPENDED|RESUMED|MODIFIED'
+    r'|EXPIRED|DECLINED|STOPPED|FAILED)\b'
+    r'|\b(?:REVOKED|CANCELLED|CANCELED|PAUSED|SUSPENDED|RESUMED|MODIFIED'
+    r'|STOPPED)\b[\s\S]{0,60}?\bMANDATE\b'
+    r'|\bFUNDS\s+(?:UN)?BLOCKED\b',
+    caseSensitive: false,
+  );
+
   /// Verbs that mean money actually moved. Deliberately narrower than the
   /// parser's own list: "DEBIT FOR" appears inside "will be debited for".
   static final RegExp _settledVerbs = RegExp(
@@ -56,6 +83,20 @@ class UpiMandateParser {
   /// question — it must refuse to log these as income/spend.
   static bool looksLikeCreation(String message) {
     if (!_creationPhrases.hasMatch(message)) return false;
+    final settled = message.replaceAll(_futureTense, ' ');
+    return !_settledVerbs.hasMatch(settled);
+  }
+
+  /// Whether [message] reports what became of a mandate — revoked, paused,
+  /// modified, or its held funds released — rather than a charge under one.
+  /// Public for the same reason as [looksLikeCreation]: the transaction
+  /// parser has to refuse to log these.
+  ///
+  /// Guarded by the same escape hatch, so an execution that happens to
+  /// mention a cancellation ("Rs 500 debited … mandate cancelled") is still
+  /// the debit it says it is.
+  static bool looksLikeLifecycleNotice(String message) {
+    if (!_lifecyclePhrases.hasMatch(message)) return false;
     final settled = message.replaceAll(_futureTense, ' ');
     return !_settledVerbs.hasMatch(settled);
   }

@@ -211,4 +211,84 @@ void main() {
       });
     });
   });
+
+  group('A muted shape never comes back', () {
+    // "Not a transaction" is an answer, and a restore may not re-open one.
+    // Before this check the answer only held until the next restore: the row
+    // was deleted and the mute stored, then the backup — written while the
+    // row still existed — put it straight back into Needs review. Reported
+    // 2026-08-10 against an ignored BOI mandate revocation that returned
+    // after every restore.
+    const key = 'BOIIND|BOI UPI-MANDATE REVOKED FOR COURSERA RS.#.#';
+
+    test('a backed-up row whose shape is muted is skipped', () {
+      expect(
+        RestoreMerge.isMutedShape(
+          backup: row(),
+          shapeKey: key,
+          mutedShapeKeys: {key},
+        ),
+        isTrue,
+      );
+    });
+
+    test('an unmuted row still restores', () {
+      expect(
+        RestoreMerge.isMutedShape(
+          backup: row(),
+          shapeKey: 'HDFCBK|RS.# DEBITED',
+          mutedShapeKeys: {key},
+        ),
+        isFalse,
+      );
+    });
+
+    test('nothing is skipped when the device knows no mutes', () {
+      expect(
+        RestoreMerge.isMutedShape(
+          backup: row(),
+          shapeKey: key,
+          mutedShapeKeys: const {},
+        ),
+        isFalse,
+      );
+    });
+
+    test('a manual row is never muted, however its shape reads', () {
+      // Mirrors RemovalService.canMute: a mute keys off a message shape, and
+      // a row typed in by hand has no message to key off. Restoring someone's
+      // hand-entered cash entry because it collided with a mute would be the
+      // worse bug of the two.
+      expect(
+        RestoreMerge.isMutedShape(
+          backup: {...row(), 'is_manual': 1},
+          shapeKey: key,
+          mutedShapeKeys: {key},
+        ),
+        isFalse,
+      );
+    });
+
+    test('a row with no message cannot be matched', () {
+      expect(
+        RestoreMerge.isMutedShape(
+          backup: {...row(), 'message': ''},
+          shapeKey: key,
+          mutedShapeKeys: {key},
+        ),
+        isFalse,
+      );
+    });
+
+    test('a row the caller could not key is left alone', () {
+      expect(
+        RestoreMerge.isMutedShape(
+          backup: row(),
+          shapeKey: null,
+          mutedShapeKeys: {key},
+        ),
+        isFalse,
+      );
+    });
+  });
 }

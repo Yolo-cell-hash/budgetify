@@ -3709,15 +3709,60 @@ class DatabaseService {
     final db = await database;
     var txnCount = 0, budgetCount = 0, ruleCount = 0, holdingCount = 0;
     var sipCount = 0;
+    // Rows the backup carried that the user has since muted — counted so the
+    // restore can say so rather than silently dropping them.
+    var mutedSkipped = 0;
     // Maps a backed-up row id to its restored local id, so SIPs can be
     // re-pointed at their backing holding and instalments at their SIP even
     // though autoincrement ids differ on a fresh device.
     final holdingIdMap = <int, int>{};
     final sipIdMap = <int, int>{};
 
+    // Parser corrections (muted shapes, direction overrides) come first, and
+    // deliberately so: a mute has to be in place BEFORE the transactions are
+    // merged, or a shape the user muted on either device is re-inserted by
+    // this very restore. Same gap-filling policy as aliases — local teaching
+    // wins over the backup.
+    for (final table in const ['message_mutes', 'parse_overrides']) {
+      for (final raw in (data[table] as List? ?? const [])) {
+        final row = Map<String, dynamic>.from(raw as Map);
+        row.remove('id');
+        if (row['sender_core'] == null || row['signature'] == null) continue;
+        await db.insert(
+          table,
+          row,
+          conflictAlgorithm: ConflictAlgorithm.ignore,
+        );
+      }
+    }
+
+    // Every shape the user has called "not a transaction", on this device or
+    // in the backup. Read once: a restore can carry thousands of rows.
+    final mutedShapeKeys = <String>{
+      for (final m in await db.query('message_mutes',
+          columns: ['sender_core', 'signature']))
+        '${m['sender_core']}|${m['signature']}',
+    };
+
     for (final raw in (data['transactions'] as List? ?? const [])) {
       final row = Map<String, dynamic>.from(raw as Map);
       row.remove('id');
+
+      // A muted shape is a question the user already answered. Restoring it
+      // would re-open it — and did, on every restore, until this check.
+      final message = row['message'] as String?;
+      final sender = row['sender'] as String?;
+      if (RestoreMerge.isMutedShape(
+        backup: row,
+        shapeKey: (message == null || sender == null)
+            ? null
+            : '${SmsParserService.normalizeSender(sender)}'
+                '|${messageSignature(message)}',
+        mutedShapeKeys: mutedShapeKeys,
+      )) {
+        mutedSkipped++;
+        continue;
+      }
 
       // Find an existing row for this transaction (the initial post-reinstall
       // SMS scan may have already re-created it, untagged).
@@ -3811,20 +3856,8 @@ class DatabaseService {
       );
     }
 
-    // Parser corrections (muted shapes, direction overrides): same
-    // gap-filling policy as aliases — local teaching wins over the backup.
-    for (final table in const ['message_mutes', 'parse_overrides']) {
-      for (final raw in (data[table] as List? ?? const [])) {
-        final row = Map<String, dynamic>.from(raw as Map);
-        row.remove('id');
-        if (row['sender_core'] == null || row['signature'] == null) continue;
-        await db.insert(
-          table,
-          row,
-          conflictAlgorithm: ConflictAlgorithm.ignore,
-        );
-      }
-    }
+    // (Muted shapes and direction overrides were imported before the
+    // transactions above — they have to be in place first.)
 
     // Tax payee→bucket rules: upsert by normalised payee so a restore never
     // duplicates a rule the device already learned.
@@ -4058,6 +4091,7 @@ class DatabaseService {
       'splits': splitCount,
       'goals': goalCount,
       'recurring': recurringCount,
+      'mutedSkipped': mutedSkipped,
     };
   }
 
