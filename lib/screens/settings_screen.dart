@@ -233,6 +233,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
+    // Brightness still decides one thing here — cards carry a drop shadow only
+    // on a light canvas. Every colour comes from the palette above, so the
+    // reward themes dress this screen like any other.
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final themeProvider = context.watch<ThemeProvider>();
     final localeProvider = context.watch<LocaleProvider>();
@@ -252,7 +256,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           // Appearance Section
           KeyedSubtree(
             key: _tutAppearanceKey,
-            child: _buildSectionHeader(context.l10n.appearance, isDark),
+            child: _buildSectionHeader(context.l10n.appearance),
           ),
           const SizedBox(height: 8),
           _buildSettingsCard(
@@ -268,7 +272,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
-                        color: isDark ? Colors.white : const Color(0xFF1B1E28),
+                        color: colors.text,
                       ),
                     ),
                   ),
@@ -293,7 +297,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 Divider(
                   height: 1,
-                  color: isDark ? const Color(0xFF2E313A) : const Color(0xFFE9E9E4),
+                  color: colors.border,
                 ),
                 ListTile(
                   leading: Icon(
@@ -304,18 +308,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   subtitle: Text(
                     localeProvider.language.nativeName,
                     style: TextStyle(
-                      color: isDark ? const Color(0xFF8A8D96) : const Color(0xFF6E727C),
+                      color: colors.textSecondary,
                     ),
                   ),
                   trailing: Icon(
                     Icons.chevron_right_rounded,
-                    color: isDark ? const Color(0xFF8A8D96) : const Color(0xFF9A9DA6),
+                    color: colors.textTertiary,
                   ),
                   onTap: () => showLanguagePickerSheet(context, localeProvider),
                 ),
                 Divider(
                   height: 1,
-                  color: isDark ? const Color(0xFF2E313A) : const Color(0xFFE9E9E4),
+                  color: colors.border,
                 ),
                 ListTile(
                   leading: Icon(
@@ -329,12 +333,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       kStreakRewards.length,
                     ),
                     style: TextStyle(
-                      color: isDark ? const Color(0xFF8A8D96) : const Color(0xFF6E727C),
+                      color: colors.textSecondary,
                     ),
                   ),
                   trailing: Icon(
                     Icons.chevron_right_rounded,
-                    color: isDark ? const Color(0xFF8A8D96) : const Color(0xFF9A9DA6),
+                    color: colors.textTertiary,
                   ),
                   onTap: () async {
                     await Navigator.push(
@@ -353,7 +357,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 24),
 
           // Auto-Scan Section
-          _buildSectionHeader(context.l10n.autoScanSection, isDark),
+          _buildSectionHeader(context.l10n.autoScanSection),
           const SizedBox(height: 8),
           _buildSettingsCard(
             isDark: isDark,
@@ -362,7 +366,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 SwitchListTile(
                   secondary: Icon(
                     Icons.schedule_rounded,
-                    color: _autoScanEnabled ? Color(0xFF2AA76F) : Color(0xFF8A8D96),
+                    color: _autoScanEnabled ? Color(0xFF2AA76F) : colors.textSecondary,
                   ),
                   title: Text(context.l10n.autoScanTitle),
                   subtitle: Text(
@@ -370,9 +374,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ? context.l10n.autoScanOnDesc
                         : context.l10n.autoScanOffDesc,
                     style: TextStyle(
-                      color: isDark
-                          ? Color(0xFF8A8D96)
-                          : Color(0xFF6E727C),
+                      color: colors.textSecondary,
                     ),
                   ),
                   value: _autoScanEnabled,
@@ -386,7 +388,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 if (_autoScanEnabled) ...[
                   Divider(
                     height: 1,
-                    color: isDark ? Color(0xFF2E313A) : Color(0xFFE9E9E4),
+                    color: colors.border,
                   ),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -398,7 +400,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
-                            color: isDark ? Colors.white : Color(0xFF1B1E28),
+                            color: colors.text,
                           ),
                         ),
                       ),
@@ -421,13 +423,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 labelStyle: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
+                                  // A selected chip is filled with the theme's
+                                  // accent, so its label is an on-accent
+                                  // colour — and every theme already declares
+                                  // one (each royal hand-picks its own ink).
                                   color: selected
-                                      ? (isDark
-                                            ? const Color(0xFF15110A)
-                                            : Colors.white)
-                                      : (isDark
-                                            ? Color(0xFF9A9DA6)
-                                            : Color(0xFF6E727C)),
+                                      ? Theme.of(context)
+                                          .colorScheme
+                                          .onPrimary
+                                      : (colors.textSecondary),
                                 ),
                                 onSelected: (_) async {
                                   setState(() => _scanIntervalHours = h);
@@ -443,21 +447,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   if (_lastScanTime != null) ...[
                     Divider(
                       height: 1,
-                      color: isDark
-                          ? Color(0xFF2E313A)
-                          : Color(0xFFE9E9E4),
+                      color: colors.border,
                     ),
                     ListTile(
-                      leading: Icon(Icons.history_rounded, color: Color(0xFF8A8D96)),
+                      leading: Icon(Icons.history_rounded, color: colors.textSecondary),
                       title: Text(context.l10n.lastScan),
                       subtitle: Text(
                         DateFormat(
                           'MMM d, yyyy • h:mm a',
                         ).format(_lastScanTime!),
                         style: TextStyle(
-                          color: isDark
-                              ? Color(0xFF8A8D96)
-                              : Color(0xFF6E727C),
+                          color: colors.textSecondary,
                         ),
                       ),
                     ),
@@ -470,7 +470,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 24),
 
           // Security Section
-          _buildSectionHeader(context.l10n.securitySection, isDark),
+          _buildSectionHeader(context.l10n.securitySection),
           const SizedBox(height: 8),
           _buildSettingsCard(
             isDark: isDark,
@@ -481,7 +481,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Icons.fingerprint_rounded,
                     color: _appLockEnabled
                         ? AppColors.of(context).brandAccent
-                        : const Color(0xFF8A8D96),
+                        : colors.textSecondary,
                   ),
                   title: Text(context.l10n.appLock),
                   subtitle: Text(
@@ -489,7 +489,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ? context.l10n.appLockOnDesc
                         : context.l10n.appLockOffDesc,
                     style: TextStyle(
-                      color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
+                      color: colors.textSecondary,
                     ),
                   ),
                   value: _appLockEnabled,
@@ -497,7 +497,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 Divider(
                   height: 1,
-                  color: isDark ? Color(0xFF2E313A) : Color(0xFFE9E9E4),
+                  color: colors.border,
                 ),
                 SwitchListTile(
                   secondary: Icon(
@@ -506,13 +506,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         : Icons.visibility_outlined,
                     color: context.watch<AppPreferences>().privacyMode
                         ? AppColors.of(context).brandAccent
-                        : const Color(0xFF8A8D96),
+                        : colors.textSecondary,
                   ),
                   title: Text(context.l10n.hideAmounts),
                   subtitle: Text(
                     context.l10n.hideAmountsDesc,
                     style: TextStyle(
-                      color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
+                      color: colors.textSecondary,
                     ),
                   ),
                   value: context.watch<AppPreferences>().privacyMode,
@@ -526,7 +526,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 24),
 
           // Intelligence Section
-          _buildSectionHeader(context.l10n.intelligenceSection, isDark),
+          _buildSectionHeader(context.l10n.intelligenceSection),
           const SizedBox(height: 8),
           _buildSettingsCard(
             key: _tutAiKey, // guided-tour anchor
@@ -536,13 +536,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Icons.insights_rounded,
                 color: context.watch<AppPreferences>().aiPredictionMode
                     ? AppColors.of(context).brandAccent
-                    : const Color(0xFF8A8D96),
+                    : colors.textSecondary,
               ),
               title: Text(context.l10n.aiPredictionMode),
               subtitle: Text(
                 context.l10n.aiPredictionModeDesc,
                 style: TextStyle(
-                  color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
+                  color: colors.textSecondary,
                 ),
               ),
               value: context.watch<AppPreferences>().aiPredictionMode,
@@ -559,13 +559,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Icons.monitor_heart_outlined,
                 color: context.watch<AppPreferences>().financialHealthDetailed
                     ? AppColors.of(context).brandAccent
-                    : const Color(0xFF8A8D96),
+                    : colors.textSecondary,
               ),
               title: Text(context.l10n.detailedFinancialHealth),
               subtitle: Text(
                 context.l10n.detailedFinancialHealthDesc,
                 style: TextStyle(
-                  color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
+                  color: colors.textSecondary,
                 ),
               ),
               value: context.watch<AppPreferences>().financialHealthDetailed,
@@ -582,13 +582,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Icons.emoji_events_outlined,
                 color: context.watch<AppPreferences>().gamifiedMode
                     ? AppColors.of(context).brandAccent
-                    : const Color(0xFF8A8D96),
+                    : colors.textSecondary,
               ),
               title: Text(context.l10n.gamifiedBudgets),
               subtitle: Text(
                 context.l10n.gamifiedBudgetsDesc,
                 style: TextStyle(
-                  color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
+                  color: colors.textSecondary,
                 ),
               ),
               value: context.watch<AppPreferences>().gamifiedMode,
@@ -601,7 +601,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           // Backup Section
           KeyedSubtree(
             key: _tutBackupKey,
-            child: _buildSectionHeader(context.l10n.backupSection, isDark),
+            child: _buildSectionHeader(context.l10n.backupSection),
           ),
           const SizedBox(height: 8),
           _buildSettingsCard(
@@ -617,7 +617,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   subtitle: Text(
                     context.l10n.createBackupDesc,
                     style: TextStyle(
-                      color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
+                      color: colors.textSecondary,
                     ),
                   ),
                   trailing: const Icon(Icons.chevron_right_rounded),
@@ -625,18 +625,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 Divider(
                   height: 1,
-                  color: isDark ? Color(0xFF2E313A) : Color(0xFFE9E9E4),
+                  color: colors.border,
                 ),
                 ListTile(
-                  leading: const Icon(
+                  leading: Icon(
                     Icons.settings_backup_restore_rounded,
-                    color: Color(0xFF178A5B),
+                    color: colors.success,
                   ),
                   title: Text(context.l10n.restoreBackup),
                   subtitle: Text(
                     context.l10n.restoreBackupDesc,
                     style: TextStyle(
-                      color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
+                      color: colors.textSecondary,
                     ),
                   ),
                   trailing: const Icon(Icons.chevron_right_rounded),
@@ -649,7 +649,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 24),
 
           // Data Section
-          _buildSectionHeader(context.l10n.dataSection, isDark),
+          _buildSectionHeader(context.l10n.dataSection),
           const SizedBox(height: 8),
           _buildSettingsCard(
             isDark: isDark,
@@ -659,7 +659,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               subtitle: Text(
                 context.l10n.manageTagsDesc,
                 style: TextStyle(
-                  color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
+                  color: colors.textSecondary,
                 ),
               ),
               trailing: const Icon(Icons.chevron_right_rounded),
@@ -683,7 +683,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               subtitle: Text(
                 context.l10n.autoTagRulesDesc,
                 style: TextStyle(
-                  color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
+                  color: colors.textSecondary,
                 ),
               ),
               trailing: const Icon(Icons.chevron_right_rounded),
@@ -705,7 +705,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               subtitle: Text(
                 context.l10n.taxDeductionsDesc,
                 style: TextStyle(
-                  color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
+                  color: colors.textSecondary,
                 ),
               ),
               trailing: const Icon(Icons.chevron_right_rounded),
@@ -727,7 +727,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               subtitle: Text(
                 context.l10n.ignoredMessagesTagline,
                 style: TextStyle(
-                  color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
+                  color: colors.textSecondary,
                 ),
               ),
               // The count makes the mute visible after the fact: choosing
@@ -766,7 +766,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 24),
 
           // Import & Export Section
-          _buildSectionHeader(context.l10n.importExportSection, isDark),
+          _buildSectionHeader(context.l10n.importExportSection),
           const SizedBox(height: 8),
           _buildSettingsCard(
             isDark: isDark,
@@ -776,7 +776,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               subtitle: Text(
                 context.l10n.importDataDesc,
                 style: TextStyle(
-                  color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
+                  color: colors.textSecondary,
                 ),
               ),
               trailing: const Icon(Icons.chevron_right_rounded),
@@ -792,7 +792,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               subtitle: Text(
                 context.l10n.exportDataDesc,
                 style: TextStyle(
-                  color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
+                  color: colors.textSecondary,
                 ),
               ),
               trailing: const Icon(Icons.chevron_right_rounded),
@@ -803,20 +803,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 24),
 
           // Privacy Section
-          _buildSectionHeader(context.l10n.privacySection, isDark),
+          _buildSectionHeader(context.l10n.privacySection),
           const SizedBox(height: 8),
           _buildSettingsCard(
             isDark: isDark,
             child: ListTile(
               leading: Icon(
                 Icons.shield_outlined,
-                color: Color(0xFF178A5B),
+                color: colors.success,
               ),
               title: Text(context.l10n.dataPrivateTitle),
               subtitle: Text(
                 context.l10n.dataPrivateDesc,
                 style: TextStyle(
-                  color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
+                  color: colors.textSecondary,
                 ),
               ),
             ),
@@ -825,7 +825,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 24),
 
           // About Section
-          _buildSectionHeader(context.l10n.aboutSection, isDark),
+          _buildSectionHeader(context.l10n.aboutSection),
           const SizedBox(height: 8),
           _buildSettingsCard(
             isDark: isDark,
@@ -840,9 +840,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   height: 1,
                   indent: 16,
                   endIndent: 16,
-                  color: isDark
-                      ? const Color(0xFF2E313A)
-                      : const Color(0xFFE9E9E4),
+                  color: colors.border,
                 ),
                 // Restart the guided tour anytime — its first tip picks the
                 // user up on the Home tab.
@@ -852,9 +850,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   subtitle: Text(
                     context.l10n.appTourDesc,
                     style: TextStyle(
-                      color: isDark
-                          ? const Color(0xFF8A8D96)
-                          : const Color(0xFF6E727C),
+                      color: colors.textSecondary,
                     ),
                   ),
                   trailing: const Icon(Icons.chevron_right_rounded, size: 20),
@@ -867,9 +863,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   height: 1,
                   indent: 16,
                   endIndent: 16,
-                  color: isDark
-                      ? const Color(0xFF2E313A)
-                      : const Color(0xFFE9E9E4),
+                  color: colors.border,
                 ),
                 // Opens the Play listing rather than the in-app rating card:
                 // that card is quota-limited and may show nothing at all, which
@@ -880,9 +874,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   subtitle: Text(
                     context.l10n.rateAppDesc,
                     style: TextStyle(
-                      color: isDark
-                          ? const Color(0xFF8A8D96)
-                          : const Color(0xFF6E727C),
+                      color: colors.textSecondary,
                     ),
                   ),
                   trailing: const Icon(Icons.chevron_right_rounded, size: 20),
@@ -956,7 +948,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// One selectable theme swatch in the Appearance picker. Tapping applies an
   /// unlocked theme; the eye button under any tile opens a full still first.
   Widget _themeTile(AppThemeVariant v, ThemeProvider themeProvider) {
+    // [palette] is the variant this tile is advertising; [colors] is the theme
+    // the user is currently wearing, which dresses the tile's own label.
     final palette = AppColors.forVariant(v);
+    final colors = AppColors.of(context);
     final reward = streakRewardForVariant(v); // null for light/dark
     final locked = reward != null && !reward.isUnlocked(_longestStreak);
     final active = themeProvider.variant == v;
@@ -1043,9 +1038,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 fontWeight: active ? FontWeight.w700 : FontWeight.w500,
                 color: active
                     ? accent
-                    : (Theme.of(context).brightness == Brightness.dark
-                        ? const Color(0xFF9A9DA6)
-                        : const Color(0xFF6E727C)),
+                    : colors.textSecondary,
               ),
             ),
             // The "try" affordance, on every tile including the unlocked ones —
@@ -1068,9 +1061,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Icons.visibility_outlined,
                     size: 14,
                     semanticLabel: context.l10n.themePreviewAction,
-                    color: Theme.of(context).brightness == Brightness.dark
-                        ? const Color(0xFF8A8D96)
-                        : const Color(0xFF9A9DA6),
+                    color: colors.textTertiary,
                   ),
                 ),
               ),
@@ -1106,11 +1097,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _buildSectionHeader(context.l10n.plusTitle, isDark),
+        _buildSectionHeader(context.l10n.plusTitle),
         const SizedBox(height: 8),
         _buildSettingsCard(
           isDark: isDark,
-          child: _buildPlusTile(isDark, owned: owned),
+          child: _buildPlusTile(owned: owned),
         ),
         const SizedBox(height: 24),
       ],
@@ -1124,7 +1115,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   ///     the one version of this row that would feel like a shakedown.
   ///   * **lapsed** — the ask, named in terms of what comes back rather than
   ///     what was taken away.
-  Widget _buildPlusTile(bool isDark, {required bool owned}) {
+  Widget _buildPlusTile({required bool owned}) {
+    final colors = AppColors.of(context);
     return ListTile(
       leading: Icon(
         owned ? Icons.workspace_premium_rounded : Icons.auto_awesome_rounded,
@@ -1136,7 +1128,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ? context.l10n.plusSettingsOwnedDesc
             : context.l10n.plusSettingsLockedDesc,
         style: TextStyle(
-          color: isDark ? const Color(0xFF8A8D96) : const Color(0xFF6E727C),
+          color: colors.textSecondary,
         ),
       ),
       trailing: owned ? null : const Icon(Icons.chevron_right_rounded, size: 20),
@@ -1153,7 +1145,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (mounted) setState(() {});
   }
 
-  Widget _buildSectionHeader(String title, bool isDark) {
+  Widget _buildSectionHeader(String title) {
+    final colors = AppColors.of(context);
     return Padding(
       padding: const EdgeInsets.only(left: 4),
       child: Text(
@@ -1161,7 +1154,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         style: TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.w600,
-          color: isDark ? Color(0xFF9A9DA6) : Color(0xFF6E727C),
+          color: colors.textSecondary,
           letterSpacing: 0.5,
         ),
       ),
@@ -1170,10 +1163,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildSettingsCard(
       {Key? key, required bool isDark, required Widget child}) {
+    final colors = AppColors.of(context);
     return Container(
       key: key,
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF16181E) : Colors.white,
+        color: colors.card,
         borderRadius: BorderRadius.circular(12),
         boxShadow: isDark
             ? null
@@ -1349,11 +1343,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _showIgnoredMessagesSheet() async {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark ? const Color(0xFF16181E) : Colors.white;
-    final textColor = isDark ? Colors.white : Colors.black87;
+    final colors = AppColors.of(context);
+    final cardColor = colors.card;
+    final textColor = colors.text;
     final subtextColor =
-        isDark ? const Color(0xFF9A9DA6) : const Color(0xFF6E727C);
+        colors.textSecondary;
     final db = DatabaseService();
     await showModalBottomSheet<void>(
       context: context,
@@ -1412,7 +1406,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         itemCount: mutes.length,
                         separatorBuilder: (_, __) => Divider(
                           height: 1,
-                          color: isDark ? const Color(0xFF2A2D35) : null,
+                          color: colors.border,
                         ),
                         itemBuilder: (ctx, i) {
                           final mute = mutes[i];
@@ -1462,11 +1456,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _openImportSheet() async {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colors = AppColors.of(context);
     final source = await showModalBottomSheet<ImportSource>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: isDark ? const Color(0xFF16181E) : Colors.white,
+      backgroundColor: colors.card,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -1632,11 +1626,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
 
     // Show exactly what will happen before touching the database.
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colors = AppColors.of(context);
     final confirmed = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: isDark ? const Color(0xFF16181E) : Colors.white,
+      backgroundColor: colors.card,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
