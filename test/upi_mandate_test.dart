@@ -44,6 +44,16 @@ const _iciciExecuted =
     'towards ICCL GROWW AUTO for UPI Mandate AutoPay Retrieval Ref '
     'No.103709467589';
 
+// The other end of a mandate's life. Reported from a device on 2026-08-10:
+// cancelling a Coursera subscription was logged as ₹2,099 of INCOME, because
+// "Funds unblocked from A/C" scores as a credit and nothing objected. Note
+// the UMN is written "Umn <id>" with no colon, so the creation patterns —
+// which look for "UMN:" — never saw it either.
+const _boiRevoked =
+    'BOI UPI-Mandate revoked for Coursera Rs.2099.00.Funds unblocked from '
+    'A/C No. XXXXXXXXXXX7848 Umn 6c33271a3a134e8582f78f10b68f2f7a@okicici '
+    'Ref no 603466871809';
+
 void main() {
   final now = DateTime(2026, 8, 4, 10, 30);
 
@@ -111,6 +121,50 @@ void main() {
         expect(SmsParserService.parseTransaction(sender, body, now), isNull,
             reason: sender);
       }
+    });
+  });
+
+  group('Ending a mandate is not a transaction either', () {
+    test('BOI revocation is not logged as ₹2,099 of income', () {
+      expect(
+        SmsParserService.parseTransaction('JM-BOIIND-S', _boiRevoked, now),
+        isNull,
+      );
+    });
+
+    test('a revocation is not offered as a new subscription', () {
+      // It ends one; suggesting it would add a subscription on the day it was
+      // cancelled.
+      expect(UpiMandateParser.parse('JM-BOIIND-S', _boiRevoked, now), isNull);
+    });
+
+    test('the rest of the lifecycle is covered, not just BOI wording', () {
+      for (final body in [
+        'Your UPI Mandate for NETFLIX has been paused. Ref 1234',
+        'UPI-Mandate cancelled for SPOTIFY Rs.119.00. Umn abc@okhdfc',
+        'Mandate modified for Rs.499.00 towards HOTSTAR, A/C XX7848',
+        'Rs.2099.00 funds blocked from A/C XX7848 for Coursera mandate',
+      ]) {
+        expect(
+          SmsParserService.parseTransaction('JM-BOIIND-S', body, now),
+          isNull,
+          reason: body,
+        );
+      }
+    });
+
+    test('a real debit that mentions a cancellation is still a debit', () {
+      // The escape hatch: a settled verb outranks the lifecycle wording, so
+      // the final charge before a subscription ends is not thrown away.
+      final txn = SmsParserService.parseTransaction(
+        'JM-BOIIND-S',
+        'Rs.499.00 debited from A/C XX7848 towards HOTSTAR. Mandate cancelled '
+            'after this charge. Ref no 603466871810',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 499.0);
+      expect(txn.type, TransactionType.debit);
     });
   });
 
