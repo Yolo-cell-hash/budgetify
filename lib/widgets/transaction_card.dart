@@ -282,7 +282,7 @@ class _TransactionCardState extends State<TransactionCard>
               child: Icon(
                 reached ? Icons.delete_rounded : Icons.delete_outline_rounded,
                 color: danger,
-                size: 21,
+                size: 20,
               ),
             ),
           ),

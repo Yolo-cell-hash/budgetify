@@ -54,7 +54,7 @@ class TidyUpReceipt extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(icon, size: 17, color: accent),
+          Icon(icon, size: 16, color: accent),
           const SizedBox(width: 9),
           Expanded(
             child: Column(

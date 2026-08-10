@@ -136,7 +136,7 @@ void main() {
       // question can't be answered. 600 leaves room either way.
       await _pump(tester, amount: 500, width: 600);
       final row = tester.getRect(find.byType(Row));
-      final chevron = tester.getRect(find.byIcon(Icons.chevron_right));
+      final chevron = tester.getRect(find.byIcon(Icons.chevron_right_rounded));
       // A loose Flexible keeps the row at its natural width; an Expanded would
       // stretch the label and push the chevron out to the far edge.
       expect(row.width, lessThan(600));

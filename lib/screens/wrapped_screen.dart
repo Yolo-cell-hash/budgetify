@@ -330,7 +330,7 @@ class _WrappedScreenState extends State<WrappedScreen>
                       _showAmounts
                           ? Icons.warning_amber_rounded
                           : Icons.lock_outline,
-                      size: 15,
+                      size: 14,
                       color: _showAmounts
                           ? colors.brandAccent
                           : colors.textTertiary),
@@ -368,8 +368,8 @@ class _WrappedScreenState extends State<WrappedScreen>
       child: Row(
         children: [
           Icon(
-            _showAmounts ? Icons.visibility : Icons.visibility_off_outlined,
-            size: 17,
+            _showAmounts ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+            size: 16,
             color: _showAmounts ? colors.brandAccent : colors.textSecondary,
           ),
           const SizedBox(width: 10),
@@ -523,13 +523,13 @@ class _ShareButton extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(15),
+          borderRadius: BorderRadius.circular(14),
           onTap: onPressed,
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 15),
             decoration: BoxDecoration(
               gradient: LinearGradient(colors: hero.gradientColors),
-              borderRadius: BorderRadius.circular(15),
+              borderRadius: BorderRadius.circular(14),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -553,7 +553,7 @@ class _ShareButton extends StatelessWidget {
                     ),
                   ),
                 ] else ...[
-                  Icon(icon, color: hero.accent, size: 19),
+                  Icon(icon, color: hero.accent, size: 18),
                   const SizedBox(width: 10),
                   Text(
                     label,

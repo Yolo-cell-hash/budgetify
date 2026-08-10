@@ -262,7 +262,7 @@ class _SourceTile extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(Icons.chevron_right, color: colors.textTertiary),
+            Icon(Icons.chevron_right_rounded, color: colors.textTertiary),
           ],
         ),
       ),
@@ -292,7 +292,7 @@ class _GroupHeader extends StatelessWidget {
       children: [
         Row(
           children: [
-            Icon(icon, size: 17, color: tint),
+            Icon(icon, size: 16, color: tint),
             const SizedBox(width: 8),
             Text(
               title,
@@ -340,7 +340,7 @@ class _MerchantRow extends StatelessWidget {
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: catColor.withOpacity(0.14),
-              borderRadius: BorderRadius.circular(9),
+              borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
               ExpenseCategories.getIcon(tag.category),

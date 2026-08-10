@@ -66,7 +66,7 @@ class _TrialNoticeCardState extends State<TrialNoticeCard> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Icon(Icons.schedule_rounded,
-                  size: 19, color: colors.brandAccentDeep),
+                  size: 18, color: colors.brandAccentDeep),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(

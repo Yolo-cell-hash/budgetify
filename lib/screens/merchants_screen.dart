@@ -252,7 +252,7 @@ class _MerchantsScreenState extends State<MerchantsScreen> {
                               ? AppColors.dangerDark
                               : AppColors.successDark)
                           .withValues(alpha: 0.18),
-                      borderRadius: BorderRadius.circular(9),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
                       '${vs >= 0 ? '↑' : '↓'} ${vs.abs().toStringAsFixed(0)}%',

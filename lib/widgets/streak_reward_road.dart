@@ -351,7 +351,7 @@ class _RewardCard extends StatelessWidget {
       return Row(
         children: [
           Icon(Icons.lock_outline_rounded,
-              size: 15, color: colors.textTertiary),
+              size: 14, color: colors.textTertiary),
           const SizedBox(width: 6),
           Expanded(
             child: Text(
@@ -395,7 +395,7 @@ class _RewardCard extends StatelessWidget {
           width: double.infinity,
           child: OutlinedButton.icon(
             onPressed: onChooseRoyal,
-            icon: const Icon(Icons.lock_open_rounded, size: 17),
+            icon: const Icon(Icons.lock_open_rounded, size: 16),
             style: OutlinedButton.styleFrom(
               foregroundColor: colors.accent,
               side: BorderSide(color: colors.accent.withValues(alpha: 0.6)),
@@ -471,7 +471,7 @@ class _RewardCard extends StatelessWidget {
       child: OutlinedButton.icon(
         onPressed: () =>
             context.read<ThemeProvider>().setVariant(reward.themeVariant!),
-        icon: const Icon(Icons.palette_outlined, size: 17),
+        icon: const Icon(Icons.palette_outlined, size: 16),
         style: OutlinedButton.styleFrom(
           foregroundColor: colors.accent,
           side: BorderSide(color: colors.accent.withValues(alpha: 0.6)),

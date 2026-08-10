@@ -203,7 +203,7 @@ class _InsightsCardState extends State<InsightsCard> {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
               decoration: BoxDecoration(
                 color: tone.withValues(alpha: 0.18),
-                borderRadius: BorderRadius.circular(9),
+                borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -212,7 +212,7 @@ class _InsightsCardState extends State<InsightsCard> {
                     overUnder > 0
                         ? Icons.trending_up_rounded
                         : Icons.trending_down_rounded,
-                    size: 15,
+                    size: 14,
                     color: tone,
                   ),
                   const SizedBox(width: 6),

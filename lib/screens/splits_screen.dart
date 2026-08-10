@@ -156,7 +156,7 @@ class _SplitsScreenState extends State<SplitsScreen> {
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: accent.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(13),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(icon, size: 22, color: accent),
             ),
@@ -336,7 +336,7 @@ class _SplitsScreenState extends State<SplitsScreen> {
               alignEnd ? MainAxisAlignment.end : MainAxisAlignment.start,
           children: [
             if (!alignEnd) ...[
-              Icon(icon, size: 13, color: color),
+              Icon(icon, size: 12, color: color),
               const SizedBox(width: 5),
             ],
             Text(label,
@@ -344,7 +344,7 @@ class _SplitsScreenState extends State<SplitsScreen> {
                     fontSize: 11, color: Colors.white.withValues(alpha: 0.6))),
             if (alignEnd) ...[
               const SizedBox(width: 5),
-              Icon(icon, size: 13, color: color),
+              Icon(icon, size: 12, color: color),
             ],
           ],
         ),

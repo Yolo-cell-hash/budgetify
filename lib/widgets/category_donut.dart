@@ -131,7 +131,7 @@ class CategoryDonut extends StatelessWidget {
                     height: 10,
                     decoration: BoxDecoration(
                       color: s.color,
-                      borderRadius: BorderRadius.circular(3),
+                      borderRadius: BorderRadius.circular(2),
                     ),
                   ),
                   const SizedBox(width: 10),

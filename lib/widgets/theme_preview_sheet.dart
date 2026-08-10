@@ -85,7 +85,7 @@ Future<void> showThemePreviewSheet(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(Icons.lock_outline,
-                      size: 15, color: colors.textSecondary),
+                      size: 14, color: colors.textSecondary),
                   const SizedBox(width: 7),
                   Flexible(
                     child: Text(
@@ -368,12 +368,12 @@ class ThemeStill extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          Icon(Icons.home_rounded, size: 17, color: selected),
-          Icon(Icons.pie_chart_outline, size: 17, color: unselected),
-          Icon(Icons.event_repeat_outlined, size: 17, color: unselected),
+          Icon(Icons.home_rounded, size: 16, color: selected),
+          Icon(Icons.pie_chart_outline, size: 16, color: unselected),
+          Icon(Icons.event_repeat_outlined, size: 16, color: unselected),
           Icon(Icons.account_balance_wallet_outlined,
-              size: 17, color: unselected),
-          Icon(Icons.settings_outlined, size: 17, color: unselected),
+              size: 16, color: unselected),
+          Icon(Icons.settings_outlined, size: 16, color: unselected),
         ],
       ),
     );

@@ -860,7 +860,7 @@ class _SectionHeader extends StatelessWidget {
       children: [
         Row(
           children: [
-            Icon(icon, size: 17, color: tint),
+            Icon(icon, size: 16, color: tint),
             const SizedBox(width: 8),
             Text(
               title,
@@ -1025,7 +1025,7 @@ class _ResultLine extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 17, color: colors.brandAccent),
+          Icon(icon, size: 16, color: colors.brandAccent),
           const SizedBox(width: 8),
           Text(
             text,

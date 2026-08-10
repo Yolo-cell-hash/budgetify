@@ -424,7 +424,7 @@ class _CategoryDropdown extends StatelessWidget {
           value: items.contains(value) ? value : null,
           isExpanded: true,
           dropdownColor: colors.surface,
-          icon: Icon(Icons.keyboard_arrow_down, color: colors.textTertiary),
+          icon: Icon(Icons.keyboard_arrow_down_rounded, color: colors.textTertiary),
           items: [
             for (final c in items)
               DropdownMenuItem(

@@ -134,7 +134,7 @@ class PermissionRequestCard extends StatelessWidget {
       child: Row(
         children: [
           Icon(
-            Icons.check_circle,
+            Icons.check_circle_rounded,
             size: 18,
             color: Color(0xFF4CC795),
           ),

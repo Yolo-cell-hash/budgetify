@@ -521,7 +521,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
             const SizedBox(height: 24),
             _buildOption(
               ctx,
-              icon: Icons.select_all,
+              icon: Icons.select_all_rounded,
               title: context.l10nRead.applyToAll,
               subtitle: context.l10nRead.applyToAllDesc,
               value: 1,
@@ -531,7 +531,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
             const SizedBox(height: 12),
             _buildOption(
               ctx,
-              icon: Icons.history,
+              icon: Icons.history_rounded,
               title: context.l10nRead.applyToExisting,
               subtitle: context.l10nRead.applyToExistingDesc,
               value: 2,
@@ -541,7 +541,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
             const SizedBox(height: 12),
             _buildOption(
               ctx,
-              icon: Icons.touch_app,
+              icon: Icons.touch_app_outlined,
               title: context.l10nRead.onlyThisOne,
               subtitle: context.l10nRead.onlyThisOneDesc,
               value: 3,
@@ -616,7 +616,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                 ],
               ),
             ),
-            Icon(Icons.chevron_right, color: Color(0xFF9A9DA6)),
+            Icon(Icons.chevron_right_rounded, color: Color(0xFF9A9DA6)),
           ],
         ),
       ),
@@ -859,7 +859,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
-                      isCredit ? Icons.arrow_downward : Icons.arrow_upward,
+                      isCredit ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded,
                       color: isCredit ? Color(0xFF2AA76F) : Color(0xFFD25A5F),
                       size: 32,
                     ),
@@ -927,7 +927,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(Icons.call_split_rounded,
-                                  size: 13, color: colors.accent),
+                                  size: 12, color: colors.accent),
                               const SizedBox(width: 4),
                               Text(
                                 context.l10n.splitBadgeLabel,
@@ -958,7 +958,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(Icons.handshake_rounded,
-                                  size: 13, color: colors.accent),
+                                  size: 12, color: colors.accent),
                               const SizedBox(width: 4),
                               Text(
                                 context.l10n.settlementBadge,
@@ -1206,7 +1206,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                         const SizedBox(width: 8),
                         TextButton.icon(
                           onPressed: _isSaving ? null : _clearTag,
-                          icon: const Icon(Icons.label_off_rounded, size: 17),
+                          icon: const Icon(Icons.label_off_rounded, size: 16),
                           label: Text(context.l10n.clearTag),
                           style: TextButton.styleFrom(
                             foregroundColor: const Color(0xFFC94A50),
@@ -1322,7 +1322,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(
-                                Icons.add,
+                                Icons.add_rounded,
                                 size: 16,
                                 color: isDark
                                     ? Color(0xFF9A9DA6)
@@ -1560,7 +1560,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: colors.accent.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(11),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(icon, color: colors.accent, size: 20),
               ),

@@ -162,7 +162,7 @@ class _LockScreenState extends State<LockScreen> with WidgetsBindingObserver {
                         vertical: 16,
                       ),
                     ),
-                    icon: const Icon(Icons.fingerprint),
+                    icon: const Icon(Icons.fingerprint_rounded),
                     label: Text(_authenticating
                         ? context.l10n.waiting
                         : context.l10n.unlock),

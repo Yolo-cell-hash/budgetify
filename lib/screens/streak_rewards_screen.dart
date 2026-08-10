@@ -318,7 +318,7 @@ class _FreezeCard extends StatelessWidget {
                 height: 46,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(13),
+                  borderRadius: BorderRadius.circular(12),
                   gradient: const LinearGradient(
                     colors: [Color(0xFF7FDBFF), Color(0xFF0D3B66)],
                     begin: Alignment.topLeft,
@@ -397,7 +397,7 @@ class _FreezeCard extends StatelessWidget {
               width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: available > 0 ? () => onArm() : null,
-                icon: const Icon(Icons.shield_outlined, size: 17),
+                icon: const Icon(Icons.shield_outlined, size: 16),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: kFreezeAccent,
                   side: BorderSide(

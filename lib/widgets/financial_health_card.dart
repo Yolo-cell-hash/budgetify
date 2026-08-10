@@ -320,7 +320,7 @@ class FinancialHealthInline extends StatelessWidget {
           onTap: () => showFinancialHealthExplainer(context, health),
           child: Padding(
             padding: const EdgeInsets.all(3),
-            child: Icon(Icons.info_outline_rounded, size: 15, color: muted),
+            child: Icon(Icons.info_outline_rounded, size: 14, color: muted),
           ),
         ),
       ],
