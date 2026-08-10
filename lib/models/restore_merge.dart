@@ -123,4 +123,35 @@ class RestoreMerge {
   /// here would put two readers in disagreement about the same row.
   static bool localPayeeIsNamed(Map<String, Object?> local) =>
       _hasText(local['merchant_name']);
+
+  /// Whether a backed-up row must not come back at all, because the user has
+  /// since told the app this message shape is not a transaction.
+  ///
+  /// "Not a transaction" is an answer, and the rule at the top of this file
+  /// says a restore may never re-open one. Without this check the answer only
+  /// held until the next restore: the mute is stored, the row is deleted, and
+  /// then the backup — written while the row still existed — inserts it
+  /// straight back into Needs review. Reported on 2026-08-10 by a user whose
+  /// ignored BOI mandate-revocation returned after every single restore,
+  /// while everything they had merely *approved* stayed clean (an approval
+  /// travels inside the row; a mute lives in another table entirely).
+  ///
+  /// [shapeKey] is the row's `sender_core|signature` pair, and
+  /// [mutedShapeKeys] the same for every mute the device knows — both
+  /// computed by the caller, which owns the sender-normalising and
+  /// signature rules.
+  ///
+  /// Manual rows are never muted, mirroring `RemovalService.canMute`: a mute
+  /// keys off a message shape, and a row typed in by hand has no message to
+  /// key off.
+  static bool isMutedShape({
+    required Map<String, Object?> backup,
+    required String? shapeKey,
+    required Set<String> mutedShapeKeys,
+  }) {
+    if (shapeKey == null || mutedShapeKeys.isEmpty) return false;
+    if ((backup['is_manual'] as int? ?? 0) == 1) return false;
+    if (!_hasText(backup['message'])) return false;
+    return mutedShapeKeys.contains(shapeKey);
+  }
 }
