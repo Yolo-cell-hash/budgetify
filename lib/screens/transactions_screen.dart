@@ -590,10 +590,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0A0B0E) : Color(0xFFF6F6F3),
+      backgroundColor: colors.background,
       appBar: _selectionMode
           ? _buildSelectionAppBar()
           : AppBar(
@@ -637,7 +638,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _transactions.isEmpty
-                ? _buildEmptyState(isDark)
+                ? _buildEmptyState()
                 : RefreshIndicator(
                     // Pull-to-refresh has its own spinner; swapping the list
                     // out for a second one would also lose the user's place.
@@ -719,7 +720,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   Widget _buildHeader(bool isDark) {
     final colors = AppColors.of(context);
     return Container(
-      color: isDark ? const Color(0xFF121318) : Colors.white,
+      color: colors.surface,
       child: Column(
         children: [
           Padding(
@@ -792,7 +793,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           if (_activeFilterCount > 0) _buildActiveFiltersStrip(isDark),
           Divider(
             height: 1,
-            color: isDark ? const Color(0xFF2E313A) : const Color(0xFFE9E9E4),
+            color: colors.border,
           ),
         ],
       ),
@@ -832,9 +833,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   size: 20,
                   color: active > 0
                       ? accent
-                      : (isDark
-                          ? const Color(0xFF9A9DA6)
-                          : const Color(0xFF4E525C)),
+                      : (colors.textSecondary),
                 ),
                 if (active > 0)
                   Positioned(
@@ -874,17 +873,18 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     final chips = <Widget>[
       if (_typeFilter != null)
         _activeFilterChip(
+          isDark: isDark,
           label: _typeFilter == TransactionType.credit
               ? l10n.credits
               : l10n.debits,
           color: _typeFilter == TransactionType.credit
               ? const Color(0xFF2AA76F)
               : const Color(0xFFD25A5F),
-          isDark: isDark,
           onRemove: () => _setType(null),
         ),
       if (_classFilter != _ClassFilter.all)
         _activeFilterChip(
+          isDark: isDark,
           label: switch (_classFilter) {
             _ClassFilter.classified => l10n.classified,
             _ClassFilter.needsReview => l10n.needsReviewFilter,
@@ -895,21 +895,20 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             _ClassFilter.needsReview => const Color(0xFFC05621),
             _ => const Color(0xFFD79A3C),
           },
-          isDark: isDark,
           onRemove: () => _setClass(_ClassFilter.all),
         ),
       if (_datePreset != _DatePreset.all || _startDate != null)
         _activeFilterChip(
+          isDark: isDark,
           label: _dateFilterLabel,
           color: const Color(0xFF4A6489),
-          isDark: isDark,
           onRemove: () => _applyDatePreset(_DatePreset.all),
         ),
       if (_categoryFilter != null)
         _activeFilterChip(
+          isDark: isDark,
           label: l10n.categoryName(_categoryFilter!),
           color: AppColors.of(context).brandAccent,
-          isDark: isDark,
           onRemove: () {
             setState(() => _categoryFilter = null);
             _loadTransactions();
@@ -917,9 +916,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         ),
       if (_bankFilter != null)
         _activeFilterChip(
+          isDark: isDark,
           label: _bankFilterLabel,
           color: const Color(0xFF4A6489),
-          isDark: isDark,
           onRemove: () {
             setState(() => _bankFilter = null);
             _loadTransactions();
@@ -943,8 +942,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   Widget _activeFilterChip({
     required String label,
     required Color color,
-    required bool isDark,
     required VoidCallback onRemove,
+    // Not a colour: the tint's *alpha*, which genuinely differs by brightness —
+    // the same wash reads heavier on a dark canvas than a light one.
+    required bool isDark,
   }) {
     return InkWell(
       borderRadius: BorderRadius.circular(16),
@@ -980,12 +981,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   /// premium bottom sheet. Selections apply immediately, so the list updates
   /// live behind the sheet.
   Future<void> _openFilterSheet() async {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final colors = AppColors.of(context);
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: isDark ? const Color(0xFF121318) : Colors.white,
+      backgroundColor: colors.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
       ),
@@ -1014,9 +1014,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       width: 36,
                       height: 4,
                       decoration: BoxDecoration(
-                        color: isDark
-                            ? const Color(0xFF2E313A)
-                            : const Color(0xFFE9E9E4),
+                        color: colors.border,
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -1029,9 +1027,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w700,
-                              color: isDark
-                                  ? Colors.white
-                                  : const Color(0xFF1B1E28),
+                              color: colors.text,
                             ),
                           ),
                           const Spacer(),
@@ -1051,7 +1047,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _sheetSection(l10n.filterType, isDark),
+                            _sheetSection(l10n.filterType),
                             Wrap(
                               spacing: 8,
                               runSpacing: 8,
@@ -1061,7 +1057,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                   isSelected: _typeFilter == null,
                                   onSelected: () =>
                                       apply(() => _typeFilter = null),
-                                  isDark: isDark,
                                 ),
                                 _buildFilterChip(
                                   label: l10n.credits,
@@ -1070,7 +1065,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                   onSelected: () => apply(() =>
                                       _typeFilter = TransactionType.credit),
                                   color: const Color(0xFF2AA76F),
-                                  isDark: isDark,
                                 ),
                                 _buildFilterChip(
                                   label: l10n.debits,
@@ -1079,11 +1073,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                   onSelected: () => apply(() =>
                                       _typeFilter = TransactionType.debit),
                                   color: const Color(0xFFD25A5F),
-                                  isDark: isDark,
                                 ),
                               ],
                             ),
-                            _sheetSection(l10n.filterStatus, isDark),
+                            _sheetSection(l10n.filterStatus),
                             Wrap(
                               spacing: 8,
                               runSpacing: 8,
@@ -1093,7 +1086,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                   isSelected: _classFilter == _ClassFilter.all,
                                   onSelected: () => apply(
                                       () => _classFilter = _ClassFilter.all),
-                                  isDark: isDark,
                                 ),
                                 _buildFilterChip(
                                   label: l10n.classified,
@@ -1102,7 +1094,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                   onSelected: () => apply(() =>
                                       _classFilter = _ClassFilter.classified),
                                   color: const Color(0xFF4A6489),
-                                  isDark: isDark,
                                 ),
                                 _buildFilterChip(
                                   label: l10n.unclassified,
@@ -1111,7 +1102,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                   onSelected: () => apply(() => _classFilter =
                                       _ClassFilter.unclassified),
                                   color: const Color(0xFFD79A3C),
-                                  isDark: isDark,
                                 ),
                                 _buildFilterChip(
                                   label: l10n.needsReviewFilter,
@@ -1120,11 +1110,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                   onSelected: () => apply(() => _classFilter =
                                       _ClassFilter.needsReview),
                                   color: const Color(0xFFC05621),
-                                  isDark: isDark,
                                 ),
                               ],
                             ),
-                            _sheetSection(l10n.dateLabel, isDark),
+                            _sheetSection(l10n.dateLabel),
                             Wrap(
                               spacing: 8,
                               runSpacing: 8,
@@ -1146,7 +1135,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                     color: preset == _DatePreset.all
                                         ? null
                                         : const Color(0xFF4A6489),
-                                    isDark: isDark,
                                   ),
                                 _buildFilterChip(
                                   label: _customChipLabel,
@@ -1156,14 +1144,13 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                     setSheetState(() {});
                                   },
                                   color: colors.brandAccent,
-                                  isDark: isDark,
                                 ),
                               ],
                             ),
                             // Only banks with transactions on record — a
                             // filter you can't get results from is noise.
                             if (_banks.isNotEmpty) ...[
-                              _sheetSection(l10n.bankLabel, isDark),
+                              _sheetSection(l10n.bankLabel),
                               Wrap(
                                 spacing: 8,
                                 runSpacing: 8,
@@ -1173,7 +1160,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                     isSelected: _bankFilter == null,
                                     onSelected: () =>
                                         apply(() => _bankFilter = null),
-                                    isDark: isDark,
                                   ),
                                   for (final bank in _banks)
                                     _buildFilterChip(
@@ -1182,13 +1168,12 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                       onSelected: () =>
                                           apply(() => _bankFilter = bank.id),
                                       color: const Color(0xFF4A6489),
-                                      isDark: isDark,
                                     ),
                                 ],
                               ),
                             ],
                             if (_categories.isNotEmpty) ...[
-                              _sheetSection(l10n.category, isDark),
+                              _sheetSection(l10n.category),
                               Wrap(
                                 spacing: 8,
                                 runSpacing: 8,
@@ -1198,7 +1183,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                     isSelected: _categoryFilter == null,
                                     onSelected: () =>
                                         apply(() => _categoryFilter = null),
-                                    isDark: isDark,
                                   ),
                                   for (final c in _categories)
                                     _buildFilterChip(
@@ -1207,7 +1191,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                       onSelected: () =>
                                           apply(() => _categoryFilter = c),
                                       color: colors.brandAccent,
-                                      isDark: isDark,
                                     ),
                                 ],
                               ),
@@ -1251,7 +1234,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   }
 
   /// Small grey group label inside the filter sheet.
-  Widget _sheetSection(String text, bool isDark) {
+  Widget _sheetSection(String text) {
+    final colors = AppColors.of(context);
     return Padding(
       padding: const EdgeInsets.only(top: 14, bottom: 8),
       child: Text(
@@ -1260,7 +1244,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           fontSize: 12,
           fontWeight: FontWeight.w700,
           letterSpacing: 0.4,
-          color: isDark ? const Color(0xFF6E727C) : const Color(0xFF8A8D96),
+          color: colors.textTertiary,
         ),
       ),
     );
@@ -1280,22 +1264,23 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     required String label,
     required bool isSelected,
     required VoidCallback onSelected,
-    required bool isDark,
     Color? color,
   }) {
+    final colors = AppColors.of(context);
     return FilterChip(
       label: Text(label),
       selected: isSelected,
       onSelected: (_) => onSelected(),
-      backgroundColor: isDark ? const Color(0xFF16181E) : Color(0xFFF6F6F3),
-      selectedColor:
-          color?.withValues(alpha: 0.2) ??
-          (isDark ? const Color(0xFF16181E) : Color(0xFFEFE6D2)),
+      backgroundColor: colors.background,
+      // With no colour of its own, a selected chip wears the theme's accent at
+      // the same strength the coloured ones use — the old fallback was a fixed
+      // cream that only ever suited the light theme.
+      selectedColor: (color ?? colors.brandAccent).withValues(alpha: 0.2),
       checkmarkColor: color ?? AppColors.of(context).brandAccent,
       labelStyle: TextStyle(
         color: isSelected
             ? (color ?? AppColors.of(context).brandAccent)
-            : (isDark ? Color(0xFF9A9DA6) : Color(0xFF4E525C)),
+            : (colors.textSecondary),
         fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
       ),
     );
@@ -1304,6 +1289,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   /// Compact month summary. It renders as the first list item so it scrolls
   /// away with the transactions instead of pinning above them.
   Widget _buildSummaryStrip(bool isDark) {
+    final colors = AppColors.of(context);
     final formatter = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
     final monthName = context.l10n.monthName(DateTime.now().month);
     final net = _monthlyCredits - _monthlyDebits;
@@ -1311,7 +1297,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     final netColor =
         netUp ? const Color(0xFF4A6489) : const Color(0xFFD79A3C);
     final labelColor =
-        isDark ? const Color(0xFF8A8D96) : const Color(0xFF6E727C);
+        colors.textSecondary;
 
     Widget cell(IconData icon, Color color, String label, String value) {
       return Expanded(
@@ -1352,14 +1338,14 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     Widget divider() => Container(
           width: 1,
           height: 34,
-          color: isDark ? const Color(0xFF2E313A) : const Color(0xFFE9E9E4),
+          color: colors.border,
         );
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 6),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF16181E) : Colors.white,
+        color: colors.card,
         borderRadius: BorderRadius.circular(12),
         boxShadow: isDark
             ? null
@@ -1379,7 +1365,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               fontSize: 10.5,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.6,
-              color: isDark ? const Color(0xFF6E727C) : const Color(0xFF8A8D96),
+              color: colors.textTertiary,
             ),
           ),
           const SizedBox(height: 8),
@@ -1412,7 +1398,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     );
   }
 
-  Widget _buildEmptyState(bool isDark) {
+  Widget _buildEmptyState() {
+    final colors = AppColors.of(context);
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -1420,7 +1407,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           Icon(
             Icons.receipt_long_outlined,
             size: 80,
-            color: isDark ? Color(0xFF4E525C) : Color(0xFFD5D5CF),
+            color: colors.textTertiary,
           ),
           const SizedBox(height: 16),
           Text(
@@ -1430,7 +1417,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
-              color: isDark ? Color(0xFF9A9DA6) : Color(0xFF6E727C),
+              color: colors.textSecondary,
             ),
           ),
           const SizedBox(height: 8),
@@ -1440,7 +1427,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 : context.l10n.txnsFromSmsAppearHere,
             style: TextStyle(
               fontSize: 14,
-              color: isDark ? Color(0xFF6E727C) : Color(0xFF9A9DA6),
+              color: colors.textSecondary,
             ),
           ),
           if (_hasActiveFilters) ...[
