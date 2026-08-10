@@ -913,7 +913,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   'Turn off to return to your real, earned state.',
                   style: TextStyle(
                     color:
-                        isDark ? const Color(0xFF8A8D96) : const Color(0xFF6E727C),
+                        colors.textSecondary,
                   ),
                 ),
                 value: true,
@@ -946,9 +946,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         'in its welcome-offer state (₹29 / ₹299 / ₹999). '
                         'Your real trial clock is untouched.',
                         style: TextStyle(
-                          color: isDark
-                              ? const Color(0xFF8A8D96)
-                              : const Color(0xFF6E727C),
+                          color: colors.textSecondary,
                         ),
                       ),
                       value: simOn,
@@ -963,9 +961,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       subtitle: Text(
                         'Open the subscription screen directly.',
                         style: TextStyle(
-                          color: isDark
-                              ? const Color(0xFF8A8D96)
-                              : const Color(0xFF6E727C),
+                          color: colors.textSecondary,
                         ),
                       ),
                       trailing: const Icon(Icons.chevron_right_rounded),
