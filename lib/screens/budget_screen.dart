@@ -526,6 +526,7 @@ class _BudgetScreenState extends State<BudgetScreen>
     required DateTime selected,
     required ValueChanged<DateTime> onSelect,
   }) {
+    final colors = AppColors.of(context);
     final now = DateTime.now();
 
     return SizedBox(
@@ -541,7 +542,6 @@ class _BudgetScreenState extends State<BudgetScreen>
               month.month == selected.month;
           final isCurrent = month.year == now.year &&
               month.month == now.month;
-          final isDark = Theme.of(context).brightness == Brightness.dark;
 
           return GestureDetector(
             onTap: () => onSelect(month),
@@ -551,9 +551,7 @@ class _BudgetScreenState extends State<BudgetScreen>
               decoration: BoxDecoration(
                 color: isSelected
                     ? AppColors.of(context).brandAccentDeep
-                    : isDark
-                        ? const Color(0xFF262931)
-                        : Color(0xFFF6F6F3),
+                    : colors.cardAlt,
                 borderRadius: BorderRadius.circular(20),
                 border: isCurrent && !isSelected
                     ? Border.all(
@@ -570,9 +568,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                   color: isSelected
                       ? Colors.white
-                      : isDark
-                          ? Color(0xFFD5D5CF)
-                          : Color(0xFF4E525C),
+                      : colors.textSecondary,
                 ),
               ),
             ),
@@ -590,7 +586,7 @@ class _BudgetScreenState extends State<BudgetScreen>
     return Column(
       children: [
         const SizedBox(height: 4),
-        _buildMonthPagerHeader(isDark),
+        _buildMonthPagerHeader(),
         Expanded(
           child: PageView.builder(
             controller: _overviewPageController,
@@ -609,7 +605,7 @@ class _BudgetScreenState extends State<BudgetScreen>
     );
   }
 
-  Widget _buildMonthPagerHeader(bool isDark) {
+  Widget _buildMonthPagerHeader() {
     final now = DateTime.now();
     final month = _selectedOverviewMonth;
     final isCurrent = month.year == now.year && month.month == now.month;
@@ -713,7 +709,7 @@ class _BudgetScreenState extends State<BudgetScreen>
       child: Column(
         children: [
           if (hasBudgetGauge) ...[
-            FadeSlideIn(order: order++, child: _buildProgressCard(isDark, fmt)),
+            FadeSlideIn(order: order++, child: _buildProgressCard(fmt)),
             const SizedBox(height: 16),
           ],
           FadeSlideIn(
@@ -734,7 +730,6 @@ class _BudgetScreenState extends State<BudgetScreen>
                 FadeSlideIn(
                   order: order++,
                   child: _buildOverviewCard(
-                    isDark: isDark,
                     title: income
                         ? context.l10n.whereItCameFrom
                         : context.l10n.whereItWent,
@@ -801,17 +796,17 @@ class _BudgetScreenState extends State<BudgetScreen>
 
   /// Card shell shared by the overview sections.
   Widget _buildOverviewCard({
-    required bool isDark,
     required String title,
     required Widget child,
   }) {
+    final colors = AppColors.of(context);
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF16181E) : Colors.white,
+        color: colors.card,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isDark ? const Color(0xFF262931) : const Color(0xFFE9E9E4),
+          color: colors.border,
         ),
         boxShadow: [
           BoxShadow(
@@ -841,13 +836,14 @@ class _BudgetScreenState extends State<BudgetScreen>
     bool isDark,
     NumberFormat fmt,
   ) {
+    final colors = AppColors.of(context);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF16181E) : Colors.white,
+        color: colors.card,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isDark ? const Color(0xFF262931) : const Color(0xFFE9E9E4),
+          color: colors.border,
         ),
         boxShadow: [
           BoxShadow(
@@ -870,7 +866,6 @@ class _BudgetScreenState extends State<BudgetScreen>
                   fmt: fmt,
                   color: const Color(0xFF2AA76F),
                   icon: Icons.arrow_downward_rounded,
-                  isDark: isDark,
                   selected: _analysisMode == _AnalysisMode.income,
                   onTap: () =>
                       setState(() => _analysisMode = _AnalysisMode.income),
@@ -884,7 +879,6 @@ class _BudgetScreenState extends State<BudgetScreen>
                   fmt: fmt,
                   color: const Color(0xFFD25A5F),
                   icon: Icons.arrow_upward_rounded,
-                  isDark: isDark,
                   selected: _analysisMode == _AnalysisMode.expenses,
                   onTap: () =>
                       setState(() => _analysisMode = _AnalysisMode.expenses),
@@ -922,10 +916,10 @@ class _BudgetScreenState extends State<BudgetScreen>
     required NumberFormat fmt,
     required Color color,
     required IconData icon,
-    required bool isDark,
     bool selected = false,
     VoidCallback? onTap,
   }) {
+    final colors = AppColors.of(context);
     final selectable = onTap != null;
     final content = AnimatedContainer(
       duration: const Duration(milliseconds: 200),
@@ -961,9 +955,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
-                    color: isDark
-                        ? const Color(0xFF9A9DA6)
-                        : const Color(0xFF6E727C),
+                    color: colors.textSecondary,
                   ),
                 ),
               ),
@@ -975,9 +967,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                   size: 14,
                   color: selected
                       ? color
-                      : (isDark
-                          ? const Color(0xFF4E525C)
-                          : const Color(0xFFC9CAC4)),
+                      : (colors.textTertiary),
                 ),
             ],
           ),
@@ -987,7 +977,7 @@ class _BudgetScreenState extends State<BudgetScreen>
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white : Colors.black87,
+              color: colors.text,
             ),
           ),
         ],
@@ -1003,7 +993,7 @@ class _BudgetScreenState extends State<BudgetScreen>
 
 
 
-  Widget _buildProgressCard(bool isDark, NumberFormat fmt) {
+  Widget _buildProgressCard(NumberFormat fmt) {
     final pct = _budget!.amount > 0 ? _spent / _budget!.amount : 0.0;
     final remaining = _budget!.amount - _spent;
     final hero = HeroStyle.of(context);
@@ -1358,6 +1348,7 @@ class _BudgetScreenState extends State<BudgetScreen>
     bool isDark,
     bool income,
   ) {
+    final colors = AppColors.of(context);
     final start = DateTime(month.year, month.month, 1);
     final end = DateTime(month.year, month.month + 1, 0);
     final days = end.difference(start).inDays + 1;
@@ -1396,10 +1387,10 @@ class _BudgetScreenState extends State<BudgetScreen>
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF16181E) : Colors.white,
+        color: colors.card,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isDark ? const Color(0xFF262931) : const Color(0xFFE9E9E4),
+          color: colors.border,
         ),
         boxShadow: [
           BoxShadow(
@@ -1467,7 +1458,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                               FlSpot((days - 1).toDouble(), _budget!.amount),
                             ],
                             isCurved: false,
-                            color: Color(0xFF8A8D96),
+                            color: colors.textSecondary,
                             barWidth: 2,
                             dotData: const FlDotData(show: false),
                             dashArray: [5, 5],
@@ -1494,6 +1485,7 @@ class _BudgetScreenState extends State<BudgetScreen>
 
   // ==================== CATEGORIES TAB ====================
   Widget _buildCategoriesTab(bool isDark, NumberFormat fmt) {
+    final colors = AppColors.of(context);
     final spendingData = _selectedCategorySpending;
     final now = DateTime.now();
     final isCurrentMonth = _selectedCategoryMonth.year == now.year &&
@@ -1517,7 +1509,7 @@ class _BudgetScreenState extends State<BudgetScreen>
               order: 1,
               child: KeyedSubtree(
                 key: _tutCategoryBudgetsKey, // guided-tour anchor
-                child: _buildCategoryBudgetsSection(isDark, fmt),
+                child: _buildCategoryBudgetsSection(fmt),
               ),
             ),
           ],
@@ -1527,11 +1519,11 @@ class _BudgetScreenState extends State<BudgetScreen>
               padding: const EdgeInsets.symmetric(vertical: 60),
               child: Column(
                 children: [
-                  Icon(Icons.pie_chart_outline, size: 48, color: Color(0xFF9A9DA6)),
+                  Icon(Icons.pie_chart_outline, size: 48, color: colors.textSecondary),
                   const SizedBox(height: 12),
                   Text(
                     context.l10n.noSpendingThisMonth,
-                    style: TextStyle(color: Color(0xFF8A8D96)),
+                    style: TextStyle(color: colors.textSecondary),
                   ),
                 ],
               ),
@@ -1539,7 +1531,7 @@ class _BudgetScreenState extends State<BudgetScreen>
           else ...[
             FadeSlideIn(
               order: 1,
-              child: _buildCategoryPieChart(spendingData, isDark),
+              child: _buildCategoryPieChart(spendingData),
             ),
             const SizedBox(height: 16),
             FadeSlideIn(
@@ -1555,14 +1547,15 @@ class _BudgetScreenState extends State<BudgetScreen>
     );
   }
 
-  Widget _buildCategoryPieChart(Map<String, double> spending, bool isDark) {
+  Widget _buildCategoryPieChart(Map<String, double> spending) {
+    final colors = AppColors.of(context);
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF16181E) : Colors.white,
+        color: colors.card,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isDark ? const Color(0xFF262931) : const Color(0xFFE9E9E4),
+          color: colors.border,
         ),
       ),
       // The expandable category list below the chart carries the detail,
@@ -1598,9 +1591,10 @@ class _BudgetScreenState extends State<BudgetScreen>
     NumberFormat fmt,
     bool isDark,
   ) {
+    final colors = AppColors.of(context);
     final isExpanded = _expandedCategory == category;
-    final cardColor = isDark ? const Color(0xFF16181E) : Colors.white;
-    final textColor = isDark ? Colors.white : Colors.black87;
+    final cardColor = colors.card;
+    final textColor = colors.text;
 
     return Column(
       children: [
@@ -1682,7 +1676,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                       Text(
                         '${(amount / total * 100).toStringAsFixed(1)}%',
                         style: TextStyle(
-                          color: isDark ? Color(0xFF9A9DA6) : Color(0xFF8A8D96),
+                          color: colors.textSecondary,
                           fontSize: 12,
                         ),
                       ),
@@ -1699,7 +1693,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                 const SizedBox(width: 8),
                 Icon(
                   isExpanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
-                  color: Color(0xFF8A8D96),
+                  color: colors.textSecondary,
                 ),
               ],
             ),
@@ -1711,7 +1705,7 @@ class _BudgetScreenState extends State<BudgetScreen>
             margin: const EdgeInsets.only(bottom: 12, left: 16),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF121318) : Color(0xFFFAFAF8),
+              color: colors.cardAlt,
               borderRadius: BorderRadius.circular(10),
             ),
             child: Column(
@@ -1748,9 +1742,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                                 context.l10n.mediumDate(txn.detectedAt),
                                 style: TextStyle(
                                   fontSize: 11,
-                                  color: isDark
-                                      ? Color(0xFF8A8D96)
-                                      : Color(0xFF8A8D96),
+                                  color: colors.textSecondary,
                                 ),
                               ),
                             ],
@@ -1769,7 +1761,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                         Icon(
                           Icons.chevron_right_rounded,
                           size: 16,
-                          color: isDark ? Color(0xFF6E727C) : Color(0xFF9A9DA6),
+                          color: colors.textSecondary,
                         ),
                       ],
                     ),
@@ -1784,6 +1776,7 @@ class _BudgetScreenState extends State<BudgetScreen>
 
   // ==================== TRENDS TAB ====================
   Widget _buildTrendsTab(bool isDark, NumberFormat fmt) {
+    final colors = AppColors.of(context);
     if (_monthlySpending.isEmpty) {
       return Center(child: Text(context.l10n.noHistoricalData));
     }
@@ -1803,12 +1796,10 @@ class _BudgetScreenState extends State<BudgetScreen>
             child: Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF16181E) : Colors.white,
+                color: colors.card,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: isDark
-                      ? const Color(0xFF262931)
-                      : const Color(0xFFE9E9E4),
+                  color: colors.border,
                 ),
               ),
               child: Column(
@@ -1834,8 +1825,8 @@ class _BudgetScreenState extends State<BudgetScreen>
                     child: AnimatedSwitcher(
                       duration: const Duration(milliseconds: 350),
                       child: _trendsChartMode == _TrendsChartMode.bar
-                          ? _buildTrendsBarChart(maxY, monthFormat, isDark)
-                          : _buildTrendsLineChart(maxY, monthFormat, isDark),
+                          ? _buildTrendsBarChart(maxY, monthFormat)
+                          : _buildTrendsLineChart(maxY, monthFormat),
                     ),
                   ),
                 ],
@@ -1861,9 +1852,10 @@ class _BudgetScreenState extends State<BudgetScreen>
 
   /// Toggle control for bar/line chart mode in Trends
   Widget _buildTrendsChartToggle(bool isDark) {
+    final colors = AppColors.of(context);
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF262931) : Color(0xFFF6F6F3),
+        color: colors.cardAlt,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -1873,13 +1865,11 @@ class _BudgetScreenState extends State<BudgetScreen>
             icon: Icons.bar_chart_rounded,
             isSelected: _trendsChartMode == _TrendsChartMode.bar,
             onTap: () => setState(() => _trendsChartMode = _TrendsChartMode.bar),
-            isDark: isDark,
           ),
           _buildToggleBtn(
             icon: Icons.show_chart_rounded,
             isSelected: _trendsChartMode == _TrendsChartMode.line,
             onTap: () => setState(() => _trendsChartMode = _TrendsChartMode.line),
-            isDark: isDark,
           ),
         ],
       ),
@@ -1890,8 +1880,8 @@ class _BudgetScreenState extends State<BudgetScreen>
     required IconData icon,
     required bool isSelected,
     required VoidCallback onTap,
-    required bool isDark,
   }) {
+    final colors = AppColors.of(context);
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
@@ -1908,13 +1898,14 @@ class _BudgetScreenState extends State<BudgetScreen>
           size: 18,
           color: isSelected
               ? Colors.white
-              : (isDark ? Color(0xFF9A9DA6) : Color(0xFF6E727C)),
+              : (colors.textSecondary),
         ),
       ),
     );
   }
 
-  Widget _buildTrendsBarChart(double maxY, DateFormat monthFormat, bool isDark) {
+  Widget _buildTrendsBarChart(double maxY, DateFormat monthFormat) {
+    final colors = AppColors.of(context);
     return BarChart(
       key: const ValueKey('trends_bar'),
       BarChartData(
@@ -1925,7 +1916,7 @@ class _BudgetScreenState extends State<BudgetScreen>
         barTouchData: BarTouchData(
           enabled: true,
           touchTooltipData: BarTouchTooltipData(
-            getTooltipColor: (_) => const Color(0xFF2E313A),
+            getTooltipColor: (_) => colors.cardAlt,
             getTooltipItem: (group, groupIndex, rod, rodIndex) {
               return BarTooltipItem(
                 _hideAmounts ? '₹••••' : '₹${rod.toY.toStringAsFixed(0)}',
@@ -1963,7 +1954,8 @@ class _BudgetScreenState extends State<BudgetScreen>
     );
   }
 
-  Widget _buildTrendsLineChart(double maxY, DateFormat monthFormat, bool isDark) {
+  Widget _buildTrendsLineChart(double maxY, DateFormat monthFormat) {
+    final colors = AppColors.of(context);
     return LineChart(
       key: const ValueKey('trends_line'),
       LineChartData(
@@ -1975,7 +1967,7 @@ class _BudgetScreenState extends State<BudgetScreen>
         lineTouchData: LineTouchData(
           enabled: true,
           touchTooltipData: LineTouchTooltipData(
-            getTooltipColor: (_) => Color(0xFF2E313A),
+            getTooltipColor: (_) => colors.cardAlt,
             getTooltipItems: (spots) => spots.map((spot) {
               return LineTooltipItem(
                 _hideAmounts ? '₹••••' : '₹${spot.y.toStringAsFixed(0)}',
@@ -2074,14 +2066,15 @@ class _BudgetScreenState extends State<BudgetScreen>
     NumberFormat fmt,
     bool isDark,
   ) {
+    final colors = AppColors.of(context);
     final isCurrentMonth =
         month.month == DateTime.now().month &&
         month.year == DateTime.now().year;
     final isExpanded =
         _expandedMonth?.month == month.month &&
         _expandedMonth?.year == month.year;
-    final cardColor = isDark ? const Color(0xFF16181E) : Colors.white;
-    final textColor = isDark ? Colors.white : Colors.black87;
+    final cardColor = colors.card;
+    final textColor = colors.text;
 
     return Column(
       children: [
@@ -2161,7 +2154,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                 const SizedBox(width: 8),
                 Icon(
                   isExpanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
-                  color: Color(0xFF8A8D96),
+                  color: colors.textSecondary,
                 ),
               ],
             ),
@@ -2180,16 +2173,17 @@ class _BudgetScreenState extends State<BudgetScreen>
     bool isDark,
     double monthTotal,
   ) {
+    final colors = AppColors.of(context);
     final sorted = _expandedMonthCategories.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     final catTotal = _expandedMonthCategories.values.fold(0.0, (a, b) => a + b);
-    final textColor = isDark ? Colors.white : Colors.black87;
+    final textColor = colors.text;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12, left: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF121318) : Color(0xFFFAFAF8),
+        color: colors.cardAlt,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
@@ -2255,7 +2249,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                     '${pct.toStringAsFixed(1)}%',
                     style: TextStyle(
                       fontSize: 11,
-                      color: isDark ? Color(0xFF8A8D96) : Color(0xFF8A8D96),
+                      color: colors.textSecondary,
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -2280,7 +2274,7 @@ class _BudgetScreenState extends State<BudgetScreen>
 
   /// The suggestion hint (when applicable) plus the list of category budgets
   /// and an "add" affordance. Lives at the top of the Categories tab.
-  Widget _buildCategoryBudgetsSection(bool isDark, NumberFormat fmt) {
+  Widget _buildCategoryBudgetsSection(NumberFormat fmt) {
     final colors = AppColors.of(context);
     final prefs = context.watch<AppPreferences>();
     final showSuggestion = _suggestedCategory != null &&
@@ -2471,7 +2465,7 @@ class _BudgetScreenState extends State<BudgetScreen>
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: isDarkMode ? const Color(0xFF121318) : const Color(0xFFFAFAF8),
+          color: colors.cardAlt,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: colors.border),
         ),
