@@ -386,7 +386,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: accent.withOpacity(0.12),
-            borderRadius: BorderRadius.circular(11),
+            borderRadius: BorderRadius.circular(10),
           ),
           child: Text(insight.icon, style: const TextStyle(fontSize: 17)),
         ),

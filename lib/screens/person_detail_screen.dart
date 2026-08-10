@@ -200,7 +200,7 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
           color: filled
               ? AppColors.of(context).brandAccent
               : Colors.white.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(13),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: filled
                 ? AppColors.of(context).brandAccent
@@ -255,7 +255,7 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(11),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(icon, size: 18, color: color),
               ),

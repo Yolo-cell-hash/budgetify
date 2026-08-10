@@ -22,7 +22,7 @@ class AppBarTitle extends StatelessWidget {
           padding: const EdgeInsets.all(5),
           decoration: BoxDecoration(
             color: colors.brandAccent.withValues(alpha: 0.14),
-            borderRadius: BorderRadius.circular(9),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(color: colors.brandAccent.withValues(alpha: 0.22)),
           ),
           child: Icon(icon, size: 16, color: colors.brandAccent),

@@ -461,7 +461,7 @@ class _SplitTransactionSheetState extends State<_SplitTransactionSheet> {
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: c.danger.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(11),
+              borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(Icons.receipt_long_rounded, size: 18, color: c.danger),
           ),
@@ -523,7 +523,7 @@ class _SplitTransactionSheetState extends State<_SplitTransactionSheet> {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
             decoration: BoxDecoration(
               color: selected ? c.accent : c.cardAlt,
-              borderRadius: BorderRadius.circular(11),
+              borderRadius: BorderRadius.circular(10),
               border:
                   Border.all(color: selected ? c.accent : c.border),
             ),
@@ -716,13 +716,13 @@ class _SplitTransactionSheetState extends State<_SplitTransactionSheet> {
                 ? GestureDetector(
                     onTap: () => _release(name),
                     child: Icon(Icons.restart_alt_rounded,
-                        size: 17, color: c.textTertiary),
+                        size: 16, color: c.textTertiary),
                   )
                 : null,
           ),
           GestureDetector(
             onTap: () => _removePerson(name),
-            child: Icon(Icons.close_rounded, size: 17, color: c.textTertiary),
+            child: Icon(Icons.close_rounded, size: 16, color: c.textTertiary),
           ),
         ],
       ),
@@ -738,7 +738,7 @@ class _SplitTransactionSheetState extends State<_SplitTransactionSheet> {
       padding: const EdgeInsets.fromLTRB(11, 9, 6, 9),
       decoration: BoxDecoration(
         color: c.warning.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(11),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: c.warning.withValues(alpha: 0.28)),
       ),
       child: Row(

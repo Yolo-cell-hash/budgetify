@@ -138,7 +138,7 @@ class _MerchantDetailScreenState extends State<MerchantDetailScreen> {
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: _accent.withValues(alpha: 0.25),
-                  borderRadius: BorderRadius.circular(11),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
                   _initial(widget.merchant),
@@ -412,7 +412,7 @@ class _MerchantDetailScreenState extends State<MerchantDetailScreen> {
                         ),
                       ),
                       const SizedBox(width: 4),
-                      Icon(Icons.chevron_right,
+                      Icon(Icons.chevron_right_rounded,
                           size: 16, color: colors.textTertiary),
                     ],
                   ),

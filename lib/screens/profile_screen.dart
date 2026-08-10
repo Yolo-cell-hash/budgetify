@@ -631,7 +631,7 @@ class _MythicTitleBannerState extends State<_MythicTitleBanner>
                                         size: 16, color: Mythic.gold)
                                   else if (earned)
                                     const Icon(Icons.check_circle_rounded,
-                                        size: 15, color: Mythic.cyan)
+                                        size: 14, color: Mythic.cyan)
                                   else
                                     Icon(Icons.lock_rounded,
                                         size: 14,
@@ -665,7 +665,7 @@ class _MythicTitleBannerState extends State<_MythicTitleBanner>
                                 children: [
                                   Expanded(
                                     child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(3),
+                                      borderRadius: BorderRadius.circular(2),
                                       child: Stack(
                                         children: [
                                           Container(

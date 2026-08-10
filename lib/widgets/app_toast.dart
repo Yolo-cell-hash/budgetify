@@ -90,9 +90,9 @@ class _ToastCard extends StatelessWidget {
             padding: const EdgeInsets.all(7),
             decoration: BoxDecoration(
               color: accent.withOpacity(0.16),
-              borderRadius: BorderRadius.circular(9),
+              borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(icon, color: accent, size: 19),
+            child: Icon(icon, color: accent, size: 18),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -120,7 +120,7 @@ class _ToastCard extends StatelessWidget {
                 foregroundColor: accent,
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(9),
+                  borderRadius: BorderRadius.circular(8),
                 ),
               ),
               child: Text(

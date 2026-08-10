@@ -528,7 +528,7 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
           padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 6),
           decoration: BoxDecoration(
             color: sel ? colors.brandAccent : colors.cardAlt,
-            borderRadius: BorderRadius.circular(9),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(color: sel ? colors.brandAccent : colors.border),
           ),
           child: Text(
@@ -647,7 +647,7 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: on ? colors.brandAccent : Colors.transparent,
-                borderRadius: BorderRadius.circular(7),
+                borderRadius: BorderRadius.circular(6),
                 border: Border.all(
                     color: on ? colors.brandAccent : colors.textTertiary,
                     width: 1.6),
@@ -724,7 +724,7 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
         child: Row(
           children: [
             Icon(Icons.person_add_alt_1_rounded,
-                size: 19, color: colors.brandAccent),
+                size: 18, color: colors.brandAccent),
             const SizedBox(width: 9),
             Text(context.l10n.addPersonToSplit,
                 style: TextStyle(
@@ -769,7 +769,7 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
           Row(
             children: [
               Icon(Icons.swap_horiz_rounded,
-                  size: 15, color: colors.textSecondary),
+                  size: 14, color: colors.textSecondary),
               const SizedBox(width: 6),
               Text(context.l10n.resultLabel,
                   style: TextStyle(
@@ -917,7 +917,7 @@ class _SplitEditorSheetState extends State<_SplitEditorSheet> {
         child: Row(
           children: [
             Icon(Icons.calendar_today_outlined,
-                size: 15, color: colors.textSecondary),
+                size: 14, color: colors.textSecondary),
             const SizedBox(width: 8),
             Text(DateFormat('d MMM').format(_date),
                 style: TextStyle(fontSize: 13.5, color: colors.text)),

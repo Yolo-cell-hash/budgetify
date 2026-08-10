@@ -202,13 +202,13 @@ class _ExportOptionsSheetState extends State<ExportOptionsSheet> {
             const SizedBox(height: 8),
             Row(
               children: [
-                _formatChip(ExportFormat.excel, 'Excel', Icons.grid_on, colors),
+                _formatChip(ExportFormat.excel, 'Excel', Icons.grid_on_rounded, colors),
                 const SizedBox(width: 8),
                 _formatChip(
                     ExportFormat.csv, 'CSV', Icons.description_outlined, colors),
                 const SizedBox(width: 8),
                 _formatChip(
-                    ExportFormat.text, context.l10n.textFormat, Icons.notes, colors),
+                    ExportFormat.text, context.l10n.textFormat, Icons.notes_rounded, colors),
                 const SizedBox(width: 8),
                 _formatChip(ExportFormat.pdf, 'PDF',
                     Icons.picture_as_pdf_outlined, colors),
@@ -230,7 +230,7 @@ class _ExportOptionsSheetState extends State<ExportOptionsSheet> {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.calendar_today_rounded,
+                    Icon(Icons.calendar_today_outlined,
                         size: 18, color: colors.textSecondary),
                     const SizedBox(width: 10),
                     Expanded(
@@ -245,7 +245,7 @@ class _ExportOptionsSheetState extends State<ExportOptionsSheet> {
                     if (_dateRange != null)
                       GestureDetector(
                         onTap: () => setState(() => _dateRange = null),
-                        child: Icon(Icons.close, size: 18, color: colors.textTertiary),
+                        child: Icon(Icons.close_rounded, size: 18, color: colors.textTertiary),
                       ),
                   ],
                 ),
@@ -335,7 +335,7 @@ class _ExportOptionsSheetState extends State<ExportOptionsSheet> {
               decoration: InputDecoration(
                 hintText: context.l10n.merchantQueryHint,
                 isDense: true,
-                prefixIcon: const Icon(Icons.search, size: 20),
+                prefixIcon: const Icon(Icons.search_rounded, size: 20),
               ),
             ),
             const SizedBox(height: 20),
@@ -416,7 +416,7 @@ class _ExportOptionsSheetState extends State<ExportOptionsSheet> {
                     ),
                   ),
                 ),
-                icon: const Icon(Icons.ios_share, size: 18),
+                icon: const Icon(Icons.ios_share_rounded, size: 18),
                 label: Text(context.l10n.exportLabel),
               ),
             ),

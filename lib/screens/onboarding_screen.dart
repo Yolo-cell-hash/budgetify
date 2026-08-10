@@ -268,7 +268,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             Icon(
               selected
                   ? Icons.check_circle_rounded
-                  : Icons.radio_button_unchecked,
+                  : Icons.radio_button_unchecked_rounded,
               size: 22,
               color: selected
                   ? accent
@@ -385,7 +385,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: hero.accent.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(11),
+              borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(icon, size: 20, color: hero.accent),
           ),

@@ -526,7 +526,7 @@ class WrappedCard extends StatelessWidget {
         const SizedBox(width: 8),
         Expanded(
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(3),
+            borderRadius: BorderRadius.circular(2),
             child: Stack(
               children: [
                 Container(height: 4.5, color: hero.foregroundAlpha(0.10)),
@@ -792,7 +792,7 @@ class WrappedCard extends StatelessWidget {
       child: Row(
         children: [
           Icon(Icons.lock_outline,
-              size: 11, color: hero.foregroundAlpha(0.45)),
+              size: 10, color: hero.foregroundAlpha(0.45)),
           const SizedBox(width: 5),
           Expanded(
             child: Text(

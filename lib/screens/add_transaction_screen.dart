@@ -176,7 +176,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       : Color(0xFF9A9DA6),
                 ),
               ),
-              leading: const Icon(Icons.calendar_today),
+              leading: const Icon(Icons.calendar_today_outlined),
               title: Text(context.l10n.dateLabel),
               subtitle: Text(context.l10n.fullDate(_date)),
               onTap: () async {

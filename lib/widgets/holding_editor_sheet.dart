@@ -414,7 +414,7 @@ class _HoldingEditorSheetState extends State<_HoldingEditorSheet> {
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
                           color: sel ? colors.brandAccent : colors.cardAlt,
-                          borderRadius: BorderRadius.circular(19),
+                          borderRadius: BorderRadius.circular(18),
                           border: Border.all(
                             color: sel ? colors.brandAccent : colors.border,
                           ),
@@ -670,7 +670,7 @@ class _HoldingEditorSheetState extends State<_HoldingEditorSheet> {
                 child: Text(context.l10n.instalmentsAlreadyPaid,
                     style: TextStyle(fontSize: 13.5, color: colors.text)),
               ),
-              _stepperButton(colors, Icons.remove, () {
+              _stepperButton(colors, Icons.remove_rounded, () {
                 setState(() {
                   _priorEdited = true;
                   if (_priorInstallments > 0) _priorInstallments--;
@@ -688,7 +688,7 @@ class _HoldingEditorSheetState extends State<_HoldingEditorSheet> {
                   ),
                 ),
               ),
-              _stepperButton(colors, Icons.add, () {
+              _stepperButton(colors, Icons.add_rounded, () {
                 setState(() {
                   _priorEdited = true;
                   _priorInstallments++;
@@ -731,12 +731,12 @@ class _HoldingEditorSheetState extends State<_HoldingEditorSheet> {
   Widget _stepperButton(AppColors colors, IconData icon, VoidCallback onTap) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(9),
+      borderRadius: BorderRadius.circular(8),
       child: Container(
         padding: const EdgeInsets.all(7),
         decoration: BoxDecoration(
           color: colors.cardAlt,
-          borderRadius: BorderRadius.circular(9),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(color: colors.border),
         ),
         child: Icon(icon, size: 18, color: colors.text),
@@ -763,7 +763,7 @@ class _HoldingEditorSheetState extends State<_HoldingEditorSheet> {
         child: Row(
           children: [
             Icon(Icons.calendar_today_outlined,
-                size: 15, color: colors.textSecondary),
+                size: 14, color: colors.textSecondary),
             const SizedBox(width: 8),
             Expanded(
               child: Text(

@@ -494,7 +494,7 @@ class _TidyUpScreenState extends State<TidyUpScreen> {
                 Row(
                   children: [
                     Icon(Icons.schedule_rounded,
-                        size: 13, color: colors.textSecondary),
+                        size: 12, color: colors.textSecondary),
                     const SizedBox(width: 5),
                     Text(
                       DateFormat('EEE, d MMM yyyy · h:mm a')

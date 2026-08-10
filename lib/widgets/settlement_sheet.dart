@@ -274,7 +274,7 @@ class _SettlementSheetState extends State<_SettlementSheet> {
                     Row(
                       children: [
                         Icon(Icons.check_circle_rounded,
-                            size: 15, color: colors.success),
+                            size: 14, color: colors.success),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
