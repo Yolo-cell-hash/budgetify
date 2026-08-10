@@ -440,8 +440,8 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   Future<int?> _askApplyScope() async {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final colors = AppColors.of(context);
-    final cardColor = isDark ? const Color(0xFF16181E) : Colors.white;
-    final textColor = isDark ? Colors.white : Colors.black87;
+    final cardColor = colors.card;
+    final textColor = colors.text;
 
     final result = await showModalBottomSheet<int>(
       context: context,
@@ -461,7 +461,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Color(0xFF9A9DA6),
+                  color: colors.textSecondary,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -479,7 +479,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
             Text(
               context.l10nRead.foundTxnsForMerchant(_merchantDisplayName),
               style: TextStyle(
-                color: isDark ? Color(0xFF9A9DA6) : Color(0xFF6E727C),
+                color: colors.textSecondary,
               ),
             ),
             // Guided tour: a one-time explainer for how far a tag can reach —
@@ -526,7 +526,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
               subtitle: context.l10nRead.applyToAllDesc,
               value: 1,
               color: Color(0xFF2AA76F),
-              isDark: isDark,
             ),
             const SizedBox(height: 12),
             _buildOption(
@@ -536,7 +535,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
               subtitle: context.l10nRead.applyToExistingDesc,
               value: 2,
               color: Color(0xFFD79A3C),
-              isDark: isDark,
             ),
             const SizedBox(height: 12),
             _buildOption(
@@ -546,7 +544,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
               subtitle: context.l10nRead.onlyThisOneDesc,
               value: 3,
               color: Color(0xFF4A6489),
-              isDark: isDark,
             ),
             SizedBox(height: MediaQuery.of(ctx).padding.bottom + 16),
           ],
@@ -563,10 +560,10 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     required String subtitle,
     required int value,
     required Color color,
-    required bool isDark,
   }) {
-    final cardBg = isDark ? const Color(0xFF262931) : Color(0xFFFAFAF8);
-    final textColor = isDark ? Colors.white : Colors.black87;
+    final colors = AppColors.of(context);
+    final cardBg = colors.cardAlt;
+    final textColor = colors.text;
 
     return InkWell(
       onTap: () => Navigator.pop(ctx, value),
@@ -577,7 +574,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
           color: cardBg,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isDark ? Color(0xFF4E525C) : Color(0xFFE9E9E4),
+            color: colors.border,
           ),
         ),
         child: Row(
@@ -608,15 +605,13 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                     subtitle,
                     style: TextStyle(
                       fontSize: 12,
-                      color: isDark
-                          ? Color(0xFF9A9DA6)
-                          : Color(0xFF6E727C),
+                      color: colors.textSecondary,
                     ),
                   ),
                 ],
               ),
             ),
-            Icon(Icons.chevron_right_rounded, color: Color(0xFF9A9DA6)),
+            Icon(Icons.chevron_right_rounded, color: colors.textSecondary),
           ],
         ),
       ),
@@ -704,9 +699,10 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
 
   /// Long-press on a category chip: pick a custom emoji for that tag
   /// (works for predefined categories and custom tags alike).
-  Future<void> _showEmojiPickerForTag(String category, bool isDark) async {
-    final cardColor = isDark ? const Color(0xFF16181E) : Colors.white;
-    final textColor = isDark ? Colors.white : Colors.black87;
+  Future<void> _showEmojiPickerForTag(String category) async {
+    final colors = AppColors.of(context);
+    final cardColor = colors.card;
+    final textColor = colors.text;
 
     final chosen = await showModalBottomSheet<String>(
       context: context,
@@ -742,9 +738,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                   onTap: () => Navigator.pop(ctx, kTagEmojiChoices[i]),
                   child: Container(
                     decoration: BoxDecoration(
-                      color: isDark
-                          ? const Color(0xFF262931)
-                          : const Color(0xFFF6F6F3),
+                      color: colors.cardAlt,
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Center(
@@ -780,7 +774,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isCredit = _transaction.type == TransactionType.credit;
     final colors = AppColors.of(context);
     // A debit with a share override is "split": the headline shows the user's
@@ -796,20 +789,14 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     final formatter = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
     final dateFormatter = DateFormat('EEEE, MMMM d, y • h:mm a');
 
-    final bgColor = isDark ? const Color(0xFF0A0B0E) : Color(0xFFF6F6F3);
-    final cardColor = isDark ? const Color(0xFF16181E) : Colors.white;
-    final textColor = isDark ? Colors.white : Colors.black87;
-    final subtextColor = isDark ? Color(0xFF9A9DA6) : Color(0xFF6E727C);
-    final chipBgUnselected = isDark
-        ? const Color(0xFF262931)
-        : Color(0xFFFAFAF8);
-    final chipBorderUnselected = isDark
-        ? const Color(0xFF3D4758)
-        : Color(0xFFE9E9E4);
-    final inputBgColor = isDark ? const Color(0xFF262931) : Color(0xFFFAFAF8);
-    final messageBgColor = isDark
-        ? const Color(0xFF121318)
-        : Color(0xFFFAFAF8);
+    final bgColor = colors.background;
+    final cardColor = colors.card;
+    final textColor = colors.text;
+    final subtextColor = colors.textSecondary;
+    final chipBgUnselected = colors.cardAlt;
+    final chipBorderUnselected = colors.border;
+    final inputBgColor = colors.cardAlt;
+    final messageBgColor = colors.cardAlt;
 
     return PopScope(
       canPop: false,
@@ -1051,7 +1038,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                       textColor,
                       onEdit: _transaction.isManual
                           ? null
-                          : () => _showRenamePayeeSheet(isDark),
+                          : () => _showRenamePayeeSheet(),
                     ),
                   if (_transaction.accountInfo != null)
                     _buildDetailRow(
@@ -1062,7 +1049,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                     ),
                   Divider(
                     height: 24,
-                    color: isDark ? Color(0xFF4E525C) : null,
+                    color: colors.border,
                   ),
                   Text(
                     context.l10n.originalMessage,
@@ -1252,22 +1239,27 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                             }
                           },
                           onLongPress: () =>
-                              _showEmojiPickerForTag(category, isDark),
+                              _showEmojiPickerForTag(category),
                           child: Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 12,
                               vertical: 8,
                             ),
                             decoration: BoxDecoration(
+                              // Selection wears the theme accent at the same
+                              // strengths every other chip in the app uses. It
+                              // used to be a fixed steel blue that belonged to
+                              // no theme — and a border that ignored even
+                              // brightness.
                               color: isSelected
-                                  ? (isDark
-                                        ? Color(0xFF2A3B52).withAlpha(150)
-                                        : Color(0xFFEDF2F8))
+                                  ? colors.brandAccent
+                                        .withValues(alpha: 0.16)
                                   : chipBgUnselected,
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
                                 color: isSelected
-                                    ? Color(0xFF8FA9C7)
+                                    ? colors.brandAccent
+                                          .withValues(alpha: 0.45)
                                     : chipBorderUnselected,
                               ),
                             ),
@@ -1284,12 +1276,8 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                                   style: TextStyle(
                                     fontSize: 13,
                                     color: isSelected
-                                        ? (isDark
-                                              ? Color(0xFFAFC2D9)
-                                              : Color(0xFF3E5577))
-                                        : (isDark
-                                              ? Color(0xFFD5D5CF)
-                                              : Color(0xFF4E525C)),
+                                        ? colors.brandAccent
+                                        : colors.textSecondary,
                                     fontWeight: isSelected
                                         ? FontWeight.w600
                                         : FontWeight.normal,
@@ -1312,9 +1300,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                             color: Colors.transparent,
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                              color: isDark
-                                  ? Color(0xFF6E727C)
-                                  : Color(0xFF9A9DA6),
+                              color: colors.textSecondary,
                               style: BorderStyle.solid,
                             ),
                           ),
@@ -1324,18 +1310,14 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                               Icon(
                                 Icons.add_rounded,
                                 size: 16,
-                                color: isDark
-                                    ? Color(0xFF9A9DA6)
-                                    : Color(0xFF6E727C),
+                                color: colors.textSecondary,
                               ),
                               const SizedBox(width: 4),
                               Text(
                                 context.l10n.newTag,
                                 style: TextStyle(
                                   fontSize: 13,
-                                  color: isDark
-                                      ? Color(0xFF9A9DA6)
-                                      : Color(0xFF6E727C),
+                                  color: colors.textSecondary,
                                 ),
                               ),
                             ],
@@ -1414,9 +1396,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   elevation: 0,
-                  disabledBackgroundColor: isDark
-                      ? Color(0xFF2E313A)
-                      : Color(0xFFD5D5CF),
+                  disabledBackgroundColor: colors.border,
                 ),
                 child: _isSaving
                     ? const SizedBox(
@@ -2278,14 +2258,15 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   /// rename teaches a persistent alias keyed on the raw parser output, so
   /// matching transactions, category rules and every future SMS parse pick
   /// up the corrected name.
-  Future<void> _showRenamePayeeSheet(bool isDark) async {
+  Future<void> _showRenamePayeeSheet() async {
+    final colors = AppColors.of(context);
     final controller =
         TextEditingController(text: _transaction.merchantName ?? '');
 
-    final cardColor = isDark ? const Color(0xFF16181E) : Colors.white;
-    final textColor = isDark ? Colors.white : Colors.black87;
-    final subtextColor = isDark ? Color(0xFF9A9DA6) : Color(0xFF6E727C);
-    final inputBg = isDark ? const Color(0xFF262931) : Color(0xFFFAFAF8);
+    final cardColor = colors.card;
+    final textColor = colors.text;
+    final subtextColor = colors.textSecondary;
+    final inputBg = colors.cardAlt;
 
     final newName = await showModalBottomSheet<String>(
       context: context,
@@ -2310,7 +2291,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Color(0xFF9A9DA6),
+                  color: colors.textSecondary,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
