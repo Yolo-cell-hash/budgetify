@@ -2177,6 +2177,14 @@ class SmsParserService {
     // settled verb, which is exactly what looksLikeCreation rules out.
     if (UpiMandateParser.looksLikeCreation(upperMessage)) return true;
 
+    // The other end of a mandate's life: revoked, paused, modified, or the
+    // hold on the money released. BOI's revocation — "UPI-Mandate revoked for
+    // Coursera Rs.2099.00.Funds unblocked from A/C No. XXXX" — was landing as
+    // ₹2,099 of income, because "unblocked from A/C" scores as a credit and
+    // nothing else objected. A cancelled subscription is the opposite of
+    // money arriving. Executions still carry a settled verb and are untouched.
+    if (UpiMandateParser.looksLikeLifecycleNotice(upperMessage)) return true;
+
     // Soft rejects: these words flag OTPs and marketing SMS, but banks also
     // put them in footers of genuine alerts. Only reject when the message
     // carries no completed-transaction verb. 'PIN' is word-bounded so it no
