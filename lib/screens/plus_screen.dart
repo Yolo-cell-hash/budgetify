@@ -383,7 +383,7 @@ class _PlusScreenState extends State<PlusScreen>
               child: Row(
                 children: [
                   Icon(Icons.check_circle_rounded,
-                      size: 17, color: colors.brandAccentDeep),
+                      size: 16, color: colors.brandAccentDeep),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
@@ -454,7 +454,7 @@ class _PlusScreenState extends State<PlusScreen>
                 ),
                 child: selected
                     ? const Icon(Icons.check_rounded,
-                        size: 13, color: Colors.white)
+                        size: 12, color: Colors.white)
                     : null,
               ),
               const SizedBox(width: 12),
@@ -563,7 +563,7 @@ class _PlusScreenState extends State<PlusScreen>
           TextButton.icon(
             onPressed: _busy ? null : _restore,
             icon: Icon(Icons.restore_rounded,
-                size: 17, color: colors.brandAccentDeep),
+                size: 16, color: colors.brandAccentDeep),
             label: Text(
               l10n.plusRestore,
               style: TextStyle(

@@ -357,7 +357,7 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
         ),
         child: Row(
           children: [
-            Icon(Icons.lock_open_rounded, size: 15, color: colors.brandAccent),
+            Icon(Icons.lock_open_rounded, size: 14, color: colors.brandAccent),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -416,7 +416,7 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
         padding: const EdgeInsets.only(top: 6),
         child: Row(
           children: [
-            Icon(Icons.check_circle_rounded, size: 15, color: accent),
+            Icon(Icons.check_circle_rounded, size: 14, color: accent),
             const SizedBox(width: 6),
             Text(
               ctx.l10n.royalOnHomeTheme,
@@ -874,7 +874,7 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
       shape: BoxShape.circle,
       border: Border.all(color: colors.border),
     ),
-    child: Icon(Icons.lock_rounded, size: 11, color: colors.textSecondary),
+    child: Icon(Icons.lock_rounded, size: 10, color: colors.textSecondary),
   );
 
   /// The status pill under every royal tile — present in all states so the

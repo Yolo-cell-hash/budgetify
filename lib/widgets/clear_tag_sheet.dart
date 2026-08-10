@@ -87,7 +87,7 @@ Future<ClearTagScope?> showClearTagSheet(
               ),
               const SizedBox(height: 22),
               _ClearOption(
-                icon: Icons.touch_app_rounded,
+                icon: Icons.touch_app_outlined,
                 title: l10n.clearOnlyThis,
                 subtitle: l10n.clearOnlyThisDesc,
                 color: const Color(0xFF4A6489),
@@ -124,7 +124,7 @@ Future<ClearTagScope?> showClearTagSheet(
               const SizedBox(height: 14),
               Row(
                 children: [
-                  Icon(Icons.undo_rounded, size: 15, color: subtextColor),
+                  Icon(Icons.undo_rounded, size: 14, color: subtextColor),
                   const SizedBox(width: 7),
                   Expanded(
                     child: Text(
@@ -237,7 +237,7 @@ Future<DeleteRuleChoice?> showDeleteRuleSheet(
               const SizedBox(height: 14),
               Row(
                 children: [
-                  Icon(Icons.undo_rounded, size: 15, color: subtextColor),
+                  Icon(Icons.undo_rounded, size: 14, color: subtextColor),
                   const SizedBox(width: 7),
                   Expanded(
                     child: Text(
@@ -333,7 +333,7 @@ class _ClearOption extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, color: Color(0xFF9A9DA6)),
+            const Icon(Icons.chevron_right_rounded, color: Color(0xFF9A9DA6)),
           ],
         ),
       ),

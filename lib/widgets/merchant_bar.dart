@@ -63,7 +63,7 @@ class MerchantBar extends StatelessWidget {
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: color.withAlpha(isTop ? 45 : 26),
-                borderRadius: BorderRadius.circular(7),
+                borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
                 '$rank',
@@ -115,7 +115,7 @@ class MerchantBar extends StatelessWidget {
             ),
             if (onTap != null) ...[
               const SizedBox(width: 4),
-              Icon(Icons.chevron_right, size: 16, color: colors.textTertiary),
+              Icon(Icons.chevron_right_rounded, size: 16, color: colors.textTertiary),
             ],
           ],
         ),

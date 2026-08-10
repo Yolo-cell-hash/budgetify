@@ -253,7 +253,7 @@ class _AutoTagRulesScreenState extends State<AutoTagRulesScreen> {
         height: 38,
         decoration: BoxDecoration(
           color: tagColor.withValues(alpha: paused ? 0.06 : 0.12),
-          borderRadius: BorderRadius.circular(11),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: tagColor.withValues(alpha: paused ? 0.12 : 0.22),
           ),
@@ -292,7 +292,7 @@ class _AutoTagRulesScreenState extends State<AutoTagRulesScreen> {
           IconButton(
             icon: Icon(
               paused ? Icons.play_arrow_rounded : Icons.pause_rounded,
-              size: 21,
+              size: 20,
             ),
             color: colors.textSecondary,
             tooltip: paused
@@ -301,7 +301,7 @@ class _AutoTagRulesScreenState extends State<AutoTagRulesScreen> {
             onPressed: () => _toggleActive(rule),
           ),
           IconButton(
-            icon: const Icon(Icons.delete_outline_rounded, size: 21),
+            icon: const Icon(Icons.delete_outline_rounded, size: 20),
             color: const Color(0xFFD25A5F),
             tooltip: context.l10n.deleteRuleTooltip,
             onPressed: () => _deleteRule(rule),

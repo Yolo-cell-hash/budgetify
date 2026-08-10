@@ -59,7 +59,7 @@ class UnconfirmedCaveat extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.error_outline, size: 15, color: amber),
+              Icon(Icons.error_outline, size: 14, color: amber),
               const SizedBox(width: 6),
               // Loose fit: the label takes its natural width and only starts
               // ellipsising when the longer translations run out of card. An
@@ -81,7 +81,7 @@ class UnconfirmedCaveat extends StatelessWidget {
                   ),
                 ),
               ),
-              Icon(Icons.chevron_right, size: 16, color: amber),
+              Icon(Icons.chevron_right_rounded, size: 16, color: amber),
             ],
           ),
         ),

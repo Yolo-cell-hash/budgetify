@@ -56,7 +56,7 @@ class StreakHeatmap extends StatelessWidget {
           Row(
             children: [
               Icon(Icons.grid_view_rounded,
-                  size: 17, color: colors.brandAccent),
+                  size: 16, color: colors.brandAccent),
               const SizedBox(width: 8),
               Text(
                 'Consistency',
@@ -130,7 +130,7 @@ class StreakHeatmap extends StatelessWidget {
                   height: 12,
                   decoration: BoxDecoration(
                     color: cell(l),
-                    borderRadius: BorderRadius.circular(3),
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
                 const SizedBox(width: 3),
@@ -171,7 +171,7 @@ class _Cell extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 4),
       decoration: BoxDecoration(
         color: future ? Colors.transparent : cell(StreakHeatmap._level(secs)),
-        borderRadius: BorderRadius.circular(3),
+        borderRadius: BorderRadius.circular(2),
         border: date == today ? Border.all(color: accent, width: 1.4) : null,
       ),
     );

@@ -432,7 +432,7 @@ class _RecurringScreenState extends State<RecurringScreen> {
                             horizontal: 6, vertical: 1),
                         decoration: BoxDecoration(
                           color: colors.accent.withValues(alpha: 0.16),
-                          borderRadius: BorderRadius.circular(5),
+                          borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
                           context.l10n.autopayBadge,
@@ -656,7 +656,7 @@ class _RecurringRow extends StatelessWidget {
                                 RecurringChargeStatus.detected) ...[
                               const SizedBox(width: 6),
                               Icon(Icons.bolt_rounded,
-                                  size: 13, color: colors.accent),
+                                  size: 12, color: colors.accent),
                             ],
                           ],
                         ),

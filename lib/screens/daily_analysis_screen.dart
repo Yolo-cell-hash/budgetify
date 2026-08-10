@@ -273,7 +273,7 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
                     }
                   },
                   child: _buildSummaryItem(
-                    icon: Icons.arrow_upward,
+                    icon: Icons.arrow_upward_rounded,
                     label: context.l10n.spent,
                     amount: fmt.format(_totalSpent),
                     color: Color(0xFFD25A5F),
@@ -295,7 +295,7 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
                     }
                   },
                   child: _buildSummaryItem(
-                    icon: Icons.arrow_downward,
+                    icon: Icons.arrow_downward_rounded,
                     label: context.l10n.received,
                     amount: fmt.format(_totalReceived),
                     color: Color(0xFF2AA76F),
@@ -307,7 +307,7 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
               // Net
               Expanded(
                 child: _buildSummaryItem(
-                  icon: isPositive ? Icons.trending_up : Icons.trending_down,
+                  icon: isPositive ? Icons.trending_up_rounded : Icons.trending_down_rounded,
                   label: context.l10n.netLabel,
                   amount: '${isPositive ? '+' : ''}${fmt.format(netAmount)}',
                   color: isPositive ? Color(0xFF4A6489) : Color(0xFFD79A3C),
@@ -713,7 +713,7 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
                 buildSectionHeader(
                   key: _expensesKey,
                   title: context.l10n.commonExpenses,
-                  icon: Icons.arrow_upward,
+                  icon: Icons.arrow_upward_rounded,
                   color: Color(0xFFD25A5F),
                   amount: fmt.format(_totalSpent),
                 ),
@@ -756,7 +756,7 @@ class _DailyAnalysisScreenState extends State<DailyAnalysisScreen> {
                 buildSectionHeader(
                   key: _incomeKey,
                   title: context.l10n.commonIncome,
-                  icon: Icons.arrow_downward,
+                  icon: Icons.arrow_downward_rounded,
                   color: Color(0xFF2AA76F),
                   amount: fmt.format(_totalReceived),
                 ),
