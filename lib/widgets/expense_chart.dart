@@ -170,7 +170,7 @@ class _ExpenseChartWidgetState extends State<ExpenseChartWidget> {
           color: isSelected
               ? AppColors.of(context).brandAccentDeep
               : Colors.transparent,
-          borderRadius: BorderRadius.circular(7),
+          borderRadius: BorderRadius.circular(6),
         ),
         child: Icon(
           icon,

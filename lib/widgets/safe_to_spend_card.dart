@@ -180,7 +180,7 @@ class SafeToSpendCard extends StatelessWidget {
                     : aheadOfPace
                         ? Icons.speed_rounded
                         : Icons.check_circle_rounded,
-                size: 15,
+                size: 14,
                 color: accent,
               ),
               const SizedBox(width: 6),

@@ -833,7 +833,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   padding: const EdgeInsets.all(9),
                   decoration: BoxDecoration(
                     color: hero.accent.withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.circular(11),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Text('🔔', style: TextStyle(fontSize: 18)),
                 ),
@@ -861,7 +861,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     ],
                   ),
                 ),
-                Icon(Icons.chevron_right, size: 18, color: hero.accent),
+                Icon(Icons.chevron_right_rounded, size: 18, color: hero.accent),
               ],
             ),
           ),
@@ -1017,8 +1017,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
-                      Icons.arrow_upward,
-                      size: 13,
+                      Icons.arrow_upward_rounded,
+                      size: 12,
                       color: hero.mutedForeground,
                     ),
                     const SizedBox(width: 4),
@@ -1077,10 +1077,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                               padding: const EdgeInsets.all(4),
                               decoration: BoxDecoration(
                                 color: hero.positive.withValues(alpha: 0.18),
-                                borderRadius: BorderRadius.circular(5),
+                                borderRadius: BorderRadius.circular(4),
                               ),
                               child: Icon(
-                                Icons.arrow_downward,
+                                Icons.arrow_downward_rounded,
                                 size: 12,
                                 color: hero.positive,
                               ),
@@ -1137,10 +1137,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                               padding: const EdgeInsets.all(4),
                               decoration: BoxDecoration(
                                 color: hero.negative.withValues(alpha: 0.18),
-                                borderRadius: BorderRadius.circular(5),
+                                borderRadius: BorderRadius.circular(4),
                               ),
                               child: Icon(
-                                Icons.arrow_upward,
+                                Icons.arrow_upward_rounded,
                                 size: 12,
                                 color: hero.negative,
                               ),
@@ -1236,7 +1236,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             gradient: hero.gradient,
-            borderRadius: BorderRadius.circular(17),
+            borderRadius: BorderRadius.circular(16),
           ),
           child: Row(
             children: [
@@ -1405,7 +1405,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   padding: const EdgeInsets.all(9),
                   decoration: BoxDecoration(
                     color: colors.warning.withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.circular(11),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(Icons.fact_check_outlined,
                       size: 20, color: colors.warning),
@@ -1519,7 +1519,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           const SizedBox(width: 12),
           Expanded(
             child: _buildActionCard(
-              icon: Icons.sync,
+              icon: Icons.sync_rounded,
               label: context.l10n.scanSms,
               value: _isScanning ? '...' : context.l10n.scan,
               color: colors.success,

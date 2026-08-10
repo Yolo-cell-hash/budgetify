@@ -369,7 +369,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 SwitchListTile(
                   secondary: Icon(
-                    Icons.schedule,
+                    Icons.schedule_rounded,
                     color: _autoScanEnabled ? Color(0xFF2AA76F) : Color(0xFF8A8D96),
                   ),
                   title: Text(context.l10n.autoScanTitle),
@@ -456,7 +456,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           : Color(0xFFE9E9E4),
                     ),
                     ListTile(
-                      leading: Icon(Icons.history, color: Color(0xFF8A8D96)),
+                      leading: Icon(Icons.history_rounded, color: Color(0xFF8A8D96)),
                       title: Text(context.l10n.lastScan),
                       subtitle: Text(
                         DateFormat(
@@ -486,7 +486,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 SwitchListTile(
                   secondary: Icon(
-                    Icons.fingerprint,
+                    Icons.fingerprint_rounded,
                     color: _appLockEnabled
                         ? AppColors.of(context).brandAccent
                         : const Color(0xFF8A8D96),
@@ -628,7 +628,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
                     ),
                   ),
-                  trailing: const Icon(Icons.chevron_right),
+                  trailing: const Icon(Icons.chevron_right_rounded),
                   onTap: _createBackup,
                 ),
                 Divider(
@@ -637,7 +637,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 ListTile(
                   leading: const Icon(
-                    Icons.settings_backup_restore,
+                    Icons.settings_backup_restore_rounded,
                     color: Color(0xFF178A5B),
                   ),
                   title: Text(context.l10n.restoreBackup),
@@ -647,7 +647,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
                     ),
                   ),
-                  trailing: const Icon(Icons.chevron_right),
+                  trailing: const Icon(Icons.chevron_right_rounded),
                   onTap: _restoreBackup,
                 ),
               ],
@@ -670,7 +670,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
                 ),
               ),
-              trailing: const Icon(Icons.chevron_right),
+              trailing: const Icon(Icons.chevron_right_rounded),
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const ManageTagsScreen()),
@@ -694,7 +694,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
                 ),
               ),
-              trailing: const Icon(Icons.chevron_right),
+              trailing: const Icon(Icons.chevron_right_rounded),
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const AutoTagRulesScreen()),
@@ -716,7 +716,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
                 ),
               ),
-              trailing: const Icon(Icons.chevron_right),
+              trailing: const Icon(Icons.chevron_right_rounded),
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const TaxScreen()),
@@ -764,7 +764,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                       ),
                     ),
-                  const Icon(Icons.chevron_right),
+                  const Icon(Icons.chevron_right_rounded),
                 ],
               ),
               onTap: _openIgnoredMessagesSheet,
@@ -787,7 +787,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
                 ),
               ),
-              trailing: const Icon(Icons.chevron_right),
+              trailing: const Icon(Icons.chevron_right_rounded),
               onTap: _openImportSheet,
             ),
           ),
@@ -795,7 +795,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildSettingsCard(
             isDark: isDark,
             child: ListTile(
-              leading: Icon(Icons.ios_share, color: Color(0xFF4A6489)),
+              leading: Icon(Icons.ios_share_rounded, color: Color(0xFF4A6489)),
               title: Text(context.l10n.exportData),
               subtitle: Text(
                 context.l10n.exportDataDesc,
@@ -803,7 +803,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   color: isDark ? Color(0xFF8A8D96) : Color(0xFF6E727C),
                 ),
               ),
-              trailing: const Icon(Icons.chevron_right),
+              trailing: const Icon(Icons.chevron_right_rounded),
               onTap: _openExportSheet,
             ),
           ),
@@ -865,7 +865,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           : const Color(0xFF6E727C),
                     ),
                   ),
-                  trailing: const Icon(Icons.chevron_right, size: 20),
+                  trailing: const Icon(Icons.chevron_right_rounded, size: 20),
                   onTap: () {
                     TutorialService.instance.restart();
                     mainShellTabRequest.value = 0;
@@ -893,7 +893,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           : const Color(0xFF6E727C),
                     ),
                   ),
-                  trailing: const Icon(Icons.chevron_right, size: 20),
+                  trailing: const Icon(Icons.chevron_right_rounded, size: 20),
                   onTap: () => RatingPromptService.instance.openStoreListing(),
                 ),
               ],
@@ -1158,7 +1158,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           color: accent,
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.check,
+                        child: const Icon(Icons.check_rounded,
                             size: 12, color: Colors.white),
                       ),
                     ),
@@ -1199,7 +1199,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 5),
                   child: Icon(
                     Icons.visibility_outlined,
-                    size: 15,
+                    size: 14,
                     semanticLabel: context.l10n.themePreviewAction,
                     color: Theme.of(context).brightness == Brightness.dark
                         ? const Color(0xFF8A8D96)
@@ -1281,7 +1281,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           color: isDark ? const Color(0xFF8A8D96) : const Color(0xFF6E727C),
         ),
       ),
-      trailing: owned ? null : const Icon(Icons.chevron_right, size: 20),
+      trailing: owned ? null : const Icon(Icons.chevron_right_rounded, size: 20),
       onTap: owned ? null : _openPlusScreen,
     );
   }
@@ -1428,7 +1428,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (!mounted) return;
       if (path == null) return; // user cancelled the save dialog
       _showStyledSnackBar(
-        icon: Icons.check_circle,
+        icon: Icons.check_circle_rounded,
         message: context.l10nRead.encryptedBackupSaved,
         color: const Color(0xFF2AA76F),
         actionLabel: context.l10nRead.open,
@@ -1460,7 +1460,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       // other live screens to reload so counts/totals update without a scan.
       notifyAppDataChanged();
       _showStyledSnackBar(
-        icon: Icons.check_circle,
+        icon: Icons.check_circle_rounded,
         message: result.total == 0
             ? context.l10nRead.backupRestoredNothing
             : context.l10nRead.restoredSummary(
@@ -1716,7 +1716,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
     if (result == null || !mounted) return;
     _showStyledSnackBar(
-      icon: Icons.check_circle,
+      icon: Icons.check_circle_rounded,
       message: context.l10nRead.stImportedToast(
         result.inserted,
         result.autoTagged,
@@ -1803,7 +1803,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) Navigator.pop(context); // dismiss progress
       if (!mounted) return;
       _showStyledSnackBar(
-        icon: Icons.check_circle,
+        icon: Icons.check_circle_rounded,
         message: context.l10nRead.importDone(
           result.rulesCreated + result.rulesUpdated,
           result.transactionsTagged,

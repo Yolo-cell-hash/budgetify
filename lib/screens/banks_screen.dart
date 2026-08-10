@@ -118,7 +118,7 @@ class _BanksScreenState extends State<BanksScreen> {
         actions: [
           if (_breakdown.isNotEmpty)
             IconButton(
-              icon: const Icon(Icons.ios_share),
+              icon: const Icon(Icons.ios_share_rounded),
               tooltip: context.l10n.exportThisBank,
               onPressed: () => _export(),
             ),
@@ -172,7 +172,7 @@ class _BanksScreenState extends State<BanksScreen> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           IconButton(
-            icon: const Icon(Icons.chevron_left),
+            icon: const Icon(Icons.chevron_left_rounded),
             color: colors.textSecondary,
             onPressed: _canGoBack ? () => _step(-1) : null,
           ),
@@ -190,7 +190,7 @@ class _BanksScreenState extends State<BanksScreen> {
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.chevron_right),
+            icon: const Icon(Icons.chevron_right_rounded),
             color: colors.textSecondary,
             onPressed: _canGoForward ? () => _step(1) : null,
           ),
@@ -379,7 +379,7 @@ class _BanksScreenState extends State<BanksScreen> {
         // for a header like "ZZZTOP" the whole point is that the user can see
         // it needs a name.
         IconButton(
-          icon: const Icon(Icons.edit_outlined, size: 17),
+          icon: const Icon(Icons.edit_outlined, size: 16),
           color: colors.textTertiary,
           visualDensity: VisualDensity.compact,
           tooltip: context.l10n.renameBank,

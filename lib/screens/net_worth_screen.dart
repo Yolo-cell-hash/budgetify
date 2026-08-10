@@ -161,7 +161,7 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
         key: _tutFabKey, // guided-tour anchor
         child: FloatingActionButton.extended(
           onPressed: () => _openEditor(),
-          icon: const Icon(Icons.add),
+          icon: const Icon(Icons.add_rounded),
           label: Text(context.l10n.addLabel),
         ),
       ),
@@ -288,7 +288,7 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
             children: [
               Expanded(
                 child: _heroStat(context.l10n.assets, _summary.assets,
-                    colors.success, Icons.arrow_upward),
+                    colors.success, Icons.arrow_upward_rounded),
               ),
               Container(
                 width: 1,
@@ -297,7 +297,7 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
               ),
               Expanded(
                 child: _heroStat(context.l10n.liabilities, _summary.liabilities,
-                    colors.danger, Icons.arrow_downward,
+                    colors.danger, Icons.arrow_downward_rounded,
                     alignEnd: true),
               ),
             ],
@@ -318,7 +318,7 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
           mainAxisAlignment:
               alignEnd ? MainAxisAlignment.end : MainAxisAlignment.start,
           children: [
-            Icon(icon, size: 13, color: color),
+            Icon(icon, size: 12, color: color),
             const SizedBox(width: 5),
             Text(
               label,
@@ -403,7 +403,7 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
                               height: 10,
                               decoration: BoxDecoration(
                                 color: CustomTagService.colorFromName(e.key),
-                                borderRadius: BorderRadius.circular(3),
+                                borderRadius: BorderRadius.circular(2),
                               ),
                             ),
                             const SizedBox(width: 8),
@@ -565,7 +565,7 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
                   decoration: BoxDecoration(
                     color: CustomTagService.colorFromName(h.category)
                         .withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(11),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(HoldingCategories.icon(h.category),
                       style: const TextStyle(fontSize: 18)),
@@ -817,7 +817,7 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
               decoration: BoxDecoration(
                 color: CustomTagService.colorFromName(h.category)
                     .withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(11),
+                borderRadius: BorderRadius.circular(10),
               ),
               child: Text(HoldingCategories.icon(h.category),
                   style: const TextStyle(fontSize: 18)),
@@ -854,7 +854,7 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
               ),
             ),
             const SizedBox(width: 4),
-            Icon(Icons.chevron_right, size: 16, color: colors.textTertiary),
+            Icon(Icons.chevron_right_rounded, size: 16, color: colors.textTertiary),
           ],
         ),
       ),
@@ -866,7 +866,7 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
       padding: const EdgeInsets.all(11),
       decoration: BoxDecoration(
         color: colors.brandAccent.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(11),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: colors.brandAccent.withValues(alpha: 0.30)),
       ),
       child: Row(
@@ -921,7 +921,7 @@ class _NetWorthScreenState extends State<NetWorthScreen> {
         Center(
           child: ElevatedButton.icon(
             onPressed: () => _openEditor(),
-            icon: const Icon(Icons.add),
+            icon: const Icon(Icons.add_rounded),
             label: Text(context.l10n.addFirstHolding),
           ),
         ),

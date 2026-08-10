@@ -601,12 +601,12 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               actions: [
                 if (_hasActiveFilters)
                   IconButton(
-                    icon: const Icon(Icons.filter_alt_off),
+                    icon: const Icon(Icons.filter_alt_off_rounded),
                     onPressed: _clearFilters,
                     tooltip: context.l10n.clearFilters,
                   ),
                 IconButton(
-                  icon: const Icon(Icons.refresh),
+                  icon: const Icon(Icons.refresh_rounded),
                   onPressed: () => _loadTransactions(keepPosition: true),
                 ),
               ],
@@ -621,7 +621,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 );
                 if (result == true) _loadTransactions(keepPosition: true);
               },
-              icon: const Icon(Icons.add),
+              icon: const Icon(Icons.add_rounded),
               label: Text(context.l10n.add),
             ),
       body: SafeArea(child: Column(
@@ -738,10 +738,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                     decoration: InputDecoration(
                       isDense: true,
                       hintText: context.l10n.searchTxnHint,
-                      prefixIcon: const Icon(Icons.search, size: 20),
+                      prefixIcon: const Icon(Icons.search_rounded, size: 20),
                       suffixIcon: _searchQuery.isNotEmpty
                           ? IconButton(
-                              icon: const Icon(Icons.close, size: 18),
+                              icon: const Icon(Icons.close_rounded, size: 18),
                               onPressed: () {
                                 setState(() => _searchQuery = '');
                                 _searchController.clear();
@@ -828,7 +828,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               alignment: Alignment.center,
               children: [
                 Icon(
-                  Icons.tune,
+                  Icons.tune_rounded,
                   size: 20,
                   color: active > 0
                       ? accent
@@ -969,7 +969,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               ),
             ),
             const SizedBox(width: 4),
-            Icon(Icons.close, size: 14, color: color),
+            Icon(Icons.close_rounded, size: 14, color: color),
           ],
         ),
       ),
@@ -1321,7 +1321,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, size: 13, color: color),
+                Icon(icon, size: 12, color: color),
                 const SizedBox(width: 4),
                 Text(
                   label,
@@ -1386,21 +1386,21 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           Row(
             children: [
               cell(
-                Icons.arrow_downward,
+                Icons.arrow_downward_rounded,
                 const Color(0xFF178A5B),
                 context.l10n.commonIncome,
                 formatter.format(_monthlyCredits),
               ),
               divider(),
               cell(
-                Icons.arrow_upward,
+                Icons.arrow_upward_rounded,
                 const Color(0xFFC94A50),
                 context.l10n.commonExpenses,
                 formatter.format(_monthlyDebits),
               ),
               divider(),
               cell(
-                netUp ? Icons.trending_up : Icons.trending_down,
+                netUp ? Icons.trending_up_rounded : Icons.trending_down_rounded,
                 netColor,
                 context.l10n.netLabel,
                 formatter.format(net),
@@ -1447,7 +1447,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             const SizedBox(height: 16),
             TextButton.icon(
               onPressed: _clearFilters,
-              icon: const Icon(Icons.filter_alt_off),
+              icon: const Icon(Icons.filter_alt_off_rounded),
               label: Text(context.l10n.clearFilters),
             ),
           ],

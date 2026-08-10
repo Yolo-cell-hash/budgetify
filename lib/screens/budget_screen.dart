@@ -480,7 +480,7 @@ class _BudgetScreenState extends State<BudgetScreen>
         title: AppBarTitle(context.l10n.budgetAndAnalytics,
             icon: Icons.donut_small_rounded),
         actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadData),
+          IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _loadData),
         ],
         bottom: TabBar(
           controller: _tabController,
@@ -497,7 +497,7 @@ class _BudgetScreenState extends State<BudgetScreen>
         key: _tutFabKey, // guided-tour anchor
         child: FloatingActionButton.extended(
           onPressed: _showBudgetDialog,
-          icon: Icon(_budget == null ? Icons.add : Icons.edit),
+          icon: Icon(_budget == null ? Icons.add_rounded : Icons.edit_outlined),
           label: Text(
               _budget == null ? context.l10n.setBudget : context.l10n.commonEdit),
         ),
@@ -869,7 +869,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                   amount: data.income,
                   fmt: fmt,
                   color: const Color(0xFF2AA76F),
-                  icon: Icons.arrow_downward,
+                  icon: Icons.arrow_downward_rounded,
                   isDark: isDark,
                   selected: _analysisMode == _AnalysisMode.income,
                   onTap: () =>
@@ -883,7 +883,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                   amount: data.spent,
                   fmt: fmt,
                   color: const Color(0xFFD25A5F),
-                  icon: Icons.arrow_upward,
+                  icon: Icons.arrow_upward_rounded,
                   isDark: isDark,
                   selected: _analysisMode == _AnalysisMode.expenses,
                   onTap: () =>
@@ -898,7 +898,7 @@ class _BudgetScreenState extends State<BudgetScreen>
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(Icons.touch_app_outlined,
-                  size: 13, color: AppColors.of(context).textTertiary),
+                  size: 12, color: AppColors.of(context).textTertiary),
               const SizedBox(width: 5),
               Text(
                 context.l10n.analysisTapHint,
@@ -970,9 +970,9 @@ class _BudgetScreenState extends State<BudgetScreen>
               if (selectable)
                 Icon(
                   selected
-                      ? Icons.radio_button_checked
-                      : Icons.radio_button_unchecked,
-                  size: 15,
+                      ? Icons.radio_button_checked_rounded
+                      : Icons.radio_button_unchecked_rounded,
+                  size: 14,
                   color: selected
                       ? color
                       : (isDark
@@ -1126,7 +1126,7 @@ class _BudgetScreenState extends State<BudgetScreen>
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(
-                  remaining >= 0 ? Icons.savings_outlined : Icons.warning_amber,
+                  remaining >= 0 ? Icons.savings_outlined : Icons.warning_amber_rounded,
                   color: pillColor,
                   size: 20,
                 ),
@@ -1698,7 +1698,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                 ),
                 const SizedBox(width: 8),
                 Icon(
-                  isExpanded ? Icons.expand_less : Icons.expand_more,
+                  isExpanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
                   color: Color(0xFF8A8D96),
                 ),
               ],
@@ -1767,7 +1767,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                         ),
                         const SizedBox(width: 4),
                         Icon(
-                          Icons.chevron_right,
+                          Icons.chevron_right_rounded,
                           size: 16,
                           color: isDark ? Color(0xFF6E727C) : Color(0xFF9A9DA6),
                         ),
@@ -1901,7 +1901,7 @@ class _BudgetScreenState extends State<BudgetScreen>
           color: isSelected
               ? AppColors.of(context).brandAccentDeep
               : Colors.transparent,
-          borderRadius: BorderRadius.circular(7),
+          borderRadius: BorderRadius.circular(6),
         ),
         child: Icon(
           icon,
@@ -2160,7 +2160,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                 ),
                 const SizedBox(width: 8),
                 Icon(
-                  isExpanded ? Icons.expand_less : Icons.expand_more,
+                  isExpanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
                   color: Color(0xFF8A8D96),
                 ),
               ],
@@ -2231,7 +2231,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                     height: 28,
                     decoration: BoxDecoration(
                       color: ExpenseCategories.getColor(e.key).withAlpha(30),
-                      borderRadius: BorderRadius.circular(7),
+                      borderRadius: BorderRadius.circular(6),
                     ),
                     child: Center(
                       child: Text(
@@ -2325,7 +2325,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                   ),
                   TextButton.icon(
                     onPressed: () => _showCategoryBudgetDialog(),
-                    icon: const Icon(Icons.add, size: 18),
+                    icon: const Icon(Icons.add_rounded, size: 18),
                     label: Text(context.l10n.add),
                     style: TextButton.styleFrom(
                       foregroundColor: AppColors.of(context).brandAccent,
@@ -2392,7 +2392,7 @@ class _BudgetScreenState extends State<BudgetScreen>
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: colors.brandAccent.withAlpha(40),
-              borderRadius: BorderRadius.circular(11),
+              borderRadius: BorderRadius.circular(10),
             ),
             child: Text(
               ExpenseCategories.getIcon(cat),
@@ -2442,7 +2442,7 @@ class _BudgetScreenState extends State<BudgetScreen>
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.close, size: 18),
+            icon: const Icon(Icons.close_rounded, size: 18),
             color: colors.textTertiary,
             tooltip: context.l10n.notNow,
             onPressed: () =>
@@ -2535,7 +2535,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                       ),
                   ],
                 ),
-                Icon(Icons.chevron_right, size: 18, color: colors.textTertiary),
+                Icon(Icons.chevron_right_rounded, size: 18, color: colors.textTertiary),
               ],
             ),
             const SizedBox(height: 10),
@@ -2682,7 +2682,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                             color: isSel
                                 ? colors.brandAccent
                                 : colors.cardAlt,
-                            borderRadius: BorderRadius.circular(19),
+                            borderRadius: BorderRadius.circular(18),
                             border: Border.all(
                               color: isSel ? colors.brandAccent : colors.border,
                             ),

@@ -316,7 +316,7 @@ class _ManageTagsScreenState extends State<ManageTagsScreen> {
         height: 38,
         decoration: BoxDecoration(
           color: color.withOpacity(0.12),
-          borderRadius: BorderRadius.circular(11),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(color: color.withOpacity(0.22)),
         ),
         child: Center(
