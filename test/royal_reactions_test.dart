@@ -714,6 +714,58 @@ void main() {
       }
     });
 
+    testWidgets('every royal plays every cameo in its own manner',
+        (tester) async {
+      // The cameo routines branch per _Manner now: the Empress never stops or
+      // waves and has no walk cycle, the Sovereign travels in stepped bursts,
+      // the Dark Prince stalks and does not greet. Those branches are only
+      // reachable with that royal equipped, so the existing single-royal sweep
+      // above would not touch most of them.
+      for (final royal in kRoyalAvatars) {
+        SharedPreferences.setMockInitialValues({
+          'gamification_v1': jsonEncode({
+            'profile': {
+              'avatarKind': 'pixel',
+              'avatarValue': '${royal.spriteIndex}',
+            },
+            'unlockedRoyals': [royal.id],
+          }),
+          'royal_custom_animations': true,
+        });
+        final prefs = AppPreferences();
+        await prefs.initialize();
+
+        await tester.pumpWidget(_host(prefs));
+        // Let the welcome parade finish so cameos are allowed to start.
+        for (var i = 0; i < 14; i++) {
+          await tester.pump(const Duration(milliseconds: 40));
+        }
+        await tester.pump(const Duration(seconds: 6));
+        await tester.pump();
+
+        for (final cameo in RoyalCameo.values) {
+          requestRoyalCameo(cameo);
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 300));
+          expect(_hasCharacter(tester), isTrue,
+              reason: '${royal.id} / $cameo never started');
+
+          // Sample across the routine rather than at one instant: the manner
+          // branches live at different points in the timeline (entry easing,
+          // the mid-beat, the exit), so a single frame would miss most of them.
+          // Deliberately no "cleaned up" assertion at the end — the host's own
+          // ambient scheduler is free to start another cameo inside a window
+          // this long, so a character being on screen afterwards proves
+          // nothing. Teardown is covered by the single-royal sweep above.
+          for (var i = 0; i < 13; i++) {
+            await tester.pump(const Duration(milliseconds: 500));
+            expect(tester.takeException(), isNull,
+                reason: '${royal.id} / $cameo threw mid-routine');
+          }
+        }
+      }
+    });
+
     testWidgets('a non-royal avatar stays silent', (tester) async {
       SharedPreferences.setMockInitialValues({
         'gamification_v1': jsonEncode({
