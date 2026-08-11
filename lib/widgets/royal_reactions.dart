@@ -396,6 +396,46 @@ enum _BootStyle {
   glide,
 }
 
+/// How a royal carries itself through an ambient cameo.
+///
+/// The four cameo routines used to be one choreography each, played identically
+/// by all six: walk 45% and wave, ride straight across, slide in and wave,
+/// pop in and cheer. Placement was already randomised ([_camDir], [_camA],
+/// [_camB]) so no two cameos landed in the same spot — but every royal *behaved*
+/// the same once it got there.
+///
+/// A manner is deliberately shared across all four routines rather than
+/// bespoke per routine. A royal that stalks when it strolls but flits when it
+/// peeks has no character; one that stalks everywhere does. [_Motion] already
+/// tunes how each body carries itself — this is the choreography layer above it.
+enum _Manner {
+  /// Walks on, stops, waves, walks off. The Prince's parade manner, and the
+  /// Medic's — both deliberately left as the baseline.
+  brisk,
+
+  /// Never stops and never quite lands: the Empress passes through rather than
+  /// visiting, so she has no walk cycle and no pause at all.
+  drift,
+
+  /// Arrives and leaves between frames and holds perfectly still in between.
+  /// The Sovereign.
+  blink,
+
+  /// Low and unhurried, with a long look before it leaves. The Dark Prince.
+  stalk,
+
+  /// Little airborne hops, coming to rest half a beat late. The Princess.
+  flit,
+}
+
+_Manner _mannerOf(String id) => switch (id) {
+      'empress' => _Manner.drift,
+      'sovereign' => _Manner.blink,
+      'darkprince' => _Manner.stalk,
+      'princess' => _Manner.flit,
+      _ => _Manner.brisk, // prince + royal medic, deliberately unchanged
+    };
+
 _BootStyle _bootStyleFor(String id) => switch (id) {
       'darkprince' => _BootStyle.chargeHalt,
       'princess' => _BootStyle.soar,
@@ -1819,37 +1859,114 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
   double _laneGround(Size screen, EdgeInsets pad) =>
       screen.height - pad.bottom - kBottomNavigationBarHeight - 4;
 
+  // ── Cameo manner ─────────────────────────────────────────────────────────
+  // The four helpers every cameo routine consults, so a royal moves like
+  // itself whichever routine happens to fire. See [_Manner].
+
+  _Manner get _manner => _mannerOf(_royal?.id ?? '');
+
+  /// Vertical offset over the life of a cameo — how far off the floor this
+  /// royal is at [t], as a fraction of character height.
+  double _mannerLift(double t) {
+    final cyc = t * 2 * math.pi;
+    return switch (_manner) {
+      // Floats throughout, breathing slowly. Never touches down.
+      _Manner.drift => -_ch * (0.16 + 0.028 * math.sin(cyc * 2)),
+      // Hops: quick little arcs, feet meeting the floor between each.
+      _Manner.flit => -_ch * 0.075 * math.sin(cyc * 6).abs(),
+      _Manner.brisk || _Manner.blink || _Manner.stalk => 0,
+    };
+  }
+
+  /// Travel easing. Blink covers ground in bursts; stalk builds slowly; drift
+  /// never accelerates at all.
+  double _mannerTravel(double p) {
+    switch (_manner) {
+      case _Manner.brisk:
+        return p;
+      case _Manner.drift:
+        return p; // linear: the absence of acceleration IS the elegance
+      case _Manner.stalk:
+        return Curves.easeInCubic.transform(p);
+      case _Manner.flit:
+        return Curves.easeInOutSine.transform(p);
+      case _Manner.blink:
+        const steps = 3;
+        final seg = (p * steps).floor().clamp(0, steps - 1);
+        final within = (p * steps) - seg;
+        return (seg + Curves.easeInExpo.transform(within.clamp(0.0, 1.0))) /
+            steps;
+    }
+  }
+
+  /// Milliseconds per locomotion cycle, scaled off a routine's [base] tempo.
+  double _mannerTempo(double base) => base *
+      switch (_manner) {
+        _Manner.brisk => 1.0,
+        _Manner.drift => 1.9, // unhurried
+        _Manner.blink => 1.4,
+        _Manner.stalk => 1.45, // heavy on his feet
+        _Manner.flit => 0.78, // light and quick
+      };
+
+  /// What this royal does while travelling. The Empress has no walk cycle —
+  /// legs pumping under a gown that never lands reads as a glitch, not a glide.
+  RoyalAction get _mannerWalk =>
+      _manner == _Manner.drift ? RoyalAction.idle : RoyalAction.walk;
+
+  /// Whether this royal stops to wave mid-cameo. The Empress never stops, and
+  /// the Dark Prince does not wave at anybody.
+  bool get _mannerGreets =>
+      _manner != _Manner.drift && _manner != _Manner.stalk;
+
   _CharFrame _stroll(double t, Size screen, EdgeInsets pad) {
     const scale = 0.85;
     final y = _laneGround(screen, pad) - _ch * scale * 0.5;
     final dir = _camDir;
     final fromX = dir > 0 ? -_cw * 0.6 : screen.width + _cw * 0.6;
     final toX = dir > 0 ? screen.width + _cw * 0.6 : -_cw * 0.6;
-    // Walk 45% of the way, pause for a wave, walk off.
+    final lift = _mannerLift(t);
+    final tempo = _mannerTempo(480);
+
+    // Royals who never stop simply cross, with no mid-beat to break the line.
+    if (!_mannerGreets) {
+      return _CharFrame(
+          center: Offset(_lerp(fromX, toX, _mannerTravel(t)), y + lift),
+          scale: scale,
+          // The Dark Prince still walks — he just doesn't greet anyone. The
+          // Empress has no walk at all.
+          action: _manner == _Manner.stalk
+              ? RoyalAction.walk
+              : _mannerWalk,
+          actionT: _cyc(t, tempo),
+          facing: dir);
+    }
+
+    // Travel 45% of the way, pause, travel off.
     final waveX = _lerp(fromX, toX, 0.45);
     if (t < 0.40) {
-      final p = _seg(t, 0, 0.40);
+      final p = _mannerTravel(_seg(t, 0, 0.40));
       return _CharFrame(
-          center: Offset(_lerp(fromX, waveX, p), y),
+          center: Offset(_lerp(fromX, waveX, p), y + lift),
           scale: scale,
-          action: RoyalAction.walk,
-          actionT: _cyc(t, 480),
+          action: _mannerWalk,
+          actionT: _cyc(t, tempo),
           facing: dir);
     }
     if (t < 0.58) {
       return _CharFrame(
-          center: Offset(waveX, y),
+          center: Offset(waveX, y + lift),
           scale: scale,
           action: RoyalAction.wave,
           actionT: _seg(t, 0.40, 0.58),
           facing: dir);
     }
-    final p = _seg(t, 0.58, 1.0);
+    final p = _mannerTravel(_seg(t, 0.58, 1.0));
     return _CharFrame(
-        center: Offset(_lerp(waveX, toX, p), y),
+        center: Offset(_lerp(waveX, toX, p), y + lift),
         scale: scale,
-        action: RoyalAction.walk,
-        actionT: _cyc(t, 480),
+        action: _mannerWalk,
+        actionT: _cyc(t, tempo),
         facing: dir);
   }
 
@@ -1859,12 +1976,23 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
     final dir = _camDir;
     final fromX = dir > 0 ? -_rw * 0.6 : screen.width + _rw * 0.6;
     final toX = dir > 0 ? screen.width + _rw * 0.6 : -_rw * 0.6;
-    final p = Curves.easeInOutSine.transform(t);
+    // The mount already differs per royal; this makes the PATH differ too, so
+    // a dash isn't the same straight line under six different animals.
+    final p = _manner == _Manner.brisk
+        ? Curves.easeInOutSine.transform(t)
+        : _mannerTravel(t);
+    // The flier arcs across rather than crossing flat; the drifter sinks a
+    // little as it passes, the way something unhurried does.
+    final arc = switch (_manner) {
+      _Manner.flit => -math.sin(t * math.pi) * _rh * 0.30,
+      _Manner.drift => -_rh * 0.10 + math.sin(t * math.pi) * _rh * 0.06,
+      _ => 0.0,
+    };
     return _CharFrame(
-        center: Offset(_lerp(fromX, toX, p), y),
+        center: Offset(_lerp(fromX, toX, p), y + arc),
         scale: scale,
         action: RoyalAction.ride,
-        actionT: _cyc(t, 400),
+        actionT: _cyc(t, _mannerTempo(400)),
         facing: dir);
   }
 
@@ -1876,24 +2004,42 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
     final shownX =
         side > 0 ? screen.width - _cw * 0.10 : _cw * 0.10;
     final facing = -side; // look into the screen
+    // Entry and exit carry the manner: the Sovereign is simply there, the Dark
+    // Prince leans in slowly, everyone else slides.
+    final inCurve = switch (_manner) {
+      _Manner.blink => Curves.easeInExpo, // almost a cut
+      _Manner.stalk => Curves.easeInOutCubic, // a slow lean
+      _ => Curves.easeOutCubic,
+    };
+    final outCurve =
+        _manner == _Manner.blink ? Curves.easeOutExpo : Curves.easeInCubic;
+    final lift = _mannerLift(t);
+
     double x;
     RoyalAction action = RoyalAction.idle;
-    double actionT = _cyc(t, 1400);
+    double actionT = _cyc(t, _mannerTempo(1400));
     if (t < 0.15) {
-      x = _lerp(hiddenX, shownX, Curves.easeOutCubic.transform(_seg(t, 0, 0.15)));
+      x = _lerp(hiddenX, shownX, inCurve.transform(_seg(t, 0, 0.15)));
     } else if (t < 0.55) {
       x = shownX;
     } else if (t < 0.75) {
       x = shownX;
-      action = RoyalAction.wave;
-      actionT = _seg(t, 0.55, 0.75);
+      // The ones who don't greet just watch, and the held look is the point.
+      if (_mannerGreets) {
+        action = RoyalAction.wave;
+        actionT = _seg(t, 0.55, 0.75);
+      }
     } else if (t < 0.85) {
       x = shownX;
     } else {
-      x = _lerp(shownX, hiddenX, Curves.easeInCubic.transform(_seg(t, 0.85, 1)));
+      x = _lerp(shownX, hiddenX, outCurve.transform(_seg(t, 0.85, 1)));
     }
     return _CharFrame(
-        center: Offset(x, y), scale: 1, action: action, actionT: actionT, facing: facing);
+        center: Offset(x, y + lift),
+        scale: 1,
+        action: action,
+        actionT: actionT,
+        facing: facing);
   }
 
   _CharFrame _twirl(double t, Size screen) {
@@ -1901,21 +2047,38 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
     final spot = Offset(_lerp(screen.width * 0.25, screen.width * 0.75, _camA),
         _lerp(screen.height * 0.30, screen.height * 0.52, _camB));
     final facing = _camDir;
+    final lift = _mannerLift(t);
+    final tempo = _mannerTempo(800);
+    // The Sovereign snaps into place; the Dark Prince arrives without any
+    // flourish at all; the rest keep the springy pop.
+    final popIn = switch (_manner) {
+      _Manner.blink => Curves.easeOutExpo,
+      _Manner.stalk => Curves.easeOutCubic,
+      _ => Curves.easeOutBack,
+    };
     if (t < 0.14) {
-      final p = Curves.easeOutBack.transform(_seg(t, 0, 0.14));
+      final p = popIn.transform(_seg(t, 0, 0.14));
       return _CharFrame(
-          center: spot, scale: scale * p.clamp(0.0, 1.15), action: RoyalAction.cheer, actionT: 0, facing: facing);
+          center: spot.translate(0, lift),
+          scale: scale * p.clamp(0.0, 1.15),
+          action: RoyalAction.cheer,
+          actionT: 0,
+          facing: facing);
     }
     if (t < 0.86) {
       return _CharFrame(
-          center: spot, scale: scale, action: RoyalAction.cheer, actionT: _cyc(t, 800), facing: facing);
+          center: spot.translate(0, lift),
+          scale: scale,
+          action: RoyalAction.cheer,
+          actionT: _cyc(t, tempo),
+          facing: facing);
     }
     final p = 1 - _seg(t, 0.86, 1.0);
     return _CharFrame(
-        center: spot,
+        center: spot.translate(0, lift),
         scale: scale * Curves.easeIn.transform(p),
         action: RoyalAction.cheer,
-        actionT: _cyc(t, 800),
+        actionT: _cyc(t, tempo),
         facing: facing);
   }
 

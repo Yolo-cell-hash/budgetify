@@ -4,6 +4,30 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.71.0] — 2026-08-11
+
+### Changed
+
+- **The royals now behave like themselves in their small appearances too.** The
+  four ambient cameos — strolling along the bottom of a page, galloping across
+  it, peeking in from an edge, popping up for a tiny celebration — were one
+  choreography each, played identically by all six. *Where* they appeared was
+  already random; what they *did* once they got there was not. Each royal now
+  carries its own manner through all four:
+  - **The Empress never stops and never lands.** No walk, no pause, no wave —
+    she passes through rather than visiting.
+  - **The Sovereign crosses in bursts**, arriving and leaving almost between
+    frames and holding perfectly still in between.
+  - **The Dark Prince stalks**: slow to build speed, heavy on his feet, and he
+    holds a long look instead of waving at anyone.
+  - **The Princess flits** — quick little airborne hops, and her dash arcs
+    across the screen rather than crossing it flat.
+  - **The Prince and the Royal Medic keep the original manner**, on purpose:
+    it's the baseline the others read against.
+
+  A manner is deliberately the same across all four cameos. A royal that stalked
+  when it strolled but flitted when it peeked would have no character at all.
+
 ## [1.70.2] — 2026-08-11
 
 ### Fixed
