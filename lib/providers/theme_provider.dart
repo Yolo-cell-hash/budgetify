@@ -1,3 +1,8 @@
+// CupertinoPageTransitionsBuilder (used by _pageTransitions below) used to
+// come in with material.dart. As of Flutter 3.44 it lives only in
+// src/cupertino/route.dart and material no longer re-exports it, so this
+// import is load-bearing — without it the whole app fails to compile.
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';

@@ -4,6 +4,17 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.70.2] — 2026-08-11
+
+### Fixed
+
+- **The app builds again on Flutter 3.44.** Two things broke underneath us when
+  the toolchain moved, neither of them caused by any change we made: a
+  page-transition class stopped being available from where it was imported,
+  which stopped the whole app compiling, and a new framework assertion started
+  firing whenever a royal's court sheet was opened. Both are fixed, and nothing
+  looks any different.
+
 ## [1.70.0] — 2026-08-09
 
 ### Added
