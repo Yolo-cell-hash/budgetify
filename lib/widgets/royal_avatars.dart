@@ -39,9 +39,14 @@ enum RoyalWeapon {
   orbs,
   sword,
 
-  /// The Sentinel's tower shield. He is the only royal who attacks by
-  /// ADVANCING rather than striking — a shield charge, then a brace.
-  shield,
+  /// The Sentinel's guard spear, carried over a kite shield. He shipped with
+  /// the shield ALONE, which read as a man holding a door: a shield is what
+  /// you survive with, not what you fight with, so nothing about him was
+  /// aimed at anything. The spear gives him the reach — and it is the one
+  /// weapon in the court that strikes from behind cover rather than out in
+  /// the open. The shield did not go anywhere; it moved to the free arm,
+  /// where it stopped covering his own breastplate.
+  spear,
 
   /// The Huntress's paired daggers: a fast flurry of close cuts.
   daggers,
@@ -616,10 +621,14 @@ const List<String> _huntressRows = [
   '..XHMMMMMMMMHX..',
   '..XHhMMMMMMhHX..',
   '..HXMMMMMMMMXH..',
-  '..HXXRRRRRRXXH..',
-  '..HXRTRRRRTRXH..',
-  '..hXRrRRRRrRXh..',
-  '..XXRRRRRRRRXX..',
+  // Rows 12-15 were a solid slab of garb, and on the FULL BODY those rows are
+  // exactly where her shoulders and upper chest land — so every bare-shoulder
+  // detail the rig painted underneath was covered by a grey brick. Now: a bare
+  // collarbone line, then a strapped sleeveless top with the arms left out.
+  '..HXKKKKKKKKXH..',
+  '..HXKTRRRRTKXH..',
+  '..hXKTRRRRTKXh..',
+  '..XXKRRRRRRKXX..',
 ];
 
 const Map<String, Color> _huntressPalette = {
@@ -829,7 +838,7 @@ const List<RoyalAvatar> kRoyalAvatars = [
   RoyalAvatar(
     id: 'sentinel',
     spriteIndex: 36,
-    weapon: RoyalWeapon.shield,
+    weapon: RoyalWeapon.spear,
     rows: _sentinelRows,
     palette: _sentinelPalette,
     // The visor slit stands in for eyes: row 5 is the dark slot, row 6 the

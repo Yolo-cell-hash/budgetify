@@ -98,7 +98,7 @@ void main() {
         'darkprince': RoyalWeapon.warClub,
         'princess': RoyalWeapon.bow,
         'royalmedic': RoyalWeapon.medKit,
-        'sentinel': RoyalWeapon.shield,
+        'sentinel': RoyalWeapon.spear,
         'huntress': RoyalWeapon.daggers,
       };
       for (final r in kRoyalAvatars) {
@@ -115,6 +115,10 @@ void main() {
       expect(royalAttackActionFor(RoyalWeapon.orbs), RoyalAction.hurl);
       expect(royalAttackActionFor(RoyalWeapon.warClub), RoyalAction.smash);
       expect(royalAttackActionFor(RoyalWeapon.medKit), RoyalAction.smash);
+      // The Sentinel is the only royal who strikes from behind cover, and the
+      // Huntress the only one who closes with her feet.
+      expect(royalAttackActionFor(RoyalWeapon.spear), RoyalAction.thrust);
+      expect(royalAttackActionFor(RoyalWeapon.daggers), RoyalAction.flyKick);
     });
   });
 
@@ -413,7 +417,7 @@ void main() {
         'royalmedic': RoyalAction.mend,
         'prince': RoyalAction.salute,
         'sentinel': RoyalAction.brace,
-        'huntress': RoyalAction.vault,
+        'huntress': RoyalAction.daggerToss,
       };
       for (final r in kRoyalAvatars) {
         expect(expected.containsKey(r.id), isTrue,

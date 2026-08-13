@@ -116,6 +116,41 @@ void main() {
       }
     });
 
+    testWidgets('the royal who travels on foot is drawn at figure scale',
+        (tester) async {
+      // The bug this pins shipped: the on-foot traversal handed the WIDE ride
+      // box straight to the standing rig. The head is sized off box width
+      // (w * 0.66), so in a 150x96 frame it came out 99px across — taller than
+      // the box itself — and the entire somersault was a giant head rolling
+      // past with the body buried underneath it.
+      //
+      // Every mounted royal already avoids this: _rideBeast seats its rider in
+      // a Size(h * 0.78, h) sub-box. This asserts the on-foot path obeys the
+      // same convention, measured rather than inspected.
+      final huntress = kRoyalAvatars.firstWhere((r) => r.id == 'huntress');
+      // Mid-span, where she is airborne and inverted — chosen because the
+      // rotation is a half turn there, so the silhouette's width is the
+      // figure's own width and not an artefact of spinning through 90 degrees.
+      final mask = _silhouette(await _ridePixels(tester, huntress, 0.5));
+      int? minX, maxX;
+      for (var i = 0; i < mask.length; i++) {
+        if (!mask[i]) continue;
+        final x = i % _cell.width.round();
+        minX = minX == null ? x : (x < minX ? x : minX);
+        maxX = maxX == null ? x : (x > maxX ? x : maxX);
+      }
+      expect(minX, isNotNull, reason: 'nothing was drawn at all');
+      final drawnWidth = maxX! - minX! + 1;
+      // A figure in a Size(h * 0.78, h) box has a head 0.66 of that wide —
+      // about 65px in this 126px-tall cell. Against the wide box it would be
+      // 0.66 * 190 = 125px. The threshold sits well clear of both.
+      expect(drawnWidth, lessThan(110),
+          reason: 'the on-foot figure is $drawnWidth px wide in a '
+              '${_cell.width.round()}x${_cell.height.round()} cell — it is '
+              'being scaled to the ride box rather than to a figure box, '
+              'which is what turns her somersault into a rolling head');
+    });
+
     testWidgets('each ride actually moves through its cycle', (tester) async {
       // Guards the gait maths: a royal whose bob/legs/wings resolved to a
       // constant would render one still frame forever and nobody would notice

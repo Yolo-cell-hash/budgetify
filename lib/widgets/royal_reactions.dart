@@ -490,7 +490,13 @@ RoyalAction _signatureActionFor(String id) => switch (id) {
       'royalmedic' => RoyalAction.mend,
       'prince' => RoyalAction.salute,
       'sentinel' => RoyalAction.brace,
-      'huntress' => RoyalAction.vault,
+      // She is the only royal with THREE moves of her own, because she is the
+      // only one with no mount to carry a personality for her: the toss signs
+      // off the entrance, the flying kick is her attack verb, and the blade
+      // dance covers the cameos. The somersault is not in that list — it is
+      // her traversal, the thing she does INSTEAD of riding, and using it as
+      // the signature too would have made the whole entrance one move.
+      'huntress' => RoyalAction.daggerToss,
       _ => RoyalAction.wave,
     };
 
@@ -1088,7 +1094,7 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
         RoyalWeapon.bow => 5400, // three-arrow volley
         RoyalWeapon.orbs => 5400, // two hurled orbs
         RoyalWeapon.medKit => 4600, // kit slam + shock pulse
-        RoyalWeapon.shield => 5000, // charge, slam, brace
+        RoyalWeapon.spear => 5000, // advance, thrust, recover
         RoyalWeapon.daggers => 5200, // three-cut flurry
       };
 
@@ -1102,7 +1108,7 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
         RoyalWeapon.bow => const [0.296, 0.416, 0.536],
         RoyalWeapon.orbs => const [0.35, 0.53],
         RoyalWeapon.medKit => const [0.373],
-        RoyalWeapon.shield => const [0.40], // one shouldered slam
+        RoyalWeapon.spear => const [0.40], // one driven point
         RoyalWeapon.daggers => const [0.30, 0.39, 0.48], // fast, even flurry
       };
 
@@ -1154,9 +1160,10 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
       case RoyalWeapon.medKit:
         _rumble(const [0, 60, 70, 60], const [230, 230]);
         await HapticFeedback.heavyImpact();
-      case RoyalWeapon.shield:
-        // Body weight behind a wall: one long, flat, heavy hit.
-        _rumble(const [0, 130], const [255]);
+      case RoyalWeapon.spear:
+        // A point going through something: one hard punch, then the ring of
+        // the shaft. Sharper than the club's thud and shorter than it.
+        _rumble(const [0, 55, 30, 70], const [255, 130]);
         await HapticFeedback.heavyImpact();
       case RoyalWeapon.daggers:
         // Three quick ticks, not a thud.
@@ -1600,7 +1607,7 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
           ],
           const [0.0, 0.0, 0.0], // filled in below from real flight paths
         ),
-      RoyalWeapon.shield => ([impact], [math.pi / 2]), // straight-on slam
+      RoyalWeapon.spear => ([impact], [0.0]), // one level puncture
       RoyalWeapon.daggers => (
           [impact, impact + const Offset(-18, -14), impact + const Offset(16, 10)],
           const [-0.70, 0.70, -0.20], // three crossing cuts
@@ -1653,7 +1660,7 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
       RoyalWeapon.sword => 0.7,
       RoyalWeapon.orbs => 0.6,
       RoyalWeapon.bow => 0.35,
-      RoyalWeapon.shield => 0.95, // a braced body-weight hit
+      RoyalWeapon.spear => 0.7, // a puncture, not a body check
       RoyalWeapon.daggers => 0.45, // quick and light, never a thud
     };
     final shake = _impactShake(t, times, shakeAmp);
@@ -1681,7 +1688,9 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
       RoyalWeapon.orbs => (0.20, RoyalAction.walk), // a glide, never a run
       RoyalWeapon.medKit || RoyalWeapon.sword => (0.20, RoyalAction.run),
       RoyalWeapon.knightSword => (0.22, RoyalAction.run),
-      RoyalWeapon.shield => (0.22, RoyalAction.run), // a charge
+      // He does not run at things. A guard closes at a march, and arriving
+      // unhurried is the most menacing thing about him.
+      RoyalWeapon.spear => (0.26, RoyalAction.walk),
       RoyalWeapon.daggers => (0.16, RoyalAction.run), // in fast, low
     };
     // The knight's lunge carries him THROUGH the target; everyone else fights
@@ -1794,14 +1803,15 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
         if (t < 0.80) {
           return cf(stage, action: RoyalAction.fume, actionT: _cyc(t, 720));
         }
-      case RoyalWeapon.shield:
-        // One long shouldered drive, then he holds the brace rather than
-        // gloating — the guard does not celebrate.
-        if (t < 0.56) {
-          return cf(stage, action: act, actionT: _seg(t, 0.24, 0.56));
+      case RoyalWeapon.spear:
+        // One driven thrust, then he holds the brace rather than gloating —
+        // the guard does not celebrate, and he does not lose his temper about
+        // it either, so he braces where the others fume.
+        if (t < 0.58) {
+          return cf(stage, action: act, actionT: _seg(t, 0.26, 0.58));
         }
         if (t < 0.82) {
-          return cf(stage, action: RoyalAction.fume, actionT: _cyc(t, 900));
+          return cf(stage, action: RoyalAction.brace, actionT: _seg(t, 0.58, 0.82));
         }
       case RoyalWeapon.daggers:
         // Three cuts back to back, no pause between them.
@@ -1826,7 +1836,7 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
       RoyalWeapon.warClub ||
       RoyalWeapon.bow ||
       RoyalWeapon.orbs ||
-      RoyalWeapon.shield ||
+      RoyalWeapon.spear ||
       RoyalWeapon.daggers =>
         0.82,
       _ => 0.80,
@@ -2007,6 +2017,25 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
       _manner != _Manner.stalk &&
       _manner != _Manner.march;
 
+  /// How this royal says hello mid-cameo. Everyone waves; the Huntress plays
+  /// with her knives instead.
+  ///
+  /// She is the third slot of a three-move set — the launch entrance signs off
+  /// with the dagger toss, screen attacks go through the flying kick, and this
+  /// is the one that has to work in a cameo, where she appears mid-screen with
+  /// no runway to leap from. Feet planted, all wrists: it is the only one of
+  /// the three that fits in a standing box.
+  RoyalAction get _mannerGreetAction => _royal?.id == 'huntress'
+      ? RoyalAction.bladeDance
+      : RoyalAction.wave;
+
+  /// The held celebratory beat (the twirl cameo, the reward routines). The
+  /// generic cheer pops stars and hearts around the head, which is a fine
+  /// party trick for most of the court and completely wrong for the outlaw.
+  RoyalAction get _mannerCheerAction => _royal?.id == 'huntress'
+      ? RoyalAction.bladeDance
+      : RoyalAction.cheer;
+
   _CharFrame _stroll(double t, Size screen, EdgeInsets pad) {
     const scale = 0.85;
     final y = _laneGround(screen, pad) - _ch * scale * 0.5;
@@ -2045,7 +2074,7 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
       return _CharFrame(
           center: Offset(waveX, y + lift),
           scale: scale,
-          action: RoyalAction.wave,
+          action: _mannerGreetAction,
           actionT: _seg(t, 0.40, 0.58),
           facing: dir);
     }
@@ -2114,7 +2143,7 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
       x = shownX;
       // The ones who don't greet just watch, and the held look is the point.
       if (_mannerGreets) {
-        action = RoyalAction.wave;
+        action = _mannerGreetAction;
         actionT = _seg(t, 0.55, 0.75);
       }
     } else if (t < 0.85) {
@@ -2149,7 +2178,7 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
       return _CharFrame(
           center: spot.translate(0, lift),
           scale: scale * p.clamp(0.0, 1.15),
-          action: RoyalAction.cheer,
+          action: _mannerCheerAction,
           actionT: 0,
           facing: facing);
     }
@@ -2157,7 +2186,7 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
       return _CharFrame(
           center: spot.translate(0, lift),
           scale: scale,
-          action: RoyalAction.cheer,
+          action: _mannerCheerAction,
           actionT: _cyc(t, tempo),
           facing: facing);
     }
@@ -2165,7 +2194,7 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
     return _CharFrame(
         center: spot.translate(0, lift),
         scale: scale * Curves.easeIn.transform(p),
-        action: RoyalAction.cheer,
+        action: _mannerCheerAction,
         actionT: _cyc(t, tempo),
         facing: facing);
   }
@@ -2403,12 +2432,14 @@ class _ShatterPainter extends CustomPainter {
                       accent.withValues(alpha: (1 - p) * 0.55 * imp.fade));
           }
           _flashRing(canvas, size, imp.at, imp.age, imp.fade);
-        case RoyalWeapon.shield:
-          // Not a cut — a crater. A wide web with no directional gash, since
-          // nothing edged touched the glass.
+        case RoyalWeapon.spear:
+          // A PUNCTURE: a tight hole with long splits running out of it. Not
+          // the club's wide crater — all of the force went through one point.
           _web(canvas, imp.at, alpha, rng,
-              radius: size.shortestSide * 0.22, radials: 11, rings: 3);
-          _shards(canvas, imp.at, imp.age, imp.fade, rng, count: 10, speed: 95);
+              radius: size.shortestSide * 0.15, radials: 9, rings: 2);
+          _gash(canvas, imp.at, imp.dir, size.shortestSide * 0.34, alpha, rng,
+              splinters: 6);
+          _shards(canvas, imp.at, imp.age, imp.fade, rng, count: 6, speed: 105);
           _flashRing(canvas, size, imp.at, imp.age, imp.fade);
         case RoyalWeapon.daggers:
           // Short, shallow, and fast — three of these land in half a second,
