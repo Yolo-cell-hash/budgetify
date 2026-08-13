@@ -101,6 +101,53 @@ class AppPreferences extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Re-read every preference from disk, replacing what is in memory.
+  ///
+  /// [initialize] is guarded against running twice, so it cannot be used for
+  /// this. A restore rewrites preferences underneath a live provider, and
+  /// without a re-read the UI keeps showing the values from before it.
+  Future<void> reload() async {
+    _isInitialized = false;
+    await initialize();
+  }
+
+  /// The preferences that ride along in a backup.
+  ///
+  /// Deliberately NOT every preference: onboarding-complete and the dismissed
+  /// budget-suggestion list describe this install's progress through the app
+  /// rather than a choice the user made about how it should behave. The two
+  /// royal toggles are choices, and both were being silently resurrected —
+  /// `royalAppIcon` defaults to ON, so restoring a backup turned it back on
+  /// for anyone who had turned it off, and then acted on it.
+  static const String _bkRoyalAppIcon = 'royalAppIcon';
+  static const String _bkRoyalCustomAnimations = 'royalCustomAnimations';
+  static const String _bkPrivacyMode = 'privacyMode';
+  static const String _bkGamifiedMode = 'gamifiedMode';
+
+  Map<String, dynamic> exportSettings() => {
+        _bkRoyalAppIcon: _royalAppIcon,
+        _bkRoyalCustomAnimations: _royalCustomAnimations,
+        _bkPrivacyMode: _privacyMode,
+        _bkGamifiedMode: _gamifiedMode,
+      };
+
+  /// Apply a backup's preference block. A null map (a pre-feature backup) is a
+  /// no-op, and so is any key it does not carry — an older backup must leave
+  /// this install's settings alone rather than reset them to defaults.
+  static Future<void> importSettings(Map<String, dynamic>? data) async {
+    if (data == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    Future<void> put(String from, String key) async {
+      final v = data[from];
+      if (v is bool) await prefs.setBool(key, v);
+    }
+
+    await put(_bkRoyalAppIcon, _royalAppIconKey);
+    await put(_bkRoyalCustomAnimations, _royalCustomAnimationsKey);
+    await put(_bkPrivacyMode, _privacyModeKey);
+    await put(_bkGamifiedMode, _gamifiedModeKey);
+  }
+
   /// Whether the budget suggestion for [category] has been dismissed.
   bool isBudgetSuggestionDismissed(String category) =>
       _dismissedBudgetSuggestions.contains(category);

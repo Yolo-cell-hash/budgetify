@@ -88,9 +88,33 @@ final Map<String, _SplashSkin> _gemSkins = {
     glowBottom: const Color(0xFF3A4150).withValues(alpha: 0.20),
     logoAsset: _royalLogo('silver'),
   ),
+  'sapphire': _SplashSkin(
+    bg: const [Color(0xFF0E1A33), Color(0xFF040711)],
+    accent: _gem('sapphire'),
+    glowTop: _gem('sapphire').withValues(alpha: 0.15),
+    glowBottom: const Color(0xFF1E3A7A).withValues(alpha: 0.24),
+    logoAsset: _royalLogo('sapphire'),
+  ),
+  'absinthe': _SplashSkin(
+    bg: const [Color(0xFF1B2A0E), Color(0xFF070C03)],
+    accent: _gem('absinthe'),
+    glowTop: _gem('absinthe').withValues(alpha: 0.14),
+    glowBottom: const Color(0xFF44661A).withValues(alpha: 0.22),
+    logoAsset: _royalLogo('absinthe'),
+  ),
 };
 
 _SplashSkin _skinFor(String? variant) => _gemSkins[variant] ?? _defaultSkin;
+
+/// The gem skin for [variant], or null when there is none and the default gold
+/// splash stands in. Exposed so the suite can hold the skin map to the icon
+/// roster: the two were maintained by hand, and a royal added later got its
+/// launcher icon but kept the gold splash.
+@visibleForTesting
+_SplashSkin? debugSplashSkinFor(String? variant) => _gemSkins[variant];
+
+@visibleForTesting
+String debugSplashLogoAsset(String variant) => _royalLogo(variant);
 
 /// Premium animated splash. The brand mark scales/fades in with a rotating
 /// shimmer ring, the wordmark and motto rise beneath it, and a thin progress
