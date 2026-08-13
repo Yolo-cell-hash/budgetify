@@ -21,13 +21,13 @@ import '../services/backup_service.dart';
 import '../services/dev_mode.dart';
 import '../services/background_service.dart';
 import '../services/entitlement_service.dart';
-import '../services/app_icon_service.dart';
 import '../services/gamification_service.dart';
 import '../services/statement_import_service.dart';
 import '../services/database_service.dart';
 import '../services/rating_prompt_service.dart';
 import '../services/tutorial_service.dart';
 import '../widgets/app_bar_title.dart';
+import '../widgets/avatar_picker_sheet.dart' show confirmRoyalAppIcon;
 import '../widgets/app_dialog.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/language_picker_sheet.dart';
@@ -1457,19 +1457,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       // has to re-read before anything shows their restored values.
       await context.read<AppPreferences>().reload();
       if (!mounted) return;
-      // ...and then the launcher icon has to catch up with what was just
-      // restored. The restored profile can carry a royal this install has
-      // never worn, while the applied-icon record is this install's own and
-      // knows nothing about it. Left to itself the icon stayed default with
-      // the switch reading ON — which is exactly the state a restore used to
-      // land in — until the next launch reconciled it.
-      final profile = await GamificationService().loadProfile();
-      if (!mounted) return;
-      await AppIconService.reconcile(
-        equippedSeed: int.tryParse(profile.avatarValue) ?? -1,
-        enabled: context.read<AppPreferences>().royalAppIcon,
-      );
-      if (!mounted) return;
       // The restore rewrote the database; tell the (still-alive) Home tab and
       // other live screens to reload so counts/totals update without a scan.
       notifyAppDataChanged();
@@ -1485,6 +1472,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 result.sips,
               ),
         color: const Color(0xFF2AA76F),
+      );
+      // The restored profile can carry a royal this install has never worn,
+      // while the applied-icon record is this install's own and knows nothing
+      // about it — so the switch can read ON with the stock icon still on the
+      // launcher. Offer to put that right, rather than doing it silently: the
+      // swap restarts the app, and a restart nobody asked for in the middle of
+      // a restore is worse than an icon that is briefly wrong. Last, so the
+      // summary is on screen behind the question.
+      if (!mounted) return;
+      await confirmRoyalAppIcon(
+        context,
+        await GamificationService().loadProfile(),
       );
     } on BackupException catch (e) {
       if (mounted) Navigator.pop(context);
