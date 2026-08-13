@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:budget_tracker/l10n/app_strings.dart';
+import 'package:budget_tracker/widgets/royal_avatars.dart';
 
 /// Guards the hand-rolled six-language string table. English is the default;
 /// Hindi, Marathi, Bengali, Telugu and Tamil must each resolve to their own text.
@@ -184,6 +185,55 @@ void main() {
 
     test('tier badge labels translate unit words into Tamil', () {
       expect(ta.tierBadgeLabel('7-Day').contains('நாள்'), isTrue);
+    });
+  });
+
+  group('royal court copy', () {
+    final all = {'en': en, 'hi': hi, 'mr': mr, 'bn': bn, 'te': te, 'ta': ta};
+
+    test('every royal has a name, lore and theme toggle in every language',
+        () {
+      // royalAvatarName falls through to `return id`, so a royal shipped
+      // without copy shows up in the picker literally called "sentinel".
+      // Nothing caught that before: this group is the first coverage the
+      // court's strings have had.
+      for (final r in kRoyalAvatars) {
+        for (final entry in all.entries) {
+          final s = entry.value;
+          final where = '${r.id}/${entry.key}';
+          expect(s.royalAvatarName(r.id), isNot(r.id), reason: '$where name');
+          expect(s.royalAvatarName(r.id), isNotEmpty, reason: '$where name');
+          expect(s.royalAvatarLore(r.id), isNotEmpty, reason: '$where lore');
+          expect(s.royalThemeToggle(r.id), isNotEmpty,
+              reason: '$where toggle');
+        }
+      }
+    });
+
+    test('no two royals share a display name', () {
+      for (final entry in all.entries) {
+        final names =
+            kRoyalAvatars.map((r) => entry.value.royalAvatarName(r.id));
+        expect(names.toSet().length, kRoyalAvatars.length,
+            reason: 'duplicate court name in ${entry.key}');
+      }
+    });
+
+    test('the court reads in its own script, not English everywhere', () {
+      for (final r in kRoyalAvatars) {
+        expect(hi.royalAvatarLore(r.id), isNot(en.royalAvatarLore(r.id)),
+            reason: '${r.id} lore is untranslated in Hindi');
+        expect(ta.royalAvatarLore(r.id), isNot(en.royalAvatarLore(r.id)),
+            reason: '${r.id} lore is untranslated in Tamil');
+      }
+    });
+
+    test('the Medic is renamed in the UI but keeps her persisted id', () {
+      // The rename is display-only on purpose: 'royalmedic' is stored in
+      // unlockedRoyals, RoyalSkinService and RoyalAppIcon.forRoyal.
+      expect(kRoyalAvatars.any((r) => r.id == 'royalmedic'), isTrue);
+      expect(en.royalAvatarName('royalmedic'), 'The Apothecary');
+      expect(en.royalAvatarName('royalmedic'), isNot(contains('Medic')));
     });
   });
 }

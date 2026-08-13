@@ -30,8 +30,22 @@ import '../providers/theme_provider.dart';
 /// Each weapon also decides HOW its royal attacks the screen (and what the
 /// shatter looks like): the sword of state slashes, the knight's sword lunges,
 /// the club smashes, the bow shoots, orbs are hurled, the med kit slams a
-/// shock pulse.
-enum RoyalWeapon { knightSword, warClub, bow, medKit, orbs, sword }
+/// shock pulse, the tower shield charges, the daggers flurry.
+enum RoyalWeapon {
+  knightSword,
+  warClub,
+  bow,
+  medKit,
+  orbs,
+  sword,
+
+  /// The Sentinel's tower shield. He is the only royal who attacks by
+  /// ADVANCING rather than striking — a shield charge, then a brace.
+  shield,
+
+  /// The Huntress's paired daggers: a fast flurry of close cuts.
+  daggers,
+}
 
 /// One royal character: identity, base art, animation frames and theme.
 class RoyalAvatar {
@@ -539,6 +553,89 @@ const Map<String, Color> _medicPalette = {
   'T': _gold,
 };
 
+// ── The Sentinel: a crested great helm in polished steel, sapphire in the
+// crest and burning along the visor slit, a gunmetal brow band, plate over the
+// shoulders.
+//
+// He is the only royal with NO FACE, and that is deliberate: the crown's sworn
+// guard is an office, not a person. It costs him a blink — there are no eyes
+// to close — so his idle loop drops and slides the visor glow instead, which
+// is the one animation beat no other royal has. See [eyesClosed] below. ──────
+const List<String> _sentinelRows = [
+  '......XGGX......',
+  '.....XSGGSX.....',
+  '....XSSSSSSX....',
+  '...XSSSSSSSSX...',
+  '...XssssssssX...',
+  '...XmmmmmmmmX...',
+  '...XmGGmmGGmX...',
+  '...XSSsmmsSSX...',
+  '...XSSsmmsSSX...',
+  '....XSSmmSSX....',
+  '.....XSSSSX.....',
+  '...XXAAAAAAXX...',
+  '..XATAAAAAATAX..',
+  '..XATAAGGAATAX..',
+  '..XAaAAAAAAaAX..',
+  '..XXAAAAAAAAXX..',
+];
+
+const Map<String, Color> _sentinelPalette = {
+  'X': _outline,
+  'S': Color(0xFFC9D2DE), // polished plate
+  's': Color(0xFF6B7A8D), // gunmetal brow band
+  'm': Color(0xFF1B222E), // visor interior + breath slot
+  'G': Color(0xFF4A8CFF), // sapphire crest and visor glow
+  'A': Color(0xFFA8B4C4), // body armour
+  'a': Color(0xFF64728A),
+  'T': Color(0xFFEAF0F8), // bright edge highlight
+  // Not used by the 16x16 portrait — he has no exposed skin — but the
+  // full-body rig sources hands from 'K'/'k', and without these he turned up
+  // in plate armour with bare peach fingers. These are his gauntlets.
+  'K': Color(0xFF9AA6B6),
+  'k': Color(0xFF6B7A8D),
+};
+
+// ── The Huntress: an absinthe headband over plum-black hair, a heavy brow, and
+// a mask from the nose down. Dispossessed nobility turned outlaw.
+//
+// The brow (glyph 'h', row 6) is the only one in the court, and it is what
+// keeps her from reading gentle like the rest — every other royal's face is
+// eyes-and-mouth alone. Her hair is deliberately plum rather than black: at
+// near-black it merged into the slate garb and she read androgynous. ─────────
+const List<String> _huntressRows = [
+  '................',
+  '....XXXXXXXX....',
+  '...XHHHHHHHHX...',
+  '..XHHHHHHHHHHX..',
+  '..XTTTTTTTTTTX..',
+  '..XHKKKKKKKKHX..',
+  '..XHhhhKKhhhHX..',
+  '..XHKWWKKWWKHX..',
+  '..XHKIIKKIIKHX..',
+  '..XHMMMMMMMMHX..',
+  '..XHhMMMMMMhHX..',
+  '..HXMMMMMMMMXH..',
+  '..HXXRRRRRRXXH..',
+  '..HXRTRRRRTRXH..',
+  '..hXRrRRRRrRXh..',
+  '..XXRRRRRRRRXX..',
+];
+
+const Map<String, Color> _huntressPalette = {
+  'X': _outline,
+  'H': Color(0xFF3A2A3E), // plum-black hair
+  'h': Color(0xFF221726), // hair shadow — doubles as the brow
+  'T': Color(0xFF9BD143), // absinthe headband + garb trim
+  'K': Color(0xFFC99A6E), // skin
+  'k': Color(0xFFA87A52),
+  'W': _eyeWhite,
+  'I': Color(0xFF8FC22E), // absinthe iris
+  'M': Color(0xFF4E5867), // mask
+  'R': Color(0xFF3A4250), // garb
+  'r': Color(0xFF262C36),
+};
+
 // Waving hand overlays, shared by both royals (drawn in FRONT of the body —
 // nearer the viewer — so they simply paint over base cells). Two frames give
 // the up/down beat of the wave.
@@ -723,6 +820,66 @@ const List<RoyalAvatar> kRoyalAvatars = [
       accentDeep: Color(0xFF17795A),
       backdrop: [Color(0xFF14523E), Color(0xFF041E12)],
       halo: [Color(0xFF3DD2A0), Color(0xFF0E3A2C)],
+    ),
+  ),
+  // ── Slots 36-37. The royals are NO LONGER contiguous: the post-royal free
+  // and elite block already claimed 24-35, and slots are append-only, so the
+  // court continues on the end rather than renumbering anything. ─────────────
+  // The crown's sworn guard — steel and sapphire, and no face to read.
+  RoyalAvatar(
+    id: 'sentinel',
+    spriteIndex: 36,
+    weapon: RoyalWeapon.shield,
+    rows: _sentinelRows,
+    palette: _sentinelPalette,
+    // The visor slit stands in for eyes: row 5 is the dark slot, row 6 the
+    // glow inside it. Blinking drops the glow out; glancing slides it along.
+    eyeRowWhites: 5,
+    eyeRowIris: 6,
+    eyesClosed: ['...XmmmmmmmmX...', '...XmmmmmmmmX...'],
+    eyesLeft: ['...XmmmmmmmmX...', '...XGGmmGGmmX...'],
+    eyesRight: ['...XmmmmmmmmX...', '...XmmGGmmGGX...'],
+    theme: RoyalTheme(
+      cardGradient: [Color(0xFF16233E), Color(0xFF0C1424), Color(0xFF04070E)],
+      ringColors: [
+        Color(0xFF6FA8FF),
+        Color(0xFFC7DDFF),
+        Color(0xFF1E4FA8),
+        Color(0xFF6FA8FF),
+      ],
+      accent: Color(0xFF6FA8FF),
+      accentSoft: Color(0xFFC7DDFF),
+      accentDeep: Color(0xFF1E4FA8), // 7.7:1 on ivory
+      backdrop: [Color(0xFF1E3560), Color(0xFF080D18)],
+      halo: [Color(0xFF6FA8FF), Color(0xFF16233E)],
+    ),
+  ),
+  // Dispossessed nobility turned outlaw — absinthe, and the only royal who
+  // travels on foot (see the mount pipeline in royal_character.dart).
+  RoyalAvatar(
+    id: 'huntress',
+    spriteIndex: 37,
+    weapon: RoyalWeapon.daggers,
+    rows: _huntressRows,
+    palette: _huntressPalette,
+    eyeRowWhites: 7,
+    eyeRowIris: 8,
+    eyesClosed: ['..XHKKKKKKKKHX..', '..XHKkkKKkkKHX..'],
+    eyesLeft: ['..XHKWWKKWWKHX..', '..XHKIWKKIWKHX..'],
+    eyesRight: ['..XHKWWKKWWKHX..', '..XHKWIKKWIKHX..'],
+    theme: RoyalTheme(
+      cardGradient: [Color(0xFF20301A), Color(0xFF141C10), Color(0xFF070A05)],
+      ringColors: [
+        Color(0xFFB6E85C),
+        Color(0xFFDCF5A8),
+        Color(0xFF4F6B12),
+        Color(0xFFB6E85C),
+      ],
+      accent: Color(0xFFB6E85C),
+      accentSoft: Color(0xFFDCF5A8),
+      accentDeep: Color(0xFF4F6B12), // 6.1:1 on ivory
+      backdrop: [Color(0xFF2C4020), Color(0xFF0A0F06)],
+      halo: [Color(0xFFB6E85C), Color(0xFF20301A)],
     ),
   ),
 ];
