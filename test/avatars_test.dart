@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:budget_tracker/providers/app_preferences.dart';
 import 'package:budget_tracker/providers/locale_provider.dart';
+import 'package:budget_tracker/models/streak_reward.dart';
 import 'package:budget_tracker/providers/theme_provider.dart';
 import 'package:budget_tracker/services/gamification_service.dart';
 import 'package:budget_tracker/widgets/avatar_picker_sheet.dart';
@@ -64,11 +65,23 @@ void main() {
         'solarpriestess',
         'obsidianwarlord',
       ]);
-      // They sit at the very end of the sprite space (slots 32-35).
+      // Slots 32-35 — the end of the post-royal block. This used to be
+      // expressed as "the end of the whole sprite space", which only held
+      // while the royal roster stopped at 23; the Sentinel and the Huntress
+      // now sit past them at 36-37.
       for (var i = 0; i < newElite.length; i++) {
-        expect(newElite[i].spriteIndex, kPixelAvatarCount - newElite.length + i,
-            reason: newElite[i].id);
+        expect(newElite[i].spriteIndex, 32 + i, reason: newElite[i].id);
       }
+    });
+
+    test('the post-royal block starts where it always did', () {
+      // A pinned boundary, not arithmetic. It was derived from
+      // kRoyalAvatars.length, so appending a royal silently moved every
+      // persisted seed from 24 up onto different art. Seeds are forever.
+      expect(kFreePixelSeeds.contains(24), isTrue);
+      expect(debugSpriteRows(24), isNot(debugSpriteRows(6)));
+      expect(eliteAvatarAt(32)?.id, 'frostvalkyrie');
+      expect(eliteAvatarAt(35)?.id, 'obsidianwarlord');
     });
 
     test('free seeds are the original block plus the post-royal free slots',
@@ -123,18 +136,30 @@ void main() {
   });
 
   group('Royal avatars', () {
-    test('occupy the sprite slots right after the original elite block', () {
-      // Royals sit after the free block + the ORIGINAL six elites (slot 18);
-      // the four newer elites live later, in the post-royal block.
+    test('the court occupies two blocks, and never overlaps another tier', () {
+      // The founding six sit after the free block + the ORIGINAL six elites
+      // (slots 18-23). The court is NO LONGER contiguous: 24-35 was already
+      // taken by the post-royal free and elite block, so later royals append
+      // past it. Slots are persisted, so this shape is history — the only
+      // rule that still holds everywhere is "append, never renumber".
+      final founding = kRoyalAvatars.take(6).toList();
       final royalStart = kFreePixelAvatarCount + 6;
-      for (var i = 0; i < kRoyalAvatars.length; i++) {
-        expect(kRoyalAvatars[i].spriteIndex, royalStart + i,
-            reason: kRoyalAvatars[i].id);
+      for (var i = 0; i < founding.length; i++) {
+        expect(founding[i].spriteIndex, royalStart + i,
+            reason: founding[i].id);
       }
-      // No overlap with the elite/free resolvers.
+      expect(kRoyalAvatars.map((r) => r.spriteIndex),
+          [18, 19, 20, 21, 22, 23, 36, 37]);
+      // Strictly ascending, so a future royal can only ever be appended.
+      for (var i = 1; i < kRoyalAvatars.length; i++) {
+        expect(kRoyalAvatars[i].spriteIndex,
+            greaterThan(kRoyalAvatars[i - 1].spriteIndex));
+      }
+      // No overlap with the elite/free resolvers, in either block.
       for (final r in kRoyalAvatars) {
         expect(eliteAvatarAt(r.spriteIndex), isNull, reason: r.id);
         expect(royalAvatarAt(r.spriteIndex)?.id, r.id);
+        expect(kFreePixelSeeds, isNot(contains(r.spriteIndex)), reason: r.id);
       }
       expect(royalAvatarAt(0), isNull);
     });
@@ -333,6 +358,20 @@ void main() {
       provider.setThemeDress(null);
       expect(provider.activeTheme.extension<AppPalette>()!.colors.brandAccent,
           AppColors.light.brandAccent);
+    });
+
+    test('the newcomers are gated, and the pick budget is unchanged', () {
+      // Eight royals behind two picks. That ratio is a product decision, not
+      // an accident of adding art: kRoyalPickStreaks stays [10, 24], so the
+      // Sentinel and the Huntress join the "Coming soon" set with the four
+      // already there rather than widening what a streak buys.
+      expect(kRoyalAvatars.length, 8);
+      expect(kRoyalPickStreaks, [10, 24]);
+      expect(royalPicksEarned(999), 2);
+      // Nothing in the roster marks a royal as free — gating is entirely the
+      // host's unlockedRoyals set, so a new royal is locked by default.
+      expect(kRoyalAvatars.map((r) => r.id),
+          containsAll(<String>['sentinel', 'huntress']));
     });
 
     test('the app-wide toggle rides the profile', () {

@@ -32,6 +32,8 @@ const Map<String, Color> kRoyalNotificationAccent = {
   'golden': Color(0xFF987106), // amber
   'ruby': Color(0xFF9E0A19),
   'amethyst': Color(0xFF5C1C9C),
+  'sapphire': Color(0xFF1D4FA0),
+  'absinthe': Color(0xFF4F6B12),
 };
 
 /// How an equipped royal dresses the app's notifications, so an alert reads as

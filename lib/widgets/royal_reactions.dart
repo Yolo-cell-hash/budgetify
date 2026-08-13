@@ -426,6 +426,16 @@ enum _Manner {
 
   /// Little airborne hops, coming to rest half a beat late. The Princess.
   flit,
+
+  /// An even, unhurried march that comes to a dead stop and HOLDS it. The
+  /// Sentinel is posted, not passing through: he is the only royal who stands
+  /// still on purpose, and the stillness is the character.
+  march,
+
+  /// Low, fast, and never quite settled — in on a bound, a crouched beat, out
+  /// again. The Huntress. Where the Empress drifts because she never lands,
+  /// the Huntress lands hard and leaves immediately.
+  pounce,
 }
 
 _Manner _mannerOf(String id) => switch (id) {
@@ -433,6 +443,8 @@ _Manner _mannerOf(String id) => switch (id) {
       'sovereign' => _Manner.blink,
       'darkprince' => _Manner.stalk,
       'princess' => _Manner.flit,
+      'sentinel' => _Manner.march,
+      'huntress' => _Manner.pounce,
       _ => _Manner.brisk, // prince + royal medic, deliberately unchanged
     };
 
@@ -441,7 +453,14 @@ _BootStyle _bootStyleFor(String id) => switch (id) {
       'princess' => _BootStyle.soar,
       'sovereign' => _BootStyle.blink,
       'empress' => _BootStyle.glide,
-      _ => _BootStyle.parade, // prince + royal medic, deliberately unchanged
+      // The Huntress bounds in like the Princess does — the difference is that
+      // the Princess is carried and the Huntress jumps. Same entrance shape,
+      // read apart by the body doing it.
+      'huntress' => _BootStyle.soar,
+      // The Sentinel keeps the parade: a guard marching on IS the baseline
+      // this style was written for, so borrowing it is the right answer
+      // rather than a shortcut.
+      _ => _BootStyle.parade, // prince + apothecary + sentinel
     };
 
 /// The move a royal signs off its entrance with — how it says hello.
@@ -470,6 +489,8 @@ RoyalAction _signatureActionFor(String id) => switch (id) {
       'sovereign' => RoyalAction.roar,
       'royalmedic' => RoyalAction.mend,
       'prince' => RoyalAction.salute,
+      'sentinel' => RoyalAction.brace,
+      'huntress' => RoyalAction.vault,
       _ => RoyalAction.wave,
     };
 
@@ -1067,6 +1088,8 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
         RoyalWeapon.bow => 5400, // three-arrow volley
         RoyalWeapon.orbs => 5400, // two hurled orbs
         RoyalWeapon.medKit => 4600, // kit slam + shock pulse
+        RoyalWeapon.shield => 5000, // charge, slam, brace
+        RoyalWeapon.daggers => 5200, // three-cut flurry
       };
 
   /// The normalized routine times each blow lands. MUST stay in lockstep with
@@ -1079,6 +1102,8 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
         RoyalWeapon.bow => const [0.296, 0.416, 0.536],
         RoyalWeapon.orbs => const [0.35, 0.53],
         RoyalWeapon.medKit => const [0.373],
+        RoyalWeapon.shield => const [0.40], // one shouldered slam
+        RoyalWeapon.daggers => const [0.30, 0.39, 0.48], // fast, even flurry
       };
 
   /// Fires the physical feedback for each blow exactly when it lands.
@@ -1129,6 +1154,16 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
       case RoyalWeapon.medKit:
         _rumble(const [0, 60, 70, 60], const [230, 230]);
         await HapticFeedback.heavyImpact();
+      case RoyalWeapon.shield:
+        // Body weight behind a wall: one long, flat, heavy hit.
+        _rumble(const [0, 130], const [255]);
+        await HapticFeedback.heavyImpact();
+      case RoyalWeapon.daggers:
+        // Three quick ticks, not a thud.
+        _rumble(const [0, 25, 30, 25], const [190, 170]);
+        await HapticFeedback.lightImpact();
+        await Future.delayed(const Duration(milliseconds: 45));
+        if (mounted) await HapticFeedback.lightImpact();
     }
   }
 
@@ -1565,6 +1600,11 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
           ],
           const [0.0, 0.0, 0.0], // filled in below from real flight paths
         ),
+      RoyalWeapon.shield => ([impact], [math.pi / 2]), // straight-on slam
+      RoyalWeapon.daggers => (
+          [impact, impact + const Offset(-18, -14), impact + const Offset(16, 10)],
+          const [-0.70, 0.70, -0.20], // three crossing cuts
+        ),
       RoyalWeapon.orbs => (
           [impact, impact + const Offset(30, -22)],
           const [0.0, 0.0],
@@ -1613,6 +1653,8 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
       RoyalWeapon.sword => 0.7,
       RoyalWeapon.orbs => 0.6,
       RoyalWeapon.bow => 0.35,
+      RoyalWeapon.shield => 0.95, // a braced body-weight hit
+      RoyalWeapon.daggers => 0.45, // quick and light, never a thud
     };
     final shake = _impactShake(t, times, shakeAmp);
 
@@ -1639,6 +1681,8 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
       RoyalWeapon.orbs => (0.20, RoyalAction.walk), // a glide, never a run
       RoyalWeapon.medKit || RoyalWeapon.sword => (0.20, RoyalAction.run),
       RoyalWeapon.knightSword => (0.22, RoyalAction.run),
+      RoyalWeapon.shield => (0.22, RoyalAction.run), // a charge
+      RoyalWeapon.daggers => (0.16, RoyalAction.run), // in fast, low
     };
     // The knight's lunge carries him THROUGH the target; everyone else fights
     // on the spot.
@@ -1750,12 +1794,41 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
         if (t < 0.80) {
           return cf(stage, action: RoyalAction.fume, actionT: _cyc(t, 720));
         }
+      case RoyalWeapon.shield:
+        // One long shouldered drive, then he holds the brace rather than
+        // gloating — the guard does not celebrate.
+        if (t < 0.56) {
+          return cf(stage, action: act, actionT: _seg(t, 0.24, 0.56));
+        }
+        if (t < 0.82) {
+          return cf(stage, action: RoyalAction.fume, actionT: _cyc(t, 900));
+        }
+      case RoyalWeapon.daggers:
+        // Three cuts back to back, no pause between them.
+        if (t < 0.34) {
+          return cf(stage, action: act, actionT: _seg(t, 0.22, 0.34));
+        }
+        if (t < 0.43) {
+          return cf(stage, action: act, actionT: _seg(t, 0.34, 0.43));
+        }
+        if (t < 0.54) {
+          return cf(stage, action: act, actionT: _seg(t, 0.43, 0.54));
+        }
+        if (t < 0.62) return cf(stage); // a beat, blades still out
+        if (t < 0.82) {
+          return cf(stage, action: RoyalAction.fume, actionT: _cyc(t, 600));
+        }
     }
 
     // Storm home: (hop off the chart, then) run back to the pop spot and
     // dive into the anchor — the same circle/slot the royal came out of.
     final backStart = switch (w) {
-      RoyalWeapon.warClub || RoyalWeapon.bow || RoyalWeapon.orbs => 0.82,
+      RoyalWeapon.warClub ||
+      RoyalWeapon.bow ||
+      RoyalWeapon.orbs ||
+      RoyalWeapon.shield ||
+      RoyalWeapon.daggers =>
+        0.82,
       _ => 0.80,
     };
     final from = w == RoyalWeapon.knightSword ? postStage : stage;
@@ -1874,7 +1947,11 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
       _Manner.drift => -_ch * (0.16 + 0.028 * math.sin(cyc * 2)),
       // Hops: quick little arcs, feet meeting the floor between each.
       _Manner.flit => -_ch * 0.075 * math.sin(cyc * 6).abs(),
-      _Manner.brisk || _Manner.blink || _Manner.stalk => 0,
+      // Long, low bounds — further than the Princess's hops and half as often,
+      // so it reads as covering ground rather than skipping.
+      _Manner.pounce => -_ch * 0.14 * math.sin(cyc * 3).abs(),
+      // Both feet on the floor, always. A sentry does not bob.
+      _Manner.brisk || _Manner.blink || _Manner.stalk || _Manner.march => 0,
     };
   }
 
@@ -1890,6 +1967,10 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
         return Curves.easeInCubic.transform(p);
       case _Manner.flit:
         return Curves.easeInOutSine.transform(p);
+      case _Manner.march:
+        return p; // metronomic — no acceleration anywhere in it
+      case _Manner.pounce:
+        return Curves.easeOutQuart.transform(p); // all the speed up front
       case _Manner.blink:
         const steps = 3;
         final seg = (p * steps).floor().clamp(0, steps - 1);
@@ -1907,6 +1988,8 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
         _Manner.blink => 1.4,
         _Manner.stalk => 1.45, // heavy on his feet
         _Manner.flit => 0.78, // light and quick
+        _Manner.march => 1.55, // measured, and slower than the Prince's parade
+        _Manner.pounce => 0.66, // the quickest feet in the court
       };
 
   /// What this royal does while travelling. The Empress has no walk cycle —
@@ -1916,8 +1999,13 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
 
   /// Whether this royal stops to wave mid-cameo. The Empress never stops, and
   /// the Dark Prince does not wave at anybody.
+  /// Whether this royal stops to wave mid-cameo. The Empress never stops, the
+  /// Dark Prince does not wave at anybody, and the Sentinel will not break post
+  /// to acknowledge you — he halts, faces front, and that is all you get.
   bool get _mannerGreets =>
-      _manner != _Manner.drift && _manner != _Manner.stalk;
+      _manner != _Manner.drift &&
+      _manner != _Manner.stalk &&
+      _manner != _Manner.march;
 
   _CharFrame _stroll(double t, Size screen, EdgeInsets pad) {
     const scale = 0.85;
@@ -1935,7 +2023,7 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
           scale: scale,
           // The Dark Prince still walks — he just doesn't greet anyone. The
           // Empress has no walk at all.
-          action: _manner == _Manner.stalk
+          action: _manner == _Manner.stalk || _manner == _Manner.march
               ? RoyalAction.walk
               : _mannerWalk,
           actionT: _cyc(t, tempo),
@@ -2315,6 +2403,20 @@ class _ShatterPainter extends CustomPainter {
                       accent.withValues(alpha: (1 - p) * 0.55 * imp.fade));
           }
           _flashRing(canvas, size, imp.at, imp.age, imp.fade);
+        case RoyalWeapon.shield:
+          // Not a cut — a crater. A wide web with no directional gash, since
+          // nothing edged touched the glass.
+          _web(canvas, imp.at, alpha, rng,
+              radius: size.shortestSide * 0.22, radials: 11, rings: 3);
+          _shards(canvas, imp.at, imp.age, imp.fade, rng, count: 10, speed: 95);
+          _flashRing(canvas, size, imp.at, imp.age, imp.fade);
+        case RoyalWeapon.daggers:
+          // Short, shallow, and fast — three of these land in half a second,
+          // so each one has to stay small or the glass reads as pulverised.
+          _gash(canvas, imp.at, imp.dir, size.shortestSide * 0.26, alpha, rng,
+              splinters: 4);
+          _shards(canvas, imp.at, imp.age, imp.fade, rng, count: 4, speed: 60);
+          _flashRing(canvas, size, imp.at, imp.age, imp.fade, span: 0.3);
       }
     }
 

@@ -19,6 +19,8 @@ const Map<String, Color> kRoyalGemAccent = {
   'golden': Color(0xFFFFC93C),
   'ruby': Color(0xFFFF4658),
   'amethyst': Color(0xFFC08CFF),
+  'sapphire': Color(0xFF7FB2FF),
+  'absinthe': Color(0xFFB6E85C),
 };
 
 /// The launcher-icon variants that ship as activity-aliases (see
@@ -33,8 +35,9 @@ class RoyalAppIcon {
 
   /// Royal id → icon variant, themed to each royal's court: the Dark Prince's
   /// blood-moon court takes **ruby**, the Empress's violet **amethyst**, the
-  /// Prince's radiant gold **golden**, the Royal Medic's green **emerald**,
-  /// the Sovereign **bronze**, and the Princess **silver**.
+  /// Prince's radiant gold **golden**, the Apothecary's green **emerald**,
+  /// the Sovereign **bronze**, the Princess **silver**, the Sentinel's steel
+  /// court **sapphire**, and the Huntress's **absinthe**.
   static const Map<String, String> forRoyal = {
     'darkprince': 'ruby',
     'prince': 'golden',
@@ -42,6 +45,8 @@ class RoyalAppIcon {
     'empress': 'amethyst',
     'sovereign': 'bronze',
     'princess': 'silver',
+    'sentinel': 'sapphire',
+    'huntress': 'absinthe',
   };
 
   /// Every variant name that has a launcher icon (roster order). Handy for
@@ -53,6 +58,8 @@ class RoyalAppIcon {
     'golden',
     'ruby',
     'amethyst',
+    'sapphire',
+    'absinthe',
   ];
 
   /// The icon variant an equipped avatar [seed] should show when the feature

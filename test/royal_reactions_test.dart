@@ -98,6 +98,8 @@ void main() {
         'darkprince': RoyalWeapon.warClub,
         'princess': RoyalWeapon.bow,
         'royalmedic': RoyalWeapon.medKit,
+        'sentinel': RoyalWeapon.shield,
+        'huntress': RoyalWeapon.daggers,
       };
       for (final r in kRoyalAvatars) {
         expect(r.weapon, expected[r.id], reason: r.id);
@@ -410,6 +412,8 @@ void main() {
         'sovereign': RoyalAction.roar,
         'royalmedic': RoyalAction.mend,
         'prince': RoyalAction.salute,
+        'sentinel': RoyalAction.brace,
+        'huntress': RoyalAction.vault,
       };
       for (final r in kRoyalAvatars) {
         expect(expected.containsKey(r.id), isTrue,

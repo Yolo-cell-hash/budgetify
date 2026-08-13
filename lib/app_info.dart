@@ -6,7 +6,7 @@
 /// the app itself shipped as 1.60.0, telling every user the wrong thing.
 /// `test/app_version_test.dart` now reads pubspec.yaml and fails the moment
 /// the two disagree, so a bump that forgets this line can't reach a release.
-const String kAppVersion = '1.72.0';
+const String kAppVersion = '1.73.0';
 
 /// The brand motto. Rendered (in English, as a brand line) on the splash,
 /// the PDF export and the shareable cards.

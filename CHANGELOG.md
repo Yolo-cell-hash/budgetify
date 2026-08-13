@@ -4,6 +4,49 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.73.0] — 2026-08-13
+
+### Added
+
+- **Two new royals: the Sentinel and the Huntress.** The court was six; it is
+  now eight, and the two newcomers are deliberately not more princes.
+  - **The Sentinel** is the crown's sworn guard, in steel and sapphire. He is
+    the only royal with **no face** — an office rather than a person — which
+    costs him a blink, so instead the glow in his visor slit dims when he
+    blinks and slides along the slit when he glances. He carries a tower
+    shield rather than a blade and is the only member of the court who attacks
+    by *advancing*: a charge, a slam, and then a brace he holds. His signature
+    is refusing to perform for you. He rides a barded grey destrier.
+  - **The Huntress** is dispossessed nobility gone to the road: headband,
+    mask, paired daggers, absinthe green. She is the only royal **without a
+    mount** — where the others gallop across a page she sprints it and
+    somersaults through the middle — and the only one with a heavy brow, which
+    is what keeps her from reading as gentle like the rest of the court.
+  - Both bring a full court: profile-card theme, app-wide dress in Light and
+    Dark, launcher icon, notification colour, ambient cameo manner, and a
+    signature move. Like the four before them they start locked, and the
+    streak budget is unchanged at two picks — this adds royals to choose
+    between, not more royals to earn.
+
+### Changed
+
+- **The Royal Medic is now the Apothecary.** Hers was the only name in the
+  roster that was a job rather than a rank, and "medic" is modern military
+  vocabulary standing in a medieval court — her own description already called
+  her the court physician. Nothing else about her changes: same emerald court,
+  same kit, same unlock. If you have her equipped she stays equipped.
+
+### Fixed
+
+- **A latent bug that would have changed twelve avatars' faces.** The boundary
+  marking where the post-royal avatar block begins was being *calculated* from
+  the length of the royal roster rather than recorded. It was correct for
+  exactly as long as the court stayed at six. Adding a royal moved it, and
+  every saved avatar from that boundary onward would have quietly resolved to
+  different artwork — you would have opened the app as somebody else, with
+  nothing on screen to explain it. Avatar slots are permanent, so the boundary
+  is now a fixed value that cannot drift when the roster grows.
+
 ## [1.72.0] — 2026-08-13
 
 ### Changed
