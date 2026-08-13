@@ -3,11 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../providers/app_preferences.dart';
 import '../providers/theme_provider.dart';
 import '../widgets/royal_avatars.dart';
 import 'app_events.dart';
-import 'app_icon_service.dart';
 import 'entitlement_service.dart';
 import 'gamification_service.dart';
 
@@ -151,13 +149,14 @@ class DevMode {
   /// Leave developer mode and put every previewed surface back to what the
   /// user has actually earned.
   ///
-  /// [prefs] is optional only so the existing tests keep compiling; pass it
-  /// wherever it is available, or the launcher icon stays on the previewed
-  /// royal until the next launch reconciles it (see `main`).
-  static Future<void> disable(
-    ThemeProvider themeProvider, {
-    AppPreferences? prefs,
-  }) async {
+  /// The launcher icon is deliberately NOT put back here. It was, silently,
+  /// on the theory that the swap costs nothing — it costs a force-close, since
+  /// disabling the launcher component the task is running on tears the task
+  /// down whatever DONT_KILL_APP claims. Leaving developer mode is not a
+  /// moment to throw the user out of the app without asking. The settings
+  /// screen offers the ordinary confirm-and-restart prompt right after this
+  /// returns, where there is a BuildContext to ask from.
+  static Future<void> disable(ThemeProvider themeProvider) async {
     active.value = false;
     await _persist(false);
     await _persistAvatar(null);
@@ -168,16 +167,6 @@ class DevMode {
     // Re-sync the royal dress and every profile-driven surface.
     final real = await GamificationService().loadProfile();
     GamificationService.onProfileSaved?.call(real);
-    // A previewed royal could take the launcher icon with it (that is the
-    // point — the feature has to be testable from developer mode). Leaving
-    // dev mode has to hand it back, or the icon outlives the preview that set
-    // it and the user is left wearing a royal they never unlocked.
-    if (prefs != null) {
-      await AppIconService.reconcile(
-        equippedSeed: int.tryParse(real.avatarValue) ?? -1,
-        enabled: prefs.royalAppIcon,
-      );
-    }
     notifyAppDataChanged();
   }
 
@@ -319,20 +308,8 @@ Future<void> showDevModeDialog(BuildContext context) {
               FilledButton(
                 onPressed: () async {
                   final themeProvider = dialogContext.read<ThemeProvider>();
-                  // Defensive: turning dev mode OFF is the escape hatch, and
-                  // it must work from any context. If AppPreferences is not
-                  // above this route the icon simply is not reconciled here —
-                  // the next launch does it (see `main`) — rather than the
-                  // Turn off button throwing and stranding the user in a mode
-                  // they are trying to leave.
-                  AppPreferences? prefs;
-                  try {
-                    prefs = dialogContext.read<AppPreferences>();
-                  } catch (_) {
-                    prefs = null;
-                  }
                   Navigator.pop(dialogContext);
-                  await DevMode.disable(themeProvider, prefs: prefs);
+                  await DevMode.disable(themeProvider);
                 },
                 child: const Text('Turn off'),
               ),
