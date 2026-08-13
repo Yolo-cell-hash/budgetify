@@ -95,9 +95,9 @@ void main() {
 
   testWidgets('follows an equipped royal court dress', (tester) async {
     // The dress re-skins the hero through the AppPalette extension; the lock
-    // screen reads that extension, so the court reaches it for free. A royal
-    // dresses whichever of light/dark is its home brightness. Note the avatar
-    // value is a *sprite* index, not a position in kRoyalAvatars.
+    // screen reads that extension, so the court reaches it for free. Every
+    // royal dresses both primaries. Note the avatar value is a *sprite*
+    // index, not a position in kRoyalAvatars.
     final royal = kRoyalAvatars.first;
     final maybeDress = courtDressFor('pixel', '${royal.spriteIndex}');
     expect(maybeDress, isNotNull,
@@ -114,16 +114,16 @@ void main() {
       expect(_titleColor(tester, title), dressedHero.foreground);
     }
 
-    // ...and on its home brightness the court actually changes the surface,
-    // so this is a real assertion and not a tautology.
-    final home =
-        dress(AppThemeVariant.light, AppTheme.of(AppThemeVariant.light));
-    final away = dress(AppThemeVariant.dark, AppTheme.of(AppThemeVariant.dark));
-    final changedLight = home.extension<AppPalette>()!.hero.accent !=
-        AppTheme.of(AppThemeVariant.light).extension<AppPalette>()!.hero.accent;
-    final changedDark = away.extension<AppPalette>()!.hero.accent !=
-        AppTheme.of(AppThemeVariant.dark).extension<AppPalette>()!.hero.accent;
-    expect(changedLight || changedDark, isTrue,
-        reason: 'the court dress should retint one of the base themes');
+    // ...and the court actually changes the surface in BOTH, so the loop
+    // above is a real assertion and not a tautology. This was `||` while a
+    // royal only dressed one mode; it holds as `&&` now.
+    for (final variant in [AppThemeVariant.light, AppThemeVariant.dark]) {
+      final base = AppTheme.of(variant);
+      expect(
+        dress(variant, base).extension<AppPalette>()!.hero.accent,
+        isNot(base.extension<AppPalette>()!.hero.accent),
+        reason: 'the court dress should retint the $variant hero',
+      );
+    }
   });
 }

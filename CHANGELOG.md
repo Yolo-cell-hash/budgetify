@@ -4,6 +4,40 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.72.0] — 2026-08-13
+
+### Changed
+
+- **Every royal now dresses both Light and Dark.** Each court used to claim one
+  mode and go quiet in the other: the Sovereign and the Empress coloured the
+  Light theme, the other four coloured Dark, and switching modes stripped your
+  royal back to plain gold everywhere but its own face. Equipping the Princess
+  and reading in Light meant seeing none of her. A cosmetic earned with a
+  24-day streak shouldn't depend on which mode you read in, so every royal now
+  carries two shades of its court — the bright one for the dark canvas, a
+  deeper one for ivory — and follows you between them. The Prince's bronze and
+  the Royal Medic's emerald were deepened slightly to stay readable on the
+  light canvas they can now reach; nothing else about any court changed, and
+  the hand-tuned streak-reward themes are still left alone.
+- **The court sheet says so, and lets you look.** The pill that named one theme
+  ("Rules the Dark theme") now promises both, and the line beneath it — which
+  used to nag you to switch modes before your royal would show up — confirms
+  the court is live where you are and offers a one-tap look at it in the other
+  mode. The sheet repaints along with the app when you take it, so you can
+  compare the two without closing anything.
+
+### Fixed
+
+- **A credit limit changing is no longer logged as income.** ICICI's "The
+  credit limit for your ICICI Bank Credit Card XX6528 has been changed from INR
+  200000 to INR 60000" was landing in the ledger as ₹2,00,000 received. The
+  notice arrives on the same transactional route as real alerts, "changed from
+  INR 200000" reads exactly like money arriving, and the card number on the
+  message was enough to make it look genuine. Budgetify already ignored limits
+  being set or updated, but not when the card and its number sat between the
+  word "limit" and the change itself. Spend alerts that quote the remaining
+  limit are unaffected and still get logged.
+
 ## [1.71.0] — 2026-08-11
 
 ### Changed
