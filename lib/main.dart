@@ -124,10 +124,10 @@ Future<void> _initDeferredServices(ThemeProvider themeProvider) async {
     debugPrint('EntitlementService.initialize failed: $e');
   }
 
-  // An equipped ROYALTY avatar (with its app-wide theme toggle on) dresses its
-  // home primary theme everywhere: the gold slots take the court shade —
-  // Sovereign/Empress in light, the rest of the court in dark; canvases and
-  // reward themes stay untouched. Sync from the saved profile now, and again on
+  // An equipped ROYALTY avatar (with its app-wide theme toggle on) dresses
+  // both primary themes everywhere: the gold slots take the court shade —
+  // its bright accent on dark, its deep one on light. Canvases and reward
+  // themes stay untouched. Sync from the saved profile now, and again on
   // every avatar save. (After a backup restore the dress refreshes on next
   // launch.) Applied a beat after the first frame rather than before it — the
   // splash covers the swap, so an equipped royal sees no flash.

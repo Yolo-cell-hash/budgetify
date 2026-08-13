@@ -56,7 +56,7 @@ class GamiProfile {
   final List<String> showcasedBadgeIds; // up to 5, shown on the profile
   final String? primaryTitleId;
 
-  /// Whether an equipped ROYALTY avatar dresses its home primary theme
+  /// Whether an equipped ROYALTY avatar dresses the Light and Dark themes
   /// app-wide (gold slots take the court shade). Toggled from the royal's
   /// description sheet in the avatar picker; on by default so equipping a
   /// royal feels transformative out of the box.

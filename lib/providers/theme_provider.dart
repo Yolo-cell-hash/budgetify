@@ -35,9 +35,9 @@ class ThemeProvider extends ChangeNotifier {
   /// the theme's gold/accent slots with the court shade everywhere, while
   /// every canvas colour stays the theme's own. The dress decides per
   /// variant (returning the base unchanged to opt out), so it re-evaluates
-  /// when the user switches themes: royals dress only their home primary
-  /// theme, never the reward themes. Synced from the gamification profile
-  /// at startup and on every avatar save.
+  /// when the user switches themes: royals dress both primary themes — each
+  /// in the shade that mode can carry — and never the reward themes. Synced
+  /// from the gamification profile at startup and on every avatar save.
   ThemeDress? _themeDress;
 
   AppThemeVariant get variant => _variant;
@@ -55,7 +55,7 @@ class ThemeProvider extends ChangeNotifier {
   }
 
   /// The [ThemeData] for the active variant (carries its own brightness),
-  /// dressed by the equipped royal when this is its home primary theme.
+  /// dressed by the equipped royal when this is a primary theme.
   ThemeData get activeTheme {
     final base = AppTheme.of(_variant);
     final dress = _themeDress;
@@ -1178,8 +1178,8 @@ class AppPalette extends ThemeExtension<AppPalette> {
 /// A per-variant restyling hook for the whole theme. Given the active
 /// variant and its base [ThemeData], returns the theme to use — the base
 /// itself to leave the variant untouched. Used by ThemeProvider to let an
-/// equipped ROYALTY avatar dress its home primary theme app-wide (accent
-/// slots + hero) while reward themes stay their hand-tuned selves.
+/// equipped ROYALTY avatar dress both primary themes app-wide (accent slots
+/// + hero) while reward themes stay their hand-tuned selves.
 typedef ThemeDress = ThemeData Function(AppThemeVariant variant, ThemeData base);
 
 /// Premium "hero card" treatment that adapts to the active theme.

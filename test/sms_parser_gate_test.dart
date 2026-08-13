@@ -234,6 +234,28 @@ void main() {
             'to Rs. 25000. Not you? Call 18002586161',
         expectParsed: false,
       ),
+      // ── A credit limit being cut (device report, 2026-08-13) ─────────────
+      // The reported message, logged as ₹2,00,000 of INCOME: "changed from
+      // INR 200000" reads as money arriving, and the card tail gave it the
+      // account evidence it needed. The card and its number sit between
+      // "limit" and "has been changed", so the tight noun-verb windows above
+      // never saw the pair.
+      const _GateCase(
+        name: 'ICICI credit limit reduction is not a ₹2,00,000 credit',
+        sender: 'JX-ICICIT-S',
+        message: 'Dear Customer, The credit limit for your ICICI Bank Credit '
+            'Card XX6528 has been changed from INR 200000 to INR 60000 on '
+            '2026-08-08.',
+        expectParsed: false,
+      ),
+      const _GateCase(
+        name: 'a limit being raised the same way is not income either',
+        sender: 'VM-HDFCBK-S',
+        message: 'Dear Customer, the daily UPI transfer limit on your HDFC '
+            'Bank Account XX9463 has been increased from Rs.25,000 to '
+            'Rs.1,00,000.',
+        expectParsed: false,
+      ),
       // The other side of that rule, and the reason it is guarded on a settled
       // verb rather than rejecting the word "limit" outright: an alert that
       // reports the remaining cap alongside a spend is still a spend.
@@ -242,6 +264,17 @@ void main() {
         sender: 'VM-HDFCBK-S',
         message: 'Rs.2,500.00 spent on your HDFC Bank Credit Card xx1234 at '
             'AMAZON on 06-08-26. Available limit updated to Rs 3,97,500.',
+        expectParsed: true,
+      ),
+      // ...and the same, worded with the phrase the new pattern keys on. A
+      // settled verb outranks every limit reject, so a spend survives even
+      // when the bank reports the cap change in the same breath.
+      const _GateCase(
+        name: 'spend alongside a "limit has been changed" note still parses',
+        sender: 'VM-HDFCBK-S',
+        message: 'Rs.2,500.00 spent on your HDFC Bank Credit Card xx1234 at '
+            'AMAZON on 06-08-26. Your credit limit has been changed to '
+            'Rs 3,97,500.',
         expectParsed: true,
       ),
     ];
