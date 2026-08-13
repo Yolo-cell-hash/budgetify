@@ -9,6 +9,7 @@ import 'bank_alias_service.dart';
 import 'custom_tag_service.dart';
 import 'database_service.dart';
 import 'entitlement_service.dart';
+import '../providers/app_preferences.dart';
 import 'gamification_service.dart';
 import 'tax_service.dart';
 
@@ -144,7 +145,10 @@ class BackupService {
 
   /// Build, encrypt, and let the user save a backup file.
   /// Returns the saved path, or null if the user cancelled the save dialog.
-  Future<String?> createBackup(String passphrase) async {
+  Future<String?> createBackup(
+    String passphrase, {
+    required AppPreferences appPreferences,
+  }) async {
     final data = await _db.exportAllData();
     final tagService = CustomTagService();
     data['custom_tags'] =
@@ -163,6 +167,11 @@ class BackupService {
     // resolve from their sender either way — but losing them on restore would
     // silently put "ZZZTOP" back where they had written "Salary account".
     data['bank_aliases'] = BankAliasService().exportSettings();
+    // The user's own on/off choices. Without these a restore silently reset
+    // them to defaults — and "match app icon to my royal" defaults ON, so a
+    // user who had turned it off got it back, pointed at whichever royal the
+    // backup carried.
+    data['app_preferences'] = appPreferences.exportSettings();
 
     final payloadJson = jsonEncode({
       'magic': _magic,
@@ -256,6 +265,13 @@ class BackupService {
     // Restore tax regime + cap overrides (absent in pre-feature backups → no-op).
     await TaxService().importSettings(
       (data['tax_settings'] as Map?)?.cast<String, dynamic>(),
+    );
+
+    // Restore the user's on/off choices (absent in pre-feature backups → no-op,
+    // which leaves this install's own settings alone rather than resetting
+    // them).
+    await AppPreferences.importSettings(
+      (data['app_preferences'] as Map?)?.cast<String, dynamic>(),
     );
 
     // Now that classification rules are back, auto-tag any past
