@@ -3429,7 +3429,13 @@ class RoyalCharacterPainter extends CustomPainter {
     final x = w * 0.5 + (t - 0.5) * uw * 0.86;
 
     // The airborne window. Outside it she is simply running.
-    const a = 0.28, b = 0.72;
+    //
+    // 58% of the crossing rather than the original 44%: the rotation is one
+    // full turn however long it is given, so a narrow window spins her fast
+    // enough that the tumble reads as a flicker. Widening the window is what
+    // slows the turn down — the run-up and run-out lose the time, and they are
+    // the parts you least need to see.
+    const a = 0.22, b = 0.80;
     final air = (t >= a && t < b) ? (t - a) / (b - a) : -1.0;
 
     if (air < 0) {
