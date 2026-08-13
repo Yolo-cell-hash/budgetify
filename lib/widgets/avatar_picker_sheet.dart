@@ -1,3 +1,4 @@
+import 'dart:async' show unawaited;
 import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
@@ -670,6 +671,24 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
                     value: ctx.watch<AppPreferences>().royalAppIcon,
                     onChanged: (v) {
                       ctx.read<AppPreferences>().setRoyalAppIcon(v);
+                      // Put the launcher icon where the switch now says it
+                      // should be, against the avatar that is actually
+                      // equipped right now. The switch used to only record
+                      // the preference and leave the reconcile to the next
+                      // avatar SAVE — so flipping it and closing the sheet
+                      // without saving (or flipping it off at all, since that
+                      // is rarely followed by an equip) left the launcher
+                      // wearing a royal the preference had already disowned.
+                      //
+                      // Silent: no confirm, no relaunch. The dialog exists
+                      // because the equip path restarts the app, and throwing
+                      // the user out for flicking a switch would be worse than
+                      // the icon taking until the next launcher refresh.
+                      unawaited(AppIconService.reconcile(
+                        equippedSeed:
+                            int.tryParse(widget.initial.avatarValue) ?? -1,
+                        enabled: v,
+                      ));
                       setSheetState(() {});
                     },
                     activeThumbColor: accent,
