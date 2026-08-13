@@ -68,6 +68,15 @@ enum RoyalAction {
   /// The Prince's sword salute: blade up to the vertical, light running up the
   /// steel, then swept out and down into a bow.
   salute,
+
+  /// The Sentinel plants the shield and BRACES — no flourish, no acknowledgement
+  /// of the viewer. The one royal whose signature is refusing to perform.
+  brace,
+
+  /// The Huntress vaults: a run-up, a somersault through the air, and a
+  /// crouched landing with both blades out. She is the only royal who leaves
+  /// the ground under her own power.
+  vault,
 }
 
 /// The attack verb a royal's weapon speaks: the Sovereign slashes, the Prince
@@ -78,10 +87,17 @@ RoyalAction royalAttackActionFor(RoyalWeapon weapon) => switch (weapon) {
       RoyalWeapon.knightSword => RoyalAction.slice,
       RoyalWeapon.bow => RoyalAction.shoot,
       RoyalWeapon.orbs => RoyalAction.hurl,
-      RoyalWeapon.warClub || RoyalWeapon.medKit => RoyalAction.smash,
+      // The Sentinel does not strike — he ADVANCES. The charge ends in a
+      // shield slam, which is the smash pose.
+      RoyalWeapon.warClub || RoyalWeapon.medKit || RoyalWeapon.shield =>
+        RoyalAction.smash,
+      RoyalWeapon.daggers => RoyalAction.slash, // a fast crossing flurry
     };
 
-enum RoyalOutfit { robe, armor, coat }
+/// [bodysuit] is the Huntress's: fitted, tapered to the waist and cut off at
+/// the hip so the legs carry the movement. She was on [coat] first and it read
+/// as a long robe — a garment you could not somersault in.
+enum RoyalOutfit { robe, armor, coat, bodysuit }
 
 const _gold = Color(0xFFF2C14E);
 const _ink = Color(0xFF1A151F);
@@ -130,7 +146,11 @@ class RoyalBody {
     final main = pick(['R', 'A', 'F'], r.theme.accentDeep);
     final skin = pick(['K'], const Color(0xFFE8B98C));
     final outfit = switch (r.id) {
-      'prince' || 'darkprince' => RoyalOutfit.armor,
+      'prince' || 'darkprince' || 'sentinel' => RoyalOutfit.armor,
+      // The Huntress takes the COAT rather than the robe: the robe is an
+      // A-line gown, and an outlaw who somersaults across the screen cannot
+      // be wearing one. Armour would over-dress her the other way.
+      'huntress' => RoyalOutfit.bodysuit,
       'royalmedic' => RoyalOutfit.coat,
       _ => RoyalOutfit.robe,
     };
@@ -294,6 +314,7 @@ class RoyalCharacterPainter extends CustomPainter {
         _gown(canvas, size, pose);
       case RoyalOutfit.armor:
       case RoyalOutfit.coat:
+      case RoyalOutfit.bodysuit:
         _legs(canvas, size, pose);
         _torso(canvas, size, pose);
     }
@@ -395,18 +416,50 @@ class RoyalCharacterPainter extends CustomPainter {
   void _legs(Canvas canvas, Size size, _Pose pose) {
     final w = size.width, h = size.height;
     final cx = w * 0.5;
-    final hipY = h * 0.76;
-    final legLen = h * 0.145;
-    final legColor = body.outfit == RoyalOutfit.coat
-        ? _darken(body.dark, 0.25)
-        : _darken(body.main, 0.28);
+    final suit = body.outfit == RoyalOutfit.bodysuit;
+    // The suit sits higher and runs longer: legs are most of her silhouette,
+    // which is what sells "mobile" at this scale.
+    final hipY = suit ? h * 0.735 : h * 0.76;
+    final legLen = suit ? h * 0.180 : h * 0.145;
+    final legColor = switch (body.outfit) {
+      RoyalOutfit.coat => _darken(body.dark, 0.25),
+      // One continuous suit rather than a torso over trousers.
+      RoyalOutfit.bodysuit => _darken(body.main, 0.10),
+      _ => _darken(body.main, 0.28),
+    };
     for (final s in [-1.0, 1.0]) {
       final swing = pose.legPhase * s * 0.9 * pose.stride;
-      final hip = Offset(cx + s * w * 0.072, hipY);
+      final hip = Offset(cx + s * w * (suit ? 0.058 : 0.072), hipY);
       final foot = hip +
           Offset(math.sin(swing) * legLen,
               math.cos(swing) * legLen - (s * pose.legPhase).clamp(0, 1) * h * 0.02);
-      _capsule(canvas, hip, foot, w * 0.085, legColor);
+      if (suit) {
+        // Shorts, so the leg is bare from hip to knee and the boot runs the
+        // whole calf. Two tones down one limb is what stops a bodysuit
+        // reading as tights.
+        // Split low, so there is real bare leg above the boot rather than a
+        // token sliver.
+        final knee = Offset.lerp(hip, foot, 0.52)!;
+        _capsule(canvas, hip, knee, w * 0.068, body.skin);
+        _capsule(canvas, knee, foot, w * 0.076, body.boot);
+        // Turned-down cuff: a slim band, NOT an accent disc. At w*0.048 in the
+        // court colour these read as green knee-pads and took over the figure
+        // — the same "accent as a big shape" failure the portrait hit.
+        final cuff = RRect.fromRectAndRadius(
+            Rect.fromCenter(
+                center: knee, width: w * 0.088, height: h * 0.016),
+            Radius.circular(w * 0.012));
+        canvas.drawRRect(cuff, Paint()..color = _darken(body.boot, 0.28));
+        canvas.drawRRect(cuff, _inkStroke..strokeWidth = 1.0);
+        canvas.drawLine(
+            knee.translate(-w * 0.040, -h * 0.008),
+            knee.translate(w * 0.040, -h * 0.008),
+            Paint()
+              ..color = body.trim.withValues(alpha: 0.85)
+              ..strokeWidth = 1.4);
+      } else {
+        _capsule(canvas, hip, foot, w * 0.085, legColor);
+      }
       // Round boot, toe pointing forward.
       final bootRect = Rect.fromCenter(
           center: foot.translate(w * 0.022, -h * 0.004),
@@ -426,8 +479,22 @@ class RoyalCharacterPainter extends CustomPainter {
     final w = size.width, h = size.height;
     final cx = w * 0.5;
     final coat = body.outfit == RoyalOutfit.coat;
-    final top = h * 0.535, bottom = coat ? h * 0.82 : h * 0.79;
-    final halfTop = w * 0.150, halfBot = coat ? w * 0.165 : w * 0.118;
+    final suit = body.outfit == RoyalOutfit.bodysuit;
+    // The coat FLARES (halfBot > halfTop) — that flare is the robe silhouette.
+    // The bodysuit does the opposite: narrower shoulders, a waist that pulls
+    // in, and a hem at the hip instead of past the knee.
+    final top = h * 0.535,
+        bottom = coat
+            ? h * 0.82
+            : suit
+                ? h * 0.745
+                : h * 0.79;
+    final halfTop = w * (suit ? 0.132 : 0.150),
+        halfBot = coat
+            ? w * 0.165
+            : suit
+                ? w * 0.098
+                : w * 0.118;
     final path = Path()
       ..moveTo(cx - halfTop, top + h * 0.015)
       ..quadraticBezierTo(cx - halfTop, top, cx - halfTop + w * 0.03, top)
@@ -446,6 +513,90 @@ class RoyalCharacterPainter extends CustomPainter {
     canvas.drawRect(
         Rect.fromLTWH(cx - halfTop - w * 0.02, top, w * 0.075, bottom - top),
         Paint()..color = body.dark.withValues(alpha: 0.45));
+
+    if (body.outfit == RoyalOutfit.armor) {
+      // Plate is SEGMENTED. Undetailed it reads as a smooth bathtub, which is
+      // what the first pass looked like: two lame seams across the chest, a
+      // three-band fauld at the hem, and a centre ridge catching the light.
+      final span = bottom - top;
+      for (final fy in [0.30, 0.50]) {
+        final y = top + span * fy;
+        canvas.drawLine(Offset(cx - halfTop, y), Offset(cx + halfTop, y),
+            Paint()
+              ..color = body.ink.withValues(alpha: 0.38)
+              ..strokeWidth = 1.6);
+        canvas.drawLine(
+            Offset(cx - halfTop, y + 1.7), Offset(cx + halfTop, y + 1.7),
+            Paint()
+              ..color = Colors.white.withValues(alpha: 0.20)
+              ..strokeWidth = 1.3);
+      }
+      for (var i = 0; i < 3; i++) {
+        final y = top + span * (0.64 + i * 0.12);
+        final band = RRect.fromRectAndRadius(
+            Rect.fromCenter(
+                center: Offset(cx, y),
+                width: halfTop * 2 * (1 - i * 0.06),
+                height: span * 0.11),
+            Radius.circular(w * 0.02));
+        canvas.drawRRect(band, Paint()..color = _darken(body.main, 0.10));
+        canvas.drawRRect(band, _inkStroke..strokeWidth = 1.2);
+      }
+      canvas.drawLine(
+          Offset(cx, top + span * 0.06), Offset(cx, top + span * 0.58),
+          Paint()
+            ..color = Colors.white.withValues(alpha: 0.22)
+            ..strokeWidth = w * 0.012);
+      // Rivets down the outer edge.
+      for (var i = 0; i < 3; i++) {
+        final y = top + span * (0.16 + i * 0.18);
+        for (final sx in [-1.0, 1.0]) {
+          canvas.drawCircle(Offset(cx + sx * halfTop * 0.84, y), w * 0.011,
+              Paint()..color = body.trim.withValues(alpha: 0.75));
+        }
+      }
+    }
+
+    if (suit) {
+      final span = bottom - top;
+      // Bare shoulders and upper chest. Drawn INSIDE the torso clip, so it can
+      // only ever paint over the body it belongs to.
+      final bare = RRect.fromRectAndRadius(
+          Rect.fromLTRB(cx - halfTop * 1.05, top - h * 0.004,
+              cx + halfTop * 1.05, top + span * 0.30),
+          Radius.circular(w * 0.045));
+      canvas.drawRRect(bare, Paint()..color = body.skin);
+      canvas.drawRRect(bare, _inkStroke..strokeWidth = 1.1);
+      // Two straps over the shoulders, with the scoop between them.
+      for (final sx in [-1.0, 1.0]) {
+        final strap = RRect.fromRectAndRadius(
+            Rect.fromLTRB(
+                cx + sx * halfTop * 0.72 - w * 0.026,
+                top - h * 0.004,
+                cx + sx * halfTop * 0.72 + w * 0.026,
+                top + span * 0.30),
+            Radius.circular(w * 0.014));
+        canvas.drawRRect(strap, Paint()..color = body.main);
+        canvas.drawRRect(strap, _inkStroke..strokeWidth = 1.0);
+      }
+      // The tank's neckline: a scooped hem across the chest.
+      final hem = Path()
+        ..moveTo(cx - halfTop * 1.02, top + span * 0.20)
+        ..quadraticBezierTo(
+            cx, top + span * 0.40, cx + halfTop * 1.02, top + span * 0.20)
+        ..lineTo(cx + halfTop * 1.02, bottom)
+        ..lineTo(cx - halfTop * 1.02, bottom)
+        ..close();
+      _fillInked(canvas, hem, body.main);
+      final belt = Rect.fromCenter(
+          center: Offset(cx, bottom - h * 0.020),
+          width: halfBot * 2.05,
+          height: h * 0.024);
+      canvas.drawRect(belt, Paint()..color = body.trim);
+      canvas.drawRect(belt, _inkStroke..strokeWidth = 1.0);
+      canvas.drawCircle(Offset(cx, bottom - h * 0.020), w * 0.020,
+          Paint()..color = _darken(body.trim, 0.35));
+    }
     canvas.restore();
   }
 
@@ -652,8 +803,13 @@ class RoyalCharacterPainter extends CustomPainter {
       RoyalOutfit.robe => body.main,
       RoyalOutfit.armor => _darken(body.main, 0.12),
       RoyalOutfit.coat => body.main,
+      // Bare: she is in a tank top, and the arm is most of what says so.
+      RoyalOutfit.bodysuit => body.skin,
     };
-    _capsule(canvas, shoulder, hand, w * 0.078, sleeve);
+    // A fitted sleeve on the bodysuit — the standard one is loose enough to
+    // undo the tapering the torso is doing.
+    _capsule(canvas, shoulder, hand,
+        w * (body.outfit == RoyalOutfit.bodysuit ? 0.062 : 0.078), sleeve);
     final mitten = hand + Offset(math.sin(angle), math.cos(angle)) * (w * 0.02);
     canvas.save();
     canvas.translate(mitten.dx, mitten.dy);
@@ -841,6 +997,66 @@ class RoyalCharacterPainter extends CustomPainter {
         canvas.drawRRect(kit, Paint()..color = const Color(0xFFF6F2EA));
         canvas.drawRRect(kit, _inkStroke..strokeWidth = 1.2);
         _plus(canvas, c, w * 0.036, emerald);
+      case RoyalWeapon.shield:
+        // A kite shield, carried face-on to the viewer. It hangs at the arm
+        // at rest and swings ahead of him on the charge — so unlike every
+        // other weapon here it does NOT ride `along()`: a shield turned edge-on
+        // would vanish at the exact moment it matters.
+        final steel = royal.palette['S'] ?? const Color(0xFFC9D2DE);
+        final trim = royal.palette['T'] ?? const Color(0xFFEAF0F8);
+        final gem = royal.palette['G'] ?? const Color(0xFF4A8CFF);
+        final drive = rest ? 0.0 : (armAngle.abs() / (math.pi / 2)).clamp(0.0, 1.0);
+        // Strapped to the forearm, not pinched between finger and thumb: at
+        // hand-size it read as a teacup. It covers him from shoulder to thigh.
+        final c = hand.translate(
+            w * 0.03 * drive - w * 0.010, h * 0.030 - h * 0.03 * drive);
+        final halfW = w * 0.185, top = c.dy - h * 0.120, bot = c.dy + h * 0.130;
+        final face = Path()
+          ..moveTo(c.dx - halfW, top + h * 0.014)
+          ..quadraticBezierTo(c.dx, top - h * 0.008, c.dx + halfW, top + h * 0.014)
+          ..lineTo(c.dx + halfW * 0.92, c.dy + h * 0.018)
+          ..quadraticBezierTo(c.dx + halfW * 0.55, bot, c.dx, bot)
+          ..quadraticBezierTo(c.dx - halfW * 0.55, bot, c.dx - halfW * 0.92,
+              c.dy + h * 0.018)
+          ..close();
+        canvas.drawPath(face, Paint()..color = steel);
+        // A darker half sells the curve without needing a gradient.
+        canvas.save();
+        canvas.clipPath(face);
+        canvas.drawRect(
+            Rect.fromLTWH(c.dx, top - h * 0.02, halfW * 1.2, bot - top + h * 0.04),
+            Paint()..color = _darken(steel, 0.22));
+        canvas.restore();
+        canvas.drawPath(face, _inkStroke..strokeWidth = 1.3);
+        // Sapphire boss, and a trim chevron above it.
+        canvas.drawCircle(c, w * 0.042, Paint()..color = gem);
+        canvas.drawCircle(c, w * 0.042, _inkStroke..strokeWidth = 1.1);
+        canvas.drawPath(
+            Path()
+              ..moveTo(c.dx - halfW * 0.58, c.dy - h * 0.052)
+              ..lineTo(c.dx, c.dy - h * 0.078)
+              ..lineTo(c.dx + halfW * 0.58, c.dy - h * 0.052),
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = w * 0.014
+              ..color = trim);
+      case RoyalWeapon.daggers:
+        // Paired blades, one forward and one reversed in an ice-pick grip —
+        // the reversed one is what stops this reading as a single small sword.
+        final steel = royal.palette['S'] ?? const Color(0xFFC9D2DE);
+        final wrap = royal.palette['h'] ?? const Color(0xFF221726);
+        void blade(Offset from, double dir, double len) {
+          final tip = from + Offset(math.sin(dir), -math.cos(dir)) * -len;
+          _shaft(canvas, from, tip, w * 0.026, steel, _darken(steel, 0.4));
+          // Short wrapped grip behind the hand.
+          final butt = from + Offset(math.sin(dir), -math.cos(dir)) * (len * 0.30);
+          _shaft(canvas, from, butt, w * 0.030, wrap, _darken(wrap, 0.3));
+        }
+        // Lead hand: blade forward along the arm.
+        blade(hand, dir, h * 0.20);
+        // Off hand: mirrored behind the body, held reversed.
+        final off = hand.translate(-w * 0.085, h * 0.030);
+        blade(off, dir + math.pi * 0.86, h * 0.155);
       case RoyalWeapon.orbs:
         break; // painted by _orbs
     }
@@ -1549,6 +1765,18 @@ class RoyalCharacterPainter extends CustomPainter {
         _ridePalanquin(canvas, size);
       case _Mount.cart:
         _rideCart(canvas, size);
+      case _Mount.none:
+        _rideOnFoot(canvas, size);
+      case _Mount.destrier:
+        // Barded like the Dark Prince's, but a pale grey warhorse under steel
+        // rather than an onyx one, and a sapphire mane instead of ember.
+        _rideBeast(canvas, size,
+            coat: const Color(0xFF9AA6B6),
+            coatDark: const Color(0xFF6B7A8D),
+            mane: const Color(0xFF4A8CFF),
+            style: _BeastStyle.horse,
+            gait: _Gait.charge,
+            barded: true);
       case _Mount.horse:
         _rideBeast(canvas, size,
             coat: const Color(0xFFF4EFE6),
@@ -1712,6 +1940,16 @@ class RoyalCharacterPainter extends CustomPainter {
                 1.0,
                 0.0,
               ),
+            // Low and level: almost no lift, a permanent forward pitch, and
+            // fore/hind splitting wide apart as it eats ground.
+            _Gait.charge => (
+                -math.pow(s01, 1.6).toDouble() * h * 0.016,
+                0.15 + math.sin(cyc) * 0.022,
+                h * 0.030, // positive = rides LOWER than the others
+                const [0.0, 0.42, 0.08, 0.50],
+                1.30,
+                0.0,
+              ),
             // A long bound with a float at the apex: sharp push, long hang.
             _Gait.prowl => (
                 -math.pow(s01, 0.55).toDouble() * h * 0.048,
@@ -1786,6 +2024,7 @@ class RoyalCharacterPainter extends CustomPainter {
         _dust(canvas, size, cyc);
       case _Gait.gallop:
       case _Gait.stomp:
+      case _Gait.charge:
         _dust(canvas, size, cyc);
     }
   }
@@ -2579,6 +2818,54 @@ class RoyalCharacterPainter extends CustomPainter {
 
   /// The Medic's ride: a rolling emerald supply cart — half chariot, half
   /// hospital trolley — with spinning spoked wheels and a white cross plate.
+  /// The Huntress's traversal: no mount, so she crosses on her own legs.
+  ///
+  /// Run-up, launch, a full somersault through the middle of the span, then a
+  /// crouched landing and a run-out. The rotation is applied to the whole
+  /// standing figure rather than animated limb by limb — at this scale a
+  /// tumbling silhouette reads as a somersault, and posing one frame by frame
+  /// would fight the shared rig for no visible gain.
+  void _rideOnFoot(Canvas canvas, Size size) {
+    final w = size.width, h = size.height;
+    final uw = math.min(w, h * 1.7);
+    final ground = h * 0.92;
+    // Left-to-right across the usable span, matching the mounted rides.
+    final x = w * 0.5 + (t - 0.5) * uw * 0.86;
+
+    // The airborne window. Outside it she is simply running.
+    const a = 0.30, b = 0.70;
+    final air = (t >= a && t < b) ? (t - a) / (b - a) : -1.0;
+
+    // _paintStanding always draws centred on `size`, so movement is applied to
+    // the canvas rather than passed in.
+    if (air < 0) {
+      final crouch = t < a
+          ? Curves.easeIn.transform(((t - (a - 0.10)) / 0.10).clamp(0.0, 1.0))
+          : Curves.easeOut.transform((1 - (t - b) / 0.10).clamp(0.0, 1.0));
+      canvas.save();
+      canvas.translate(x - w * 0.5, h * 0.045 * crouch); // gather / absorb
+      _paintStanding(
+          canvas, size, _poseFor(RoyalAction.run, (t * 6) % 1.0));
+      canvas.restore();
+      return;
+    }
+
+    // Airborne: a parabola with one full rotation about her own centre.
+    final lift = math.sin(air * math.pi);
+    final rise = h * 0.34 * lift;
+    // The shadow stays on the ground and shrinks as she leaves it.
+    _shadow(canvas, Offset(x, ground), uw * 0.10 * (1 - 0.45 * lift),
+        const _Pose());
+    final pivot = Offset(w * 0.5, ground - rise - h * 0.16);
+    canvas.save();
+    canvas.translate(x - w * 0.5, -rise);
+    canvas.translate(pivot.dx, pivot.dy);
+    canvas.rotate(air * 2 * math.pi);
+    canvas.translate(-pivot.dx, -pivot.dy);
+    _paintStanding(canvas, size, _poseFor(RoyalAction.vault, air));
+    canvas.restore();
+  }
+
   void _rideCart(Canvas canvas, Size size) {
     final w = size.width, h = size.height;
     final uw = math.min(w, h * 1.7);
@@ -2968,6 +3255,40 @@ class RoyalCharacterPainter extends CustomPainter {
           headTilt: 0.06 * lift - 0.09 * clear,
           flourish: 0.35 + 0.65 * math.max(read, clear),
         );
+      case RoyalAction.brace:
+        // Shield planted, weight forward, head down behind the rim. He does
+        // not look up and he does not wave: the guard's signature is that he
+        // refuses to perform for you.
+        final set = Curves.easeOutCubic.transform((t / 0.28).clamp(0.0, 1.0));
+        final settle = math.sin(t * 2 * math.pi * 1.2) * 0.006 * set;
+        return _Pose(
+          bob: 0.030 * set + settle,
+          lean: 0.13 * set,
+          squash: 1 - 0.030 * set,
+          legPhase: -0.55 * set,
+          stride: 0.5 * set,
+          armFree: -0.30 * set,
+          armWeapon: 1.32 * set, // shield swung across the body
+          headTilt: 0.16 * set,
+          blink: blink,
+          flourish: set,
+        );
+      case RoyalAction.vault:
+        // The tumble itself is a canvas rotation (see _rideOnFoot); the pose's
+        // job is to make her TUCK, so the silhouette spinning past reads as an
+        // athlete and not a plank.
+        final tuck = math.sin(t.clamp(0.0, 1.0) * math.pi);
+        return _Pose(
+          bob: 0.02 * tuck,
+          squash: 1 - 0.05 * tuck,
+          legPhase: 0.9,
+          stride: 1.35 * tuck,
+          armFree: -1.15 * tuck,
+          armWeapon: 1.15 * tuck, // both blades out through the spin
+          headTilt: -0.34 * tuck,
+          blink: false, // eyes open through it
+          flourish: tuck,
+        );
       case RoyalAction.salute:
         // The heir's sword salute: blade to the vertical in front of the face,
         // a crisp hold, then swept out to present and a short sharp bow. It is
@@ -3198,7 +3519,10 @@ class RoyalCharacterPainter extends CustomPainter {
 }
 
 /// The royal ride each character mounts for [RoyalAction.ride].
-enum _Mount { horse, darkhorse, pegasus, lion, palanquin, cart }
+/// [none] is not "no ride" — it is a ride ON FOOT. The Huntress is the only
+/// royal without a mount: where the others gallop across the page she sprints
+/// it and somersaults through the middle.
+enum _Mount { horse, darkhorse, pegasus, lion, palanquin, cart, destrier, none }
 
 /// Beast flavour for the shared quadruped painter.
 enum _BeastStyle { horse, unicorn, lion }
@@ -3225,6 +3549,13 @@ enum _Gait {
   /// The Sovereign: long low bounds with a float at the apex, trailing
   /// afterimages — a beast covering ground faster than it should.
   prowl,
+
+  /// The Sentinel: a destrier under barding does not bound, it DRIVES. Head
+  /// down, body pitched forward and held low, legs reaching front-to-back
+  /// instead of rolling through four beats. Barding and a coat swap alone left
+  /// it 2.6% different from the Prince's canter — a recolour, which the rides
+  /// suite rejects outright. The gait is what makes it another animal.
+  charge,
 }
 
 _Mount _mountOf(String id) => switch (id) {
@@ -3232,6 +3563,8 @@ _Mount _mountOf(String id) => switch (id) {
       'darkprince' => _Mount.darkhorse,
       'princess' => _Mount.pegasus,
       'sovereign' => _Mount.lion,
+      'sentinel' => _Mount.destrier,
+      'huntress' => _Mount.none,
       'empress' => _Mount.palanquin,
       _ => _Mount.cart,
     };

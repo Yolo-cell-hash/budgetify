@@ -578,8 +578,16 @@ final List<_Sprite> _extraSprites = [
       const [Color(0xFFD4453A), Color(0xFF7E1820)]),
 ];
 
-/// First global seed of the post-royal block (directly after the royals).
-final int _extraStart = _sprites.length + kRoyalAvatars.length;
+/// First global seed of the post-royal block.
+///
+/// A PINNED constant, never derived. It used to be computed as
+/// `_sprites.length + kRoyalAvatars.length`, which was correct only while the
+/// royal roster stayed at six: appending a royal pushed this to 25, and every
+/// persisted seed from 24 up then resolved to a different sprite — silently
+/// changing the face of everyone using one of the post-royal free or elite
+/// avatars. Slots are append-only and persisted, so where this block STARTS is
+/// history, not arithmetic. New royals go on the end (see [kRoyalAvatars]).
+const int _extraStart = 24;
 
 /// The sprite backing a base-roster or post-royal [seed] (royal seeds are
 /// resolved separately via [royalAvatarAt]).

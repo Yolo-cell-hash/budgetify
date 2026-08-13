@@ -135,6 +135,8 @@ class MainActivity : FlutterFragmentActivity() {
         "golden" to "MainActivityGolden",
         "ruby" to "MainActivityRuby",
         "amethyst" to "MainActivityAmethyst",
+        "sapphire" to "MainActivitySapphire",
+        "absinthe" to "MainActivityAbsinthe",
     )
 
     /** Enable the launcher component for [icon] (a royal variant name) and

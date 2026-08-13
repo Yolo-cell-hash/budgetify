@@ -4257,7 +4257,19 @@ class AppStrings {
       case 'princess':
         return _t('The Princess', 'द प्रिंसेस', 'द प्रिन्सेस', 'দ্য প্রিন্সেস', 'ద ప్రిన్సెస్', 'தி பிரின்சஸ்');
       case 'royalmedic':
-        return _t('The Royal Medic', 'द रॉयल मेडिक', 'द रॉयल मेडिक', 'দ্য রয়্যাল মেডিক', 'ద రాయల్ మెడిక్', 'தி ராயல் மெடிக்');
+        // DISPLAY NAME ONLY. The id stays 'royalmedic' — it is persisted in
+        // the profile's unlockedRoyals, in RoyalSkinService's prefs key and in
+        // RoyalAppIcon.forRoyal, so renaming it would revoke her from every
+        // user who spent a streak pick. "Medic" was the one occupation in a
+        // roster of ranks, and modern military vocabulary in a medieval court.
+        return _t('The Apothecary', 'द अपोथेकरी', 'द अपोथेकरी',
+            'দ্য অ্যাপোথেকারি', 'ద అపోథెకరీ', 'தி அபோதிகரி');
+      case 'sentinel':
+        return _t('The Sentinel', 'द सेंटिनल', 'द सेंटिनल', 'দ্য সেন্টিনেল',
+            'ద సెంటినెల్', 'தி சென்டினல்');
+      case 'huntress':
+        return _t('The Huntress', 'द हंट्रेस', 'द हंट्रेस', 'দ্য হান্ট্রেস',
+            'ద హంట్రెస్', 'தி ஹண்ட்ரஸ்');
       default:
         return id;
     }
@@ -4311,9 +4323,27 @@ class AppStrings {
           'లాలిత్యమే రూపం — గులాబీ రత్న కిరీటం, ముత్యాలు, రోజ్ గౌను.',
           'நளினத்தின் வடிவம் — இளஞ்சிவப்பு ரத்தின டயரா, முத்துக்கள், ரோஜா கவுன்.',
         );
+      case 'sentinel':
+        return _t(
+          "The crown's sworn guard — steel plate, a sapphire visor, and no face to read.",
+          'ताज का शपथबद्ध रक्षक — इस्पात कवच, नीलम का दृष्टिपट, और चेहरा अपठनीय।',
+          'मुकुटाचा शपथबद्ध रक्षक — पोलादी चिलखत, नीलमणी झरोका, आणि न वाचता येणारा चेहरा.',
+          'মুকুটের শপথবদ্ধ রক্ষী — ইস্পাতের বর্ম, নীলকান্ত দৃষ্টিপট, মুখ অপাঠ্য।',
+          'కిరీటపు ప్రమాణబద్ధ రక్షకుడు — ఉక్కు కవచం, నీలమణి దృష్టిపట్టీ, చదవలేని ముఖం.',
+          'கிரீடத்தின் சத்தியக் காவலன் — எஃகுக் கவசம், நீலக்கல் பார்வைத் திரை, படிக்க முடியாத முகம்.',
+        );
+      case 'huntress':
+        return _t(
+          'Nobility dispossessed and gone to the road — paired blades, and no horse to slow her.',
+          'सब कुछ छिनने पर राह पकड़ी कुलीना — जोड़ीदार कटार, और उसे धीमा करने को कोई घोड़ा नहीं।',
+          'सर्वस्व गमावून वाटेला लागलेली कुलीन — जोडीच्या कट्यारी, आणि तिला रोखणारा घोडा नाही.',
+          'সর্বস্ব হারিয়ে পথে নামা অভিজাত — জোড়া ছুরি, আর তাকে ধীর করার ঘোড়া নেই।',
+          'సర్వం కోల్పోయి దారిపట్టిన కులీన — జంట కత్తులు, ఆమెను నెమ్మదింపజేసే గుర్రం లేదు.',
+          'அனைத்தையும் இழந்து வழி பிடித்த குலமகள் — இரட்டைக் கத்திகள், அவளைத் தாமதிக்க குதிரையில்லை.',
+        );
       case 'royalmedic':
         return _t(
-          'The court physician — the emerald cross of life, and tireless hands.',
+          'The court apothecary — the emerald cross of life, and tireless hands.',
           'राजवैद्य — जीवन का पन्ना क्रॉस, और अथक हाथ।',
           'राजवैद्य — जीवनाचा पाचूचा क्रॉस, आणि अथक हात.',
           'রাজবৈদ্য — জীবনের পান্না ক্রস, আর অক্লান্ত হাত।',
@@ -4353,6 +4383,14 @@ class AppStrings {
         return _t('Apply app-wide Emerald theme', 'पूरे ऐप में एमराल्ड थीम लगाएँ',
             'संपूर्ण ॲपला एमराल्ड थीम लावा', 'অ্যাপ জুড়ে এমারল্ড থিম লাগান',
             'యాప్ అంతటా ఎమరాల్డ్ థీమ్ వర్తించు', 'ஆப் முழுவதும் எமரால்டு தீம் பயன்படுத்து');
+      case 'sentinel':
+        return _t('Apply app-wide Steel theme', 'पूरे ऐप में स्टील थीम लगाएँ',
+            'संपूर्ण ॲपला स्टील थीम लावा', 'অ্যাপ জুড়ে স্টিল থিম লাগান',
+            'యాప్ అంతటా స్టీల్ థీమ్ వర్తించు', 'ஆப் முழுவதும் ஸ்டீல் தீம் பயன்படுத்து');
+      case 'huntress':
+        return _t('Apply app-wide Absinthe theme', 'पूरे ऐप में एब्सिंथ थीम लगाएँ',
+            'संपूर्ण ॲपला ॲब्सिंथ थीम लावा', 'অ্যাপ জুড়ে অ্যাবসিন্থ থিম লাগান',
+            'యాప్ అంతటా అబ్సింత్ థీమ్ వర్తించు', 'ஆப் முழுவதும் அப்சிந்த் தீம் பயன்படுத்து');
       default:
         return '';
     }
