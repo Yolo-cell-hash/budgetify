@@ -89,14 +89,17 @@ void main() async {
 
   // Kick off the heavy, non-first-frame work once the first frame is on
   // screen. Fire-and-forget so it never blocks or bricks startup.
-  unawaited(_initDeferredServices(themeProvider));
+  unawaited(_initDeferredServices(themeProvider, appPreferences));
 }
 
 /// Startup work the first frame does not depend on, run after [runApp] so a
 /// slow step (WorkManager) or a throwing one (notification-channel setup) can
 /// neither delay the first frame nor strand the app on the launch screen. Each
 /// step is isolated in its own try/catch so one failure never blocks the rest.
-Future<void> _initDeferredServices(ThemeProvider themeProvider) async {
+Future<void> _initDeferredServices(
+  ThemeProvider themeProvider,
+  AppPreferences appPreferences,
+) async {
   // Trial anchor (first-use timestamp). Silent — nothing is gated on it yet —
   // so stamping it just after first paint is fine. The install-record floor
   // follows it here, and only here: it crosses a platform channel, so it must
@@ -136,6 +139,18 @@ Future<void> _initDeferredServices(ThemeProvider themeProvider) async {
           : null,
     );
     await RoyalSkinService.sync(int.tryParse(profile.avatarValue) ?? -1);
+    // The launcher icon is the third OS surface mirroring the equipped royal,
+    // and it was the only one that never reconciled here — it moved solely
+    // from the equip flow. So anything that changed the avatar by another
+    // route (restoring a backup, a royal revoked) or changed the opt-in
+    // without a save left the icon stranded on a royal the user no longer
+    // wears, and nothing would ever put it right: the equip flow only fires
+    // when the avatar CHANGES, so re-picking the same one could not fix it
+    // either. Silent and restart-free by design.
+    await AppIconService.reconcile(
+      equippedSeed: int.tryParse(profile.avatarValue) ?? -1,
+      enabled: appPreferences.royalAppIcon,
+    );
   } catch (e) {
     debugPrint('GamificationService.loadProfile failed: $e');
   }
