@@ -77,6 +77,25 @@ enum RoyalAction {
   /// crouched landing with both blades out. She is the only royal who leaves
   /// the ground under her own power.
   vault,
+
+  /// The Sentinel's spear thrust: levelled over the shield rim, driven out
+  /// from behind it, recovered to the guard. The one royal who fights from
+  /// COVER rather than out in the open.
+  thrust,
+
+  // ── Huntress signature candidates (drafts) ────────────────────────────────
+
+  /// Draft A. Feet planted, all wrists: both daggers spin in her fingers, she
+  /// crosses them, reverses one into an ice-pick grip and settles to guard.
+  bladeDance,
+
+  /// Draft B. A leaping spin-kick: gather, launch, the lead boot snaps out
+  /// horizontal at the apex, blades trailing, landing in a low crouch.
+  flyKick,
+
+  /// Draft C. She flips a dagger high and spinning, sweeps a low spin-kick
+  /// underneath it, catches it reversed behind her back and levels it at you.
+  daggerToss,
 }
 
 /// The attack verb a royal's weapon speaks: the Sovereign slashes, the Prince
@@ -87,11 +106,14 @@ RoyalAction royalAttackActionFor(RoyalWeapon weapon) => switch (weapon) {
       RoyalWeapon.knightSword => RoyalAction.slice,
       RoyalWeapon.bow => RoyalAction.shoot,
       RoyalWeapon.orbs => RoyalAction.hurl,
-      // The Sentinel does not strike — he ADVANCES. The charge ends in a
-      // shield slam, which is the smash pose.
-      RoyalWeapon.warClub || RoyalWeapon.medKit || RoyalWeapon.shield =>
-        RoyalAction.smash,
-      RoyalWeapon.daggers => RoyalAction.slash, // a fast crossing flurry
+      RoyalWeapon.warClub || RoyalWeapon.medKit => RoyalAction.smash,
+      // The one royal who strikes from behind cover: the shield never leaves
+      // the line, and the spear goes out over the top of it.
+      RoyalWeapon.spear => RoyalAction.thrust,
+      // She does not stand and swing — she closes the distance with her feet
+      // and the blades arrive with her. Borrowing the Sovereign's slash made
+      // the court's only acrobat fight like a man holding a sword of state.
+      RoyalWeapon.daggers => RoyalAction.flyKick,
     };
 
 /// [bodysuit] is the Huntress's: fitted, tapered to the waist and cut off at
@@ -201,6 +223,15 @@ _Motion _motionOf(String id) => switch (id) {
       'princess' => const _Motion(bobHz: 1.1, bobAmp: 0.011, sway: 0.05, bounce: 1.15),
       // Busy, bustling bedside energy.
       'royalmedic' => const _Motion(bobHz: 1.45, bobAmp: 0.010, sway: 0.03, bounce: 1.2),
+      // A man standing a post: the slowest breath in the court, almost no rock
+      // at all, and heavy through a stride. He is the only one whose idle is
+      // supposed to look like nothing is happening.
+      'sentinel' => const _Motion(bobHz: 0.5, bobAmp: 0.005, sway: 0.008, bounce: 0.9),
+      // Coiled and quick — a fast shallow breath, a low ready lean, and the
+      // springiest stride here. Both of these were on the fallback _Motion(),
+      // which is why the newest two royals moved like nobody in particular.
+      'huntress' => const _Motion(
+          bobHz: 1.6, bobAmp: 0.009, sway: 0.045, hunch: 0.04, bounce: 1.35),
       _ => const _Motion(),
     };
 
@@ -220,6 +251,27 @@ class _Pose {
   final double headTilt; // radians
   final double flourish; // 0..1 action accent (impact sparks, cheer stars)
 
+  /// One leg thrown forward on its own, past anything the symmetric walk cycle
+  /// can express. Radians; the NEAR leg only, so the far leg stays planted and
+  /// the kick reads as weight on one foot rather than a jump.
+  final double kick;
+
+  /// Knees drawn up toward the chest, 0..1. A somersault needs the legs SHORT —
+  /// a tumbling figure with its legs out is a falling plank, and the tuck is
+  /// the whole difference between the two.
+  final double tuck;
+
+  /// Extra blade rotation about the hand, on top of the arm angle. Only the
+  /// Huntress uses it: it is what lets a dagger spin in her fingers while the
+  /// wrist itself barely moves.
+  final double bladeSpin;
+
+  /// How far the off-hand blade swings clear of the body, 0 (tucked behind the
+  /// hip, the rest pose) to 1 (fully presented). At rest the paired daggers
+  /// overlap into one shape; opening the second one is what makes her read as
+  /// dual-wielding rather than carrying a single small sword.
+  final double bladeOpen;
+
   const _Pose({
     this.bob = 0,
     this.lean = 0,
@@ -234,6 +286,10 @@ class _Pose {
     this.gaze = 0,
     this.headTilt = 0,
     this.flourish = 0,
+    this.kick = 0,
+    this.tuck = 0,
+    this.bladeSpin = 0,
+    this.bladeOpen = 0,
   });
 }
 
@@ -256,6 +312,12 @@ class RoyalCharacterPainter extends CustomPainter {
   })  : body = RoyalBody.of(royal),
         _motion = _motionOf(royal.id);
 
+  /// Whether this frame is drawn from the saddle. Weapons need it: the same
+  /// arm angle means a very different reach once there is a horse's head in
+  /// front of the hand.
+  bool get _mounted =>
+      action == RoyalAction.ride || action == RoyalAction.roar;
+
   @override
   void paint(Canvas canvas, Size size) {
     canvas.save();
@@ -273,7 +335,12 @@ class RoyalCharacterPainter extends CustomPainter {
 
   // ── Standing figure ──────────────────────────────────────────────────────
 
-  void _paintStanding(Canvas canvas, Size size, _Pose pose) {
+  /// [as] overrides which action's accents are drawn. The painter's own
+  /// [action] is what a frame is FOR, which is not always what the body is
+  /// doing this instant: the Huntress's traversal is `ride`, but the figure
+  /// inside it is running and then somersaulting, and without this the
+  /// somersault came decorated with the generic cheer's stars and hearts.
+  void _paintStanding(Canvas canvas, Size size, _Pose pose, {RoyalAction? as}) {
     final w = size.width, h = size.height;
     final ground = h * 0.955;
 
@@ -291,7 +358,7 @@ class RoyalCharacterPainter extends CustomPainter {
 
     canvas.restore();
 
-    _actionAccents(canvas, size, pose);
+    _actionAccents(canvas, size, pose, as ?? action);
   }
 
   /// The figure itself, ground-relative. Draw order (far → near):
@@ -321,6 +388,16 @@ class RoyalCharacterPainter extends CustomPainter {
     _decorate(canvas, size, pose);
     _head(canvas, size, pose);
     _headArmor(canvas, size, pose);
+    if (royal.weapon == RoyalWeapon.spear) {
+      // The Sentinel alone puts his shield UNDER the weapon: a spear levelled
+      // over the rim is the whole idea of him, and in the shared order the
+      // shield (drawn last, nearest) swallowed the shaft at exactly the frame
+      // the thrust lands.
+      _arm(canvas, nearShoulder, pose.armFree, pose.wiggle, size);
+      _shield(canvas, size, nearShoulder, pose.armFree);
+      _frontWeapon(canvas, size, farShoulder, pose);
+      return;
+    }
     _frontWeapon(canvas, size, farShoulder, pose);
     if (royal.weapon == RoyalWeapon.orbs) _orbs(canvas, size, front: true);
     _arm(canvas, nearShoulder, pose.armFree, pose.wiggle, size);
@@ -428,20 +505,57 @@ class RoyalCharacterPainter extends CustomPainter {
       _ => _darken(body.main, 0.28),
     };
     for (final s in [-1.0, 1.0]) {
-      final swing = pose.legPhase * s * 0.9 * pose.stride;
-      final hip = Offset(cx + s * w * (suit ? 0.058 : 0.072), hipY);
+      // The near leg (s > 0) is the one that kicks; the far leg stays under
+      // her so the weight reads as planted rather than both feet leaving.
+      final kicking = s > 0 ? pose.kick : pose.kick * -0.18;
+      // A tuck folds BOTH knees up in front together. The walk cycle swings
+      // them in opposite directions, which is a stride however short you make
+      // it — a tumbling figure with one leg forward and one back is falling
+      // downstairs, not somersaulting.
+      final walk = pose.legPhase * s * 0.9 * pose.stride;
+      final swing = walk * (1 - pose.tuck) + 1.30 * pose.tuck + kicking;
+      // ...and shortens the limb: knees to the chest. Held at full length the
+      // spinning silhouette is a plank.
+      final len = legLen * (1 - 0.62 * pose.tuck);
+      final hip = Offset(cx + s * w * (suit ? 0.058 : 0.072),
+          hipY - h * 0.055 * pose.tuck);
       final foot = hip +
-          Offset(math.sin(swing) * legLen,
-              math.cos(swing) * legLen - (s * pose.legPhase).clamp(0, 1) * h * 0.02);
+          Offset(math.sin(swing) * len,
+              math.cos(swing) * len - (s * pose.legPhase).clamp(0, 1) * h * 0.02);
       if (suit) {
         // Shorts, so the leg is bare from hip to knee and the boot runs the
         // whole calf. Two tones down one limb is what stops a bodysuit
         // reading as tights.
-        // Split low, so there is real bare leg above the boot rather than a
-        // token sliver.
-        final knee = Offset.lerp(hip, foot, 0.52)!;
-        _capsule(canvas, hip, knee, w * 0.068, body.skin);
-        _capsule(canvas, knee, foot, w * 0.076, body.boot);
+        //
+        // Split at 0.62 rather than 0.52: at the halfway mark the thigh was a
+        // token sliver between the belt and a boot that swallowed the rest of
+        // the leg, and the whole lower half of her read as one dark block.
+        final knee = Offset.lerp(hip, foot, 0.62)!;
+        _capsule(canvas, hip, knee, w * 0.070, body.skin);
+        _capsule(canvas, knee, foot, w * 0.078, body.boot);
+        // A buckled thigh strap on the near leg with a spare blade sheathed in
+        // it — the detail that makes bare leg read as WORKING gear rather than
+        // as a missing trouser.
+        if (s > 0) {
+          final strapAt = Offset.lerp(hip, knee, 0.52)!;
+          final along = (knee - hip) / (knee - hip).distance;
+          final across = Offset(-along.dy, along.dx);
+          canvas.drawLine(strapAt - across * (w * 0.044),
+              strapAt + across * (w * 0.044),
+              Paint()
+                ..strokeWidth = h * 0.016
+                ..strokeCap = StrokeCap.round
+                ..color = _darken(body.dark, 0.20));
+          canvas.drawLine(strapAt - across * (w * 0.044),
+              strapAt + across * (w * 0.044),
+              Paint()
+                ..strokeWidth = h * 0.005
+                ..strokeCap = StrokeCap.round
+                ..color = body.trim.withValues(alpha: 0.8));
+          final sheath = strapAt + across * (w * 0.030) + along * (h * 0.012);
+          _shaft(canvas, sheath, sheath + along * (h * 0.042), w * 0.020,
+              _darken(body.dark, 0.30), body.ink);
+        }
         // Turned-down cuff: a slim band, NOT an accent disc. At w*0.048 in the
         // court colour these read as green knee-pads and took over the figure
         // — the same "accent as a big shape" failure the portrait hit.
@@ -559,43 +673,79 @@ class RoyalCharacterPainter extends CustomPainter {
 
     if (suit) {
       final span = bottom - top;
-      // Bare shoulders and upper chest. Drawn INSIDE the torso clip, so it can
-      // only ever paint over the body it belongs to.
-      final bare = RRect.fromRectAndRadius(
-          Rect.fromLTRB(cx - halfTop * 1.05, top - h * 0.004,
-              cx + halfTop * 1.05, top + span * 0.30),
-          Radius.circular(w * 0.045));
-      canvas.drawRRect(bare, Paint()..color = body.skin);
-      canvas.drawRRect(bare, _inkStroke..strokeWidth = 1.1);
-      // Two straps over the shoulders, with the scoop between them.
+      // The whole torso starts as SKIN, and the clothes are then laid on top of
+      // it. The first pass did the reverse — a bare rectangle at the top, then
+      // a tank hem painted from 20% down over the whole rest of it — so every
+      // pixel of the "bare" shoulders was immediately covered again and all
+      // that survived was a sliver of midriff. Painting the body first and
+      // dressing it after means the exposed areas are the ones left alone.
+      canvas.drawRRect(
+          RRect.fromRectAndRadius(
+              Rect.fromLTRB(cx - halfTop * 1.06, top - h * 0.006,
+                  cx + halfTop * 1.06, bottom),
+              Radius.circular(w * 0.05)),
+          Paint()..color = body.skin);
+
+      // Cropped top: it ends well above the waist, so the midriff between it
+      // and the belt stays bare.
+      final cropTop = top + span * 0.16;
+      final cropBot = top + span * 0.56;
+      final crop = Path()
+        ..moveTo(cx - halfTop * 1.03, cropTop)
+        // Scooped neckline between the straps.
+        ..quadraticBezierTo(
+            cx, cropTop + span * 0.20, cx + halfTop * 1.03, cropTop)
+        ..lineTo(cx + halfTop * 1.00, cropBot)
+        // A shallow V at the hem, following the ribs.
+        ..quadraticBezierTo(cx, cropBot + span * 0.07, cx - halfTop * 1.00,
+            cropBot)
+        ..close();
+      _fillInked(canvas, crop, body.main);
+      // Shoulder straps, thin — they hold the top up and leave the shoulders.
       for (final sx in [-1.0, 1.0]) {
         final strap = RRect.fromRectAndRadius(
             Rect.fromLTRB(
-                cx + sx * halfTop * 0.72 - w * 0.026,
-                top - h * 0.004,
-                cx + sx * halfTop * 0.72 + w * 0.026,
-                top + span * 0.30),
-            Radius.circular(w * 0.014));
+                cx + sx * halfTop * 0.74 - w * 0.022,
+                top - h * 0.006,
+                cx + sx * halfTop * 0.74 + w * 0.022,
+                cropTop + span * 0.10),
+            Radius.circular(w * 0.012));
         canvas.drawRRect(strap, Paint()..color = body.main);
         canvas.drawRRect(strap, _inkStroke..strokeWidth = 1.0);
       }
-      // The tank's neckline: a scooped hem across the chest.
-      final hem = Path()
-        ..moveTo(cx - halfTop * 1.02, top + span * 0.20)
-        ..quadraticBezierTo(
-            cx, top + span * 0.40, cx + halfTop * 1.02, top + span * 0.20)
-        ..lineTo(cx + halfTop * 1.02, bottom)
-        ..lineTo(cx - halfTop * 1.02, bottom)
-        ..close();
-      _fillInked(canvas, hem, body.main);
+      // Absinthe piping along the crop hem: the eye needs an edge to read the
+      // skin below it as skin rather than as a lighting error.
+      canvas.drawLine(
+          Offset(cx - halfTop * 0.99, cropBot),
+          Offset(cx + halfTop * 0.99, cropBot),
+          Paint()
+            ..strokeWidth = 1.6
+            ..strokeCap = StrokeCap.round
+            ..color = body.trim.withValues(alpha: 0.9));
+      // A single strap crossing the bare midriff — a harness, not a garment.
+      canvas.drawLine(
+          Offset(cx - halfTop * 0.92, cropBot + span * 0.12),
+          Offset(cx + halfTop * 0.86, cropBot + span * 0.26),
+          Paint()
+            ..strokeWidth = w * 0.020
+            ..strokeCap = StrokeCap.round
+            ..color = _darken(body.dark, 0.15));
+      // Low-slung belt at the hip, sitting under the exposed waist.
       final belt = Rect.fromCenter(
-          center: Offset(cx, bottom - h * 0.020),
-          width: halfBot * 2.05,
-          height: h * 0.024);
+          center: Offset(cx, bottom - h * 0.018),
+          width: halfBot * 2.15,
+          height: h * 0.026);
       canvas.drawRect(belt, Paint()..color = body.trim);
       canvas.drawRect(belt, _inkStroke..strokeWidth = 1.0);
-      canvas.drawCircle(Offset(cx, bottom - h * 0.020), w * 0.020,
+      canvas.drawCircle(Offset(cx, bottom - h * 0.018), w * 0.020,
           Paint()..color = _darken(body.trim, 0.35));
+      // The torso outline last, so the skin block has a contained edge.
+      canvas.drawRRect(
+          RRect.fromRectAndRadius(
+              Rect.fromLTRB(cx - halfTop * 1.06, top - h * 0.006,
+                  cx + halfTop * 1.06, bottom),
+              Radius.circular(w * 0.05)),
+          _inkStroke..strokeWidth = 1.1);
     }
     canvas.restore();
   }
@@ -756,6 +906,77 @@ class RoyalCharacterPainter extends CustomPainter {
             Radius.circular(w * 0.025));
         canvas.drawRRect(satchel, Paint()..color = const Color(0xFF6E4A2A));
         canvas.drawRRect(satchel, _inkStroke..strokeWidth = 1.1);
+      case 'sentinel':
+        // He shipped with no detail layer at all, which is why a man in full
+        // plate read as a smooth grey bell. Pauldrons, a gorget at the throat,
+        // and a sapphire surcoat down the front so the one colour he owns is
+        // on his chest rather than buried in a shield boss.
+        _pauldrons(canvas, size, spiked: false);
+        final sapphire = royal.palette['G'] ?? const Color(0xFF4A8CFF);
+        // Gorget: a plate collar closing the gap under the great helm.
+        final gorget = RRect.fromRectAndRadius(
+            Rect.fromCenter(
+                center: Offset(cx, h * 0.552),
+                width: w * 0.21,
+                height: h * 0.036),
+            Radius.circular(h * 0.018));
+        canvas.drawRRect(gorget, Paint()..color = _lighten(body.main, 0.18));
+        canvas.drawRRect(gorget, _inkStroke..strokeWidth = 1.2);
+        // Surcoat panel, hanging from the gorget past the fauld.
+        final surcoat = Path()
+          ..moveTo(cx - w * 0.058, h * 0.575)
+          ..lineTo(cx + w * 0.058, h * 0.575)
+          ..lineTo(cx + w * 0.050, h * 0.800)
+          ..quadraticBezierTo(cx, h * 0.828, cx - w * 0.050, h * 0.800)
+          ..close();
+        canvas.drawPath(surcoat, Paint()..color = sapphire.withValues(alpha: 0.92));
+        canvas.drawPath(surcoat, _inkStroke..strokeWidth = 1.1);
+        // The crown's chevron, repeated from the shield — a livery reads as
+        // livery only when the same mark is in two places.
+        canvas.drawPath(
+            Path()
+              ..moveTo(cx - w * 0.038, h * 0.680)
+              ..lineTo(cx, h * 0.650)
+              ..lineTo(cx + w * 0.038, h * 0.680),
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = w * 0.016
+              ..strokeCap = StrokeCap.round
+              ..color = body.trim);
+        _belt(canvas, cx, h * 0.745, w);
+      case 'huntress':
+        // A working rogue's kit: a bandolier across the bare midriff, a hip
+        // pouch, and a hood collar bunched at the shoulders. Without any of it
+        // she was a figure in a vest — the straps are what say she is carrying
+        // a job's worth of equipment.
+        final leather = _darken(body.dark, 0.22);
+        final cowl = Path()
+          ..moveTo(cx - w * 0.185, h * 0.548)
+          ..quadraticBezierTo(cx, h * 0.520, cx + w * 0.185, h * 0.548)
+          ..quadraticBezierTo(
+              cx + w * 0.140, h * 0.600, cx + w * 0.075, h * 0.588)
+          ..quadraticBezierTo(cx, h * 0.565, cx - w * 0.075, h * 0.588)
+          ..quadraticBezierTo(
+              cx - w * 0.140, h * 0.600, cx - w * 0.185, h * 0.548)
+          ..close();
+        _fillInked(canvas, cowl, leather);
+        // Two pouches on the belt line, one either side of the buckle.
+        for (final sx in [-1.0, 1.0]) {
+          final pouch = RRect.fromRectAndRadius(
+              Rect.fromCenter(
+                  center: Offset(cx + sx * w * 0.115, h * 0.755),
+                  width: w * 0.070,
+                  height: h * 0.050),
+              Radius.circular(w * 0.018));
+          canvas.drawRRect(pouch, Paint()..color = leather);
+          canvas.drawRRect(pouch, _inkStroke..strokeWidth = 1.0);
+          canvas.drawLine(
+              Offset(cx + sx * w * 0.115 - w * 0.030, h * 0.744),
+              Offset(cx + sx * w * 0.115 + w * 0.030, h * 0.744),
+              Paint()
+                ..strokeWidth = 1.2
+                ..color = body.trim.withValues(alpha: 0.75));
+        }
     }
   }
 
@@ -810,6 +1031,21 @@ class RoyalCharacterPainter extends CustomPainter {
     // undo the tapering the torso is doing.
     _capsule(canvas, shoulder, hand,
         w * (body.outfit == RoyalOutfit.bodysuit ? 0.062 : 0.078), sleeve);
+    if (body.outfit == RoyalOutfit.bodysuit) {
+      // Wrapped forearms: the bare arm needs one break in it, or a limb this
+      // long in flat skin reads as unfinished rather than as uncovered.
+      final wrapFrom = Offset.lerp(shoulder, hand, 0.55)!;
+      _capsule(canvas, wrapFrom, hand, w * 0.058, _darken(body.dark, 0.18));
+      final axis = Offset(math.sin(angle), math.cos(angle));
+      final across = Offset(-axis.dy, axis.dx);
+      for (var i = 0; i < 2; i++) {
+        final at = Offset.lerp(wrapFrom, hand, 0.28 + i * 0.34)!;
+        canvas.drawLine(at - across * (w * 0.028), at + across * (w * 0.028),
+            Paint()
+              ..strokeWidth = 1.1
+              ..color = body.ink.withValues(alpha: 0.45));
+      }
+    }
     final mitten = hand + Offset(math.sin(angle), math.cos(angle)) * (w * 0.02);
     canvas.save();
     canvas.translate(mitten.dx, mitten.dy);
@@ -997,66 +1233,137 @@ class RoyalCharacterPainter extends CustomPainter {
         canvas.drawRRect(kit, Paint()..color = const Color(0xFFF6F2EA));
         canvas.drawRRect(kit, _inkStroke..strokeWidth = 1.2);
         _plus(canvas, c, w * 0.036, emerald);
-      case RoyalWeapon.shield:
-        // A kite shield, carried face-on to the viewer. It hangs at the arm
-        // at rest and swings ahead of him on the charge — so unlike every
-        // other weapon here it does NOT ride `along()`: a shield turned edge-on
-        // would vanish at the exact moment it matters.
+      case RoyalWeapon.spear:
+        // A guard's spear: taller than he is, so at rest it is the vertical
+        // line the whole silhouette hangs off — the thing a man on post
+        // actually looks like. Levelled, it is the longest reach in the court.
+        //
+        // The shield is NOT here: it lives on the free arm (see [_shield]), so
+        // it stops covering the breastplate it is supposed to be worn over.
         final steel = royal.palette['S'] ?? const Color(0xFFC9D2DE);
         final trim = royal.palette['T'] ?? const Color(0xFFEAF0F8);
         final gem = royal.palette['G'] ?? const Color(0xFF4A8CFF);
-        final drive = rest ? 0.0 : (armAngle.abs() / (math.pi / 2)).clamp(0.0, 1.0);
-        // Strapped to the forearm, not pinched between finger and thumb: at
-        // hand-size it read as a teacup. It covers him from shoulder to thigh.
-        final c = hand.translate(
-            w * 0.03 * drive - w * 0.010, h * 0.030 - h * 0.03 * drive);
-        final halfW = w * 0.185, top = c.dy - h * 0.120, bot = c.dy + h * 0.130;
-        final face = Path()
-          ..moveTo(c.dx - halfW, top + h * 0.014)
-          ..quadraticBezierTo(c.dx, top - h * 0.008, c.dx + halfW, top + h * 0.014)
-          ..lineTo(c.dx + halfW * 0.92, c.dy + h * 0.018)
-          ..quadraticBezierTo(c.dx + halfW * 0.55, bot, c.dx, bot)
-          ..quadraticBezierTo(c.dx - halfW * 0.55, bot, c.dx - halfW * 0.92,
-              c.dy + h * 0.018)
+        final haft = royal.palette['a'] ?? const Color(0xFF64728A);
+        final Offset butt, tip;
+        if (rest) {
+          // Planted: grounded beside him, standing well over the head.
+          butt = Offset(hand.dx, h * 0.945);
+          tip = Offset(hand.dx, h * 0.055);
+        } else {
+          // Couched from the saddle it has to clear the horse's HEAD, which is
+          // drawn in front of the rider — at the on-foot length the whole
+          // charge was a hand's width of steel hidden behind a chanfron.
+          butt = along(h * (_mounted ? 0.22 : 0.16));
+          tip = along(-h * (_mounted ? 1.05 : 0.52));
+        }
+        final spearDir = (tip - butt).direction;
+        _shaft(canvas, butt, Offset.lerp(butt, tip, 0.86)!, w * 0.030, haft,
+            _darken(haft, 0.35));
+        // Butt-cap, so the grounded end reads as deliberate rather than cut.
+        canvas.drawCircle(butt, w * 0.026, Paint()..color = trim);
+        canvas.drawCircle(butt, w * 0.026, _inkStroke..strokeWidth = 1.1);
+        // Sapphire collar where the head meets the haft, then a long leaf blade.
+        final collar = Offset.lerp(butt, tip, 0.80)!;
+        canvas.drawCircle(collar, w * 0.030, Paint()..color = gem);
+        canvas.drawCircle(collar, w * 0.030, _inkStroke..strokeWidth = 1.0);
+        final leafBase = Offset.lerp(butt, tip, 0.83)!;
+        final perp = Offset(-math.sin(spearDir), math.cos(spearDir));
+        final leaf = Path()
+          ..moveTo(leafBase.dx, leafBase.dy)
+          ..quadraticBezierTo(
+              leafBase.dx + perp.dx * w * 0.055,
+              leafBase.dy + perp.dy * w * 0.055,
+              tip.dx,
+              tip.dy)
+          ..quadraticBezierTo(
+              leafBase.dx - perp.dx * w * 0.055,
+              leafBase.dy - perp.dy * w * 0.055,
+              leafBase.dx,
+              leafBase.dy)
           ..close();
-        canvas.drawPath(face, Paint()..color = steel);
-        // A darker half sells the curve without needing a gradient.
-        canvas.save();
-        canvas.clipPath(face);
-        canvas.drawRect(
-            Rect.fromLTWH(c.dx, top - h * 0.02, halfW * 1.2, bot - top + h * 0.04),
-            Paint()..color = _darken(steel, 0.22));
-        canvas.restore();
-        canvas.drawPath(face, _inkStroke..strokeWidth = 1.3);
-        // Sapphire boss, and a trim chevron above it.
-        canvas.drawCircle(c, w * 0.042, Paint()..color = gem);
-        canvas.drawCircle(c, w * 0.042, _inkStroke..strokeWidth = 1.1);
-        canvas.drawPath(
-            Path()
-              ..moveTo(c.dx - halfW * 0.58, c.dy - h * 0.052)
-              ..lineTo(c.dx, c.dy - h * 0.078)
-              ..lineTo(c.dx + halfW * 0.58, c.dy - h * 0.052),
+        _fillInked(canvas, leaf, steel);
+        canvas.drawLine(
+            Offset.lerp(leafBase, tip, 0.12)!,
+            Offset.lerp(leafBase, tip, 0.86)!,
             Paint()
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = w * 0.014
-              ..color = trim);
+              ..strokeWidth = 1.3
+              ..strokeCap = StrokeCap.round
+              ..color = Colors.white.withValues(alpha: 0.70));
+        // Sapphire pennon under the collar — a guard's spear carries the
+        // crown's colours, and it is the one piece of him that moves on its
+        // own. A long swallow-tail streamer running DOWN the shaft, not a
+        // little flag sticking out sideways: at pennant proportions it read as
+        // a scrap of blue floating next to him rather than as anything flown.
+        final ripple = math.sin(t * 2 * math.pi * 1.6);
+        final rootA = Offset.lerp(butt, tip, 0.76)!;
+        final rootB = Offset.lerp(butt, tip, 0.52)!;
+        // Planted, `perp` points INBOARD — straight across his own helm. A
+        // pennon hangs on the outside of a grounded spear; levelled, it
+        // streams below the shaft, which is what `perp` already gives.
+        final fly = rest ? -perp : perp;
+        final outA = fly * (w * 0.115 + w * 0.014 * ripple);
+        final outB = fly * (w * 0.085 - w * 0.010 * ripple);
+        final flag = Path()
+          ..moveTo(rootA.dx, rootA.dy)
+          ..quadraticBezierTo(
+              rootA.dx + outA.dx * 0.6,
+              rootA.dy + outA.dy * 0.6,
+              rootA.dx + outA.dx,
+              rootA.dy + outA.dy)
+          // The notch of the swallow tail, bitten back toward the shaft.
+          ..lineTo(
+              Offset.lerp(rootA, rootB, 0.5)!.dx + fly.dx * w * 0.048,
+              Offset.lerp(rootA, rootB, 0.5)!.dy + fly.dy * w * 0.048)
+          ..lineTo(rootB.dx + outB.dx, rootB.dy + outB.dy)
+          ..quadraticBezierTo(rootB.dx + outB.dx * 0.5,
+              rootB.dy + outB.dy * 0.5, rootB.dx, rootB.dy)
+          ..close();
+        _fillInked(canvas, flag, gem);
+        canvas.drawLine(rootA, rootB,
+            Paint()
+              ..strokeWidth = 1.4
+              ..color = _darken(gem, 0.35));
       case RoyalWeapon.daggers:
         // Paired blades, one forward and one reversed in an ice-pick grip —
         // the reversed one is what stops this reading as a single small sword.
+        //
+        // Both blades take [_Pose.bladeSpin] on top of the arm angle, which is
+        // what lets her twirl them in her fingers while the wrist holds still;
+        // [_Pose.bladeOpen] swings the off-hand one clear of the hip, because
+        // at rest the two overlap into a single shape.
         final steel = royal.palette['S'] ?? const Color(0xFFC9D2DE);
         final wrap = royal.palette['h'] ?? const Color(0xFF221726);
-        void blade(Offset from, double dir, double len) {
-          final tip = from + Offset(math.sin(dir), -math.cos(dir)) * -len;
+        final edge = royal.theme.accent;
+        void blade(Offset from, double dir, double len, {double glint = 0}) {
+          final axis = Offset(math.sin(dir), -math.cos(dir));
+          final tip = from + axis * -len;
           _shaft(canvas, from, tip, w * 0.026, steel, _darken(steel, 0.4));
-          // Short wrapped grip behind the hand.
-          final butt = from + Offset(math.sin(dir), -math.cos(dir)) * (len * 0.30);
+          // A hair of absinthe down the edge — she is the only royal whose
+          // steel is coloured, and it is what makes two small blades findable
+          // against a dark body.
+          canvas.drawLine(
+              Offset.lerp(from, tip, 0.22)!,
+              Offset.lerp(from, tip, 0.94)!,
+              Paint()
+                ..strokeWidth = 1.4
+                ..strokeCap = StrokeCap.round
+                ..color = edge.withValues(alpha: 0.55 + 0.45 * glint));
+          // Short wrapped grip behind the hand, and a small pommel.
+          final butt = from + axis * (len * 0.30);
           _shaft(canvas, from, butt, w * 0.030, wrap, _darken(wrap, 0.3));
+          canvas.drawCircle(butt, w * 0.019, Paint()..color = _darken(steel, 0.2));
         }
-        // Lead hand: blade forward along the arm.
-        blade(hand, dir, h * 0.20);
-        // Off hand: mirrored behind the body, held reversed.
-        final off = hand.translate(-w * 0.085, h * 0.030);
-        blade(off, dir + math.pi * 0.86, h * 0.155);
+        final spin = pose.bladeSpin;
+        final open = pose.bladeOpen;
+        // Lead hand: blade forward along the arm, spinning in the fingers.
+        blade(hand, dir + spin, h * 0.20,
+            glint: (math.sin(spin * 2) * 0.5 + 0.5) * 0.8);
+        // Off hand: held reversed, tucked at the hip until `bladeOpen` swings
+        // it clear of the body.
+        final off = hand.translate(
+            -w * (0.085 + 0.055 * open), h * (0.030 - 0.045 * open));
+        blade(off, dir - spin + math.pi * (0.86 - 0.34 * open), h * 0.165,
+            glint: (math.cos(spin * 2) * 0.5 + 0.5) * 0.8);
       case RoyalWeapon.orbs:
         break; // painted by _orbs
     }
@@ -1099,6 +1406,10 @@ class RoyalCharacterPainter extends CustomPainter {
       'prince' => _darken(body.main, 0.35),
       'darkprince' => const Color(0xFF17181E),
       'sovereign' => body.dark,
+      // The guard's cloak, and the largest piece of sapphire he owns. Steel
+      // plate cannot carry a court colour — every surface on him wants to be
+      // metal — so the colour has to come from cloth hung behind it.
+      'sentinel' => royal.theme.accentDeep,
       _ => null,
     };
     if (capeColor == null) return;
@@ -1106,11 +1417,21 @@ class RoyalCharacterPainter extends CustomPainter {
     final cx = w * 0.5;
     final flutter = math.sin(t * 2 * math.pi * 1.5) * w * 0.02 +
         pose.stride * w * 0.06;
-    final hemY = h * (royal.id == 'sovereign' ? 0.88 : 0.83);
+    final hemY = h * switch (royal.id) {
+      'sovereign' => 0.88,
+      // A guard's cloak is short — it clears the knee so he can move in it.
+      'sentinel' => 0.78,
+      _ => 0.83,
+    };
+    // The Sentinel's hangs off BOTH shoulders and spreads wider than the body,
+    // because it is the only sapphire he owns that is not the shield. At the
+    // shared width it sat entirely behind the torso and showed one blue
+    // triangle by his ankle.
+    final guard = royal.id == 'sentinel';
     final path = Path()
-      ..moveTo(cx - w * 0.13, h * 0.555)
-      ..lineTo(cx + w * 0.10, h * 0.555)
-      ..lineTo(cx - w * 0.02 - flutter, hemY);
+      ..moveTo(cx - w * (guard ? 0.185 : 0.13), h * 0.555)
+      ..lineTo(cx + w * (guard ? 0.165 : 0.10), h * 0.555)
+      ..lineTo(cx + w * (guard ? 0.075 : -0.02) - flutter, hemY);
     if (royal.id == 'darkprince') {
       // Tattered hem: three ragged points.
       path
@@ -1118,10 +1439,26 @@ class RoyalCharacterPainter extends CustomPainter {
         ..lineTo(cx - w * 0.15 - flutter, hemY + h * 0.01)
         ..lineTo(cx - w * 0.21 - flutter, hemY - h * 0.035);
     } else {
-      path.lineTo(cx - w * 0.24 - flutter, hemY);
+      path.lineTo(cx - w * (guard ? 0.285 : 0.24) - flutter, hemY);
     }
     path.close();
     _fillInked(canvas, path, capeColor);
+    if (guard) {
+      // Two clasps at the collar and a lit fold, so a wide flat panel of one
+      // colour still reads as cloth rather than as a painted backdrop.
+      canvas.drawLine(
+          Offset(cx - w * 0.06, h * 0.575),
+          Offset(cx - w * 0.155 - flutter * 0.7, hemY - h * 0.010),
+          Paint()
+            ..strokeWidth = 1.6
+            ..color = _lighten(capeColor, 0.30).withValues(alpha: 0.75));
+      for (final sx in [-1.0, 1.0]) {
+        canvas.drawCircle(Offset(cx + sx * w * 0.155, h * 0.560), w * 0.022,
+            Paint()..color = body.trim);
+        canvas.drawCircle(Offset(cx + sx * w * 0.155, h * 0.560), w * 0.022,
+            _inkStroke..strokeWidth = 1.1);
+      }
+    }
   }
 
   void _head(Canvas canvas, Size size, _Pose pose) {
@@ -1289,6 +1626,10 @@ class RoyalCharacterPainter extends CustomPainter {
   /// other was only half-equipped. Drawn last, over the arm, so the straps
   /// read as being on this side of it.
   void _shield(Canvas canvas, Size size, Offset shoulder, double armAngle) {
+    if (royal.id == 'sentinel') {
+      _towerShield(canvas, size, shoulder, armAngle);
+      return;
+    }
     if (royal.id != 'darkprince') return;
     final w = size.width, h = size.height;
     final hand =
@@ -1356,9 +1697,87 @@ class RoyalCharacterPainter extends CustomPainter {
     canvas.restore();
   }
 
+  /// The Sentinel's kite shield, strapped to the FREE forearm.
+  ///
+  /// It used to be his weapon, drawn from the weapon hand — which put it flat
+  /// across his own chest and hid every piece of plate detail he has. On the
+  /// free arm it sits where a shield is actually worn: outboard, covering the
+  /// leading side, with the breastplate and the spear both still readable.
+  void _towerShield(
+      Canvas canvas, Size size, Offset shoulder, double armAngle) {
+    final w = size.width, h = size.height;
+    final hand =
+        shoulder + Offset(math.sin(armAngle), math.cos(armAngle)) * (h * 0.125);
+    final steel = royal.palette['S'] ?? const Color(0xFFC9D2DE);
+    final trim = royal.palette['T'] ?? const Color(0xFFEAF0F8);
+    final gem = royal.palette['G'] ?? const Color(0xFF4A8CFF);
+
+    canvas.save();
+    canvas.translate(hand.dx + w * 0.045, hand.dy + h * 0.010);
+    // A strapped shield barely follows the elbow — it hangs off the forearm
+    // and stays close to upright however the arm swings.
+    canvas.rotate(armAngle * 0.30 - 0.06);
+
+    final halfW = w * 0.165, top = -h * 0.155, tip = h * 0.150;
+    final face = Path()
+      ..moveTo(-halfW, top + h * 0.016)
+      ..quadraticBezierTo(0, top - h * 0.012, halfW, top + h * 0.016)
+      ..lineTo(halfW * 0.94, tip * 0.30)
+      ..quadraticBezierTo(halfW * 0.60, tip * 0.86, 0, tip)
+      ..quadraticBezierTo(-halfW * 0.60, tip * 0.86, -halfW * 0.94, tip * 0.30)
+      ..close();
+    // The FIELD is sapphire, not steel. A steel board on a steel man in steel
+    // plate gave him one value and no colour at all — the shield is the only
+    // flat surface big enough to carry his court shade to the front.
+    _fillInked(canvas, face, gem);
+    // A darker half sells the curve of the board without needing a gradient.
+    canvas.save();
+    canvas.clipPath(face);
+    canvas.drawRect(
+        Rect.fromLTWH(0, top - h * 0.02, halfW * 1.2, tip - top + h * 0.04),
+        Paint()..color = _darken(gem, 0.28));
+    canvas.restore();
+    // Steel rim right round the board, so it still reads as a made object.
+    canvas.drawPath(
+        face,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = w * 0.024
+          ..strokeJoin = StrokeJoin.round
+          ..color = steel);
+    canvas.drawPath(face, _inkStroke..strokeWidth = 1.3);
+    // Bright rim highlight along the top edge.
+    canvas.drawLine(
+        Offset(-halfW * 0.76, top + h * 0.024),
+        Offset(halfW * 0.76, top + h * 0.024),
+        Paint()
+          ..strokeWidth = h * 0.008
+          ..strokeCap = StrokeCap.round
+          ..color = trim);
+    // Steel boss and the crown's chevron above it, both now reading light-on-
+    // dark rather than the other way round.
+    canvas.drawCircle(Offset(0, h * 0.010), w * 0.040, Paint()..color = steel);
+    canvas.drawCircle(
+        Offset(0, h * 0.010), w * 0.040, _inkStroke..strokeWidth = 1.1);
+    canvas.drawCircle(Offset(-w * 0.012, h * 0.002), w * 0.013,
+        Paint()..color = Colors.white.withValues(alpha: 0.85));
+    canvas.drawPath(
+        Path()
+          ..moveTo(-halfW * 0.62, -h * 0.052)
+          ..lineTo(0, -h * 0.082)
+          ..lineTo(halfW * 0.62, -h * 0.052),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = w * 0.016
+          ..strokeCap = StrokeCap.round
+          ..color = trim);
+    canvas.restore();
+  }
+
   /// Effects drawn unsquashed above the figure: impact sparks, cheer
   /// stars/hearts, fume anger-mark + steam.
-  void _actionAccents(Canvas canvas, Size size, _Pose pose) {
+  void _actionAccents(
+      Canvas canvas, Size size, _Pose pose, RoyalAction action) {
     if (pose.flourish <= 0) return;
     final w = size.width, h = size.height;
     final accent = royal.theme.accent;
@@ -1737,6 +2156,164 @@ class RoyalCharacterPainter extends CustomPainter {
                 ..color = Colors.white
                     .withValues(alpha: 0.38 * (1 - p) * pose.flourish));
         }
+      case RoyalAction.brace:
+        // Deliberately the quietest accent in the court: grit kicked up where
+        // the shield rim meets the ground, and one cold glint travelling the
+        // spear. No stars, no hearts — he is not saying hello. Before this he
+        // fell through to the cheer case and braced inside a ring of little
+        // pink hearts, which is the exact opposite of the character.
+        final at = Offset(w * 0.30, h * 0.945);
+        for (var i = 0; i < 5; i++) {
+          final p = ((t * 1.6 + i * 0.21) % 1.0);
+          final a = math.pi + 0.35 + i * 0.28;
+          canvas.drawCircle(
+              at + Offset(math.cos(a), math.sin(a) * 0.55) * (w * 0.16 * p),
+              w * 0.014 * (1 - p) + w * 0.004,
+              Paint()
+                ..color = body.ink
+                    .withValues(alpha: 0.22 * (1 - p) * pose.flourish));
+        }
+        final glintP = ((t - 0.36) / 0.5).clamp(0.0, 1.0);
+        if (glintP > 0 && glintP < 1) {
+          canvas.drawCircle(
+              Offset(w * 0.30 + w * 0.42 * glintP, h * 0.47),
+              w * 0.030 * math.sin(glintP * math.pi),
+              Paint()
+                ..color = Colors.white.withValues(
+                    alpha: 0.55 * math.sin(glintP * math.pi))
+                ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3));
+        }
+      case RoyalAction.thrust:
+        // A straight streak down the line of the point — a thrust is the one
+        // attack in the court with no arc in it at all, and drawing it with
+        // the shared crescent would file him in with the slashers.
+        final y = h * 0.50;
+        for (final (len, thick, col) in [
+          (0.46, 6.0, accent.withValues(alpha: 0.28 * pose.flourish)),
+          (0.40, 2.4, Colors.white.withValues(alpha: 0.60 * pose.flourish)),
+        ]) {
+          canvas.drawLine(
+              Offset(w * 0.42, y),
+              Offset(w * (0.42 + len * pose.flourish), y),
+              Paint()
+                ..strokeWidth = thick
+                ..strokeCap = StrokeCap.round
+                ..color = col);
+        }
+      case RoyalAction.vault:
+      case RoyalAction.flyKick:
+        // Twin ribbons trailing the blades through the arc. Two arcs at
+        // different radii read as two blades; one reads as a swoosh.
+        for (final (rr, sweepMul, paintW, col) in [
+          (0.46, 1.00, 5.0, accent.withValues(alpha: 0.26 * pose.flourish)),
+          (0.38, 0.82, 2.4, Colors.white.withValues(alpha: 0.55 * pose.flourish)),
+        ]) {
+          canvas.drawArc(
+            Rect.fromCircle(center: Offset(w * 0.5, h * 0.56), radius: w * rr),
+            math.pi * 0.30,
+            math.pi * 1.05 * sweepMul * pose.flourish,
+            false,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeCap = StrokeCap.round
+              ..strokeWidth = paintW
+              ..color = col,
+          );
+        }
+        // Speed lines behind her, so the air reads as moving too.
+        for (var i = 0; i < 3; i++) {
+          final p = ((t * 2.4 + i * 0.3) % 1.0);
+          canvas.drawLine(
+              Offset(w * (0.10 - 0.10 * p), h * (0.36 + i * 0.16)),
+              Offset(w * (0.30 - 0.14 * p), h * (0.36 + i * 0.16)),
+              Paint()
+                ..strokeWidth = 2.0
+                ..strokeCap = StrokeCap.round
+                ..color = accent.withValues(
+                    alpha: 0.30 * (1 - p) * pose.flourish));
+        }
+      case RoyalAction.bladeDance:
+        // The blades spinning in her fingers, drawn as the arc each edge is
+        // sweeping right now — a trail, chasing the blade round.
+        //
+        // Closed circles were the first attempt and they read as two hoops
+        // hanging off her wrists: a full ring is a drawn object, and only the
+        // partial arc reads as something moving fast enough to blur.
+        for (final (cx, cy, rr, phase) in [
+          (0.36, 0.63, 0.115, 0.0),
+          (0.64, 0.61, 0.095, math.pi),
+        ]) {
+          final c = Offset(w * cx, h * cy);
+          for (final (span, thick, col) in [
+            (0.90, 4.0, accent.withValues(alpha: 0.26 * pose.flourish)),
+            (0.55, 2.2, Colors.white.withValues(alpha: 0.62 * pose.flourish)),
+          ]) {
+            canvas.drawArc(
+              Rect.fromCircle(center: c, radius: w * rr),
+              pose.bladeSpin + phase - span,
+              span,
+              false,
+              Paint()
+                ..style = PaintingStyle.stroke
+                ..strokeCap = StrokeCap.round
+                ..strokeWidth = thick
+                ..color = col,
+            );
+          }
+        }
+      case RoyalAction.daggerToss:
+        // The thrown blade, drawn here because it has LEFT her hand — nothing
+        // in the rig can hold a weapon that is not attached to an arm. Up,
+        // over, and back down into the catch.
+        final fly = (t / 0.74).clamp(0.0, 1.0);
+        if (t < 0.76) {
+          final arc = math.sin(fly * math.pi);
+          final c = Offset(w * (0.42 + 0.16 * fly), h * (0.62 - 0.62 * arc));
+          canvas.save();
+          canvas.translate(c.dx, c.dy);
+          canvas.rotate(fly * 6 * math.pi); // end-over-end
+          final steel = royal.palette['S'] ?? const Color(0xFFC9D2DE);
+          _shaft(canvas, Offset(0, h * 0.045), Offset(0, -h * 0.055),
+              w * 0.024, steel, _darken(steel, 0.4));
+          canvas.drawLine(
+              Offset(0, h * 0.030),
+              Offset(0, -h * 0.048),
+              Paint()
+                ..strokeWidth = 1.4
+                ..strokeCap = StrokeCap.round
+                ..color = accent);
+          canvas.restore();
+          // A faint absinthe trail marking the path it has already flown.
+          canvas.drawArc(
+            Rect.fromCircle(
+                center: Offset(w * 0.50, h * 0.62), radius: h * 0.62),
+            -math.pi * 0.62,
+            math.pi * 0.30 * fly,
+            false,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 1.8
+              ..color = accent.withValues(alpha: 0.30),
+          );
+        }
+        // The sweep-kick's ground arc.
+        final sweep = math.sin(((t - 0.20) / 0.34).clamp(0.0, 1.0) * math.pi);
+        if (sweep > 0.02) {
+          canvas.drawArc(
+            Rect.fromCenter(
+                center: Offset(w * 0.5, h * 0.90),
+                width: w * 0.90,
+                height: h * 0.16),
+            math.pi * 0.05,
+            math.pi * 0.90 * sweep,
+            false,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeCap = StrokeCap.round
+              ..strokeWidth = 3.0
+              ..color = accent.withValues(alpha: 0.45 * sweep),
+          );
+        }
       default:
         // Cheer: stars and hearts popping around the head.
         for (var i = 0; i < 4; i++) {
@@ -1849,6 +2426,15 @@ class RoyalCharacterPainter extends CustomPainter {
     _decorate(canvas, size, pose);
     _head(canvas, size, pose);
     _headArmor(canvas, size, pose);
+    if (royal.weapon == RoyalWeapon.spear) {
+      // Same order swap as [_figure], and it matters more here: a COUCHED
+      // spear lies across the horse's neck at exactly the height the shield
+      // covers, so in the shared order the entire charge had no spear in it.
+      _arm(canvas, nearShoulder, pose.armFree, 0, size);
+      _shield(canvas, size, nearShoulder, pose.armFree);
+      _frontWeapon(canvas, size, farShoulder, pose);
+      return;
+    }
     _frontWeapon(canvas, size, farShoulder, pose);
     if (royal.weapon == RoyalWeapon.orbs) _orbs(canvas, size, front: true);
     _arm(canvas, nearShoulder, pose.armFree, 0, size);
@@ -1856,16 +2442,26 @@ class RoyalCharacterPainter extends CustomPainter {
   }
 
   _Pose _riderPose(double cyc) => _Pose(
-        armFree: 0.95, // reins hand forward
-        armWeapon: royal.weapon == RoyalWeapon.knightSword ||
-                royal.weapon == RoyalWeapon.warClub ||
-                royal.weapon == RoyalWeapon.sword
-            // Charge! — and on the roar the blade goes all the way up, so the
-            // Sovereign is presenting his lion rather than riding past on it.
-            ? (action == RoyalAction.roar ? -2.6 : -2.1)
-            : -0.35,
+        // The Sentinel has no free hand for reins — the shield is on that arm
+        // — so it comes forward and low instead, covering the horse's shoulder
+        // the way a barded charge actually works.
+        armFree: royal.weapon == RoyalWeapon.spear ? 0.50 : 0.95,
+        armWeapon: switch (royal.weapon) {
+          // Charge! — and on the roar the blade goes all the way up, so the
+          // Sovereign is presenting his lion rather than riding past on it.
+          RoyalWeapon.knightSword || RoyalWeapon.warClub || RoyalWeapon.sword =>
+            action == RoyalAction.roar ? -2.6 : -2.1,
+          // COUCHED. A spear carried upright on horseback is a man commuting;
+          // levelled across the horse's neck it is a charge, and it is the one
+          // thing this royal's whole silhouette is built to do. Well past the
+          // 0.6rad rest band, so the shaft rides the arm instead of standing.
+          RoyalWeapon.spear => 1.45 + 0.05 * math.sin(cyc),
+          _ => -0.35,
+        },
         gaze: action == RoyalAction.roar ? 0 : 1,
         blink: action == RoyalAction.roar ? false : _blink(t),
+        // He leans into it slightly on the beat, which the others do not.
+        lean: royal.weapon == RoyalWeapon.spear ? 0.06 : 0,
         headTilt: 0.03 * math.sin(cyc),
       );
 
@@ -2833,36 +3429,62 @@ class RoyalCharacterPainter extends CustomPainter {
     final x = w * 0.5 + (t - 0.5) * uw * 0.86;
 
     // The airborne window. Outside it she is simply running.
-    const a = 0.30, b = 0.70;
+    const a = 0.28, b = 0.72;
     final air = (t >= a && t < b) ? (t - a) / (b - a) : -1.0;
 
-    // _paintStanding always draws centred on `size`, so movement is applied to
-    // the canvas rather than passed in.
     if (air < 0) {
       final crouch = t < a
           ? Curves.easeIn.transform(((t - (a - 0.10)) / 0.10).clamp(0.0, 1.0))
-          : Curves.easeOut.transform((1 - (t - b) / 0.10).clamp(0.0, 1.0));
-      canvas.save();
-      canvas.translate(x - w * 0.5, h * 0.045 * crouch); // gather / absorb
-      _paintStanding(
-          canvas, size, _poseFor(RoyalAction.run, (t * 6) % 1.0));
-      canvas.restore();
+          : Curves.easeOut.transform((1 - (t - b) / 0.12).clamp(0.0, 1.0));
+      _onFootFigure(canvas, size,
+          at: Offset(x, h * 0.045 * crouch),
+          pose: _poseFor(RoyalAction.run, (t * 6) % 1.0),
+          as: RoyalAction.run);
       return;
     }
 
     // Airborne: a parabola with one full rotation about her own centre.
     final lift = math.sin(air * math.pi);
-    final rise = h * 0.34 * lift;
+    final rise = h * 0.36 * lift;
     // The shadow stays on the ground and shrinks as she leaves it.
     _shadow(canvas, Offset(x, ground), uw * 0.10 * (1 - 0.45 * lift),
         const _Pose());
-    final pivot = Offset(w * 0.5, ground - rise - h * 0.16);
+    _onFootFigure(canvas, size,
+        at: Offset(x, -rise),
+        pose: _poseFor(RoyalAction.vault, air),
+        as: RoyalAction.vault,
+        // Rotation about her own middle, not the box's: the pivot has to ride
+        // the figure or she orbits a point in space instead of tumbling.
+        spin: air * 2 * math.pi);
+  }
+
+  /// Draws the STANDING figure inside a wide ride box, at the standing box's
+  /// own proportions, centred on [at].dx and offset by [at].dy.
+  ///
+  /// The whole point is that `size` here is the 150x96 ride box while the
+  /// figure is authored for a 78x100 portrait one. Handing the wide box
+  /// straight to [_paintStanding] scales the head — which is `w * 0.66` — to
+  /// 99px inside a 96px-tall frame: a head bigger than the entire cell, with
+  /// the body somewhere underneath it. On a somersault that is all you see,
+  /// and it is exactly what shipped: a giant head rolling across the screen.
+  void _onFootFigure(Canvas canvas, Size size,
+      {required Offset at,
+      required _Pose pose,
+      required RoyalAction as,
+      double spin = 0}) {
+    final h = size.height;
+    // Same 0.78 aspect as the host's standing box.
+    final box = Size(h * 0.78, h);
     canvas.save();
-    canvas.translate(x - w * 0.5, -rise);
-    canvas.translate(pivot.dx, pivot.dy);
-    canvas.rotate(air * 2 * math.pi);
-    canvas.translate(-pivot.dx, -pivot.dy);
-    _paintStanding(canvas, size, _poseFor(RoyalAction.vault, air));
+    canvas.translate(at.dx - box.width / 2, at.dy);
+    if (spin != 0) {
+      // Her middle: below the big head, above the hips.
+      final pivot = Offset(box.width * 0.5, box.height * 0.62);
+      canvas.translate(pivot.dx, pivot.dy);
+      canvas.rotate(spin);
+      canvas.translate(-pivot.dx, -pivot.dy);
+    }
+    _paintStanding(canvas, box, pose, as: as);
     canvas.restore();
   }
 
@@ -3256,38 +3878,195 @@ class RoyalCharacterPainter extends CustomPainter {
           flourish: 0.35 + 0.65 * math.max(read, clear),
         );
       case RoyalAction.brace:
-        // Shield planted, weight forward, head down behind the rim. He does
+        // Shield down, spear levelled across the rim, and then nothing. He does
         // not look up and he does not wave: the guard's signature is that he
         // refuses to perform for you.
-        final set = Curves.easeOutCubic.transform((t / 0.28).clamp(0.0, 1.0));
-        final settle = math.sin(t * 2 * math.pi * 1.2) * 0.006 * set;
+        //
+        // The first pass leaned him 0.13rad and dropped the head, which on a
+        // bobblehead does not read as "set" — it reads as toppling. The weight
+        // now goes DOWN (squash + a wide stance) instead of forward, and the
+        // stillness afterwards is the beat that carries it.
+        final stamp = Curves.easeOutCubic.transform((t / 0.16).clamp(0.0, 1.0));
+        final set =
+            Curves.easeOutQuart.transform(((t - 0.14) / 0.22).clamp(0.0, 1.0));
+        // A single slow breath over the hold. Anything faster and the stillness
+        // stops looking deliberate and starts looking frozen.
+        final breath = math.sin((t - 0.36).clamp(0.0, 1.0) * math.pi * 1.4);
         return _Pose(
-          bob: 0.030 * set + settle,
-          lean: 0.13 * set,
-          squash: 1 - 0.030 * set,
-          legPhase: -0.55 * set,
-          stride: 0.5 * set,
-          armFree: -0.30 * set,
-          armWeapon: 1.32 * set, // shield swung across the body
-          headTilt: 0.16 * set,
+          bob: 0.022 * set + 0.004 * breath,
+          // Almost nothing. The weight goes DOWN, not forward.
+          lean: 0.018 * set,
+          squash: 1 - 0.055 * set + 0.006 * breath,
+          // Feet apart and rooted, not mid-step.
+          legPhase: -0.85,
+          stride: 0.42 * stamp,
+          // Shield arm drops to cover the leading side.
+          armFree: 0.34 * set,
+          // Spear levelled over the rim: from upright, down to the horizontal.
+          armWeapon: -0.25 + 1.55 * set,
+          headTilt: 0.04 * set,
           blink: blink,
           flourish: set,
         );
       case RoyalAction.vault:
         // The tumble itself is a canvas rotation (see _rideOnFoot); the pose's
-        // job is to make her TUCK, so the silhouette spinning past reads as an
-        // athlete and not a plank.
-        final tuck = math.sin(t.clamp(0.0, 1.0) * math.pi);
+        // job is to TUCK, so the silhouette spinning past reads as an athlete
+        // and not a plank. The first pass did the opposite — legs thrown wide
+        // and arms crossed over the belly — which is the shape of someone
+        // falling off something.
+        //
+        // Three beats inside one rotation: throw the legs up into the tuck,
+        // hold it tight through the spin, open out to spot the landing.
+        final gather = Curves.easeOutCubic.transform((t / 0.22).clamp(0.0, 1.0));
+        final open = Curves.easeInCubic
+            .transform(((t - 0.66) / 0.34).clamp(0.0, 1.0));
+        final tuck = (gather - open).clamp(0.0, 1.0);
         return _Pose(
-          bob: 0.02 * tuck,
-          squash: 1 - 0.05 * tuck,
-          legPhase: 0.9,
-          stride: 1.35 * tuck,
-          armFree: -1.15 * tuck,
-          armWeapon: 1.15 * tuck, // both blades out through the spin
-          headTilt: -0.34 * tuck,
+          squash: 1 - 0.04 * tuck,
+          // Knees together and drawn up, not scissored apart — see [_legs].
+          legPhase: 0.55,
+          stride: 0.35 + 0.95 * open,
+          tuck: tuck,
+          // Both blades held OUT through the spin. Tucking the arms in too
+          // leaves a ball with nothing readable on it; the legs carry the
+          // tuck, and the arms carry the fact that she is armed while she
+          // does it. They open wider still to spot the ground on the way down.
+          armFree: 0.22 - 1.55 * tuck - 0.55 * open,
+          armWeapon: -0.22 + 1.45 * tuck + 0.65 * open,
+          bladeOpen: 0.55 + 0.45 * open,
+          bladeSpin: tuck * 0.8,
+          headTilt: -0.20 * tuck,
           blink: false, // eyes open through it
-          flourish: tuck,
+          flourish: 0.4 + 0.6 * tuck,
+        );
+      case RoyalAction.thrust:
+        // Levelled behind the rim, driven out, recovered. The lunge is carried
+        // by the LEGS (a long front stride) rather than by leaning further, so
+        // he never loses the upright guard that is the whole character.
+        final level =
+            Curves.easeOutCubic.transform((t / 0.30).clamp(0.0, 1.0));
+        final drive =
+            Curves.easeOutExpo.transform(((t - 0.30) / 0.16).clamp(0.0, 1.0));
+        final back = Curves.easeInOutCubic
+            .transform(((t - 0.52) / 0.48).clamp(0.0, 1.0));
+        final out = drive * (1 - back);
+        return _Pose(
+          // Barely any lean. On a bobblehead a body rotated about the feet
+          // swings the head furthest of anything, and past ~0.1rad a lunge
+          // stops reading as a lunge and starts reading as a man falling over.
+          lean: 0.02 * level + 0.07 * out,
+          squash: 1 - 0.03 * level - 0.06 * out,
+          // The spear comes down off the vertical to the horizontal and pushes.
+          armWeapon: -0.25 + 1.35 * level + 0.45 * out - 1.55 * back,
+          // The shield arm stays put: it is cover, and cover does not move.
+          armFree: 0.10 - 0.10 * level,
+          // The reach comes from the LEGS instead — a long front stride under
+          // an upright guard, which is what a spearman actually does.
+          legPhase: 0.35 * level + 0.85 * out - 0.30 * back,
+          // Enough to be a lunge, not enough to be the splits: at 1.7 the rear
+          // boot swung out past the shield and he read as sliding apart.
+          stride: 0.55 + 0.55 * out,
+          blink: false,
+          gaze: 1,
+          flourish: out,
+        );
+
+      // ── Huntress signature drafts ─────────────────────────────────────────
+      case RoyalAction.bladeDance:
+        // Draft A. Nothing leaves the ground. Two full spins of the blades in
+        // her fingers, a cross in front of the chest, then a slow settle to
+        // guard with one blade reversed. Weight shifts hip to hip underneath.
+        final spin = Curves.easeInOutSine
+            .transform((t / 0.52).clamp(0.0, 1.0)); // the twirl
+        final cross = Curves.easeOutBack
+            .transform(((t - 0.50) / 0.22).clamp(0.0, 1.0));
+        final settle =
+            Curves.easeOutCubic.transform(((t - 0.74) / 0.26).clamp(0.0, 1.0));
+        final rock = math.sin(t * 2 * math.pi * 2);
+        return _Pose(
+          bob: rock * 0.010,
+          sway: rock * 0.045,
+          squash: 1 + rock * 0.012,
+          // Both hands up and working, then drawn in to cross, then down.
+          armWeapon: -0.25 - 1.25 * spin + 0.55 * cross + 0.35 * settle,
+          armFree: 0.22 + 1.35 * spin - 0.60 * cross - 0.45 * settle,
+          // Two and a bit rotations of the blades themselves while the wrists
+          // barely travel — the trick is in the fingers, which is the point.
+          bladeSpin: spin * 4 * math.pi + cross * 0.6 * math.pi,
+          bladeOpen: 0.25 + 0.75 * spin - 0.30 * settle,
+          wiggle: math.sin(t * 2 * math.pi * 4) * 0.5 * (1 - settle),
+          headTilt: 0.06 * spin - 0.10 * cross,
+          gaze: settle > 0.4 ? 0 : 1,
+          blink: false,
+          flourish: math.max(spin * (1 - cross * 0.5), cross * (1 - settle)),
+        );
+      case RoyalAction.flyKick:
+        // Draft B. Gather low, launch, the near boot snaps out horizontal at
+        // the apex with both blades streaming back, land in a deep crouch.
+        final coil =
+            Curves.easeOutCubic.transform((t / 0.20).clamp(0.0, 1.0));
+        final rise =
+            Curves.easeOutQuad.transform(((t - 0.18) / 0.26).clamp(0.0, 1.0));
+        final fall =
+            Curves.easeInQuad.transform(((t - 0.50) / 0.24).clamp(0.0, 1.0));
+        final land =
+            Curves.easeOutCubic.transform(((t - 0.72) / 0.28).clamp(0.0, 1.0));
+        final airborne = (rise - fall).clamp(0.0, 1.0);
+        // The snap is a short spike at the top, not the whole flight.
+        final snap = math.sin(((t - 0.34) / 0.24).clamp(0.0, 1.0) * math.pi);
+        return _Pose(
+          bob: 0.055 * coil - 0.30 * airborne + 0.075 * land * (1 - land),
+          // Kept under 0.2rad for the usual reason — the head is the furthest
+          // thing from the pivot, so body lean moves it more than anything the
+          // pose does on purpose.
+          lean: 0.08 * coil + 0.18 * airborne - 0.10 * land,
+          squash: 1 - 0.12 * coil + 0.06 * airborne - 0.14 * land * (1 - land),
+          // The kicking leg: chambered on the coil, fired at the apex.
+          kick: -0.55 * coil + 2.30 * snap - 0.30 * land,
+          tuck: 0.55 * coil * (1 - rise) + 0.30 * airborne * (1 - snap),
+          legPhase: 0.5,
+          stride: 0.35 + 0.85 * airborne,
+          // Blades streaming back behind the line of the kick.
+          armWeapon: -0.30 - 1.55 * airborne - 0.35 * snap,
+          armFree: 0.25 + 1.15 * airborne + 0.30 * snap,
+          bladeOpen: 0.35 + 0.65 * airborne,
+          bladeSpin: airborne * 0.9,
+          headTilt: -0.12 * airborne,
+          gaze: 1,
+          blink: false,
+          flourish: math.max(snap, land * (1 - land) * 2),
+        );
+      case RoyalAction.daggerToss:
+        // Draft C. The showiest: one blade goes up spinning, she turns a low
+        // sweep-kick underneath it, takes it back reversed behind her back and
+        // levels it down the lens. The airborne dagger is drawn by the accents
+        // (it has left her hand — nothing in the rig can hold it).
+        final toss =
+            Curves.easeOutCubic.transform((t / 0.16).clamp(0.0, 1.0));
+        final sweep = math.sin(((t - 0.20) / 0.34).clamp(0.0, 1.0) * math.pi);
+        final catch_ =
+            Curves.easeOutBack.transform(((t - 0.58) / 0.18).clamp(0.0, 1.0));
+        final present =
+            Curves.easeOutCubic.transform(((t - 0.76) / 0.24).clamp(0.0, 1.0));
+        return _Pose(
+          bob: -0.02 * toss + 0.05 * sweep - 0.01 * present,
+          lean: 0.20 * sweep - 0.06 * present,
+          sway: -0.10 * sweep,
+          squash: 1 - 0.16 * sweep + 0.04 * present,
+          // Low sweep: the near leg scythes right round underneath her.
+          kick: 2.85 * sweep,
+          legPhase: 0.35,
+          stride: 0.5 + 0.7 * sweep,
+          // Throwing hand up, then behind the back for the catch, then out.
+          armWeapon: -0.25 + 2.55 * toss - 2.10 * sweep - 1.25 * catch_ +
+              2.05 * present,
+          armFree: 0.22 - 0.85 * sweep + 0.55 * catch_ - 0.30 * present,
+          bladeSpin: catch_ * math.pi + present * 0.35,
+          bladeOpen: 0.30 + 0.70 * sweep + 0.40 * present,
+          headTilt: -0.10 * toss + 0.14 * sweep - 0.05 * present,
+          gaze: 1,
+          blink: false,
+          flourish: math.max(toss, math.max(sweep * 0.9, present)),
         );
       case RoyalAction.salute:
         // The heir's sword salute: blade to the vertical in front of the face,
