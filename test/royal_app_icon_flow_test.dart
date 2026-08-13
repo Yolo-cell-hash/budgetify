@@ -107,8 +107,18 @@ void main() {
         expect(hers.totalMs, greaterThan(other.totalMs));
         expect(hers.signatureMs, greaterThan(other.signatureMs));
       }
-      // Four beats at a legible ~500ms each.
-      expect(hers.signatureMs, greaterThanOrEqualTo(2000));
+      // Four beats at a legible ~1s each. Raised twice: 550ms a beat still
+      // read as too fast on a device, which is the whole reason the timing
+      // is per-royal rather than a constant.
+      expect(hers.signatureMs, greaterThanOrEqualTo(3500));
+    });
+
+    // The somersault is the other thing that was unreadable, and it is paced
+    // by the crossing rather than by the signature.
+    test('the Huntress crosses slowly enough to see the somersault', () {
+      final hers = RoyalReactionHost.debugBootTiming('huntress');
+      expect(hers.crossingMs, greaterThanOrEqualTo(2500),
+          reason: 'one full rotation has to fit inside 58% of this');
     });
 
     test('an unknown royal still gets the shared default timing', () {

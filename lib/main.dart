@@ -140,17 +140,12 @@ Future<void> _initDeferredServices(
     );
     await RoyalSkinService.sync(int.tryParse(profile.avatarValue) ?? -1);
     // The launcher icon is the third OS surface mirroring the equipped royal,
-    // and it was the only one that never reconciled here — it moved solely
-    // from the equip flow. So anything that changed the avatar by another
-    // route (restoring a backup, a royal revoked) or changed the opt-in
-    // without a save left the icon stranded on a royal the user no longer
-    // wears, and nothing would ever put it right: the equip flow only fires
-    // when the avatar CHANGES, so re-picking the same one could not fix it
-    // either. Silent and restart-free by design.
-    await AppIconService.reconcile(
-      equippedSeed: int.tryParse(profile.avatarValue) ?? -1,
-      enabled: appPreferences.royalAppIcon,
-    );
+    // and it is deliberately NOT reconciled here alongside the other two.
+    // Swapping it disables the launcher component this task is running on,
+    // which tears the app down whatever DONT_KILL_APP claims — so a reconcile
+    // at startup is a crash on launch. Drift is corrected the next time the
+    // user goes through the equip flow, which asks first and then restarts on
+    // purpose. See AppIconService.
   } catch (e) {
     debugPrint('GamificationService.loadProfile failed: $e');
   }

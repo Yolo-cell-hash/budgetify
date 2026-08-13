@@ -550,6 +550,61 @@ void main() {
           ),
         );
 
+    // The reported symptom was "occasionally the launch animation just doesn't
+    // play". The cause: _scheduleBoot marked the session booted and THEN asked
+    // _play to start, and _play refuses silently while a popup is up. A modal
+    // open at launch — a rating prompt, a restore, a tutorial step — therefore
+    // burned the one entrance the session gets on a frame that drew nothing,
+    // and no amount of waiting brought it back.
+    testWidgets('a popup at launch delays the parade, it does not eat it',
+        (tester) async {
+      final sovereign = kRoyalAvatars.firstWhere((r) => r.id == 'sovereign');
+      SharedPreferences.setMockInitialValues({
+        'gamification_v1': jsonEncode({
+          'profile': {
+            'avatarKind': 'pixel',
+            'avatarValue': '${sovereign.spriteIndex}',
+          },
+          'unlockedRoyals': ['sovereign'],
+        }),
+        'royal_custom_animations': true,
+      });
+      final prefs = AppPreferences();
+      await prefs.initialize();
+
+      final navKey = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(observedHost(prefs, navKey));
+      await tester.pump();
+
+      // A dialog goes up before the parade has had a chance to start.
+      showDialog<void>(
+        context: navKey.currentContext!,
+        builder: (_) => const SizedBox.shrink(),
+      );
+      await tester.pump();
+      await tester.pump();
+      expect(RoyalOverlayRouteObserver.instance.popupOpen.value, isTrue);
+
+      // Sit on it for a good while — comfortably past the ~8s the anchor poll
+      // would otherwise have given up after.
+      for (var i = 0; i < 60; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      expect(_hasCharacter(tester), isFalse,
+          reason: 'nothing may paint over the popup');
+
+      // Dismiss it. The entrance is still owed, and must now be taken.
+      navKey.currentState!.pop();
+      await tester.pump();
+      for (var i = 0; i < 14; i++) {
+        await tester.pump(const Duration(milliseconds: 40));
+      }
+      expect(_hasCharacter(tester), isTrue,
+          reason: 'the parade was delayed by the popup, not consumed by it');
+      expect(royalCharacterOut.value, isTrue);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('a modal popup bows the court out and blocks new flourishes',
         (tester) async {
       final sovereign = kRoyalAvatars.firstWhere((r) => r.id == 'sovereign');
