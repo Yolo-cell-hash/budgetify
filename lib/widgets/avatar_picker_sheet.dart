@@ -401,376 +401,391 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
     );
   }
 
-  /// A one-tap row inside the royal sheet: if the user isn't on the royal's
-  /// home primary theme, offer to switch to it so the dress goes live; if
-  /// they already are, a calm confirmation instead.
+  /// Where the court stands on the theme the user is actually in.
+  ///
+  /// This used to be a correction — every royal dressed one mode only, so the
+  /// row's job was to tell you that you were in the wrong one. Now that the
+  /// court follows both primaries it confirms the dress is live and offers
+  /// the *other* mode, so trying a royal both ways is one tap either
+  /// direction. A reward theme is the one place the dress still stands
+  /// aside (each is hand-tuned), so there the row keeps its original job and
+  /// offers the primary nearest the brightness the user already reads in.
   Widget _modeSwitchRow(BuildContext ctx, RoyalAvatar r, Color accent) {
     final theme = ctx.watch<ThemeProvider>();
-    final wantsLight = r.theme.homeBrightness == Brightness.light;
-    final onHome =
-        (theme.variant == AppThemeVariant.light) == wantsLight &&
-        (theme.variant == AppThemeVariant.light ||
-            theme.variant == AppThemeVariant.dark);
-    if (onHome) {
-      return Padding(
-        padding: const EdgeInsets.only(top: 6),
-        child: Row(
-          children: [
-            Icon(Icons.check_circle_rounded, size: 14, color: accent),
-            const SizedBox(width: 6),
-            Text(
-              ctx.l10n.royalOnHomeTheme,
-              style: TextStyle(
-                fontSize: 11.5,
-                color: AppColors.of(ctx).textSecondary,
-              ),
-            ),
-          ],
+    final onLight = theme.variant == AppThemeVariant.light;
+    final onPrimary = onLight || theme.variant == AppThemeVariant.dark;
+
+    Widget switchButton(bool toLight) => Align(
+      alignment: Alignment.centerLeft,
+      child: TextButton.icon(
+        onPressed: () => theme.setVariant(
+          toLight ? AppThemeVariant.light : AppThemeVariant.dark,
         ),
+        style: TextButton.styleFrom(
+          foregroundColor: accent,
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          visualDensity: VisualDensity.compact,
+        ),
+        icon: Icon(
+          toLight ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+          size: 16,
+        ),
+        label: Text(
+          ctx.l10n.royalSwitchMode(toLight),
+          style: const TextStyle(fontSize: 12.5),
+        ),
+      ),
+    );
+
+    if (!onPrimary) {
+      // A reward theme: the court steps aside here. Offer the primary that
+      // matches the brightness they're already reading in.
+      return Padding(
+        padding: const EdgeInsets.only(top: 2),
+        child: switchButton(Theme.of(ctx).brightness == Brightness.light),
       );
     }
     return Padding(
-      padding: const EdgeInsets.only(top: 2),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: TextButton.icon(
-          onPressed: () => theme.setVariant(
-            wantsLight ? AppThemeVariant.light : AppThemeVariant.dark,
+      padding: const EdgeInsets.only(top: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.check_circle_rounded, size: 14, color: accent),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  ctx.l10n.royalCourtLive(onLight),
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: AppColors.of(ctx).textSecondary,
+                  ),
+                ),
+              ),
+            ],
           ),
-          style: TextButton.styleFrom(
-            foregroundColor: accent,
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            visualDensity: VisualDensity.compact,
-          ),
-          icon: Icon(
-            wantsLight ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
-            size: 16,
-          ),
-          label: Text(
-            ctx.l10n.royalSwitchMode(wantsLight),
-            style: const TextStyle(fontSize: 12.5),
+          switchButton(!onLight),
+        ],
+      ),
+    );
+  }
+
+  /// The royal's court sheet: living avatar, lore, the both-modes promise,
+  /// the per-royal app-wide theme toggle, and the Equip action.
+  Future<void> _showRoyalSheet(RoyalAvatar r) async {
+    final value = '${r.spriteIndex}';
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      // A modal CAPTURES its Theme at push time (InheritedTheme.capture), so
+      // the sheet would keep painting in whichever mode it opened in while
+      // the app behind it changed — and the row inside it exists precisely to
+      // change that mode. ThemeProvider is not captured: it resolves live
+      // through the tree, so watching it and re-installing the active theme
+      // over the sheet is what lets "See it in the Dark theme" actually show
+      // you the sheet in dark.
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => Theme(
+          data: ctx.watch<ThemeProvider>().activeTheme,
+          // Nested Builder so AppColors.of / Theme.of below resolve through
+          // the theme just installed, not the captured one above it.
+          child: Builder(
+            builder: (ctx) => _royalSheetBody(ctx, r, value, setSheetState),
           ),
         ),
       ),
     );
   }
 
-  /// The royal's court sheet: living avatar, lore, which primary theme it
-  /// dresses, the per-royal app-wide theme toggle, and the Equip action.
-  Future<void> _showRoyalSheet(RoyalAvatar r) async {
-    final colors = AppColors.of(context);
+  /// The court sheet's contents, under the live app theme (see the Theme wrap
+  /// in [_showRoyalSheet]). [setSheetState] rebuilds the sheet for the toggles
+  /// that live on it.
+  Widget _royalSheetBody(
+    BuildContext ctx,
+    RoyalAvatar r,
+    String value,
+    StateSetter setSheetState,
+  ) {
+    final colors = AppColors.of(ctx);
     // A royal's bright accent (gold / lavender) is legible on a dark
-    // surface but washes out on the light picker; use the deep, ink-legible
-    // shade whenever the surface is light so names/borders stay readable.
-    final accent = Theme.of(context).brightness == Brightness.light
-        ? r.theme.accentDeep
-        : r.theme.accent;
-    final value = '${r.spriteIndex}';
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheetState) {
-          final equipped = _value == value;
-          final unlocked = _isRoyalUnlocked(r);
-          final unlockable = !unlocked && _picks > 0;
-          return Container(
-            padding: const EdgeInsets.fromLTRB(24, 14, 24, 28),
-            decoration: BoxDecoration(
-              color: colors.surface,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(24),
+    // surface but washes out on the light picker; use the deep,
+    // ink-legible shade whenever the surface is light so names and
+    // borders stay readable.
+    final onLightSurface = Theme.of(ctx).brightness == Brightness.light;
+    final accent = onLightSurface ? r.theme.accentDeep : r.theme.accent;
+    // Label ink for a filled button in [accent]: white on the deep
+    // shade, near-black on the bright one. Keyed to the surface the
+    // sheet is on, not to the royal — every court dresses both modes.
+    final onAccent = onLightSurface ? Colors.white : const Color(0xFF15171E);
+    final equipped = _value == value;
+    final unlocked = _isRoyalUnlocked(r);
+    final unlockable = !unlocked && _picks > 0;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 14, 24, 28),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border.all(color: accent.withValues(alpha: 0.45)),
+      ),
+      // Flutter 3.44 asserts if a ListTile's nearest Material ancestor is
+      // further away than a DecoratedBox with a background — the tile
+      // would paint its ink splashes behind this sheet's own fill. A
+      // transparent Material INSIDE the decoration gives the two
+      // SwitchListTiles below somewhere to splash without changing how
+      // anything looks.
+      child: Material(
+        type: MaterialType.transparency,
+        // Scrolls on short screens — the lore + note + toggle stack can
+        // outgrow a small viewport (or a large text scale).
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: colors.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-              border: Border.all(color: accent.withValues(alpha: 0.45)),
-            ),
-            // Flutter 3.44 asserts if a ListTile's nearest Material ancestor is
-            // further away than a DecoratedBox with a background — the tile
-            // would paint its ink splashes behind this sheet's own fill. A
-            // transparent Material INSIDE the decoration gives the two
-            // SwitchListTiles below somewhere to splash without changing how
-            // anything looks.
-            child: Material(
-              type: MaterialType.transparency,
-              // Scrolls on short screens — the lore + note + toggle stack can
-              // outgrow a small viewport (or a large text scale).
-              child: SingleChildScrollView(
-                child: Column(
+              const SizedBox(height: 16),
+              // The royal presents itself — spawn flourish included.
+              AvatarView(kind: 'pixel', value: value, size: 92, ring: false),
+              const SizedBox(height: 10),
+              Text(
+                ctx.l10n.royalAvatarName(r.id),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.2,
+                  color: accent,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                ctx.l10n.royalAvatarLore(r.id),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13,
+                  height: 1.4,
+                  color: colors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 10),
+              // Court note: the dress follows BOTH primary themes, so
+              // this pill promises reach rather than naming one mode.
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: accent.withValues(alpha: 0.35)),
+                ),
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: colors.border,
-                        borderRadius: BorderRadius.circular(2),
+                    // Half-lit disc — the one icon that reads as "both".
+                    Icon(Icons.brightness_6_rounded, size: 14, color: accent),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        ctx.l10n.royalDualModeNote,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: colors.text,
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    // The royal presents itself — spawn flourish included.
-                    AvatarView(
-                      kind: 'pixel',
-                      value: value,
-                      size: 92,
-                      ring: false,
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      ctx.l10n.royalAvatarName(r.id),
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.2,
-                        color: accent,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      ctx.l10n.royalAvatarLore(r.id),
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 13,
-                        height: 1.4,
-                        color: colors.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    // Home-court note: which primary theme the effects live in.
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: accent.withValues(alpha: 0.10),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: accent.withValues(alpha: 0.35),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            r.theme.homeBrightness == Brightness.light
-                                ? Icons.light_mode_rounded
-                                : Icons.dark_mode_rounded,
-                            size: 14,
-                            color: accent,
-                          ),
-                          const SizedBox(width: 6),
-                          Flexible(
-                            child: Text(
-                              ctx.l10n.royalHomeNote(
-                                r.theme.homeBrightness == Brightness.light,
-                              ),
-                              style: TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w600,
-                                color: colors.text,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    // Unlocked royals get the app-wide theme toggle + Equip. A
-                    // still-locked royal shows either an Unlock action (a pick is
-                    // waiting) or a calm "coming soon" note.
-                    if (unlocked) ...[
-                      // "Apply app-wide <court> theme" — the royal's own wording.
-                      SwitchListTile(
-                        value: _applyRoyalTheme,
-                        onChanged: (v) {
-                          setState(() => _applyRoyalTheme = v);
-                          setSheetState(() {});
-                        },
-                        activeThumbColor: accent,
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(
-                          ctx.l10n.royalThemeToggle(r.id),
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: colors.text,
-                          ),
-                        ),
-                      ),
-                      // Full-body theatrics (off by default): the royal roaming,
-                      // peeking and attacking the screen. Global and persisted
-                      // immediately via AppPreferences — not part of this
-                      // profile, so Save/Cancel doesn't touch it. The circle
-                      // avatar keeps blinking and waving either way.
-                      SwitchListTile(
-                        value: ctx
-                            .watch<AppPreferences>()
-                            .royalCustomAnimations,
-                        onChanged: (v) {
-                          ctx.read<AppPreferences>().setRoyalCustomAnimations(
-                            v,
-                          );
-                          setSheetState(() {});
-                        },
-                        activeThumbColor: accent,
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(
-                          ctx.l10n.royalCustomAnimationsTitle,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: colors.text,
-                          ),
-                        ),
-                        subtitle: Padding(
-                          padding: const EdgeInsets.only(top: 2),
-                          child: Text(
-                            ctx.l10n.royalCustomAnimationsDesc,
-                            style: TextStyle(
-                              fontSize: 11.5,
-                              height: 1.3,
-                              color: colors.textTertiary,
-                            ),
-                          ),
-                        ),
-                      ),
-                      // Opt-in: match the Android launcher icon to this royal's
-                      // gem. The switch only records the preference; the icon is
-                      // swapped (after a confirm, since it closes the app) when the
-                      // avatar is saved. Shown on every royal's sheet by design.
-                      if (Platform.isAndroid)
-                        SwitchListTile(
-                          value: ctx.watch<AppPreferences>().royalAppIcon,
-                          onChanged: (v) {
-                            ctx.read<AppPreferences>().setRoyalAppIcon(v);
-                            setSheetState(() {});
-                          },
-                          activeThumbColor: accent,
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(
-                            ctx.l10n.royalAppIconTitle,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: colors.text,
-                            ),
-                          ),
-                          subtitle: Padding(
-                            padding: const EdgeInsets.only(top: 2),
-                            child: Text(
-                              ctx.l10n.royalAppIconDesc,
-                              style: TextStyle(
-                                fontSize: 11.5,
-                                height: 1.3,
-                                color: colors.textTertiary,
-                              ),
-                            ),
-                          ),
-                        ),
-                      // The court's effects only show on its home primary theme;
-                      // offer a one-tap switch when the user isn't there yet.
-                      _modeSwitchRow(ctx, r, accent),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: equipped
-                              ? null
-                              : () {
-                                  setState(() => _value = value);
-                                  Navigator.pop(ctx);
-                                },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: accent,
-                            foregroundColor:
-                                r.theme.homeBrightness == Brightness.light
-                                ? Colors.white
-                                : const Color(0xFF15171E),
-                            disabledBackgroundColor: accent.withValues(
-                              alpha: 0.35,
-                            ),
-                          ),
-                          icon: Icon(
-                            equipped
-                                ? Icons.check_rounded
-                                : Icons.workspace_premium_rounded,
-                            size: 18,
-                          ),
-                          label: Text(
-                            equipped
-                                ? ctx.l10n.equippedRoyal
-                                : ctx.l10n.equipRoyal,
-                          ),
-                        ),
-                      ),
-                    ] else if (unlockable) ...[
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: () async {
-                            await _unlockRoyal(r);
-                            if (!ctx.mounted) return;
-                            Navigator.pop(ctx);
-                            if (mounted) {
-                              showAppToast(
-                                context,
-                                message: context.l10nRead.royalUnlockedToast(
-                                  context.l10nRead.royalAvatarName(r.id),
-                                ),
-                                type: AppToastType.success,
-                              );
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: accent,
-                            foregroundColor:
-                                r.theme.homeBrightness == Brightness.light
-                                ? Colors.white
-                                : const Color(0xFF15171E),
-                          ),
-                          icon: const Icon(Icons.lock_open_rounded, size: 18),
-                          label: Text(ctx.l10n.unlockRoyalCta),
-                        ),
-                      ),
-                    ] else ...[
-                      // Locked with no pick to spend: a calm coming-soon note.
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          color: colors.cardAlt,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: colors.border),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.lock_rounded,
-                              size: 16,
-                              color: colors.textSecondary,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                ctx.l10n.royalLockedSheetNote,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  height: 1.35,
-                                  color: colors.textSecondary,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
                   ],
                 ),
               ),
-            ),
-          );
-        },
+              const SizedBox(height: 14),
+              // Unlocked royals get the app-wide theme toggle + Equip. A
+              // still-locked royal shows either an Unlock action (a pick is
+              // waiting) or a calm "coming soon" note.
+              if (unlocked) ...[
+                // "Apply app-wide <court> theme" — the royal's own wording.
+                SwitchListTile(
+                  value: _applyRoyalTheme,
+                  onChanged: (v) {
+                    setState(() => _applyRoyalTheme = v);
+                    setSheetState(() {});
+                  },
+                  activeThumbColor: accent,
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    ctx.l10n.royalThemeToggle(r.id),
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: colors.text,
+                    ),
+                  ),
+                ),
+                // Full-body theatrics (off by default): the royal roaming,
+                // peeking and attacking the screen. Global and persisted
+                // immediately via AppPreferences — not part of this
+                // profile, so Save/Cancel doesn't touch it. The circle
+                // avatar keeps blinking and waving either way.
+                SwitchListTile(
+                  value: ctx.watch<AppPreferences>().royalCustomAnimations,
+                  onChanged: (v) {
+                    ctx.read<AppPreferences>().setRoyalCustomAnimations(v);
+                    setSheetState(() {});
+                  },
+                  activeThumbColor: accent,
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    ctx.l10n.royalCustomAnimationsTitle,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: colors.text,
+                    ),
+                  ),
+                  subtitle: Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      ctx.l10n.royalCustomAnimationsDesc,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        height: 1.3,
+                        color: colors.textTertiary,
+                      ),
+                    ),
+                  ),
+                ),
+                // Opt-in: match the Android launcher icon to this royal's
+                // gem. The switch only records the preference; the icon is
+                // swapped (after a confirm, since it closes the app) when the
+                // avatar is saved. Shown on every royal's sheet by design.
+                if (Platform.isAndroid)
+                  SwitchListTile(
+                    value: ctx.watch<AppPreferences>().royalAppIcon,
+                    onChanged: (v) {
+                      ctx.read<AppPreferences>().setRoyalAppIcon(v);
+                      setSheetState(() {});
+                    },
+                    activeThumbColor: accent,
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      ctx.l10n.royalAppIconTitle,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: colors.text,
+                      ),
+                    ),
+                    subtitle: Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        ctx.l10n.royalAppIconDesc,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          height: 1.3,
+                          color: colors.textTertiary,
+                        ),
+                      ),
+                    ),
+                  ),
+                // Where the court stands on the active theme, and a
+                // one-tap hop to see it in the other mode.
+                _modeSwitchRow(ctx, r, accent),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: equipped
+                        ? null
+                        : () {
+                            setState(() => _value = value);
+                            Navigator.pop(ctx);
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: accent,
+                      foregroundColor: onAccent,
+                      disabledBackgroundColor: accent.withValues(alpha: 0.35),
+                    ),
+                    icon: Icon(
+                      equipped
+                          ? Icons.check_rounded
+                          : Icons.workspace_premium_rounded,
+                      size: 18,
+                    ),
+                    label: Text(
+                      equipped ? ctx.l10n.equippedRoyal : ctx.l10n.equipRoyal,
+                    ),
+                  ),
+                ),
+              ] else if (unlockable) ...[
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      await _unlockRoyal(r);
+                      if (!ctx.mounted) return;
+                      Navigator.pop(ctx);
+                      if (mounted) {
+                        showAppToast(
+                          context,
+                          message: context.l10nRead.royalUnlockedToast(
+                            context.l10nRead.royalAvatarName(r.id),
+                          ),
+                          type: AppToastType.success,
+                        );
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: accent,
+                      foregroundColor: onAccent,
+                    ),
+                    icon: const Icon(Icons.lock_open_rounded, size: 18),
+                    label: Text(ctx.l10n.unlockRoyalCta),
+                  ),
+                ),
+              ] else ...[
+                // Locked with no pick to spend: a calm coming-soon note.
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: colors.cardAlt,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: colors.border),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.lock_rounded,
+                        size: 16,
+                        color: colors.textSecondary,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          ctx.l10n.royalLockedSheetNote,
+                          style: TextStyle(
+                            fontSize: 12,
+                            height: 1.35,
+                            color: colors.textSecondary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
