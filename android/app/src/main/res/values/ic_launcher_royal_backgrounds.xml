@@ -8,4 +8,6 @@
     <color name="ic_launcher_golden_background">#0a0a00</color>
     <color name="ic_launcher_ruby_background">#140000</color>
     <color name="ic_launcher_amethyst_background">#0a0014</color>
+    <color name="ic_launcher_sapphire_background">#02102e</color>
+    <color name="ic_launcher_absinthe_background">#0e1a02</color>
 </resources>
