@@ -20,6 +20,7 @@ import '../services/axio_import_service.dart';
 import '../services/backup_service.dart';
 import '../services/background_service.dart';
 import '../services/entitlement_service.dart';
+import '../services/app_icon_service.dart';
 import '../services/gamification_service.dart';
 import '../services/statement_import_service.dart';
 import '../services/database_service.dart';
@@ -1264,7 +1265,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     _showProgressDialog(context.l10nRead.encryptingBackup);
     try {
-      final path = await _backupService.createBackup(passphrase);
+      final path = await _backupService.createBackup(
+        passphrase,
+        appPreferences: context.read<AppPreferences>(),
+      );
       if (mounted) Navigator.pop(context);
       if (!mounted) return;
       if (path == null) return; // user cancelled the save dialog
@@ -1297,6 +1301,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) Navigator.pop(context);
       if (!mounted) return;
       if (result == null) return; // user cancelled the file picker
+      // The restore rewrote preferences underneath the live provider, so it
+      // has to re-read before anything shows their restored values.
+      await context.read<AppPreferences>().reload();
+      if (!mounted) return;
+      // ...and then the launcher icon has to catch up with what was just
+      // restored. The restored profile can carry a royal this install has
+      // never worn, while the applied-icon record is this install's own and
+      // knows nothing about it. Left to itself the icon stayed default with
+      // the switch reading ON — which is exactly the state a restore used to
+      // land in — until the next launch reconciled it.
+      final profile = await GamificationService().loadProfile();
+      if (!mounted) return;
+      await AppIconService.reconcile(
+        equippedSeed: int.tryParse(profile.avatarValue) ?? -1,
+        enabled: context.read<AppPreferences>().royalAppIcon,
+      );
+      if (!mounted) return;
       // The restore rewrote the database; tell the (still-alive) Home tab and
       // other live screens to reload so counts/totals update without a scan.
       notifyAppDataChanged();
