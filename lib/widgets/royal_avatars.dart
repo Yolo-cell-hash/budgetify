@@ -102,21 +102,19 @@ class RoyalTheme {
   /// Sweep colours for the avatar's revolving ring on the card.
   final List<Color> ringColors;
 
-  /// Signature accent (sparks, glows, hairlines, stat tint).
+  /// Signature accent (sparks, glows, hairlines, stat tint) — the shade the
+  /// court wears on a DARK canvas, where a bright tone reads best.
   final Color accent;
 
   /// Softer companion for text glows.
   final Color accentSoft;
 
-  /// Deep, ink-legible companion for trimming LIGHT surfaces, where the
-  /// bright [accent] would wash out against ivory.
+  /// The same court on a LIGHT canvas: deep enough to stay ink-legible
+  /// against ivory, where the bright [accent] would wash out. Every royal
+  /// carries both, so every royal dresses both primary themes — see
+  /// [courtDressFor]. Keep it at 4.5:1 or better against white; the avatar
+  /// suite measures it.
   final Color accentDeep;
-
-  /// The primary theme this royal dresses. The founding pair (Sovereign,
-  /// Empress) trim the LIGHT hero; the rest of the court trims the DARK
-  /// one. Reward-theme heroes are never touched — each is a hand-tuned
-  /// centrepiece of its own.
-  final Brightness homeBrightness;
 
   /// Velvet backdrop inside the avatar circle (radial, centre → edge).
   final List<Color> backdrop;
@@ -130,7 +128,6 @@ class RoyalTheme {
     required this.accent,
     required this.accentSoft,
     required this.accentDeep,
-    required this.homeBrightness,
     required this.backdrop,
     required this.halo,
   });
@@ -186,10 +183,18 @@ class RoyalTheme {
 /// avatar isn't royal. Takes raw profile fields (not [GamiProfile]) so
 /// this file stays import-cycle-free.
 ///
-/// The dress applies only on the royal's home PRIMARY theme — Sovereign/
-/// Empress dress the light theme, the rest of the court dresses the dark
-/// one — and never on reward themes, whose palettes are hand-tuned.
-/// Everywhere else the base theme is returned untouched.
+/// The dress applies on BOTH primary themes. Until v1.72.0 each royal
+/// declared a single "home" brightness — the founding pair dressed Light,
+/// the rest dressed Dark — so half the court went silent the moment you
+/// switched modes: equip the Princess, turn the app to Light, and every
+/// trace of her was gone but the face. A cosmetic you unlocked with a
+/// 24-day streak should not be contingent on which mode you read in. Every
+/// royal now carries a bright [RoyalTheme.accent] for dark canvases and a
+/// deep [RoyalTheme.accentDeep] for ivory ones, and the court follows you
+/// between them.
+///
+/// Reward themes are still never touched — each is a hand-tuned centrepiece
+/// of its own, and returning the base unchanged is how a variant opts out.
 ///
 /// "Dressing" keeps every canvas colour (backgrounds, cards, text) exactly
 /// as the theme designed them and swaps only the GOLD slots for the court
@@ -205,8 +210,6 @@ ThemeDress? courtDressFor(String avatarKind, String avatarValue) {
     final isLight = variant == AppThemeVariant.light;
     final isDark = variant == AppThemeVariant.dark;
     if (!isLight && !isDark) return base; // reward themes: never touched
-    if (isLight && t.homeBrightness != Brightness.light) return base;
-    if (isDark && t.homeBrightness != Brightness.dark) return base;
 
     final palette = base.extension<AppPalette>();
     if (palette == null) return base;
@@ -597,7 +600,6 @@ const List<RoyalAvatar> kRoyalAvatars = [
       accent: Color(0xFFFFD75E),
       accentSoft: Color(0xFFFFE9B0),
       accentDeep: Color(0xFF8E1F2F), // his robe's crimson, legible on ivory
-      homeBrightness: Brightness.light,
       backdrop: [Color(0xFF5E1826), Color(0xFF1E060A)],
       halo: [Color(0xFFFFD75E), Color(0xFF7E1820)],
     ),
@@ -619,7 +621,6 @@ const List<RoyalAvatar> kRoyalAvatars = [
       accent: Color(0xFFB18CFF),
       accentSoft: Color(0xFFE8D9FF),
       accentDeep: Color(0xFF5E2CA5), // her gown's violet, legible on ivory
-      homeBrightness: Brightness.light,
       backdrop: [Color(0xFF3E2470), Color(0xFF140A28)],
       halo: [Color(0xFFC9A2FF), Color(0xFF3E1C70)],
     ),
@@ -642,8 +643,10 @@ const List<RoyalAvatar> kRoyalAvatars = [
       ringColors: [_gold, Color(0xFFFFE9B0), Color(0xFFD4A72C), _gold],
       accent: Color(0xFFFFC93C),
       accentSoft: Color(0xFFFFE9B0),
-      accentDeep: Color(0xFF9C7A16),
-      homeBrightness: Brightness.dark,
+      // Deepened from #9C7A16 when the court learned to dress Light too:
+      // the old bronze cleared only 4.0:1 against white, so his name and
+      // the snackbar action he tints sat right on the legibility line.
+      accentDeep: Color(0xFF8A6A10),
       backdrop: [Color(0xFF5E4A10), Color(0xFF1E1602)],
       halo: [Color(0xFFFFC93C), Color(0xFF7A5E10)],
     ),
@@ -672,7 +675,6 @@ const List<RoyalAvatar> kRoyalAvatars = [
       accent: Color(0xFFFF4632),
       accentSoft: Color(0xFFFF9A8C),
       accentDeep: Color(0xFFB02838),
-      homeBrightness: Brightness.dark,
       backdrop: [Color(0xFF2A2A34), Color(0xFF0A0A0E)],
       halo: [Color(0xFFFF4632), Color(0xFF26060A)],
     ),
@@ -695,7 +697,6 @@ const List<RoyalAvatar> kRoyalAvatars = [
       accent: Color(0xFFFF9EC8),
       accentSoft: Color(0xFFFFD1E4),
       accentDeep: Color(0xFFA83660),
-      homeBrightness: Brightness.dark,
       backdrop: [Color(0xFF6E1E3E), Color(0xFF240710)],
       halo: [Color(0xFFFF9EC8), Color(0xFF6E1E3E)],
     ),
@@ -717,8 +718,9 @@ const List<RoyalAvatar> kRoyalAvatars = [
       ringColors: [_gold, Color(0xFFB8F5E0), Color(0xFF2BB985), _gold],
       accent: Color(0xFF3DD2A0),
       accentSoft: Color(0xFFB8F5E0),
-      accentDeep: Color(0xFF1E8F6B),
-      homeBrightness: Brightness.dark,
+      // Deepened from #1E8F6B for the same reason as the Prince's bronze:
+      // mid-emerald cleared only 4.0:1 on ivory. Same hue, one step down.
+      accentDeep: Color(0xFF17795A),
       backdrop: [Color(0xFF14523E), Color(0xFF041E12)],
       halo: [Color(0xFF3DD2A0), Color(0xFF0E3A2C)],
     ),

@@ -2049,7 +2049,9 @@ class SmsParserService {
   /// "your credit limit of INR 4,00,000 is now INR 3,97,500"), and matching
   /// the bare word swallows the real debit along with the notice. The pair
   /// may arrive in either order ("limit is set to", "updated your limit"),
-  /// so both directions are listed.
+  /// so both directions are listed — plus a third for the pair held apart by
+  /// the card it belongs to ("credit limit for your … Card XX6528 has been
+  /// changed").
   static final List<RegExp> _limitChangeRejects = [
     // "Third Party Transfer limit is set to Rs. 10000", "Transfer Limit
     // Updated!", "daily limits have been updated", "limit stands revised".
@@ -2064,6 +2066,25 @@ class SmsParserService {
       r'\b(?:SET|UPDAT(?:E|ED)|CHANG(?:E|ED)|MODIF(?:Y|IED)|REVIS(?:E|ED)|'
       r'RESET|ENHANC(?:E|ED)|REDUC(?:E|ED)|LOWER(?:ED)?|AMEND(?:ED)?)\b'
       r'[\s\S]{0,30}?\bLIMITS?\b',
+    ),
+    // The card sitting between the noun and the verb, which pushes the pair
+    // well past the 24-character window above:
+    //   "The credit limit for your ICICI Bank Credit Card XX6528 has been
+    //    changed from INR 200000 to INR 60000 on 2026-08-08."
+    // Reported from a device on 2026-08-13, where it landed as ₹2,00,000 of
+    // INCOME — "from INR 200000" reads exactly like money arriving, and the
+    // card tail gave it account evidence to stand on. The bank's own ceiling
+    // moving is the one amount in a card SMS that was never a payment.
+    //
+    // The window can be this wide because the verb is pinned to "has/have
+    // been" — a completed change to a standing figure. A spend alert that
+    // quotes the remaining cap says "is now" or "available limit updated
+    // to", never "limit ... has been changed"; both of those phrasings are
+    // in the gate corpus and must keep parsing.
+    RegExp(
+      r'\bLIMITS?\b[\s\S]{0,60}?\b(?:HAS|HAVE)\s+BEEN\s+'
+      r'(?:SET|UPDATED|CHANGED|MODIFIED|REVISED|RESET|ENHANCED|REDUCED|'
+      r'LOWERED|AMENDED|INCREASED|DECREASED)\b',
     ),
   ];
 
