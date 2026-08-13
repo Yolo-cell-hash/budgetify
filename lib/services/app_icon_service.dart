@@ -167,26 +167,20 @@ class AppIconService {
     await _apply(p.target); // cosmetic; may tear down / relaunch the app
   }
 
-  /// Bring the launcher icon back in line with what is actually equipped,
-  /// without asking and without relaunching.
+  /// There is deliberately no silent reconcile here.
   ///
-  /// [sync] only ever ran from the equip flow, so the icon could be left
-  /// stranded by anything that changed the avatar or the opt-in by another
-  /// route: restoring a backup, a royal being revoked, leaving developer mode,
-  /// or simply turning the switch off and closing the sheet without saving.
-  /// Nothing reconciled it afterwards, so the launcher kept showing a royal
-  /// the user no longer wore — in some cases permanently, since the equip flow
-  /// only fires when the avatar CHANGES.
+  /// One existed, on the theory that a swap costs nothing because the native
+  /// side passes `DONT_KILL_APP`. That is true of the flag and false of the
+  /// outcome: the running task is attached to the launcher component being
+  /// disabled, and on real devices Android tears it down regardless. So a
+  /// "quiet" reconcile force-closed the app — from a switch, from a restore,
+  /// from leaving developer mode — with no warning and nothing asked.
   ///
-  /// Safe to call unprompted because the swap itself does not restart anything
-  /// (the native side passes `DONT_KILL_APP`); only the deliberate [relaunch]
-  /// does, and this never calls it. The new artwork appears whenever the
-  /// launcher next refreshes.
-  static Future<void> reconcile({
-    required int equippedSeed,
-    required bool enabled,
-  }) =>
-      sync(equippedSeed: equippedSeed, enabled: enabled);
+  /// Every icon change therefore goes through `confirmRoyalAppIcon`: check
+  /// [willChange], ask, [sync], then [relaunch] deliberately. Drift is
+  /// corrected the next time that flow runs rather than behind the user's
+  /// back, because the cost of correcting it is a restart either way — and a
+  /// restart the user agreed to is a different thing from one they did not.
 
   /// Ask the platform to switch to [variant] (null → default). Returns whether
   /// it was applied; never throws.

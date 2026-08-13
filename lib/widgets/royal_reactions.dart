@@ -476,27 +476,71 @@ _BootStyle _bootStyleFor(String id) => switch (id) {
 /// The other six are deliberately untouched — their pacing is already the one
 /// the court was tuned around.
 int _bootDurationMs(String id) => switch (id) {
-      // The most crowded entrance in the court by some distance.
-      'huntress' => 9200,
+      // The most crowded entrance in the court by some distance. 9200 was
+      // still not enough — a somersault and four dagger beats need the room,
+      // and half-measures on this have now been wrong twice.
+      'huntress' => 12000,
       // His signature is holding still, and stillness needs long enough to
       // read as deliberate rather than as the animation having stalled.
       'sentinel' => 6400,
       _ => 5600,
     };
 
-/// Where the parade's late beats fall, as fractions of the routine.
+/// Every beat of the parade, as fractions of the routine: pop out of the
+/// circle, wave, ride out, turn at the far end, ride home, settle, sign off,
+/// and hop back into the circle.
 ///
-/// [homeEnd] ends the ride home, [sigStart]/[sigEnd] bound the signature, and
-/// whatever is left runs the hop back into the profile circle. Splitting these
-/// out per royal is what lets a dense signature take a bigger share of its own
-/// entrance instead of being squeezed into everyone else's 14%.
-({double homeEnd, double sigStart, double sigEnd}) _bootBeatsFor(String id) =>
-    switch (id) {
-      // 24% of a 9200ms parade — about 550ms a beat, against the 196ms the
-      // shared timeline gave her.
-      'huntress' => (homeEnd: 0.66, sigStart: 0.70, sigEnd: 0.94),
-      'sentinel' => (homeEnd: 0.70, sigStart: 0.74, sigEnd: 0.92),
-      _ => (homeEnd: 0.72, sigStart: 0.76, sigEnd: 0.90),
+/// All of them are per-royal now, not just the late ones. Stretching the total
+/// duration alone scales the greeting and the travel by exactly as much as the
+/// move you actually wanted more of, so the Huntress's fix bought a slower
+/// somersault at the price of a languid pop-out and a 1.8s wave. Her shape is
+/// different from the court's: brisk on the way in, generous where the
+/// choreography is.
+typedef _BootBeats = ({
+  double popEnd,
+  double waveEnd,
+  double outStart,
+  double outEnd,
+  double farEnd,
+  double homeEnd,
+  double sigStart,
+  double sigEnd,
+});
+
+_BootBeats _bootBeatsFor(String id) => switch (id) {
+      // 34% of a 12000ms parade on the signature — about 1s a beat, against
+      // the 196ms the original shared timeline gave her — and 24% on the
+      // crossing, which puts her somersault a shade over 1.6s.
+      'huntress' => (
+          popEnd: 0.05,
+          waveEnd: 0.13,
+          outStart: 0.16,
+          outEnd: 0.40,
+          farEnd: 0.43,
+          homeEnd: 0.60,
+          sigStart: 0.63,
+          sigEnd: 0.97,
+        ),
+      'sentinel' => (
+          popEnd: 0.09,
+          waveEnd: 0.24,
+          outStart: 0.29,
+          outEnd: 0.50,
+          farEnd: 0.55,
+          homeEnd: 0.70,
+          sigStart: 0.74,
+          sigEnd: 0.92,
+        ),
+      _ => (
+          popEnd: 0.09,
+          waveEnd: 0.24,
+          outStart: 0.29,
+          outEnd: 0.50,
+          farEnd: 0.55,
+          homeEnd: 0.72,
+          sigStart: 0.76,
+          sigEnd: 0.90,
+        ),
     };
 
 /// The move a royal signs off its entrance with — how it says hello.
@@ -634,10 +678,15 @@ class RoyalReactionHost extends StatefulWidget {
   /// length and how many ms the signature move actually gets. Exposed because
   /// "too fast to see" is a number, and a number can be pinned.
   @visibleForTesting
-  static ({int totalMs, int signatureMs}) debugBootTiming(String royalId) {
+  static ({int totalMs, int signatureMs, int crossingMs})
+      debugBootTiming(String royalId) {
     final ms = _bootDurationMs(royalId);
     final b = _bootBeatsFor(royalId);
-    return (totalMs: ms, signatureMs: ((b.sigEnd - b.sigStart) * ms).round());
+    return (
+      totalMs: ms,
+      signatureMs: ((b.sigEnd - b.sigStart) * ms).round(),
+      crossingMs: ((b.outEnd - b.outStart) * ms).round(),
+    );
   }
 
   @visibleForTesting
@@ -745,7 +794,13 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
   /// nothing new starts until it's gone.
   void _onPopupChanged() {
     if (!mounted) return;
-    if (_popupOpen) _cancelRoutine();
+    if (_popupOpen) {
+      _cancelRoutine();
+    } else if (!_bootedThisSession) {
+      // The popup that was holding the entrance back has gone. Take it now
+      // rather than waiting out the poll.
+      _scheduleBoot();
+    }
   }
 
   /// Abort the current routine immediately, without the tail effects a natural
@@ -753,6 +808,13 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
   /// queued reaction must not spring up over the popup that just cancelled us.
   void _cancelRoutine() {
     if (_routine == null) return;
+    // Cancelling the welcome parade hands the entrance BACK. A session gets
+    // exactly one, and a popup arriving a beat after launch — a rating prompt,
+    // a restore, a tutorial step — used to spend it on a routine that was
+    // then killed mid-stride, which is the other half of "the launch
+    // animation sometimes doesn't play". _onPopupChanged re-schedules it once
+    // the screen is free.
+    if (_routine == _Routine.boot) _bootedThisSession = false;
     _ctrl.stop();
     _pending = null;
     royalCharacterOut.value = false;
@@ -829,6 +891,21 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
     // Custom animations off: no welcome parade. Leave _bootedThisSession false
     // so turning it on later still gets the entrance (see _onPrefsChanged).
     if (!_customAnimations) return;
+    // A modal owns the screen. This is the reason the parade "sometimes just
+    // doesn't play": the session used to be marked booted here and _play then
+    // refused silently for exactly this reason, burning the one entrance the
+    // session gets on a frame that drew nothing. Anything modal up at launch
+    // did it — a rating prompt, a restore, a tutorial step. Waiting costs
+    // nothing, and _onPopupChanged nudges this the moment the popup closes.
+    if (_popupOpen) {
+      Future.delayed(const Duration(milliseconds: 200), () {
+        // Deliberately does NOT advance `attempts`: the user may sit on a
+        // dialog as long as they like, and the parade should still be waiting
+        // on the other side of it.
+        _scheduleBoot(attempts);
+      });
+      return;
+    }
     if (royalHomeAnchorKey.currentContext != null && _routine == null) {
       _bootedThisSession = true;
       if (!_reduceMotion) {
@@ -1413,10 +1490,10 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
       return (opacity: 1 - blur * 0.94, ghosts: ghosts);
     }
 
-    if (t < 0.09) {
+    if (t < beats.popEnd) {
       // Pop out of the icon with a little hop.
-      final p = Curves.easeOutBack.transform(_seg(t, 0, 0.09));
-      final hop = -math.sin(_seg(t, 0, 0.09) * math.pi) * 16;
+      final p = Curves.easeOutBack.transform(_seg(t, 0, beats.popEnd));
+      final hop = -math.sin(_seg(t, 0, beats.popEnd) * math.pi) * 16;
       return _CharFrame(
           center: _lerpO(icon, waveC, p.clamp(0.0, 1.0)).translate(0, hop),
           scale: p.clamp(0.0, 1.0),
@@ -1424,15 +1501,15 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
           actionT: _cyc(t, 1400),
           facing: outFace);
     }
-    if (t < 0.24) {
+    if (t < beats.waveEnd) {
       return _CharFrame(
           center: waveC,
           scale: 1,
           action: RoyalAction.wave,
-          actionT: _seg(t, 0.09, 0.24),
+          actionT: _seg(t, beats.popEnd, beats.waveEnd),
           facing: outFace);
     }
-    if (t < 0.29) {
+    if (t < beats.outStart) {
       // A beat before the mount appears.
       return _CharFrame(
           center: waveC,
@@ -1441,9 +1518,9 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
           actionT: _cyc(t, 1400),
           facing: outFace);
     }
-    if (t < 0.50) {
+    if (t < beats.outEnd) {
       // Out across the screen on the royal ride.
-      final p = _seg(t, 0.29, 0.50);
+      final p = _seg(t, beats.outStart, beats.outEnd);
       final fx = zip(p, outbound: true);
       return _CharFrame(
           center: travel(p, outbound: true),
@@ -1455,7 +1532,7 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
           opacity: fx.opacity,
           ghosts: fx.ghosts);
     }
-    if (t < 0.55) {
+    if (t < beats.farEnd) {
       // The beat at the far end, where each royal turns in its own way. The
       // Empress skips it entirely — she never stops, so there is nothing to
       // turn around; the glide just carries straight on into the return.
@@ -1475,7 +1552,7 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
           facing: turned);
     }
     if (t < beats.homeEnd) {
-      final p = _seg(t, 0.55, beats.homeEnd);
+      final p = _seg(t, beats.farEnd, beats.homeEnd);
       final fx = zip(p, outbound: false);
       return _CharFrame(
           center: travel(p, outbound: false),
