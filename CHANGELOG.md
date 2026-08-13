@@ -4,6 +4,64 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.74.0] — 2026-08-14
+
+### Fixed
+
+- **The Huntress's entrance was a giant rolling head.** Her launch traversal —
+  the somersault she does instead of riding, since she is the only royal with
+  no mount — drew the standing figure into the *wide* 150×96 ride box. The head
+  is sized off box **width** (`w * 0.66` = 99px), so it came out taller than the
+  frame it was in, and the body was buried underneath it. Every mounted royal
+  already avoided this: the ride pipeline seats its rider in a `Size(h * 0.78,
+  h)` sub-box, and the on-foot path was the one place that skipped the
+  convention. It now follows it, and a test measures the drawn width rather
+  than trusting anyone to notice by eye.
+- **The Sentinel braced inside a ring of pink hearts.** His signature and the
+  Huntress's somersault had no case in the action-accent switch, so both fell
+  through to the generic *cheer* — stars and hearts popping around the head.
+  The accents also switched on what a frame was *for* rather than what the body
+  was doing, which is why the traversal (a `ride`) was decorated as a cheer even
+  once the somersault had its own entry.
+
+### Changed
+
+- **The Sentinel carries a spear.** The shield alone read as a man holding a
+  door — and the deeper problem was that the shield *was his weapon*, drawn out
+  of the weapon hand, which laid it flat across his own breastplate and hid
+  every piece of plate he owns. The spear takes the weapon hand; the shield
+  moves to the free arm where a shield is actually worn. He now thrusts rather
+  than borrowing the club's smash: the only royal in the court who strikes from
+  behind cover, and the only attack with no arc in it. Mounted, the spear
+  couches across the destrier's neck instead of standing upright, which is the
+  difference between a charge and a commute.
+- **The Sentinel had no detail layer at all**, which is why a man in full plate
+  rendered as a smooth grey bell — every other royal has one. He gains
+  pauldrons, a gorget, a sapphire surcoat, a guard's cloak and a swallow-tail
+  pennon on the spear, and his shield's field is now sapphire over a steel rim
+  rather than steel on steel. Colour on him has to come from cloth: every
+  surface he owns wants to be metal.
+- **The Huntress has three moves of her own** — she is the only royal with no
+  mount to carry a personality for her, and she was borrowing the Sovereign's
+  slash. Her entrance now signs off with a **dagger toss** (blade thrown up
+  end-over-end, a low sweep-kick turning underneath it, caught reversed behind
+  the back), she attacks with a **flying kick**, and her cameos are a **blade
+  dance** — the only one of the three that fits in a standing box, which is
+  where a cameo has to work. The somersault stays her traversal, and it now
+  tucks: both knees folded up together rather than scissored apart, which is a
+  stride however short you make it.
+- **The Huntress reads bolder.** Her skin was being painted and then covered —
+  the tank hem overpainted the bare shoulders it sat above, and the bottom four
+  rows of her 16×16 portrait were a slate slab landing exactly where her
+  shoulders and chest do on the full body. The torso is now drawn as skin and
+  *dressed*, rather than dressed and then patched: bare shoulders and arms, a
+  cropped top, an open midriff, long bare thigh above the boots, wrapped
+  forearms, a buckled thigh strap with a spare blade in it.
+- **Both new royals moved like nobody in particular** — neither had a motion
+  personality, so both used the fallback. The Sentinel now carries the slowest
+  breath in the court and almost no rock at all; the Huntress the fastest and
+  the springiest stride.
+
 ## [1.73.0] — 2026-08-13
 
 ### Added
