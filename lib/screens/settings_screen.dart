@@ -983,15 +983,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _disableDevMode() async {
-    await DevMode.disable(
-      context.read<ThemeProvider>(),
-      prefs: context.read<AppPreferences>(),
-    );
+    await DevMode.disable(context.read<ThemeProvider>());
     if (!mounted) return;
     _showStyledSnackBar(
       icon: Icons.developer_mode_rounded,
       message: 'Developer mode turned off.',
       color: const Color(0xFF70798A),
+    );
+    // A previewed royal can have taken the launcher icon with it — that is the
+    // point, the feature has to be exercisable from the mode built to test it.
+    // Leaving developer mode offers to hand it back, through the same
+    // confirm-and-restart prompt as everywhere else. DevMode.disable used to
+    // do it silently, which force-closed the app on the way out.
+    await confirmRoyalAppIcon(
+      context,
+      await GamificationService().loadProfile(),
     );
   }
 
