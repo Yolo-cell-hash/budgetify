@@ -4,6 +4,41 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.75.0] — 2026-08-14
+
+### Fixed
+
+- **"Match app icon to my royal" did nothing until you saved an avatar.** The
+  switch only recorded the preference; reconciling the launcher icon was left
+  to the next avatar *save*. So turning it off and closing the sheet left the
+  launcher wearing a royal the preference had already disowned — and re-picking
+  the same royal could not fix it either, since that is not a change. The
+  switch now reconciles the icon the moment you flip it, silently: no confirm
+  and no restart, because being thrown out of the app for flicking a switch
+  would be worse than the icon waiting for the launcher's next refresh.
+- **The launcher icon never reconciled at startup.** It is the third OS surface
+  that mirrors your equipped royal — after the app-wide theme dress and the
+  notification skin — and the only one that did not re-sync on launch. Anything
+  that changed the avatar by another route (restoring a backup, a royal being
+  revoked) stranded the icon permanently. It now reconciles alongside the other
+  two.
+
+### Changed
+
+- **The Huntress's entrance was too fast to follow.** The welcome parade ran
+  for one flat 5600ms for the whole court, which quietly assumed every royal
+  signs off with the same amount of *movement*. Six of them do — a salute, a
+  curtsy, a roar are each one gesture. Hers is four (throw, sweep-kick, catch,
+  present), and she is also the only royal who somersaults across the screen,
+  so the shared timeline gave her under 200ms a beat: a flicker rather than
+  choreography. Her parade now runs 9200ms with 2208ms of it on the signature —
+  about 550ms a beat — and the somersault's airborne window widened from 44% to
+  58% of the crossing, which is what actually slows the turn (it is one full
+  rotation however long you give it). The Sentinel gains a smaller extension
+  for the opposite reason: his signature is *holding still*, and stillness
+  needs long enough to read as deliberate rather than as a stall. The other six
+  are untouched.
+
 ## [1.74.0] — 2026-08-14
 
 ### Fixed

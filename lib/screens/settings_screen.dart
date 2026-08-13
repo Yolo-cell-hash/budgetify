@@ -982,7 +982,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _disableDevMode() async {
-    await DevMode.disable(context.read<ThemeProvider>());
+    await DevMode.disable(
+      context.read<ThemeProvider>(),
+      prefs: context.read<AppPreferences>(),
+    );
     if (!mounted) return;
     _showStyledSnackBar(
       icon: Icons.developer_mode_rounded,

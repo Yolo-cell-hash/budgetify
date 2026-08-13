@@ -463,6 +463,42 @@ _BootStyle _bootStyleFor(String id) => switch (id) {
       _ => _BootStyle.parade, // prince + apothecary + sentinel
     };
 
+/// How long the welcome parade runs, per royal, in ms.
+///
+/// This used to be one flat number for the whole court, which quietly assumed
+/// every royal signs off with the same amount of MOVEMENT. Six of them do —
+/// a salute, a curtsy, a roar are each one gesture. The Huntress's is four
+/// (throw, sweep-kick, catch, present) and she is also the only one who
+/// somersaults across the screen on the way out, so the flat 5600 gave her
+/// roughly 200ms a beat: too fast to read as anything but a flicker.
+///
+/// Only the two royals whose entrances actually carry more get an override.
+/// The other six are deliberately untouched — their pacing is already the one
+/// the court was tuned around.
+int _bootDurationMs(String id) => switch (id) {
+      // The most crowded entrance in the court by some distance.
+      'huntress' => 9200,
+      // His signature is holding still, and stillness needs long enough to
+      // read as deliberate rather than as the animation having stalled.
+      'sentinel' => 6400,
+      _ => 5600,
+    };
+
+/// Where the parade's late beats fall, as fractions of the routine.
+///
+/// [homeEnd] ends the ride home, [sigStart]/[sigEnd] bound the signature, and
+/// whatever is left runs the hop back into the profile circle. Splitting these
+/// out per royal is what lets a dense signature take a bigger share of its own
+/// entrance instead of being squeezed into everyone else's 14%.
+({double homeEnd, double sigStart, double sigEnd}) _bootBeatsFor(String id) =>
+    switch (id) {
+      // 24% of a 9200ms parade — about 550ms a beat, against the 196ms the
+      // shared timeline gave her.
+      'huntress' => (homeEnd: 0.66, sigStart: 0.70, sigEnd: 0.94),
+      'sentinel' => (homeEnd: 0.70, sigStart: 0.74, sigEnd: 0.92),
+      _ => (homeEnd: 0.72, sigStart: 0.76, sigEnd: 0.90),
+    };
+
 /// The move a royal signs off its entrance with — how it says hello.
 ///
 /// The parade already gave each royal its own way of crossing the screen, but
@@ -594,6 +630,16 @@ class RoyalReactionHost extends StatefulWidget {
   const RoyalReactionHost({super.key, required this.child});
 
   /// Test override for the ambient-cameo gap (defaults to minutes).
+  /// The welcome parade's timing for [royalId], as the suite sees it: total
+  /// length and how many ms the signature move actually gets. Exposed because
+  /// "too fast to see" is a number, and a number can be pinned.
+  @visibleForTesting
+  static ({int totalMs, int signatureMs}) debugBootTiming(String royalId) {
+    final ms = _bootDurationMs(royalId);
+    final b = _bootBeatsFor(royalId);
+    return (totalMs: ms, signatureMs: ((b.sigEnd - b.sigStart) * ms).round());
+  }
+
   @visibleForTesting
   static Duration? debugCameoGap;
 
@@ -1049,7 +1095,7 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
       _bootReach = 0.34 + _rng.nextDouble() * 0.22; // 0.34–0.56 of the screen
     }
     _durationMs = switch (r) {
-      _Routine.boot => 5600,
+      _Routine.boot => _bootDurationMs(_royal?.id ?? ''),
       // Each weapon fights at its own tempo: the volley and the double-orb
       // barrage take longer than a single slam.
       _Routine.smash => _attackDurationMs(weapon),
@@ -1273,6 +1319,7 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
     final standY = ground - _ch * 0.5;
     final rideY = ground - _rh * 0.5;
     final style = _bootStyleFor(_royal?.id ?? '');
+    final beats = _bootBeatsFor(_royal?.id ?? '');
 
     // How much room the ride box has either side of the start point. The
     // anchor is the Home profile circle, which lives in the TOP-RIGHT corner —
@@ -1427,8 +1474,8 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
           }),
           facing: turned);
     }
-    if (t < 0.72) {
-      final p = _seg(t, 0.55, 0.72);
+    if (t < beats.homeEnd) {
+      final p = _seg(t, 0.55, beats.homeEnd);
       final fx = zip(p, outbound: false);
       return _CharFrame(
           center: travel(p, outbound: false),
@@ -1451,7 +1498,7 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
     // roomier side of the screen rather than off the edge it came in from.
     final sigFace = waveC.dx > screen.width * 0.5 ? -1.0 : 1.0;
 
-    if (t < 0.76) {
+    if (t < beats.sigStart) {
       // Dismount / settle beat before the move.
       return _CharFrame(
           center: sigC,
@@ -1460,8 +1507,8 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
           actionT: _cyc(t, mounted ? 700 : 1400),
           facing: sigFace);
     }
-    if (t < 0.90) {
-      final at = _seg(t, 0.76, 0.90);
+    if (t < beats.sigEnd) {
+      final at = _seg(t, beats.sigStart, beats.sigEnd);
       return _CharFrame(
           center: sigC,
           scale: 1,
@@ -1473,9 +1520,10 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
               ? _seg(at, 0.16, 0.30) * (1 - _seg(at, 0.34, 0.62)) * 0.55
               : 0);
     }
-    if (t < 0.93 && mounted) {
-      // A beat to dismount before diving home, so he doesn't take the lion in
-      // through the profile circle with him.
+    // A beat to dismount before diving home, so he doesn't take the lion in
+    // through the profile circle with him.
+    final dismountEnd = beats.sigEnd + 0.03;
+    if (t < dismountEnd && mounted) {
       return _CharFrame(
           center: waveC,
           scale: 1,
@@ -1483,7 +1531,7 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
           actionT: _cyc(t, 1400),
           facing: sigFace);
     }
-    final p = _seg(t, mounted ? 0.93 : 0.90, 1.0);
+    final p = _seg(t, mounted ? dismountEnd : beats.sigEnd, 1.0);
     final hop = -math.sin(p * math.pi) * 10;
     return _CharFrame(
         center: _lerpO(waveC, icon, Curves.easeIn.transform(p)).translate(0, hop),

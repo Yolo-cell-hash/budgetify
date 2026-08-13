@@ -71,6 +71,22 @@ class RoyalAppIcon {
     if (royal == null) return null;
     return forRoyal[royal.id];
   }
+
+  /// What the launcher icon should become, given what is already [applied].
+  ///
+  /// Split out from [AppIconService] so the whole decision is testable off a
+  /// device: every method on the service starts with a `Platform.isAndroid`
+  /// guard, so on a test host they all return early and the interesting logic —
+  /// which is all of it — was unreachable. The service now calls this and
+  /// keeps only the platform work.
+  static ({String? target, bool changes}) plan({
+    required int seed,
+    required bool enabled,
+    required String? applied,
+  }) {
+    final target = desiredIcon(seed: seed, enabled: enabled);
+    return (target: target, changes: target != applied);
+  }
 }
 
 /// Drives the Android launcher icon for the "match app icon to my royal"
@@ -115,12 +131,12 @@ class AppIconService {
     required bool enabled,
   }) async {
     if (!Platform.isAndroid) return false;
-    final desired = RoyalAppIcon.desiredIcon(
+    final prefs = await SharedPreferences.getInstance();
+    return RoyalAppIcon.plan(
       seed: equippedSeed,
       enabled: enabled,
-    );
-    final prefs = await SharedPreferences.getInstance();
-    return desired != prefs.getString(_currentKey);
+      applied: prefs.getString(_currentKey),
+    ).changes;
   }
 
   /// Reconcile the launcher icon to the [equippedSeed] avatar under the
@@ -132,23 +148,45 @@ class AppIconService {
     required bool enabled,
   }) async {
     if (!Platform.isAndroid) return;
-    final desired = RoyalAppIcon.desiredIcon(
+    final prefs = await SharedPreferences.getInstance();
+    final p = RoyalAppIcon.plan(
       seed: equippedSeed,
       enabled: enabled,
+      applied: prefs.getString(_currentKey),
     );
-    final prefs = await SharedPreferences.getInstance();
-    if (desired == prefs.getString(_currentKey)) return; // already applied
+    if (!p.changes) return; // already applied
     // Record the target *before* applying it: the swap disables the running
     // launcher component and can tear the app down, so persisting first keeps
     // the next launch from reading a stale gem (or re-triggering the swap).
-    _cachedCurrent = desired;
-    if (desired == null) {
+    _cachedCurrent = p.target;
+    if (p.target == null) {
       await prefs.remove(_currentKey);
     } else {
-      await prefs.setString(_currentKey, desired);
+      await prefs.setString(_currentKey, p.target as String);
     }
-    await _apply(desired); // cosmetic; may tear down / relaunch the app
+    await _apply(p.target); // cosmetic; may tear down / relaunch the app
   }
+
+  /// Bring the launcher icon back in line with what is actually equipped,
+  /// without asking and without relaunching.
+  ///
+  /// [sync] only ever ran from the equip flow, so the icon could be left
+  /// stranded by anything that changed the avatar or the opt-in by another
+  /// route: restoring a backup, a royal being revoked, leaving developer mode,
+  /// or simply turning the switch off and closing the sheet without saving.
+  /// Nothing reconciled it afterwards, so the launcher kept showing a royal
+  /// the user no longer wore — in some cases permanently, since the equip flow
+  /// only fires when the avatar CHANGES.
+  ///
+  /// Safe to call unprompted because the swap itself does not restart anything
+  /// (the native side passes `DONT_KILL_APP`); only the deliberate [relaunch]
+  /// does, and this never calls it. The new artwork appears whenever the
+  /// launcher next refreshes.
+  static Future<void> reconcile({
+    required int equippedSeed,
+    required bool enabled,
+  }) =>
+      sync(equippedSeed: equippedSeed, enabled: enabled);
 
   /// Ask the platform to switch to [variant] (null → default). Returns whether
   /// it was applied; never throws.
