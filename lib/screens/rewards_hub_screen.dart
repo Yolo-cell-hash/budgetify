@@ -159,8 +159,15 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
         if (mounted) setState(() => _profile = edited);
       } else {
         await _save(edited);
-        if (mounted) await confirmRoyalAppIcon(context, edited);
       }
+      // Runs on BOTH paths. It used to be inside the real-save branch only, on
+      // the reasoning that a session-only preview must not touch persisted
+      // state — but that made the launcher icon the one royal surface that
+      // developer mode could not exercise at all, which is the opposite of
+      // what a preview mode is for. The preview overlay is itself persisted
+      // (so the royal survives the restart this may trigger), and leaving dev
+      // mode hands the icon back. See [DevMode.disable].
+      if (mounted) await confirmRoyalAppIcon(context, edited);
     }
     final unlockedRoyals = await _svc.unlockedRoyalIds();
     final picksSpent = (await _svc.streakPickedRoyalIds()).length;

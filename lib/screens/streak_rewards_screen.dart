@@ -96,8 +96,13 @@ class _StreakRewardsScreenState extends State<StreakRewardsScreen> {
       onUnlockRoyal: _svc.unlockRoyal,
       scrollToRoyalty: true,
     );
-    if (edited != null && !await applyDevRoyalPreview(edited, _unlockedRoyals)) {
-      await _svc.saveProfile(edited);
+    if (edited != null) {
+      if (!await applyDevRoyalPreview(edited, _unlockedRoyals)) {
+        await _svc.saveProfile(edited);
+      }
+      // Both paths: a developer-mode preview must be able to exercise the
+      // launcher icon too, or the feature is untestable from the mode built
+      // to test it. See the same note in RewardsHubScreen.
       if (mounted) await confirmRoyalAppIcon(context, edited);
     }
     await _load();
