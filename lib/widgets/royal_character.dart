@@ -98,6 +98,17 @@ enum RoyalAction {
   daggerToss,
 }
 
+/// Share of the Huntress's on-foot traversal ([RoyalCharacterPainter] draws it)
+/// spent airborne — the window the single somersault turns in.
+///
+/// Public because the parade sizes her crossing FROM it: the rotation is meant
+/// to take exactly one beat like every other move in the court, so the host
+/// needs to know what fraction of the leg the rotation actually occupies. It
+/// was 0.40, which at her old crossing length made one turn run 1248ms against
+/// the court's 784ms gesture — the somersault was not just restarting, it was
+/// also running at 1.6x everyone else.
+const double kOnFootAirborneShare = 0.50;
+
 /// The attack verb a royal's weapon speaks: the Sovereign slashes, the Prince
 /// lunges, the Princess shoots, the Empress hurls, the Dark Prince and the
 /// Medic smash. Keeps host choreography and painter poses in agreement.
@@ -3434,6 +3445,12 @@ class RoyalCharacterPainter extends CustomPainter {
   /// used to sweep across it as well, which fought the frame already carrying
   /// her across the screen and read as drifting.
   void _rideOnFoot(Canvas canvas, Size size) {
+    // Phase boundaries of one traversal. The airborne span is
+    // [kOnFootAirborneShare] of it, so the host can size the crossing to make
+    // the rotation take exactly one parade beat.
+    const launch = 0.25;
+    final land = launch + kOnFootAirborneShare;
+    final recover = land + 0.11;
     final h = size.height;
     final uw = math.min(size.width, h * 1.7);
     final cx = size.width * 0.5;
@@ -3452,10 +3469,6 @@ class RoyalCharacterPainter extends CustomPainter {
     // One traversal, in four beats. A parkour run is a gather, a commitment,
     // and an absorbed landing — skip the gather and the launch reads as the
     // floor throwing her.
-    const launch = 0.26; // sprint, then coil
-    const land = 0.66; // airborne through here
-    const recover = 0.80; // knees taking the drop
-
     if (t < launch) {
       // Run-up, dropping into a coil over the last third of it.
       final coil = Curves.easeIn.transform(

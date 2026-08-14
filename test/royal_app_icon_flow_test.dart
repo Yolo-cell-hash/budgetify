@@ -100,25 +100,51 @@ void main() {
       }
     });
 
-    test('the Huntress gets the longest parade and the longest signature', () {
+    test('the Huntress gets the longest parade, because it has the most beats',
+        () {
       final hers = RoyalReactionHost.debugBootTiming('huntress');
       for (final r in kRoyalAvatars.where((r) => r.id != 'huntress')) {
         final other = RoyalReactionHost.debugBootTiming(r.id);
         expect(hers.totalMs, greaterThan(other.totalMs));
         expect(hers.signatureMs, greaterThan(other.signatureMs));
       }
-      // Four beats at a legible ~1s each. Raised twice: 550ms a beat still
-      // read as too fast on a device, which is the whole reason the timing
-      // is per-royal rather than a constant.
-      expect(hers.signatureMs, greaterThanOrEqualTo(3500));
     });
 
-    // The somersault is the other thing that was unreadable, and it is paced
-    // by the crossing rather than by the signature.
-    test('the Huntress crosses slowly enough to see the somersault', () {
+    // These two used to assert absolute floors — a 3500ms signature and a
+    // 2500ms crossing — chosen while the somersault was being RESTARTED seven
+    // times a crossing and the only lever anyone had was "give her more room".
+    // With the restart fixed that room read as sluggishness instead. Length is
+    // not the property worth pinning; PACE is.
+    test('every signature beat runs at the court beat, nobody slower', () {
+      // How many separate moves each signature is made of. The Huntress
+      // throws, sweep-kicks, catches and presents; everyone else has one
+      // gesture, so their whole signature is a single beat.
+      const beatCount = {'huntress': 4};
+      // The ceiling is for MOVES. A held pose is not a move run slowly, it is
+      // a different thing being measured, and the Sentinel's whole signature
+      // is that he stops and refuses to perform — stillness needs longer than
+      // a gesture or it reads as the animation having stalled rather than as
+      // deliberate. He is the only royal who signs off by not moving.
+      const heldPose = {'sentinel'};
+      for (final r in kRoyalAvatars) {
+        final t = RoyalReactionHost.debugBootTiming(r.id);
+        final perBeat = t.signatureMs / (beatCount[r.id] ?? 1);
+        expect(perBeat, greaterThanOrEqualTo(700),
+            reason: '${r.id} signature is ${perBeat.round()}ms a beat — too '
+                'fast to read');
+        if (heldPose.contains(r.id)) continue;
+        expect(perBeat, lessThanOrEqualTo(kParadeBeatMs * 1.35),
+            reason: '${r.id} signature is ${perBeat.round()}ms a beat against '
+                'a ${kParadeBeatMs}ms court beat — it will read as slow '
+                'next to the rest of the court');
+      }
+    });
+
+    test('the Huntress somersault takes one beat, like every other move', () {
       final hers = RoyalReactionHost.debugBootTiming('huntress');
-      expect(hers.crossingMs, greaterThanOrEqualTo(2500),
-          reason: 'one full rotation has to fit inside 58% of this');
+      expect(hers.rotationMs, closeTo(kParadeBeatMs, kParadeBeatMs * 0.15),
+          reason: 'one full rotation is ${hers.rotationMs}ms against a '
+              '${kParadeBeatMs}ms beat');
     });
 
     test('an unknown royal still gets the shared default timing', () {

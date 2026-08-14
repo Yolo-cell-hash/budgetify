@@ -475,11 +475,27 @@ _BootStyle _bootStyleFor(String id) => switch (id) {
 /// Only the two royals whose entrances actually carry more get an override.
 /// The other six are deliberately untouched — their pacing is already the one
 /// the court was tuned around.
+/// One beat of parade choreography, in ms — the pace every royal moves at.
+///
+/// Taken from the court's own signature window (14% of 5600ms = 784ms for one
+/// gesture) and rounded. A royal's TOTAL is not a taste decision: it falls out
+/// of how many beats its choreography has. More beats means a longer parade,
+/// never a slower one.
+///
+/// The Huntress is why this is written down. Her total was tuned twice while
+/// the somersault was being restarted seven times a crossing, and both times
+/// the answer was "give her more room" — ending at 12000ms, 2.1x the court.
+/// With the restart fixed, that room turned into sluggishness: her rotation
+/// ran at 1.59x the court's gesture and her signature beats at 1.15x. Pace is
+/// the thing to hold constant; length is the thing that varies.
+const int kParadeBeatMs = 800;
+
 int _bootDurationMs(String id) => switch (id) {
-      // The most crowded entrance in the court by some distance. 9200 was
-      // still not enough — a somersault and four dagger beats need the room,
-      // and half-measures on this have now been wrong twice.
-      'huntress' => 12000,
+      // Eight-and-a-bit beats: pop, a short wave (she is the one royal who
+      // does not stop to be admired), two for the crossing, one for the blade
+      // pivot, ~1.2 home, and FOUR for the signature, which is four separate
+      // moves where the rest of the court signs off with one.
+      'huntress' => 8400,
       // His signature is holding still, and stillness needs long enough to
       // read as deliberate rather than as the animation having stalled.
       'sentinel' => 6400,
@@ -510,24 +526,22 @@ typedef _BootBeats = ({
 _BootBeats _bootBeatsFor(String id) => switch (id) {
       // Her parade is a ROUTE, not a lap: sprint out with one somersault in
       // it, land and turn with the blades up, sprint home, sign off. So the
-      // time goes where the sequence is — 26% on the outbound run (the vault
-      // lives inside it, ~3.1s of a 12000ms parade), 8% on the combat pivot at
-      // the far end, and only 16% coming home, because a sprint reads fine
-      // fast and has nothing to comprehend. The signature keeps 30%: it is
-      // four beats and the suite holds it at 3500ms or better, having already
-      // been raised twice for reading too fast on a device.
+      // Every span below is a whole number of [kParadeBeatMs], so nothing she
+      // does runs at a different speed from the rest of the court — the
+      // crossing is 2 beats with the rotation taking exactly 1 of them, the
+      // pivot is 1, and the signature is 4 because it is four separate moves.
       //
       // She barely waves. She is the one member of the court who does not
-      // stop to be admired, and the old 8% wave was borrowed politeness.
+      // stop to be admired, and a full-length wave was borrowed politeness.
       'huntress' => (
-          popEnd: 0.05,
+          popEnd: 0.06,
           waveEnd: 0.11,
-          outStart: 0.14,
-          outEnd: 0.40,
-          farEnd: 0.48,
-          homeEnd: 0.64,
-          sigStart: 0.67,
-          sigEnd: 0.97,
+          outStart: 0.13,
+          outEnd: 0.32,
+          farEnd: 0.42,
+          homeEnd: 0.53,
+          sigStart: 0.56,
+          sigEnd: 0.94,
         ),
       'sentinel' => (
           popEnd: 0.09,
@@ -686,14 +700,20 @@ class RoyalReactionHost extends StatefulWidget {
   /// length and how many ms the signature move actually gets. Exposed because
   /// "too fast to see" is a number, and a number can be pinned.
   @visibleForTesting
-  static ({int totalMs, int signatureMs, int crossingMs})
+  static ({int totalMs, int signatureMs, int crossingMs, int rotationMs})
       debugBootTiming(String royalId) {
     final ms = _bootDurationMs(royalId);
     final b = _bootBeatsFor(royalId);
+    final crossing = (b.outEnd - b.outStart) * ms;
     return (
       totalMs: ms,
       signatureMs: ((b.sigEnd - b.sigStart) * ms).round(),
-      crossingMs: ((b.outEnd - b.outStart) * ms).round(),
+      crossingMs: crossing.round(),
+      // Wall-clock of one full somersault, for royals who cross on foot. This
+      // is the number the pacing suite should hold, not the crossing length:
+      // the crossing can be any length, but the ROTATION has to run at the
+      // court's beat or she reads as slow next to everyone else.
+      rotationMs: (crossing * kOnFootAirborneShare).round(),
     );
   }
 
