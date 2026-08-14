@@ -475,11 +475,27 @@ _BootStyle _bootStyleFor(String id) => switch (id) {
 /// Only the two royals whose entrances actually carry more get an override.
 /// The other six are deliberately untouched — their pacing is already the one
 /// the court was tuned around.
+/// One beat of parade choreography, in ms — the pace every royal moves at.
+///
+/// Taken from the court's own signature window (14% of 5600ms = 784ms for one
+/// gesture) and rounded. A royal's TOTAL is not a taste decision: it falls out
+/// of how many beats its choreography has. More beats means a longer parade,
+/// never a slower one.
+///
+/// The Huntress is why this is written down. Her total was tuned twice while
+/// the somersault was being restarted seven times a crossing, and both times
+/// the answer was "give her more room" — ending at 12000ms, 2.1x the court.
+/// With the restart fixed, that room turned into sluggishness: her rotation
+/// ran at 1.59x the court's gesture and her signature beats at 1.15x. Pace is
+/// the thing to hold constant; length is the thing that varies.
+const int kParadeBeatMs = 800;
+
 int _bootDurationMs(String id) => switch (id) {
-      // The most crowded entrance in the court by some distance. 9200 was
-      // still not enough — a somersault and four dagger beats need the room,
-      // and half-measures on this have now been wrong twice.
-      'huntress' => 12000,
+      // Eight-and-a-bit beats: pop, a short wave (she is the one royal who
+      // does not stop to be admired), two for the crossing, one for the blade
+      // pivot, ~1.2 home, and FOUR for the signature, which is four separate
+      // moves where the rest of the court signs off with one.
+      'huntress' => 8400,
       // His signature is holding still, and stillness needs long enough to
       // read as deliberate rather than as the animation having stalled.
       'sentinel' => 6400,
@@ -508,18 +524,24 @@ typedef _BootBeats = ({
 });
 
 _BootBeats _bootBeatsFor(String id) => switch (id) {
-      // 34% of a 12000ms parade on the signature — about 1s a beat, against
-      // the 196ms the original shared timeline gave her — and 24% on the
-      // crossing, which puts her somersault a shade over 1.6s.
+      // Her parade is a ROUTE, not a lap: sprint out with one somersault in
+      // it, land and turn with the blades up, sprint home, sign off. So the
+      // Every span below is a whole number of [kParadeBeatMs], so nothing she
+      // does runs at a different speed from the rest of the court — the
+      // crossing is 2 beats with the rotation taking exactly 1 of them, the
+      // pivot is 1, and the signature is 4 because it is four separate moves.
+      //
+      // She barely waves. She is the one member of the court who does not
+      // stop to be admired, and a full-length wave was borrowed politeness.
       'huntress' => (
-          popEnd: 0.05,
-          waveEnd: 0.13,
-          outStart: 0.16,
-          outEnd: 0.40,
-          farEnd: 0.43,
-          homeEnd: 0.60,
-          sigStart: 0.63,
-          sigEnd: 0.97,
+          popEnd: 0.06,
+          waveEnd: 0.11,
+          outStart: 0.13,
+          outEnd: 0.32,
+          farEnd: 0.42,
+          homeEnd: 0.53,
+          sigStart: 0.56,
+          sigEnd: 0.94,
         ),
       'sentinel' => (
           popEnd: 0.09,
@@ -678,14 +700,20 @@ class RoyalReactionHost extends StatefulWidget {
   /// length and how many ms the signature move actually gets. Exposed because
   /// "too fast to see" is a number, and a number can be pinned.
   @visibleForTesting
-  static ({int totalMs, int signatureMs, int crossingMs})
+  static ({int totalMs, int signatureMs, int crossingMs, int rotationMs})
       debugBootTiming(String royalId) {
     final ms = _bootDurationMs(royalId);
     final b = _bootBeatsFor(royalId);
+    final crossing = (b.outEnd - b.outStart) * ms;
     return (
       totalMs: ms,
       signatureMs: ((b.sigEnd - b.sigStart) * ms).round(),
-      crossingMs: ((b.outEnd - b.outStart) * ms).round(),
+      crossingMs: crossing.round(),
+      // Wall-clock of one full somersault, for royals who cross on foot. This
+      // is the number the pacing suite should hold, not the crossing length:
+      // the crossing can be any length, but the ROTATION has to run at the
+      // court's beat or she reads as slow next to everyone else.
+      rotationMs: (crossing * kOnFootAirborneShare).round(),
     );
   }
 
@@ -1527,7 +1555,11 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
           scale: 1,
           action: RoyalAction.ride,
           // The Empress's ride cycles slowly; the rest keep the brisk tempo.
-          actionT: _cyc(t, style == _BootStyle.glide ? 900 : 420),
+          // The Huntress takes the leg's progress instead of a cycle, so the
+          // crossing contains exactly one somersault.
+          actionT: _rideIsOneShot
+              ? p
+              : _cyc(t, style == _BootStyle.glide ? 900 : 420),
           facing: outFace,
           opacity: fx.opacity,
           ghosts: fx.ghosts);
@@ -1537,6 +1569,21 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
       // Empress skips it entirely — she never stops, so there is nothing to
       // turn around; the glide just carries straight on into the return.
       final turned = style == _BootStyle.glide ? outFace : homeFace;
+      if (_rideIsOneShot) {
+        // She lands the vault and turns on the spot with the blades already
+        // moving. This is the beat that says close combat rather than just
+        // acrobatics — the somersault alone makes her a gymnast.
+        //
+        // A blade dance is not a mounted action, so it renders in the standing
+        // box: hand it the standing lane's Y or she drops half a box height at
+        // the turn (see [_groundY], which exists for exactly this).
+        return _CharFrame(
+            center: Offset(farC.dx, standY),
+            scale: 1,
+            action: RoyalAction.bladeDance,
+            actionT: _seg(t, beats.outEnd, beats.farEnd),
+            facing: turned);
+      }
       return _CharFrame(
           center: style == _BootStyle.glide
               ? travel(1, outbound: true)
@@ -1558,7 +1605,12 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
           center: travel(p, outbound: false),
           scale: 1,
           action: RoyalAction.ride,
-          actionT: _cyc(t, style == _BootStyle.glide ? 900 : 420),
+          // Above 1 is her sprint-only mode: she has already turned over once
+          // on the way out, and doing it again on the way back is what made
+          // the entrance read as tumbling rather than as a route being run.
+          actionT: _rideIsOneShot
+              ? 1.0 + p * 4
+              : _cyc(t, style == _BootStyle.glide ? 900 : 420),
           facing: style == _BootStyle.glide ? outFace : homeFace,
           opacity: fx.opacity,
           ghosts: fx.ghosts);
@@ -2150,6 +2202,16 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
   /// is the one that has to work in a cameo, where she appears mid-screen with
   /// no runway to leap from. Feet planted, all wrists: it is the only one of
   /// the three that fits in a standing box.
+  /// Whether this royal's "ride" is a one-shot traversal rather than a looping
+  /// gait — true only for the Huntress, who has no mount.
+  ///
+  /// A gallop repeats, so the host drives it with a fast repeating cycle and a
+  /// longer crossing just means more strides. Her crossing is a SEQUENCE (run,
+  /// one somersault, land, run), and feeding a sequence the same repeating
+  /// cycle restarted it about seven times per leg. Her ride takes the leg's own
+  /// progress instead — see `_rideOnFoot`.
+  bool get _rideIsOneShot => _royal?.id == 'huntress';
+
   RoyalAction get _mannerGreetAction => _royal?.id == 'huntress'
       ? RoyalAction.bladeDance
       : RoyalAction.wave;
@@ -2234,7 +2296,9 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
         center: Offset(_lerp(fromX, toX, p), y + arc),
         scale: scale,
         action: RoyalAction.ride,
-        actionT: _cyc(t, _mannerTempo(400)),
+        // One somersault per cameo crossing, for the same reason as the
+        // parade: her ride is a sequence, not a cycle.
+        actionT: _rideIsOneShot ? t : _cyc(t, _mannerTempo(400)),
         facing: dir);
   }
 
