@@ -3416,52 +3416,92 @@ class RoyalCharacterPainter extends CustomPainter {
   /// hospital trolley — with spinning spoked wheels and a white cross plate.
   /// The Huntress's traversal: no mount, so she crosses on her own legs.
   ///
-  /// Run-up, launch, a full somersault through the middle of the span, then a
-  /// crouched landing and a run-out. The rotation is applied to the whole
-  /// standing figure rather than animated limb by limb — at this scale a
-  /// tumbling silhouette reads as a somersault, and posing one frame by frame
-  /// would fight the shared rig for no visible gain.
+  /// **This is a ONE-SHOT, not a gait.** Every other royal's ride is a looping
+  /// cycle — a gallop repeats, so the host drives it with `_cyc(t, 420)` and a
+  /// longer crossing simply means more strides. Hers is a whole sequence with a
+  /// beginning and an end, and driving a sequence with a repeating cycle ran it
+  /// start-to-finish over and over: roughly seven somersaults per crossing, and
+  /// seven more coming home. That is the "multiple quick somersaults" — the
+  /// tumble was never too fast, it was being restarted.
+  ///
+  /// The contract with the host is therefore:
+  ///   * `t` in 0..1 — ONE traversal. Sprint, a single somersault, a landing
+  ///     she absorbs, and a sprint out of it. Pass the LEG'S OWN progress.
+  ///   * `t` above 1 — sprint only, no tumble, the fractional part driving the
+  ///     leg cycle. This is how she comes home without turning over twice.
+  ///
+  /// She also stays CENTRED in the box, exactly as the mounted rides do. She
+  /// used to sweep across it as well, which fought the frame already carrying
+  /// her across the screen and read as drifting.
   void _rideOnFoot(Canvas canvas, Size size) {
-    final w = size.width, h = size.height;
-    final uw = math.min(w, h * 1.7);
+    final h = size.height;
+    final uw = math.min(size.width, h * 1.7);
+    final cx = size.width * 0.5;
     final ground = h * 0.92;
-    // Left-to-right across the usable span, matching the mounted rides.
-    final x = w * 0.5 + (t - 0.5) * uw * 0.86;
 
-    // The airborne window. Outside it she is simply running.
-    //
-    // 58% of the crossing rather than the original 44%: the rotation is one
-    // full turn however long it is given, so a narrow window spins her fast
-    // enough that the tumble reads as a flicker. Widening the window is what
-    // slows the turn down — the run-up and run-out lose the time, and they are
-    // the parts you least need to see.
-    const a = 0.22, b = 0.80;
-    final air = (t >= a && t < b) ? (t - a) / (b - a) : -1.0;
-
-    if (air < 0) {
-      final crouch = t < a
-          ? Curves.easeIn.transform(((t - (a - 0.10)) / 0.10).clamp(0.0, 1.0))
-          : Curves.easeOut.transform((1 - (t - b) / 0.12).clamp(0.0, 1.0));
+    // Sprint-only mode: she is running, and that is all.
+    if (t > 1.0) {
+      _shadow(canvas, Offset(cx, ground), uw * 0.10, const _Pose());
       _onFootFigure(canvas, size,
-          at: Offset(x, h * 0.045 * crouch),
-          pose: _poseFor(RoyalAction.run, (t * 6) % 1.0),
+          at: Offset(cx, 0),
+          pose: _poseFor(RoyalAction.run, t % 1.0),
           as: RoyalAction.run);
       return;
     }
 
-    // Airborne: a parabola with one full rotation about her own centre.
-    final lift = math.sin(air * math.pi);
-    final rise = h * 0.36 * lift;
-    // The shadow stays on the ground and shrinks as she leaves it.
-    _shadow(canvas, Offset(x, ground), uw * 0.10 * (1 - 0.45 * lift),
-        const _Pose());
+    // One traversal, in four beats. A parkour run is a gather, a commitment,
+    // and an absorbed landing — skip the gather and the launch reads as the
+    // floor throwing her.
+    const launch = 0.26; // sprint, then coil
+    const land = 0.66; // airborne through here
+    const recover = 0.80; // knees taking the drop
+
+    if (t < launch) {
+      // Run-up, dropping into a coil over the last third of it.
+      final coil = Curves.easeIn.transform(
+          ((t - launch * 0.66) / (launch * 0.34)).clamp(0.0, 1.0));
+      _shadow(canvas, Offset(cx, ground), uw * 0.10, const _Pose());
+      _onFootFigure(canvas, size,
+          at: Offset(cx, h * 0.05 * coil),
+          pose: _poseFor(RoyalAction.run, (t * 5) % 1.0),
+          as: RoyalAction.run);
+      return;
+    }
+
+    if (t < land) {
+      // Airborne: a parabola with exactly ONE rotation about her own middle.
+      final air = (t - launch) / (land - launch);
+      final lift = math.sin(air * math.pi);
+      _shadow(canvas, Offset(cx, ground), uw * 0.10 * (1 - 0.45 * lift),
+          const _Pose());
+      _onFootFigure(canvas, size,
+          at: Offset(cx, -h * 0.38 * lift),
+          pose: _poseFor(RoyalAction.vault, air),
+          as: RoyalAction.vault,
+          spin: air * 2 * math.pi);
+      return;
+    }
+
+    if (t < recover) {
+      // The landing, absorbed: she drops into her knees and comes back up.
+      // Without this she snaps upright the instant she touches down, which is
+      // the single clearest tell that a jump was faked.
+      final p = (t - land) / (recover - land);
+      final absorb = math.sin(p * math.pi);
+      _shadow(canvas, Offset(cx, ground), uw * 0.11, const _Pose());
+      _onFootFigure(canvas, size,
+          at: Offset(cx, h * 0.085 * absorb),
+          pose: _poseFor(RoyalAction.vault, 1 - p * 0.35),
+          as: RoyalAction.run);
+      return;
+    }
+
+    // Out of the landing and running again.
+    _shadow(canvas, Offset(cx, ground), uw * 0.10, const _Pose());
     _onFootFigure(canvas, size,
-        at: Offset(x, -rise),
-        pose: _poseFor(RoyalAction.vault, air),
-        as: RoyalAction.vault,
-        // Rotation about her own middle, not the box's: the pivot has to ride
-        // the figure or she orbits a point in space instead of tumbling.
-        spin: air * 2 * math.pi);
+        at: Offset(cx, 0),
+        pose: _poseFor(RoyalAction.run, (t * 5) % 1.0),
+        as: RoyalAction.run);
   }
 
   /// Draws the STANDING figure inside a wide ride box, at the standing box's
