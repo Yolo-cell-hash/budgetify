@@ -4,6 +4,55 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.75.1] — 2026-08-15
+
+Everything below landed after 1.75.0's build was cut, so this is the first
+release any of it reaches. One item reverses something 1.75.0 announced.
+
+### Fixed
+
+- **Flicking "Match app icon to my royal" force-closed the app.** 1.75.0 said
+  the switch would reconcile the icon the moment you flipped it, "silently: no
+  confirm and no restart". That was wrong about the platform. Android applies
+  an alternate icon by disabling the launcher component the app is currently
+  running on, and it tears the running task down when it does — whatever
+  `DONT_KILL_APP` implies. So the switch closed the app, with nothing asked,
+  for an avatar you had not chosen to keep yet. **The icon now only ever
+  changes on Save**, through the same confirm-and-restart prompt as before.
+  Two more silent swaps went with it: one at startup (a crash on launch) and
+  one in the middle of a restore.
+- **The launch parade sometimes did not play at all.** A session gets one
+  entrance, and there were two ways to spend it on nothing: a dialog already on
+  screen when the app opened, and a dialog arriving a beat later, mid-parade —
+  a rating prompt, a restore, a tutorial step. Now a popup delays the entrance
+  rather than consuming it, and cancelling one hands it back.
+- **The Sentinel and the Huntress had no splash.** Both shipped with their own
+  launcher icons and the default gold splash behind them, because the splash's
+  gem artwork was maintained by hand alongside the icon roster and nothing held
+  the two together. They now have their own, and the roster is checked.
+- **Restoring a backup could turn settings back on that you had turned off.**
+  No preference was ever carried in a backup, so a restore reset each one to
+  its default — and "match app icon to my royal" defaults on. Your own choices
+  now ride along, and a backup made before this carries none, so it leaves your
+  settings alone rather than resetting them.
+
+### Changed
+
+- **The Huntress somersaults once on the way out, not seven times.** Her
+  entrance was unreadable, and the earlier attempts to fix it by giving her
+  more room could not have worked: the tumble was never too fast, it was being
+  restarted. Her traversal is a one-shot sequence — run-up, somersault, landing
+  — but the parade drove it the way it drives a gallop, which loops. Across one
+  crossing that is about seven somersaults, and seven more coming home. She now
+  crosses once, pivots at the far end with her blades already up, and sprints
+  home without a second tumble.
+- **Her pacing is now the court's, not her own.** With the tumble no longer
+  restarting, the room she had been given to compensate read as sluggishness
+  instead — a 12s parade against the court's 5.6s. Every span of hers is now a
+  whole number of the court's beat: one for the somersault, four for the
+  signature because it is four separate moves. Her parade falls out at 8.4s
+  rather than being picked.
+
 ## [1.75.0] — 2026-08-14
 
 ### Fixed
