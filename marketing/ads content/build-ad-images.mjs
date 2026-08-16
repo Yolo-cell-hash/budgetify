@@ -116,6 +116,13 @@ const RATIOS = [
 // one-line headline would shift everything below it and break the shared
 // rhythm. `sub` is held to two rendered lines for the same reason.
 //
+// KEEP EACH `wide` LINE UNDER ~27 CHARACTERS. The landscape copy column is
+// 622px at 50px/800, so a longer line wraps and silently makes a THREE-line
+// headline -- which pushes the sub down and breaks the rhythm against every
+// other landscape in the set. `wide` may equal `headline` when the claim does
+// not have a longer form worth writing; it is there to allow a longer line,
+// not to require one.
+//
 // Concept 03 carries no device on purpose. A screenshot cannot show the absence
 // of a permission, so the claim itself is the creative -- and a set of four
 // near-identical phone shots reads as one blurred rectangle at thumbnail size.
@@ -172,6 +179,48 @@ const CONCEPTS = [
     // The wide canvas gets a second screen rather than one lonely phone.
     fileWide: "budgets-jul-01.png",
     offsetWide: 560,
+  },
+
+  // 06-08 exist to fill the ad group to Google's cap of 20 images. They render
+  // in SOME ratios only (`ratios`), because 5 concepts x 3 ratios is already 15
+  // and three more full sets would be 24. The split favours landscape and
+  // square: landscape draws the most Display inventory and square dominates
+  // Discover and mobile feeds, while portrait is the one Google treats as
+  // optional. Final spread is 7 landscape / 7 square / 6 portrait.
+  //
+  // Claims here are lifted from the Play Store screenshot builder next door, so
+  // the ads and the store listing make the same promises in the same words.
+  {
+    id: "06-recurring",
+    file: "recurring-01.png",
+    offset: 0,
+    ratios: ["1200x628", "1200x1200"],
+    eyebrow: "Recurring",
+    headline: "Nothing bills you\nby surprise.",
+    wide: "Nothing bills you\nby surprise.",
+    sub: "Budgetify spots repeating payments on its own and nudges\nyou before each one is due.",
+  },
+  {
+    id: "07-your-language",
+    file: "localisation-hindi.png",
+    offset: 0,
+    ratios: ["1200x628", "1200x1500"],
+    eyebrow: "Six languages",
+    headline: "Budgetify speaks\nyour language.",
+    wide: "Budgetify speaks\nyour language.",
+    sub: "Every screen, category and insight — in English, Hindi,\nMarathi, Bengali, Telugu or Tamil.",
+  },
+  {
+    id: "08-net-worth",
+    file: "networth-01.png",
+    offset: 0,
+    ratios: ["1200x1200"],
+    eyebrow: "Net worth",
+    headline: "Watch your net worth\ncompound.",
+    // Square-only today, so this never renders -- kept inside the 27-char rule
+    // anyway, so switching the ratio on later is a one-line change.
+    wide: "Watch your net worth\ncompound.",
+    sub: "Track what you own against what you owe, then project\nwhere your savings rate leads.",
   },
 ];
 
@@ -415,6 +464,8 @@ for (const concept of CONCEPTS) {
     process.exit(1);
   }
   for (const r of RATIOS) {
+    // A concept with no `ratios` renders in all three.
+    if (concept.ratios && !concept.ratios.includes(r.id)) continue;
     const out = `${concept.id}-${r.id}.png`;
     const html = join(tmp, out.replace(/\.png$/, ".html"));
     writeFileSync(html, page(concept, r));

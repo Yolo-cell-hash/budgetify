@@ -141,18 +141,23 @@ portrait-only campaign gives up in-stream and Display inventory.
 
 ## The assets
 
-### Images — 5 concepts × 3 ratios
+### Images — 20, the maximum an ad group takes
 
-| Concept | Angle | Source |
+| Concept | Angle | Ratios |
 |---|---|---|
-| `01-automatic` | Every rupee tracked. Zero typing. | Real dashboard capture |
-| `02-reads-sms` | It reads your bank SMS. | Real transaction-detail capture |
-| `03-no-internet` | No internet permission. | Typographic — see below |
-| `04-where-it-went` | See where it actually went. | Real budgets capture |
-| `05-product` | No overlay at all — product only | Dashboard + budgets captures |
+| `01-automatic` | Every rupee tracked. Zero typing. | all three |
+| `02-reads-sms` | It reads your bank SMS. | all three |
+| `03-no-internet` | No internet permission. | all three |
+| `04-where-it-went` | See where it actually went. | all three |
+| `05-product` | No overlay at all — product only | all three |
+| `06-recurring` | Nothing bills you by surprise. | landscape, square |
+| `07-your-language` | Budgetify speaks your language. | landscape, portrait |
+| `08-net-worth` | Watch your net worth compound. | square |
 
 Ratios are 1200×628 (landscape, required), 1200×1200 (square, required) and
 1200×1500 (portrait, optional but unlocks extra inventory). All under 5 MB, PNG.
+**Upload all 20** — you do not pick between them, Google picks which shape fits
+each placement.
 
 **The three ratios are not three copies of one asset.** Google does not resize
 across placements — it serves 1.91:1 to Display, 1:1 to Discover and mobile
@@ -160,8 +165,11 @@ feeds, and 4:5 to inventory neither of the others reaches. Each ratio has to be
 supplied separately or that inventory simply goes unserved.
 
 Google asks for **at least 4 landscape, 4 square and 2 portrait** to reach a
-strong Ad Strength rating, and takes up to 20 per ad group. Five of each clears
-that with room to add winners later.
+strong Ad Strength rating, and takes **up to 20 per ad group**. The spread here
+is **7 landscape / 7 square / 6 portrait**, weighted toward landscape and square
+because landscape draws the most Display inventory and square dominates Discover
+and mobile feeds. That is the ceiling — to add a new concept later, retire a
+weak one from the asset report first.
 
 `05-product` carries no overlay text on purpose. Google draws its own app icon,
 headline and Install button over the creative, and its guidance is to include at
