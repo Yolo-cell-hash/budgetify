@@ -15,6 +15,12 @@ ads content/
 
 Rebuild either set with `node build-ad-images.mjs` / `./build-ad-videos.sh`.
 
+The **feature graphic** lives next door at `../playstore/feature-graphic.png`
+(`node ../playstore/build-feature-graphic.mjs`). It is a Play listing asset, but
+an App campaign pulls it into ad placements automatically — which is why the ad
+preview showed a banner before a single image asset had been uploaded. It counts
+as campaign creative whether or not you upload anything here.
+
 ---
 
 ## Two things to fix before any money moves
