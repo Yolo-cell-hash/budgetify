@@ -160,6 +160,19 @@ const CONCEPTS = [
     wide: "See where it actually went.\nEvery month.",
     sub: "Category budgets, your daily pace, and the merchants\ntaking the most.",
   },
+  // No overlay at all -- Google draws its own headline, app icon and Install
+  // button over the creative, and its guidance is to supply at least one
+  // untexted image per ratio so there is something that does not fight that
+  // chrome. The only words in this one are the app's own UI.
+  {
+    id: "05-product",
+    plain: true,
+    file: "home-01-top.png",
+    offset: 0,
+    // The wide canvas gets a second screen rather than one lonely phone.
+    fileWide: "budgets-jul-01.png",
+    offsetWide: 560,
+  },
 ];
 
 const dataUri = (p, mime) =>
@@ -190,7 +203,69 @@ const TICK = (px) =>
            stroke-linecap="round" stroke-linejoin="round"/>
    </svg>`;
 
+// The untexted concept: device art on the brand ground, nothing else. Two
+// screens side by side on the wide canvas, one large screen on the tall ones.
+function plainPage(concept, r) {
+  const wide = r.layout === "side";
+  // 340 is the narrowest the wide pair can be and still have the SECOND panel
+  // reach the bottom edge: that capture is scrolled 560px in, so it runs out
+  // sooner than the first, and any panel that stops short of the canvas reads
+  // as a rendering bug rather than a crop.
+  const deviceW = wide ? 340 : Math.round(r.w * 0.58);
+  const scale = deviceW / SRC_W;
+  const scaledH = Math.round(SRC_H * scale);
+  const top = wide ? 44 : Math.round(r.h * 0.11);
+  const shots = wide
+    ? [
+        { file: concept.file, offset: concept.offset ?? 0 },
+        { file: concept.fileWide, offset: concept.offsetWide ?? 0 },
+      ]
+    : [{ file: concept.file, offset: concept.offset ?? 0 }];
+
+  const panels = shots
+    .map(
+      (s) => `<div class="device"><img src="${dataUri(join(CAPS, s.file), "image/png")}"
+      style="margin-top:${-Math.round(s.offset * scale)}px"></div>`,
+    )
+    .join("\n");
+
+  return `<!doctype html><html><head><meta charset="utf-8"><style>
+${FACES}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:${r.w}px;height:${r.h}px;overflow:hidden}
+body{
+  font-family:Manrope,sans-serif;
+  background:
+    radial-gradient(${Math.round(r.w * 0.92)}px ${Math.round(r.h * 0.95)}px at 50% 106%, rgba(200,167,94,.32), transparent 63%),
+    radial-gradient(${Math.round(r.w * 0.62)}px ${Math.round(r.h * 0.8)}px at 8% -8%, rgba(74,88,132,.34), transparent 66%),
+    linear-gradient(168deg,#1a2036 0%,#141a2b 42%,#0b0e18 100%);
+}
+.stage{
+  position:absolute;top:${top}px;left:0;right:0;
+  display:flex;justify-content:center;align-items:flex-start;
+  gap:${wide ? 34 : 0}px;
+}
+.device{
+  width:${deviceW}px;height:${r.h - top + 40}px;
+  border-radius:${Math.round(deviceW * 0.054)}px ${Math.round(deviceW * 0.054)}px 0 0;
+  overflow:hidden;
+  border:1.5px solid rgba(200,167,94,.42);
+  border-bottom:none;
+  box-shadow:
+    0 -2px 0 rgba(255,255,255,.06) inset,
+    0 34px 78px rgba(0,0,0,.55),
+    0 0 110px rgba(200,167,94,.10);
+}
+.device img{display:block;width:${deviceW}px;height:${scaledH}px}
+</style></head><body>
+<div class="stage">
+${panels}
+</div>
+</body></html>`;
+}
+
 function page(concept, r) {
+  if (concept.plain) return plainPage(concept, r);
   const hasDevice = Boolean(concept.file);
   const scale = r.deviceW / SRC_W;
   const scaledH = Math.round(SRC_H * scale);

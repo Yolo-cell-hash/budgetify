@@ -15,6 +15,12 @@ ads content/
 
 Rebuild either set with `node build-ad-images.mjs` / `./build-ad-videos.sh`.
 
+The **feature graphic** lives next door at `../playstore/feature-graphic.png`
+(`node ../playstore/build-feature-graphic.mjs`). It is a Play listing asset, but
+an App campaign pulls it into ad placements automatically — which is why the ad
+preview showed a banner before a single image asset had been uploaded. It counts
+as campaign creative whether or not you upload anything here.
+
 ---
 
 ## Two things to fix before any money moves
@@ -135,7 +141,7 @@ portrait-only campaign gives up in-stream and Display inventory.
 
 ## The assets
 
-### Images — 4 concepts × 3 ratios
+### Images — 5 concepts × 3 ratios
 
 | Concept | Angle | Source |
 |---|---|---|
@@ -143,9 +149,24 @@ portrait-only campaign gives up in-stream and Display inventory.
 | `02-reads-sms` | It reads your bank SMS. | Real transaction-detail capture |
 | `03-no-internet` | No internet permission. | Typographic — see below |
 | `04-where-it-went` | See where it actually went. | Real budgets capture |
+| `05-product` | No overlay at all — product only | Dashboard + budgets captures |
 
 Ratios are 1200×628 (landscape, required), 1200×1200 (square, required) and
 1200×1500 (portrait, optional but unlocks extra inventory). All under 5 MB, PNG.
+
+**The three ratios are not three copies of one asset.** Google does not resize
+across placements — it serves 1.91:1 to Display, 1:1 to Discover and mobile
+feeds, and 4:5 to inventory neither of the others reaches. Each ratio has to be
+supplied separately or that inventory simply goes unserved.
+
+Google asks for **at least 4 landscape, 4 square and 2 portrait** to reach a
+strong Ad Strength rating, and takes up to 20 per ad group. Five of each clears
+that with room to add winners later.
+
+`05-product` carries no overlay text on purpose. Google draws its own app icon,
+headline and Install button over the creative, and its guidance is to include at
+least one untexted image per ratio so something in the set is not competing with
+that chrome. The only words in it are the app's own UI.
 
 `03-no-internet` deliberately carries no phone. A screenshot cannot show the
 *absence* of a permission, so the claim carries itself — and four near-identical
