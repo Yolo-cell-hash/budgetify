@@ -8,6 +8,7 @@ import '../models/tax_bucket.dart';
 import '../models/transaction_model.dart';
 import '../models/transaction_rule_model.dart';
 import '../providers/theme_provider.dart';
+import '../services/bank_directory.dart';
 import '../services/database_service.dart';
 import '../services/custom_tag_service.dart';
 import '../services/ledger_service.dart';
@@ -404,6 +405,20 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
       if (!allowed) effective = 3;
     }
 
+    // "Name it & tag this one": collect the name first, then fall through as
+    // a single-transaction save. The rename sheet writes and refreshes
+    // _transaction itself, so the tag below lands on the freshly named row.
+    //
+    // Backing out of the naming sheet does NOT cancel the save the way
+    // dismissing the scope sheet does — the user already answered the scope
+    // question by picking this option, and "only this one" is what that
+    // answer resolves to whether or not they got around to typing a name.
+    if (scope == _nameAndTagScope) {
+      await _showRenamePayeeSheet();
+      if (!mounted) return;
+      effective = 3;
+    }
+
     setState(() => _isSaving = true);
     try {
       await _dbService.updateTransaction(
@@ -431,9 +446,35 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     }
   }
 
+  /// Scope sentinel for "name the counterparty, then tag this row alone".
+  /// Offered only when [_payeeIsUnnamed]; it resolves to scope 3 once the
+  /// naming step is done, so nothing downstream has to know about it.
+  static const int _nameAndTagScope = 0;
+
+  /// Whether this row's payee is the parser saying "nobody was named" rather
+  /// than an identity — an empty name, or the shared "UPI Transfer" /
+  /// account-number placeholder.
+  ///
+  /// Both bulk scopes reach other rows *by payee name*, so on a placeholder
+  /// they reach every unrelated transaction that happens to carry the same
+  /// placeholder. "ATM" and "Bank Charges" are deliberately not placeholders:
+  /// each is one real counterparty, and "all my ATM withdrawals are Cash" is
+  /// a rule worth having. Same test [DatabaseService.renamePayee] uses, so
+  /// tagging and renaming can never disagree about what counts as a name.
+  bool get _payeeIsUnnamed => DatabaseService.isUnnamedPayee(
+        _transaction.merchantName,
+        _transaction.accountInfo,
+      );
+
   /// Ask how far the new tag should reach: 1 = this and every future one from
   /// this payee, 2 = every existing one, 3 = only this transaction. Null when
   /// the user backed out, which cancels the save.
+  ///
+  /// When the payee is unnamed ([_payeeIsUnnamed]) the two bulk scopes are
+  /// not offered at all — they would club unrelated payments under one tag.
+  /// In their place, [_nameAndTagScope]: name the counterparty, then tag this
+  /// row. Replaced rather than greyed out, so the sheet still answers "what
+  /// can I do here" instead of only "what you can't".
   ///
   /// Purely a question — it writes nothing and navigates nowhere, so the
   /// caller stays in control of whether anything happens at all.
@@ -442,6 +483,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     final colors = AppColors.of(context);
     final cardColor = colors.card;
     final textColor = colors.text;
+    final unnamed = _payeeIsUnnamed;
 
     final result = await showModalBottomSheet<int>(
       context: context,
@@ -468,7 +510,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
             ),
             const SizedBox(height: 20),
             Text(
-              context.l10nRead.applyToSimilarTitle,
+              unnamed
+                  ? context.l10nRead.unnamedPayeeTitle
+                  : context.l10nRead.applyToSimilarTitle,
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -477,9 +521,12 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              context.l10nRead.foundTxnsForMerchant(_merchantDisplayName),
+              unnamed
+                  ? context.l10nRead.unnamedPayeeBody
+                  : context.l10nRead.foundTxnsForMerchant(_merchantDisplayName),
               style: TextStyle(
                 color: colors.textSecondary,
+                height: unnamed ? 1.45 : null,
               ),
             ),
             // Guided tour: a one-time explainer for how far a tag can reach —
@@ -519,24 +566,39 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
               ),
             ],
             const SizedBox(height: 24),
-            _buildOption(
-              ctx,
-              icon: Icons.select_all_rounded,
-              title: context.l10nRead.applyToAll,
-              subtitle: context.l10nRead.applyToAllDesc,
-              value: 1,
-              color: Color(0xFF2AA76F),
-            ),
-            const SizedBox(height: 12),
-            _buildOption(
-              ctx,
-              icon: Icons.history_rounded,
-              title: context.l10nRead.applyToExisting,
-              subtitle: context.l10nRead.applyToExistingDesc,
-              value: 2,
-              color: Color(0xFFD79A3C),
-            ),
-            const SizedBox(height: 12),
+            // Nameless payee: the two bulk scopes are gone, and naming the
+            // counterparty stands in their place. It is the only action that
+            // can turn this row into something a future tag could ever reach.
+            if (unnamed) ...[
+              _buildOption(
+                ctx,
+                icon: Icons.drive_file_rename_outline_rounded,
+                title: context.l10nRead.nameThisPayment,
+                subtitle: context.l10nRead.nameThisPaymentDesc,
+                value: _nameAndTagScope,
+                color: Color(0xFF2AA76F),
+              ),
+              const SizedBox(height: 12),
+            ] else ...[
+              _buildOption(
+                ctx,
+                icon: Icons.select_all_rounded,
+                title: context.l10nRead.applyToAll,
+                subtitle: context.l10nRead.applyToAllDesc,
+                value: 1,
+                color: Color(0xFF2AA76F),
+              ),
+              const SizedBox(height: 12),
+              _buildOption(
+                ctx,
+                icon: Icons.history_rounded,
+                title: context.l10nRead.applyToExisting,
+                subtitle: context.l10nRead.applyToExistingDesc,
+                value: 2,
+                color: Color(0xFFD79A3C),
+              ),
+              const SizedBox(height: 12),
+            ],
             _buildOption(
               ctx,
               icon: Icons.touch_app_outlined,
@@ -775,6 +837,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final isCredit = _transaction.type == TransactionType.credit;
+    final bank = BankDirectory.resolve(_transaction);
     final colors = AppColors.of(context);
     // A debit with a share override is "split": the headline shows the user's
     // own share (what counts toward budgets), with the full amount struck out.
@@ -1012,11 +1075,22 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
+                  // The bank, not the DLT routing header it arrived under.
+                  // "AD-IDBIBK-S" is the telecom operator's envelope, not an
+                  // answer to "who is this from" — the directory already maps
+                  // it to "IDBI Bank" for the Banks screen and honours the
+                  // user's own name for it. The raw header stays underneath
+                  // for the same reason "Read by" does: it is what a bug
+                  // report needs, and hiding it would make an unrecognised
+                  // header impossible to read off the screen.
                   _buildDetailRow(
                     context.l10n.fromLabel,
-                    _transaction.sender,
+                    bank.isUnnamed ? _transaction.sender : bank.name,
                     subtextColor,
                     textColor,
+                    subvalue: bank.isUnnamed || bank.name == _transaction.sender
+                        ? null
+                        : _transaction.sender,
                   ),
                   // Counterparty row. "Payee" kept being misread as "the one
                   // who paid" (two independent tester reports — Jun/Jul '26
@@ -2390,12 +2464,16 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     }
   }
 
+  /// One label/value line. [subvalue] is fine print under the value — the
+  /// raw sender header behind a resolved bank name, so nothing the screen
+  /// used to show is lost when a friendlier name is put in front of it.
   Widget _buildDetailRow(
     String label,
     String value,
     Color subtextColor,
     Color textColor, {
     VoidCallback? onEdit,
+    String? subvalue,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -2412,13 +2490,29 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
             ),
           ),
           Expanded(
-            child: Text(
-              value,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: textColor,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: textColor,
+                  ),
+                ),
+                if (subvalue != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      subvalue,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: subtextColor.withValues(alpha: 0.8),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
           if (onEdit != null)
