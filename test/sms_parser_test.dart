@@ -1100,4 +1100,117 @@ void main() {
       );
     });
   });
+
+  // Four screenshots from the device (Aug 2026): every IDBI UPI spend showed
+  // "Paid to: UPI Transfer" and no account row at all, on messages that name
+  // the merchant outright. Two causes — IDBI puts the counterparty on its
+  // own side of the ledger ("Indian Railways credited") with the running
+  // balance in between, and it masks the account to three digits.
+  group('IDBI UPI spends (device reports, 2026-08)', () {
+    String idbiDebit(String amount, String date, String balance, String payee,
+            String ref) =>
+        'IDBI Bank Acct XX450 debited for Rs $amount on $date; '
+        'Bal Rs $balance $payee credited. UPI:$ref. To Block UPI send SMS '
+        'UPIBLOCK <Mob. No> to 07799000423  or call 18002094324-IDBI Bank';
+
+    test('the merchant behind the balance is the payee, not "UPI Transfer"',
+        () {
+      final txn = SmsParserService.parseTransaction(
+        'AD-IDBIBK-S',
+        idbiDebit('10.00', '14-Aug-26', '2020.93', 'Indian Railways',
+            '622698872431'),
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 10.0); // not the 2020.93 balance
+      expect(txn.type, TransactionType.debit); // "credited" is the payee's side
+      expect(txn.merchantName, 'Indian Railways');
+      expect(txn.accountInfo, 'XX450'); // three-digit mask
+      expect(txn.parseSource, 'IDBI · UPI transfer-out');
+      expect(txn.needsReview, isFalse);
+    });
+
+    test('a two-word all-caps merchant survives the balance figure', () {
+      final txn = SmsParserService.parseTransaction(
+        'AX-IDBIBK-S',
+        idbiDebit('26.00', '13-Aug-26', '2245.93', 'MR DIY', '659137399940'),
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 26.0);
+      expect(txn.merchantName, 'Mr Diy');
+      expect(txn.accountInfo, 'XX450');
+    });
+
+    test('a recognised merchant is auto-classified once it has a name', () {
+      final txn = SmsParserService.parseTransaction(
+        'AD-IDBIBK-S',
+        idbiDebit('404.00', '10-Aug-26', '3214.93', 'Blinkit', '658855728521'),
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.merchantName, 'Blinkit');
+      expect(txn.category, 'Groceries');
+    });
+
+    test('"Indian Railways" reaches the Travel keyword it never could', () {
+      // The keyword was spelled "Indian Railways Uts" in mixed case while
+      // detectCategory matches an uppercased message — it could never fire.
+      expect(SmsParserService.detectCategory('INDIAN RAILWAYS'), 'Travel');
+      expect(SmsParserService.detectCategory('Indian Railways'), 'Travel');
+    });
+
+    test('IDBI net banking still parses (no counterparty to name)', () {
+      final txn = SmsParserService.parseTransaction(
+        'JD-IDBIBK-S',
+        'IDBI Bank A/c NN15983 credited for INR 5400.00 through Net Banking. '
+        'Bal INR 8438.51 (incl. of chq in clg)  as of 13 MAY 19:33 hrs.',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.type, TransactionType.credit);
+      expect(txn.accountInfo, 'XX5983');
+      expect(txn.merchantName, isNull);
+    });
+  });
+
+  group('Ledger-side payees work for banks without a template pack', () {
+    test('an unpacked bank using IDBI\'s wording still names the payee', () {
+      final txn = SmsParserService.parseTransaction(
+        'VM-UBIINB-S',
+        'Union Bank A/c XX7788 debited for Rs 250.00 on 12-Aug-26; '
+        'Bal Rs 4110.20 Sharma Kirana credited. Ref 612345678905',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.merchantName, 'Sharma Kirana');
+      expect(txn.parseSource, 'general patterns');
+    });
+
+    test('the account side is read from the phrasing, not from word order',
+        () {
+      // Mirror direction: the account is credited, so the party carrying
+      // "debited" is the payer.
+      final txn = SmsParserService.parseTransaction(
+        'VM-UBIINB-S',
+        'Union Bank A/c XX7788 credited with Rs 900.00 on 12-Aug-26; '
+        'Bal Rs 5010.20 Ramesh Kumar debited. Ref 612345678906',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.type, TransactionType.credit);
+      expect(txn.merchantName, 'Ramesh Kumar');
+    });
+
+    test('narration is not mistaken for a counterparty', () {
+      final txn = SmsParserService.parseTransaction(
+        'VM-UBIINB-S',
+        'Union Bank A/c XX7788 debited for Rs 250.00 on 12-Aug-26. '
+        'Amount credited. Ref 612345678907',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.merchantName, isNot('Amount'));
+    });
+  });
 }

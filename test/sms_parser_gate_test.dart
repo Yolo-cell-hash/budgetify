@@ -277,6 +277,49 @@ void main() {
             'Rs 3,97,500.',
         expectParsed: true,
       ),
+
+      // ── Marketing on the transactional route ─────────────────────────────
+      // Promo CTAs used to be checked for fallback-trust senders only, on the
+      // reasoning that a registered bank header is trustworthy. Banks market
+      // to their own customers on -S too. Reported from a device 2026-08-18:
+      // this landed as ₹250 of INCOME and sat in the Tidy-up queue, which is
+      // meant for genuine transactions the reader was unsure about.
+      const _GateCase(
+        name: 'HDFC voucher pitch on the -S route, rejected',
+        sender: 'VM-HDFCBN-S',
+        message: 'Congrats!Claim Rs.250 voucher for activating HDFC Bank '
+            'Credit Card in July 26\nUse code 1T7B34F2 by 13-Sep-2026 '
+            'https://1.hdfc.bank.in/HDFCBK/s/8Kqd18AX\nT&C',
+        expectParsed: false,
+      ),
+      const _GateCase(
+        name: 'allowlisted-sender promo quoting a card tail, rejected',
+        sender: 'VM-ICICIB-S',
+        message: 'Congratulations! Your ICICI Bank Card XX9012 is '
+            'pre-approved for a limited time offer. T&C apply.',
+        expectParsed: false,
+      ),
+      // The guard's other half: promo copy only gets to decide when nothing
+      // in the message says money actually moved. A real debit that carries
+      // the same footer must survive, or every bank's "T&C apply" tagline
+      // would start deleting transactions.
+      const _GateCase(
+        name: 'genuine debit whose footer carries T&C still parses',
+        sender: 'VM-HDFCBK-S',
+        message: 'Rs.499.00 debited from A/c XX1234 on 18-08-26 for a '
+            'voucher purchase at BOOKMYSHOW. Refno 812345678901. '
+            'Avl Bal Rs.7,020.10. T&C apply.',
+        expectParsed: true,
+      ),
+      // A terse UPI alert has no settled verb AND no account, ref or balance
+      // to stand on. Absence of evidence therefore cannot be a rejection on
+      // its own — only promo vocabulary can tip it — so this must parse.
+      const _GateCase(
+        name: 'terse SBI UPI debit with neither verb nor evidence parses',
+        sender: 'BV-SBIUPI-S',
+        message: 'Rs.120 payment to RAMESH via APP done -SBI',
+        expectParsed: true,
+      ),
     ];
 
     for (final c in cases) {

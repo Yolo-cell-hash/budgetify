@@ -65,10 +65,11 @@ void main() {
       expect(m.amount, 3000.0);
       expect(m.firstDebitOn, DateTime(2026, 7, 23));
       expect(m.umn, '4a37de14c053467b8e7dfaa019ab432f@okicici');
-      // ICICI masks to three digits ("Account XX197"), which the account
-      // patterns (four-digit tails) don't read — the mandate carries no
-      // account, exactly as the matching ICICI transactions don't.
-      expect(m.accountInfo, isNull);
+      // ICICI masks to three digits ("Account XX197"). The account patterns
+      // used to require a four-digit tail, so this came back null; they now
+      // fall back to shorter masked runs, and the mandate records the same
+      // account as the transactions it will match.
+      expect(m.accountInfo, 'XX197');
     });
 
     test('HDFC "Mandate Set" block', () {
