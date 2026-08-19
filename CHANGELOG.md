@@ -4,6 +4,13 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+Also available in the five languages the app ships alongside English:
+[हिन्दी](CHANGELOG.hi.md) · [मराठी](CHANGELOG.mr.md) ·
+[বাংলা](CHANGELOG.bn.md) · [తెలుగు](CHANGELOG.te.md) ·
+[தமிழ்](CHANGELOG.ta.md). Those files start at 1.75.2, the release the
+practice began; this file remains the full history and the one to write
+first.
+
 ## [1.75.2] — 2026-08-19
 
 ### Fixed
