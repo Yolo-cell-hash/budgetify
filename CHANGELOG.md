@@ -31,6 +31,22 @@ first.
   Metro" were spelled in mixed case in the merchant list, which is compared
   against an upper-cased message — neither could ever match. Fixed, so an
   IRCTC or metro payment is tagged Travel on sight.
+- **Auto-tag rules no longer catch payees that just share a few letters.** A
+  rule taught on "Ola" was also tagging "Motorola Service", "Sola Foods" and
+  "Gola Sweets"; one taught on "Amazon Pay" claimed payees called "Maz" and
+  "Azo". Names were compared by looking for one inside the other as a run of
+  letters, so any short name landed in the middle of an unrelated long one —
+  and short names are common, because UPI IDs and initials produce them.
+  Names are now compared word by word: "Swiggy" still matches "Swiggy
+  Instamart", and a rule taught on "Swiggy Instamart" still catches a later
+  "Swiggy", but neither reaches inside a word any more. Two-letter names like
+  "BP" match only themselves. The same comparison now drives "Apply to All
+  Existing", so a sweep reaches exactly the rows the rule would.
+- **A name containing "upi" is no longer mangled.** The app removed payment
+  words — upi, neft, imps, rtgs, vpa — by deleting those letters wherever they
+  appeared, so "Rupinder" became "rnder" and could then match other equally
+  mangled names. They are only removed now when they stand as a word of their
+  own.
 - **A bank's own advertising is no longer logged as income.** "Congrats!Claim
   Rs.250 voucher…" from HDFC landed as ₹250 of income and went to the Tidy-up
   queue. The app used to only screen marketing copy from senders it didn't
