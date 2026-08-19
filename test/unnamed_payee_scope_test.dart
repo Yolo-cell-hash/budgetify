@@ -65,24 +65,28 @@ void main() {
 
   group('why the bulk scopes must not be offered', () {
     test('a rule taught on the placeholder sweeps unrelated payees', () {
-      // Measured, not reasoned: TransactionRule._normalizeName strips "upi",
-      // so a rule taught on "UPI Transfer" is stored as the pattern
-      // "transfer", and matches() compares containment both directions.
+      // Measured, not reasoned: "upi" is a rail word and is dropped, so a
+      // rule taught on "UPI Transfer" is really the pattern "transfer".
       final rule = TransactionRule(
         senderName: SmsParserService.payeeUpiTransfer,
         transactionType: TransactionType.credit,
         category: 'Gifts',
       );
       // The user's exact worry: the next nameless transfer, from anyone.
+      // Every one of them carries this identical placeholder.
       expect(rule.matches('UPI Transfer', TransactionType.credit), isTrue);
-      // And the collateral: real payees caught by the leftover word.
+      // And the collateral: real payees that happen to use the leftover word.
       expect(rule.matches('Bank Transfer', TransactionType.credit), isTrue);
       expect(
         rule.matches('Rent Transfer To Landlord', TransactionType.credit),
         isTrue,
       );
-      // Reverse containment reaches any name short enough to sit inside it.
-      expect(rule.matches('Ans', TransactionType.credit), isTrue);
+      // What no longer happens: reaching a name that merely has the letters
+      // somewhere inside it. That was KI-001, fixed by whole-word matching —
+      // see test/rule_name_matching_test.dart. The three cases above survive
+      // it untouched, which is why the scope guard is still the fix here: a
+      // placeholder is a bad rule pattern even when matching is well behaved.
+      expect(rule.matches('Ans', TransactionType.credit), isFalse);
     });
   });
 
