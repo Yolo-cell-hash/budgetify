@@ -1738,10 +1738,14 @@ class SmsParserService {
       'GOIBIBO',
       'CLEARTRIP',
       'YATRA',
-      'Indian Railways Uts',
+      // Uppercase because [detectCategory] matches against an uppercased
+      // message — the mixed-case spellings these two carried could never
+      // fire. "INDIAN RAILWAYS" is the bare form IDBI's UPI alerts print,
+      // and it also covers the "… UTS" suffix.
+      'INDIAN RAILWAYS',
       'IXIGO',
       'REDBUS',
-      'Mumbai Metro',
+      'MUMBAI METRO',
       'ABHIBUS',
       'EASEMYTRIP',
       'INDIGO',
@@ -2032,12 +2036,20 @@ class SmsParserService {
   );
 
   /// Marketing calls-to-action that never appear in a completed-transaction
-  /// alert. Only enforced for [SenderTrust.headerFallback] senders — real
-  /// banks put "offer" words in footers of genuine alerts, but they don't
-  /// say "apply now" in a debit confirmation.
+  /// alert. Enforced for [SenderTrust.headerFallback] senders outright, and
+  /// for everyone else once the message has been found to carry no settled
+  /// verb (see the "nothing here says money moved" gate in
+  /// [_isNonTransactionMessage]) — real banks put "offer" words in footers
+  /// of genuine alerts, but they don't say "apply now" in a debit
+  /// confirmation.
+  ///
+  /// "CONGRATS" is listed separately from "CONGRATULATIONS": the two are not
+  /// prefixes of one another, and the clipped form is the one HDFC's voucher
+  /// pitches actually use.
   static final RegExp _promoCtaRegex = RegExp(
     r'\bAPPLY\s+NOW\b|\bCLICK\s+(?:HERE|NOW)\b|T\s*&\s*C\b|\bTNC\b'
-    r'|\bCONGRATULATIONS?\b|\bWINNER\b|\bHURRY\b'
+    r'|\bCONGRATULATIONS?\b|\bCONGRATS\b|\bWINNER\b|\bHURRY\b'
+    r'|\bVOUCHER\b|\bCOUPON\b|\bUSE\s+CODE\b|\bSCRATCH\s+CARD\b'
     r'|\bLIMITED\s+(?:TIME|PERIOD)\b|\bPRE-?APPROVED\b',
   );
 
@@ -2263,6 +2275,32 @@ class SmsParserService {
       // footer words also names the account, a ref number, or the balance,
       // so require that evidence before letting the verb win.
       if (!_hasTransactionEvidence(upperMessage)) return true;
+    }
+
+    // --- Marketing copy with no settled verb behind it ---
+    // Promo CTAs ("T&C", "use code", "congrats") were only ever checked for
+    // headerFallback senders, on the reasoning that a real bank header is
+    // trustworthy. Banks market to their own customers on the -S route too:
+    //   VM-HDFCBN-S: "Congrats!Claim Rs.250 voucher for activating HDFC Bank
+    //                 Credit Card in July 26 Use code 1T7B34F2 by
+    //                 13-Sep-2026 https://... T&C"
+    // landed as ₹250 of INCOME (reported from a device, 2026-08-18). It was
+    // flagged for review, so the safety net held — but the queue is for
+    // genuine transactions the reader was unsure about, not for adverts, and
+    // every one that lands there is a chore the user did not earn.
+    //
+    // Same shape as the soft rejects above: the promo words only get to
+    // decide when the message carries no completed-transaction verb. Banks
+    // do append "T&C apply" to real alerts, and those alerts say "debited".
+    // A voucher pitch has no settled verb anywhere in it.
+    //
+    // Deliberately NOT paired with a "…or carries no account/ref/balance"
+    // clause: terse UPI alerts have neither ("Rs.120 payment to RAMESH via
+    // APP done -SBI" is a real debit), so absence of evidence cannot be made
+    // a rejection on its own.
+    if (!_transactionVerbRegex.hasMatch(upperMessage) &&
+        _promoCtaRegex.hasMatch(upperMessage)) {
+      return true;
     }
 
     return false;
@@ -2540,6 +2578,31 @@ class SmsParserService {
       }
     }
 
+    // --- Shorter masks: banks that print fewer than four digits ---
+    // Every rule above requires a run of exactly four digits, the length
+    // most banks mask to. IDBI's UPI alerts print three ("IDBI Bank Acct
+    // XX450 debited for Rs 10.00 ..."), as do some ICICI ones ("Acct
+    // XX012"), so the whole cascade came back empty and the detail screen
+    // showed no account row at all for those messages.
+    //
+    // Tried only after the four-digit pass, so a real last-four can never be
+    // truncated to three, and anchored on an explicit mask so a bare number
+    // elsewhere in the body can't pose as the account.
+    final shortMaskPatterns = [
+      RegExp(
+        r'A/?C(?:CT|COUNT)?\.?\s*(?:NO\.?)?\s*[X*]+(\d{2,3})(?!\d)',
+        caseSensitive: false,
+      ),
+      RegExp(r'[X*]{2,}(\d{2,3})(?!\d)'),
+    ];
+
+    for (final pattern in shortMaskPatterns) {
+      final match = pattern.firstMatch(message);
+      if (match != null && match.group(1) != null) {
+        return 'XX${match.group(1)}';
+      }
+    }
+
     return null;
   }
 
@@ -2662,6 +2725,16 @@ class SmsParserService {
     return MerchantExtraction(name, 'general patterns', PayeeSource.generic);
   }
 
+  /// Words a bank uses when it is talking about the transaction itself
+  /// rather than about the other party. A "{X} credited" capture that reads
+  /// as one of these is narration ("Amount credited", "Funds credited"), so
+  /// pattern 4d discards it instead of filing it as a payee.
+  static final RegExp _ledgerNarration = RegExp(
+    r'^(?:a/?c|acct|account|amount|amt|bal|balance|beneficiary|fund|funds'
+    r'|money|sum|rs|inr|total|payee|payer|it|the|your|this)$',
+    caseSensitive: false,
+  );
+
   /// Generic (cross-bank) merchant extraction cascade. Bank-specific shapes
   /// live in [BankTemplates.packs] and are tried before this by
   /// [extractMerchantDetailed]. Returns null when no rule can name the
@@ -2675,6 +2748,7 @@ class SmsParserService {
   /// 4. Generic — `paid/sent/transferred/payment/trf to {NAME}` (BOM, SBI)
   /// 4b. Slash-delimited UPI ref — `UPI/P2M/{ref}/{NAME}` (Axis, Saraswat)
   /// 4c. Card spend — `towards {MERCHANT}` (Saraswat card rail)
+  /// 4d. Ledger sides — `{NAME} credited` opposite a debited account (IDBI)
   /// 5. UPI VPA — `VPA {name}@bank` or `{name}@{bank}` → extract name
   /// 8. Generic credit — `... from {PAYER}`
   /// 9/10. Placeholders — "Bank Charges", "UPI Transfer"
@@ -2834,6 +2908,50 @@ class SmsParserService {
         !towardsCandidate.contains('@')) {
       merchant = _cleanMerchant(towardsCandidate);
       if (merchant != null) return merchant;
+    }
+
+    // --- Pattern 4d: counterparty named by its own side of the ledger ---
+    // Some banks state both sides in one sentence and never say "to" or
+    // "from" — the other party is simply given the OPPOSITE verb to the
+    // account's:
+    //   IDBI:  "IDBI Bank Acct XX450 debited for Rs 10.00 on 14-Aug-26;
+    //           Bal Rs 2020.93 Indian Railways credited. UPI:622698872431."
+    //   ICICI: "Acct XX197 debited for Rs 73.00 on 16-Jun-26;
+    //           JAY RAJESH KEER credited."
+    // Every rule above looks for a name after "to"/"from"/"towards", so
+    // these fell all the way through to the "UPI Transfer" placeholder and
+    // real merchants — Indian Railways, Blinkit — went unnamed on a message
+    // that spelled them out.
+    //
+    // Which verb belongs to the ACCOUNT is read from the phrasing banks
+    // reserve for it ("debited FOR/BY/WITH/FROM", "credited WITH/BY/FOR");
+    // the counterparty then carries the other one. When both phrasings
+    // appear the sides are ambiguous and the rule stands down rather than
+    // guess. The name is letter-led and digit-free so it cannot run back
+    // through the running balance that often sits in front of it ("Bal Rs
+    // 2020.93 Indian Railways"), and a verb followed by "to" is left to
+    // pattern 2 — there the name comes after the verb, not before it.
+    final accountDebited = RegExp(
+      r'\bdebited\s+(?:for|by|with|from)\b',
+      caseSensitive: false,
+    ).hasMatch(message);
+    final accountCredited = RegExp(
+      r'\bcredited\s+(?:with|by|for)\b',
+      caseSensitive: false,
+    ).hasMatch(message);
+    if (accountDebited != accountCredited) {
+      final counterpartyVerb = accountDebited ? 'credited' : 'debited';
+      final ledgerSide = RegExp(
+        r'(?:^|[;:.]|\d)\s*([A-Za-z][A-Za-z .&\-]{2,}?)\s+'
+        '$counterpartyVerb'
+        r'\b(?!\s+to\b)',
+        caseSensitive: false,
+      ).firstMatch(message);
+      final candidate = ledgerSide?.group(1)?.trim();
+      if (candidate != null && !_ledgerNarration.hasMatch(candidate)) {
+        merchant = _cleanMerchant(candidate);
+        if (merchant != null) return merchant;
+      }
     }
 
     // --- Pattern 5: UPI VPA in body ---
