@@ -104,6 +104,9 @@ class BankTemplates {
     ('KOTAK', 'Kotak'),
     ('IPPB', 'IPPB'),
     ('BANK OF MAHARASHTRA', 'BOM'),
+    // Spelled with "BANK" so the mention is as specific as a substring test
+    // can make it — bare "IDBI" also sits inside "SIDBI".
+    ('IDBI BANK', 'IDBI'),
     // Canara signs off as "- Canara Bank" or "-CanaraBank"; the mention is
     // spelled without the space so both forms are recognised. Listed last so
     // a message that names two banks still tries the others first.
@@ -189,6 +192,33 @@ class BankTemplates {
         'UPI transfer-out',
         r'\bdebited\b[\s\S]*?\bUPI payment to\s+(.+?)\s+on\b',
         nameIsVpa: true,
+      ),
+    ],
+    'IDBI': [
+      // "IDBI Bank Acct XX450 debited for Rs 10.00 on 14-Aug-26;
+      //  Bal Rs 2020.93 Indian Railways credited. UPI:622698872431.
+      //  To Block UPI send SMS UPIBLOCK <Mob. No> to 07799000423 ..."
+      //
+      // IDBI names the counterparty by its own side of the ledger — "{NAME}
+      // credited" — and prints the running balance between the two sides, so
+      // no "to"/"from" rule could reach the name and every UPI spend
+      // collapsed to the "UPI Transfer" placeholder (four device reports,
+      // Aug '26: Indian Railways, MR DIY, Blinkit). Consuming the balance
+      // figure explicitly is what keeps the capture from starting at "Bal".
+      BankTemplate(
+        'UPI transfer-out',
+        r'\bdebited\b[\s\S]*?[;:]\s*Bal\s+(?:Rs|INR)\.?\s*[\d,]+(?:\.\d+)?'
+        r'\s+([A-Za-z][A-Za-z0-9 .&\-]{1,}?)\s+credited\b',
+      ),
+      // The mirror: money arriving names the payer with "debited". Drafted
+      // from the debit format above — no incoming sample yet, so it stays
+      // unverified. Listed second because a debit alert also contains the
+      // word "credited"; the debit template above claims those first.
+      BankTemplate(
+        'UPI credit',
+        r'\bcredited\b[\s\S]*?[;:]\s*Bal\s+(?:Rs|INR)\.?\s*[\d,]+(?:\.\d+)?'
+        r'\s+([A-Za-z][A-Za-z0-9 .&\-]{1,}?)\s+debited\b',
+        verified: false,
       ),
     ],
     'Canara': [

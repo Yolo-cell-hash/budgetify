@@ -4,6 +4,55 @@ All notable changes to Budgetify are documented here. Dates are in
 `YYYY-MM-DD`. Everything stays on-device — these features add capability
 without adding any network access.
 
+## [1.75.2] — 2026-08-19
+
+### Fixed
+
+- **IDBI UPI payments now say who you paid.** Every IDBI spend showed "Paid
+  to: UPI Transfer" on a message that named the shop outright — Indian
+  Railways, Blinkit, MR DIY were all filed under one meaningless label, so
+  none of them could be tagged or totalled as itself. IDBI writes the other
+  party on its own side of the ledger ("… Indian Railways credited") with the
+  running balance in between, and every reader the app had looked for a name
+  after "to" or "from". It reads that shape now, for IDBI and for any bank
+  that words an alert the same way.
+- **IDBI transactions were missing their account row.** IDBI masks the
+  account to three digits ("Acct XX450"); the app only read four, so it came
+  up empty and the row was left off the screen entirely. The same three-digit
+  mask appears on some ICICI alerts, which now carry their account too.
+- **Train tickets weren't landing in Travel.** "Indian Railways" and "Mumbai
+  Metro" were spelled in mixed case in the merchant list, which is compared
+  against an upper-cased message — neither could ever match. Fixed, so an
+  IRCTC or metro payment is tagged Travel on sight.
+- **A bank's own advertising is no longer logged as income.** "Congrats!Claim
+  Rs.250 voucher…" from HDFC landed as ₹250 of income and went to the Tidy-up
+  queue. The app used to only screen marketing copy from senders it didn't
+  recognise, on the assumption that a registered bank header meant a real
+  alert — but banks market to their own customers on the same route. Offer
+  wording is now screened whatever the sender, and only when nothing in the
+  message says money actually moved, so a genuine debit whose footer carries
+  "T&C apply" is untouched.
+
+### Changed
+
+- **A payment nobody is named on can no longer be tagged in bulk.** When an
+  alert carries only a reference number, every reader in the app reads it the
+  same way — "UPI Transfer" — so ₹100 from one friend and ₹100 from another
+  are the same string. "Apply to All" reaches other transactions by that
+  string, which meant one tag could sweep up every unrelated unnamed payment
+  (and, through a quirk of matching, real payees like "Bank Transfer" too).
+  Those two options are no longer offered on an unnamed payment. In their
+  place is "Name It & Tag This One", which asks who it was and tags that one
+  transaction — the honest reach for a message that identifies nobody.
+  Withdrawals ("ATM") and fees ("Bank Charges") are unaffected: each is one
+  real counterparty, so tagging them in bulk still makes sense.
+
+- **A transaction now says which bank it came from, not which telecom route
+  it took.** The "From" row read "AD-IDBIBK-S" — the operator's envelope, not
+  an answer. It shows "IDBI Bank" (or whatever you have renamed it to on the
+  Banks screen), with the raw header kept underneath as fine print for bug
+  reports.
+
 ## [1.75.1] — 2026-08-15
 
 Everything below landed after 1.75.0's build was cut, so this is the first
