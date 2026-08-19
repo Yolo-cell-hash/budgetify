@@ -2612,12 +2612,6 @@ class DatabaseService {
     final transactions = await getAllTransactions();
     int updatedCount = 0;
 
-    // Normalize the merchant name for matching
-    final normalizedPattern = merchantName.toLowerCase().replaceAll(
-      RegExp(r'[^a-z0-9]'),
-      '',
-    );
-
     for (final txn in transactions) {
       // Must match transaction type exactly
       if (txn.type != transactionType) continue;
@@ -2625,13 +2619,13 @@ class DatabaseService {
       // Must have a merchant name to match against
       if (txn.merchantName == null || txn.merchantName!.isEmpty) continue;
 
-      // Check merchant match (normalized)
-      final normalizedMerchant = txn.merchantName!.toLowerCase().replaceAll(
-        RegExp(r'[^a-z0-9]'),
-        '',
-      );
-      if (!normalizedMerchant.contains(normalizedPattern) &&
-          !normalizedPattern.contains(normalizedMerchant)) {
+      // Whole-word matching, shared with TransactionRule.matches so the sweep
+      // reaches exactly the rows the rule would later claim. This used to run
+      // its own inline substring test, which carried the same KI-001 defect —
+      // "Apply to All Existing" on "Ola" swept every "Motorola" row — and, by
+      // skipping rail-word removal, disagreed with the rule it was created
+      // alongside about which rows belonged together.
+      if (!TransactionRule.namesMatch(merchantName, txn.merchantName!)) {
         continue;
       }
 
