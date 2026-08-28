@@ -211,17 +211,22 @@ void main() {
           last: DateTime(2026, 6, 18), current: 5, longest: 5, today: today);
       expect(r.restorable, isTrue);
     });
-    test('longer gaps, bridged days and normal advances are not restorable',
-        () {
-      // Two days missed — too late for a single freeze.
-      expect(
-          GamificationService.advanceStreak(
-                  last: DateTime(2026, 6, 17),
-                  current: 5,
-                  longest: 5,
-                  today: today)
-              .restorable,
-          isFalse);
+    test('several missed days stay restorable, one freeze per day', () {
+      // Missed 6/18 and 6/19, back on 6/20 — two days to bridge.
+      final r = GamificationService.advanceStreak(
+          last: DateTime(2026, 6, 17), current: 9, longest: 9, today: today);
+      expect(r.current, 1);
+      expect(r.missed, 2);
+      expect(r.restorable, isTrue);
+    });
+    test('a gap no stash could ever cover is past saving', () {
+      // Six missed days would cost six freezes; the stash tops out at five.
+      final r = GamificationService.advanceStreak(
+          last: DateTime(2026, 6, 13), current: 9, longest: 9, today: today);
+      expect(r.missed, 6);
+      expect(r.restorable, isFalse);
+    });
+    test('bridged days and normal advances are not restorable', () {
       // Armed freeze already bridged it — nothing left to save.
       expect(
           GamificationService.advanceStreak(
@@ -324,6 +329,41 @@ void main() {
       await svc.recordActiveDay(now: DateTime(2026, 6, 5)); // missed 6/4
       expect(await svc.streakSaveOffer(now: DateTime(2026, 6, 5)), isNull);
       expect(await svc.restoreStreak(now: DateTime(2026, 6, 5)), isNull);
+    });
+
+    test('a multi-day break is saveable for one freeze per missed day',
+        () async {
+      final svc = GamificationService();
+      for (var d = 1; d <= 10; d++) {
+        await svc.recordActiveDay(now: DateTime(2026, 6, d));
+      }
+      // Interval freezes on days 5 and 10, plus the 5-day road pack.
+      expect((await svc.freezeInfo()).available, 3);
+
+      // Missed 6/11 and 6/12, back on 6/13.
+      await svc.recordActiveDay(now: DateTime(2026, 6, 13));
+      expect((await svc.streakInfo()).current, 1);
+      final offer = await svc.streakSaveOffer(now: DateTime(2026, 6, 13));
+      expect(offer, isNotNull);
+      expect(offer!.previous, 10);
+      expect(offer.cost, 2); // one freeze per missed day
+
+      // Both days bridged: the streak picks up at 11, the stash pays twice.
+      expect(await svc.restoreStreak(now: DateTime(2026, 6, 13)), 11);
+      expect((await svc.streakInfo()).current, 11);
+      expect((await svc.freezeInfo()).available, 1);
+    });
+
+    test('a break the stash cannot cover in full offers no save', () async {
+      final svc = GamificationService();
+      for (var d = 1; d <= 5; d++) {
+        await svc.recordActiveDay(now: DateTime(2026, 6, d));
+      }
+      expect((await svc.freezeInfo()).available, 2); // two banked...
+      // ...and three days missed (6/6, 6/7, 6/8), so nothing to offer.
+      await svc.recordActiveDay(now: DateTime(2026, 6, 9));
+      expect(await svc.streakSaveOffer(now: DateTime(2026, 6, 9)), isNull);
+      expect(await svc.restoreStreak(now: DateTime(2026, 6, 9)), isNull);
     });
 
     test('an armed freeze still bridges automatically with no offer',

@@ -230,11 +230,18 @@ class GamificationService {
   /// When [freezeArmed] is set and exactly one day was missed (a gap of 2), the
   /// freeze bridges it — the streak continues instead of resetting — and
   /// [freezeUsed] is returned true so the caller can consume the freeze.
-  /// [restorable] flags the reset a freeze *could* have covered (exactly one
-  /// missed day, nothing armed) — the caller may then offer a retroactive
-  /// streak save on the return day.
-  static ({int current, int longest, bool freezeUsed, bool restorable})
-      advanceStreak({
+  /// Only that single armed freeze is ever spent on its own: a wider gap
+  /// breaks the streak, and the missed days are offered back retroactively.
+  /// [missed] counts the days skipped (0 when nothing broke) and [restorable]
+  /// flags a break a streak save could still cover — one freeze per missed
+  /// day, so a gap needing more than [maxFreezes] of them is past saving.
+  static ({
+    int current,
+    int longest,
+    bool freezeUsed,
+    bool restorable,
+    int missed,
+  }) advanceStreak({
     required DateTime? last,
     required int current,
     required int longest,
@@ -250,12 +257,13 @@ class GamificationService {
           longest: longest,
           freezeUsed: false,
           restorable: false,
+          missed: 0,
         );
       }
       final gap = _calendarDaysBetween(l, t);
       final int newCurrent;
       var freezeUsed = false;
-      var restorable = false;
+      var missed = 0;
       if (gap == 1) {
         newCurrent = current + 1;
       } else if (gap == 2 && freezeArmed) {
@@ -263,13 +271,18 @@ class GamificationService {
         freezeUsed = true;
       } else {
         newCurrent = 1;
-        restorable = gap == 2; // one missed day — still saveable after the fact
+        // Days actually skipped. Guarded against a backwards clock, where the
+        // gap reads zero or negative and nothing was missed at all.
+        missed = gap > 1 ? gap - 1 : 0;
       }
       return (
         current: newCurrent,
         longest: newCurrent > longest ? newCurrent : longest,
         freezeUsed: freezeUsed,
-        restorable: restorable,
+        // Saveable after the fact while the stash could still cover every
+        // missed day; beyond that many days no stash ever could.
+        restorable: missed >= 1 && missed <= maxFreezes,
+        missed: missed,
       );
     }
     return (
@@ -277,6 +290,7 @@ class GamificationService {
       longest: longest < 1 ? 1 : longest,
       freezeUsed: false,
       restorable: false,
+      missed: 0,
     );
   }
 
@@ -324,11 +338,12 @@ class GamificationService {
       'longest': result.longest,
       'freezes': freezes,
       'freezeArmed': stillArmed,
-      // A single missed day with nothing armed: keep what broke so the user
-      // can still save it — but only today, the day they came back.
+      // A break the stash could still cover: keep what broke, and what it
+      // costs to bridge — but only today, the day they came back.
       if (result.restorable && prevCurrent >= 2) ...{
         'restorePrev': prevCurrent,
         'restoreDay': t.toIso8601String(),
+        'restoreCost': result.missed,
       },
     };
     await _write(blob);
@@ -337,9 +352,10 @@ class GamificationService {
   // ── Streak save (retroactive freeze) ─────────────────────────────────
 
   /// The pending streak-save offer, if one stands right now: the streak that
-  /// broke can be revived for one freeze, on the return day only. Null when
-  /// there is nothing to save, the day has passed, or no freeze is banked.
-  Future<({int previous, int freezes})?> streakSaveOffer(
+  /// broke can be revived for [cost] freezes — one per missed day — on the
+  /// return day only. Null when there is nothing to save, the day has passed,
+  /// or the stash cannot cover the whole gap.
+  Future<({int previous, int freezes, int cost})?> streakSaveOffer(
       {DateTime? now}) async {
     final s = ((await _read())['streak'] as Map?)?.cast<String, dynamic>() ??
         {};
@@ -349,7 +365,7 @@ class GamificationService {
   /// [streakSaveOffer], but at most once per offer — the auto-prompt uses this
   /// so the save sheet appears a single time while the screen-level entry
   /// point (the banner on Streak Rewards) keeps the offer reachable all day.
-  Future<({int previous, int freezes})?> popStreakSavePrompt(
+  Future<({int previous, int freezes, int cost})?> popStreakSavePrompt(
       {DateTime? now}) async {
     final blob = await _read();
     final s = (blob['streak'] as Map?)?.cast<String, dynamic>() ?? {};
@@ -361,9 +377,10 @@ class GamificationService {
     return offer;
   }
 
-  /// Spend one freeze to revive the streak that broke yesterday: the streak
-  /// continues as if the missed day were bridged (previous + today). Returns
-  /// the restored current streak, or null if the offer no longer stands.
+  /// Spend the offer's freezes — one per missed day — to revive the streak
+  /// that broke: it continues as if those days were bridged (previous +
+  /// today). Returns the restored current streak, or null if the offer no
+  /// longer stands.
   Future<int?> restoreStreak({DateTime? now}) async {
     final today = now ?? DateTime.now();
     final blob = await _read();
@@ -372,7 +389,7 @@ class GamificationService {
     if (offer == null) return null;
 
     final restored = offer.previous + 1; // today rejoins the revived streak
-    var freezes = offer.freezes - 1;
+    var freezes = offer.freezes - offer.cost;
     var longest = (s['longest'] as num?)?.toInt() ?? 0;
     if (restored > longest) longest = restored;
     // Same earn rule as a normal advance: landing on a multiple of N earns one.
@@ -387,21 +404,25 @@ class GamificationService {
       ..['freezes'] = freezes
       ..remove('restorePrev')
       ..remove('restoreDay')
+      ..remove('restoreCost')
       ..remove('restorePrompted');
     blob['streak'] = s;
     await _write(blob);
     return restored;
   }
 
-  ({int previous, int freezes})? _offerFrom(
+  ({int previous, int freezes, int cost})? _offerFrom(
       Map<String, dynamic> s, DateTime now) {
     final prev = (s['restorePrev'] as num?)?.toInt() ?? 0;
     final dayIso = s['restoreDay'] as String?;
     final freezes = (s['freezes'] as num?)?.toInt() ?? 0;
-    if (prev < 2 || dayIso == null || freezes <= 0) return null;
+    // Offers written before multi-day saves carry no cost: they were only ever
+    // recorded for a single missed day.
+    final cost = (s['restoreCost'] as num?)?.toInt() ?? 1;
+    if (prev < 2 || dayIso == null || cost < 1 || freezes < cost) return null;
     final day = DateTime.tryParse(dayIso);
     if (day == null || _dateOnly(day) != _dateOnly(now)) return null;
-    return (previous: prev, freezes: freezes);
+    return (previous: prev, freezes: freezes, cost: cost);
   }
 
   /// Grant any Road freeze packs earned by [longest] that haven't been granted

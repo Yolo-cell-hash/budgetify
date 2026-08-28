@@ -11,6 +11,20 @@ Also available in the five languages the app ships alongside English:
 practice began; this file remains the full history and the one to write
 first.
 
+## [1.75.3] — 2026-08-28
+
+### Fixed
+
+- **A streak save now covers every missed day, not just one.** Coming back
+  after two or three days away offered nothing — the streak simply started
+  over at 1, however many Streak Freezes were sitting in the stash. The save
+  was written for a gap of exactly one day and never looked at a wider one. A
+  break now costs one freeze per missed day: miss three days holding three
+  freezes and the offer stands for all three, on the flame and on the Streak
+  Rewards screen. It still lasts only the day you come back, an armed freeze
+  still bridges a single missed day on its own, and a gap wider than the five
+  freezes a stash can hold is still past saving.
+
 ## [1.75.2] — 2026-08-19
 
 ### Fixed
