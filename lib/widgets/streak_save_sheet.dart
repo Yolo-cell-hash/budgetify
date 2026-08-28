@@ -8,15 +8,16 @@ import 'streak_flame.dart';
 /// The icy accent shared by every freeze surface (matches the road's packs).
 const Color kFreezeAccent = Color(0xFF27C0F5);
 
-/// The Streak Save dialog: a broken streak can be revived for one freeze, on
-/// the return day only. Mirrors the badge-unlock celebration's framing (same
-/// radius, scale-in, letterspaced label) but frosted over. Pops with the
-/// restored streak length when a freeze was spent, null when declined or the
-/// offer lapsed mid-dialog.
+/// The Streak Save dialog: a broken streak can be revived for [cost] freezes
+/// — one per missed day — on the return day only. Mirrors the badge-unlock
+/// celebration's framing (same radius, scale-in, letterspaced label) but
+/// frosted over. Pops with the restored streak length when the freezes were
+/// spent, null when declined or the offer lapsed mid-dialog.
 Future<int?> showStreakSaveSheet(
   BuildContext context, {
   required int previous,
   required int available,
+  required int cost,
 }) {
   final colors = AppColors.of(context);
   return showDialog<int>(
@@ -35,7 +36,8 @@ Future<int?> showStreakSaveSheet(
         curve: Curves.easeOutBack,
         builder: (_, v, child) => Transform.scale(
             scale: v, child: Opacity(opacity: v.clamp(0, 1), child: child)),
-        child: _StreakSaveContent(previous: previous, available: available),
+        child: _StreakSaveContent(
+            previous: previous, available: available, cost: cost),
       ),
     ),
   );
@@ -44,8 +46,13 @@ Future<int?> showStreakSaveSheet(
 class _StreakSaveContent extends StatefulWidget {
   final int previous;
   final int available;
+  final int cost;
 
-  const _StreakSaveContent({required this.previous, required this.available});
+  const _StreakSaveContent({
+    required this.previous,
+    required this.available,
+    required this.cost,
+  });
 
   @override
   State<_StreakSaveContent> createState() => _StreakSaveContentState();
@@ -99,7 +106,7 @@ class _StreakSaveContentState extends State<_StreakSaveContent> {
           ),
           const SizedBox(height: 8),
           Text(
-            l10n.streakSaveBody(widget.previous + 1),
+            l10n.streakSaveBody(widget.previous + 1, widget.cost),
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 13,
@@ -142,7 +149,7 @@ class _StreakSaveContentState extends State<_StreakSaveContent> {
                 textStyle: const TextStyle(
                     fontSize: 14.5, fontWeight: FontWeight.w700),
               ),
-              label: Text(l10n.useFreezeCta),
+              label: Text(l10n.useFreezeCta(widget.cost)),
             ),
           ),
           TextButton(
