@@ -30,7 +30,7 @@ class _StreakRewardsScreenState extends State<StreakRewardsScreen> {
   ({int available, bool armed}) _freeze = (available: 0, armed: false);
   // The streak-save offer standing today, if any (broken streak + banked
   // freeze) — drives the restore banner.
-  ({int previous, int freezes})? _saveOffer;
+  ({int previous, int freezes, int cost})? _saveOffer;
   Map<DateTime, int> _appTime = const {};
   int _monthSeconds = 0;
   GamiProfile _profile = const GamiProfile();
@@ -130,6 +130,7 @@ class _StreakRewardsScreenState extends State<StreakRewardsScreen> {
       context,
       previous: offer.previous,
       available: offer.freezes,
+      cost: offer.cost,
     );
     if (!mounted) return;
     if (restored != null) {
@@ -196,10 +197,10 @@ class _StreakRewardsScreenState extends State<StreakRewardsScreen> {
 }
 
 /// "Save your streak" banner — shown only while a streak-save offer stands
-/// (broke yesterday, freeze banked, still the return day). Frosted, urgent,
-/// and one tap from the Streak Save dialog.
+/// (the streak broke, the stash covers every missed day, still the return
+/// day). Frosted, urgent, and one tap from the Streak Save dialog.
 class _StreakSaveBanner extends StatelessWidget {
-  final ({int previous, int freezes}) offer;
+  final ({int previous, int freezes, int cost}) offer;
   final Future<void> Function() onRestore;
   final AppColors colors;
 
@@ -261,7 +262,7 @@ class _StreakSaveBanner extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      context.l10n.streakSaveBannerBody,
+                      context.l10n.streakSaveBannerBody(offer.cost),
                       style: TextStyle(
                         fontSize: 12,
                         height: 1.3,

@@ -34,14 +34,15 @@ Future<GamificationService> _streakEndingToday(int days) async {
   return svc;
 }
 
-/// A [days]-day streak that broke on a single missed day, with the user back
+/// A [days]-day streak that broke on [missed] missed days, with the user back
 /// today — i.e. a streak-save offer standing right now.
-Future<GamificationService> _brokenStreakWithOfferToday(int days) async {
+Future<GamificationService> _brokenStreakWithOfferToday(int days,
+    {int missed = 1}) async {
   final svc = GamificationService();
-  for (var i = days + 1; i >= 2; i--) {
+  for (var i = days + missed; i >= missed + 1; i--) {
     await svc.recordActiveDay(now: _dayAgo(i));
   }
-  await svc.recordActiveDay(now: _dayAgo(0)); // missed yesterday
+  await svc.recordActiveDay(now: _dayAgo(0)); // missed the days in between
   return svc;
 }
 
@@ -54,6 +55,7 @@ void main() {
       WidgetTester tester, {
       required int previous,
       required int available,
+      int cost = 1,
       List<int?>? popped,
     }) async {
       await tester.pumpWidget(_wrap(
@@ -65,6 +67,7 @@ void main() {
                   context,
                   previous: previous,
                   available: available,
+                  cost: cost,
                 );
                 popped?.add(r);
               },
@@ -94,6 +97,14 @@ void main() {
     testWidgets('a single freeze is labelled in the singular', (tester) async {
       await openSheet(tester, previous: 3, available: 1);
       expect(find.text('1 freeze in your stash'), findsOneWidget);
+    });
+
+    testWidgets('a multi-day break asks for one freeze per missed day',
+        (tester) async {
+      await openSheet(tester, previous: 10, available: 3, cost: 2);
+      expect(find.textContaining('You missed 2 days'), findsOneWidget);
+      expect(find.textContaining('Spend 2 Streak Freezes'), findsOneWidget);
+      expect(find.text('Use 2 Streak Freezes'), findsOneWidget);
     });
 
     testWidgets('spending a freeze restores the streak and pops the new count',
@@ -226,6 +237,26 @@ void main() {
       expect((await svc.freezeInfo()).available, 1);
       // Banner clears once the offer is taken.
       expect(find.text('Restore your 5-day streak'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a two-day break restores for two freezes from the banner',
+        (tester) async {
+      final svc = await _brokenStreakWithOfferToday(10, missed: 2);
+      expect((await svc.freezeInfo()).available, 3);
+
+      await pumpScreen(tester);
+      expect(find.text('Restore your 10-day streak'), findsOneWidget);
+      expect(find.textContaining('You missed 2 days'), findsOneWidget);
+
+      await tester.tap(find.text('Restore'));
+      await settle(tester);
+      await tester.tap(find.text('Use 2 Streak Freezes'));
+      await settle(tester);
+
+      expect((await svc.streakInfo()).current, 11);
+      expect((await svc.freezeInfo()).available, 1);
+      expect(find.text('Restore your 10-day streak'), findsNothing);
       expect(tester.takeException(), isNull);
     });
   });
