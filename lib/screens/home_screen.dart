@@ -281,8 +281,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   /// Advance the daily streak, then — if that just revealed a saveable break
-  /// (one missed day, a freeze banked) — offer the Streak Save once. The offer
-  /// stays reachable all day from the Streak Rewards screen either way.
+  /// (missed days the freeze stash can cover) — offer the Streak Save once.
+  /// The offer stays reachable all day from the Streak Rewards screen either
+  /// way.
   Future<void> _rollStreak() async {
     final svc = GamificationService();
     await svc.recordActiveDay();
@@ -292,12 +293,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         .addPostFrameCallback((_) => _offerStreakSave(offer));
   }
 
-  Future<void> _offerStreakSave(({int previous, int freezes}) offer) async {
+  Future<void> _offerStreakSave(
+      ({int previous, int freezes, int cost}) offer) async {
     if (!mounted) return;
     final restored = await showStreakSaveSheet(
       context,
       previous: offer.previous,
       available: offer.freezes,
+      cost: offer.cost,
     );
     if (restored == null || !mounted) return;
     showAppToast(
