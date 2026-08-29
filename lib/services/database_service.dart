@@ -42,7 +42,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 32,
+      version: 33,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -858,9 +858,10 @@ class DatabaseService {
       // nameless "UPI Transfer" placeholder, or the old account fallback — so
       // a real name, and above all a name the user typed, is never clobbered.
       // The re-read must also produce a real name: a row that today's parser
-      // still can't read keeps exactly what it has. Review state is left
-      // alone for the same reason as the schema-28 pass: these are old rows,
-      // many already confirmed, and re-flagging them would refill the queue.
+      // still can't read keeps exactly what it has. No row is ever re-FLAGGED
+      // — these are old rows, many already confirmed, and re-opening them
+      // would refill the queue — but a row that gets named does drop its
+      // now-answered "no payee" flag; see _renamePayeesTodayCanRead.
       await _renamePayeesTodayCanRead(db);
     }
 
@@ -902,6 +903,22 @@ class DatabaseService {
       // clears out anything the earlier tightenings would refuse but that was
       // logged before they shipped.
       await _dropRowsTodayRefuses(db);
+    }
+
+    if (oldVersion < 33) {
+      // v1.75.4 taught the HDFC pack to read the free-text "Info:" narration
+      // that HDFC's "UPDATE:" alerts use instead of a "to"/"from" clause. A
+      // ₹1,96,901 Flywire tuition payment was reported from a device sitting
+      // in the review queue with no counterparty at all, its detail screen
+      // reading "Read by: no payee named" over an SMS that spells out
+      // "Info: FLYWIRE TXN RFX 270826FLYT03707".
+      //
+      // Same sweep as schema 29, run again because the set of shapes the
+      // parser can name has grown — and, as ever, nothing re-reads a stored
+      // row, so without this the new rule would only ever apply to messages
+      // arriving after the update while the history in front of the user
+      // stayed blank.
+      await _renamePayeesTodayCanRead(db);
     }
   }
 
@@ -955,11 +972,28 @@ class DatabaseService {
   }
 
   /// Re-read the payee of every stored row the parser could not name, using
-  /// today's rules. Shared by the schema-29 migration and testable on its own.
+  /// today's rules. Shared by the schema-29 and schema-33 migrations and
+  /// testable on its own.
+  ///
+  /// A row that gets named also loses its [ReviewReasons.payeeUnknown] flag:
+  /// that reason says "the SMS didn't name the other party", and once the
+  /// parser has read the name out of the very same message the reason is no
+  /// longer true — leaving it would keep the row in the tidy-up queue asking
+  /// the user to check something already answered. Only that one reason is
+  /// dropped; a row flagged for anything else (uncertain direction, uncertain
+  /// amount, unknown sender) still needs the glance it was flagged for. This
+  /// can only ever shrink the queue, which is why it is safe in a way that
+  /// re-flagging old rows would not be.
   Future<void> _renamePayeesTodayCanRead(Database db) async {
     final rows = await db.query(
       'transactions',
-      columns: ['id', 'message', 'account_info', 'merchant_name'],
+      columns: [
+        'id',
+        'message',
+        'account_info',
+        'merchant_name',
+        'review_reasons',
+      ],
     );
     for (final row in rows) {
       final message = row['message'] as String? ?? '';
@@ -991,9 +1025,17 @@ class DatabaseService {
       if (alias.isNotEmpty) {
         payee = alias.first['display_name'] as String? ?? payee;
       }
+      final reasons = (row['review_reasons'] as String? ?? '')
+          .split(',')
+          .where((r) => r.isNotEmpty && r != ReviewReasons.payeeUnknown)
+          .toList();
       await db.update(
         'transactions',
-        {'merchant_name': payee, 'parse_source': fresh.source},
+        {
+          'merchant_name': payee,
+          'parse_source': fresh.source,
+          'review_reasons': reasons.isEmpty ? null : reasons.join(','),
+        },
         where: 'id = ?',
         whereArgs: [row['id']],
       );
