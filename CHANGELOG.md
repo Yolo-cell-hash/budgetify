@@ -11,6 +11,21 @@ Also available in the five languages the app ships alongside English:
 practice began; this file remains the full history and the one to write
 first.
 
+## [1.75.4] — 2026-08-29
+
+### Fixed
+
+- **HDFC payments that name the payee in their "Info:" line now say who you
+  paid.** A ₹1,96,901 tuition payment through Flywire landed in Tidy up
+  reading "The SMS didn't name the other party" — over a message that spells
+  it out. HDFC's "UPDATE:" alerts put the other party in a free-text `Info:`
+  field instead of the "to"/"from" clause every reader looked for, so the
+  payment showed no counterparty at all. That field is read now, with the
+  reference tokens trimmed off the end so every payment to the same place
+  groups under one name and one tag rule. Payments already sitting in your
+  history are re-read on update, and any that gain a name leave the tidy-up
+  queue on their own.
+
 ## [1.75.3] — 2026-08-28
 
 ### Fixed
