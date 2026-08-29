@@ -156,6 +156,43 @@ class BankTemplates {
       // "For IMPS -BUREAUIDIndia- 618502233593" — remitter between dashes,
       // before the numeric ref.
       BankTemplate('IMPS credit', r'IMPS\s*-\s*([^-]+?)\s*-\s*\d'),
+      // "UPDATE: INR 1,96,901.00 debited from HDFC Bank XX9463 on 27-AUG-26.
+      //  Info: FLYWIRE TXN RFX 270826FLYT03707. Avl bal:INR 2,021.93"
+      //
+      // HDFC's "UPDATE:" alerts carry the counterparty in a free-text Info
+      // narration instead of a "to"/"from" clause, so nothing in the generic
+      // cascade could reach it and a real payment (Flywire, the tuition
+      // remitter — device report, Aug '26) landed in the review queue with
+      // no payee at all. The narration is "{NAME} {ref tokens}": the name is
+      // the leading letters-and-spaces run, ending at a reference keyword,
+      // at the first digit-bearing token, or at the first character that
+      // cannot be part of a name.
+      //
+      // Listed LAST in the pack so the two rail templates above keep their
+      // messages. Narrations that open with a rail code or with pure
+      // transaction narration are refused outright rather than filed as a
+      // payee: those shapes are read elsewhere ("UPI-<ref>-<name>" by the
+      // generic cascade, "TRANSFER TO {NAME}" by its "paid/sent/transfer to"
+      // rule), and refusing simply leaves today's behaviour — the review
+      // queue — in place instead of inventing a payee named "Payment".
+      //
+      // The colon is load-bearing: it is what makes this the narration FIELD
+      // rather than the word. Footers say "For more info visit hdfcbank.com"
+      // and "for more info, call 18002586161", and an optional colon let the
+      // capture run into those and file "Visit Hdfcbank" as the payee.
+      BankTemplate(
+        'Info narration',
+        r'\bInfo:\s*'
+        r'(?!(?:UPI|N?ACH|NEFT|IMPS|RTGS|ECS|EDC|POS|ATM|ATW|NWD|EMI|CHQ'
+        r'|BRN|TPT|MMT|VPS|INF|IB|MB|CC|DC|SI|FT'
+        r'|PAYMENT|PAYMT|TRANSFER|TRF|CASH|DEBIT|CREDIT|DEPOSIT|WITHDRAWAL'
+        r'|REV|REVERSAL|CHARGES?|FEES?|GST|TAX|INT|INTEREST|SALARY'
+        r'|BAL|AVL|ACCOUNT|SELF)\b)'
+        r'([A-Za-z][A-Za-z& ]{2,}?)'
+        r'(?:\s+(?:TXN|TRANSACTION|TRAN|REF|RFX|RRN|UTR|ID)\b'
+        r'|\s+\S*\d'
+        r'|(?![A-Za-z& ]))',
+      ),
     ],
     'Kotak': [
       // "Sent Rs.60.00 from Kotak Bank AC X9883 to paytm.s21upj5@pty on

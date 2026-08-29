@@ -688,4 +688,44 @@ void main() {
       );
     });
   });
+
+  group('rows the parser could not name are re-read (schema 33)', () {
+    // Reported from the device on 2026-08-29: a ₹1,96,901 Flywire tuition
+    // payment stored with no payee at all. The message parses correctly now;
+    // the row was written by an older build, and nothing re-reads a stored
+    // row, so the fix would never have reached it.
+    const hdfcFlywire =
+        'UPDATE: INR 1,96,901.00 debited from HDFC Bank XX9463 on 27-AUG-26. '
+        'Info: FLYWIRE TXN RFX 270826FLYT03707. Avl bal:INR 2,021.93';
+
+    test('the stored row qualifies as unnamed and today re-reads to a name',
+        () {
+      // The two halves of the migration's condition. Both must hold for the
+      // reported row, or the sweep walks straight past it.
+      expect(DatabaseService.isUnnamedPayee(null, 'XX9463'), isTrue);
+      final fresh = SmsParserService.extractMerchantDetailed(
+        hdfcFlywire,
+        'XX9463',
+      );
+      expect(fresh.name, 'Flywire');
+      expect(fresh.payeeUnknown, isFalse);
+      expect(DatabaseService.isUnnamedPayee(fresh.name, 'XX9463'), isFalse);
+    });
+
+    test('a name the user typed over it is not unnamed, so it survives', () {
+      // The sweep touches only rows the parser could not name; anything the
+      // user has since called it is left exactly as it is.
+      expect(DatabaseService.isUnnamedPayee('Uni fees', 'XX9463'), isFalse);
+      expect(DatabaseService.isUnnamedPayee('ATM', 'XX9463'), isFalse);
+      expect(DatabaseService.isUnnamedPayee('Bank Charges', 'XX9463'), isFalse);
+    });
+
+    test('"UPI Transfer" and the old account fallback still qualify', () {
+      // Rows the earlier passes parked on a placeholder get another chance
+      // now that the parser reads more shapes.
+      expect(DatabaseService.isUnnamedPayee('UPI Transfer', 'XX9463'), isTrue);
+      expect(DatabaseService.isUnnamedPayee('XX9463', 'XX9463'), isTrue);
+      expect(DatabaseService.isUnnamedPayee('', 'XX9463'), isTrue);
+    });
+  });
 }
