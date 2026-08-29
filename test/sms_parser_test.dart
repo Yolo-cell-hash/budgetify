@@ -381,6 +381,90 @@ void main() {
       expect(txn.merchantName, 'Xsolla *Pokemon');
       expect(txn.merchantName, isNot('XX7531'));
     });
+
+    test('"Info:" narration names the counterparty (Flywire)', () {
+      // Reported from the device on 2026-08-29: a real ₹1,96,901 tuition
+      // payment through Flywire sat in the tidy-up queue reading "The SMS
+      // didn't name the other party", with "Read by: no payee named" on its
+      // detail screen — over a message that spells the payee out. HDFC's
+      // "UPDATE:" alerts carry the counterparty in a free-text Info field
+      // instead of a "to"/"from" clause, which no rule could reach.
+      final txn = SmsParserService.parseTransaction(
+        'VD-HDFCBK-S',
+        'UPDATE: INR 1,96,901.00 debited from HDFC Bank XX9463 on 27-AUG-26. '
+        'Info: FLYWIRE TXN RFX 270826FLYT03707. Avl bal:INR 2,021.93',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 196901.00); // not the 2,021.93 balance
+      expect(txn.type, TransactionType.debit);
+      expect(txn.accountInfo, 'XX9463');
+      // The reference tokens after the name are not part of it, so every
+      // Flywire payment groups under one payee and one tag rule.
+      expect(txn.merchantName, 'Flywire');
+      expect(txn.merchantName, isNot('XX9463'));
+      expect(txn.parseSource, 'HDFC · Info narration');
+      expect(txn.reviewReasonList, isNot(contains(ReviewReasons.payeeUnknown)));
+    });
+
+    test('"Info:" narration stops at the reference, whatever its shape', () {
+      // The name ends at a reference keyword, at the first digit-bearing
+      // token, or at the first character that cannot be part of a name —
+      // three spellings of the same field, one payee.
+      const narrations = [
+        'FLYWIRE TXN RFX 270826FLYT03707',
+        'FLYWIRE 270826FLYT03707',
+        'FLYWIRE-270826FLYT03707',
+        'FLYWIRE',
+      ];
+      for (final narration in narrations) {
+        final txn = SmsParserService.parseTransaction(
+          'VD-HDFCBK-S',
+          'UPDATE: INR 1,96,901.00 debited from HDFC Bank XX9463 on '
+          '27-AUG-26. Info: $narration. Avl bal:INR 2,021.93',
+          now,
+        );
+        expect(txn?.merchantName, 'Flywire', reason: 'Info: $narration');
+      }
+    });
+
+    test('"Info:" narration refuses rails and pure narration', () {
+      // Rail-prefixed narrations are read elsewhere (or not at all) and
+      // transaction narration is not a counterparty — filing "Payment" or
+      // "Ach D" as the payee would be worse than the review queue, which is
+      // exactly what these keep.
+      const narrations = [
+        'ACH D- INDIAN CLEARING CORP-1234',
+        'NEFT DR-ICIC0099999-JAY RAJESH KEER-INX6697',
+        'IMPS-618502233593-JOHN-HDFC',
+        'PAYMENT 270826FLYT03707',
+        'SALARY AUG 2026',
+        'GST 101 CUST',
+      ];
+      for (final narration in narrations) {
+        final txn = SmsParserService.parseTransaction(
+          'VD-HDFCBK-S',
+          'UPDATE: INR 500.00 debited from HDFC Bank XX9463 on 27-AUG-26. '
+          'Info: $narration. Avl bal:INR 2,021.93',
+          now,
+        );
+        expect(txn?.merchantName, isNull, reason: 'Info: $narration');
+      }
+    });
+
+    test('a footer mentioning "info" is not a narration field', () {
+      // The colon is what makes it the field rather than the word: without
+      // that anchor the capture ran into the footer and filed "Visit
+      // Hdfcbank" as the payee.
+      final txn = SmsParserService.parseTransaction(
+        'VD-HDFCBK-S',
+        'UPDATE: INR 500.00 debited from HDFC Bank XX9463 on 27-AUG-26. '
+        'For more info visit hdfcbank.com. Avl bal:INR 2,021.93',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.merchantName, isNull);
+    });
   });
 
   group('Bank of India message formats', () {
