@@ -14,18 +14,27 @@ class _FakeGateway implements BillingGateway {
   final bool available;
   final List<BillingPurchase> owned;
   final BillingOutcome purchaseOutcome;
+  final Map<String, StorePrice> priceList;
+
+  /// How many times the store was asked what the account owns — the whole
+  /// point of the refresh throttle.
+  int queryCount = 0;
 
   _FakeGateway({
     this.available = true,
     this.owned = const [],
     this.purchaseOutcome = BillingOutcome.success,
+    this.priceList = const <String, StorePrice>{},
   });
 
   @override
   Future<bool> isAvailable() async => available;
 
   @override
-  Future<List<BillingPurchase>> queryPurchases() async => owned;
+  Future<List<BillingPurchase>> queryPurchases() async {
+    queryCount++;
+    return owned;
+  }
 
   @override
   Future<BillingResult> launchPurchase(String productId) async =>
@@ -34,6 +43,11 @@ class _FakeGateway implements BillingGateway {
           // must too, or the grant path never sees a purchase time.
           ? BillingResult(purchaseOutcome, purchase: _p(productId))
           : BillingResult(purchaseOutcome);
+
+  @override
+  Future<Map<String, StorePrice>> queryPrices(Iterable<String> productIds)
+      async =>
+          priceList;
 }
 
 BillingPurchase _p(String id) => BillingPurchase(
@@ -54,6 +68,7 @@ void main() {
     await prefs.clear();
     entitlements.resetForTest();
     billing.gateway = const UnavailableBillingGateway();
+    billing.resetRefreshThrottleForTest();
   });
 
   group('shipped (unavailable) gateway', () {
@@ -238,4 +253,106 @@ void main() {
     });
   });
 
+  group('a renewing subscriber never goes dark', () {
+    /// A monthly receipt older than one period + grace: the state a real
+    /// subscriber is in on day 40, having been charged twice.
+    BillingPurchase agedMonthly() => BillingPurchase(
+          productId: 'plus_monthly',
+          purchaseToken: 'tok_plus_monthly',
+          purchaseTimeMs: DateTime.now()
+              .subtract(const Duration(days: 40))
+              .millisecondsSinceEpoch,
+        );
+
+    test('an aged receipt on its own leaves the window expired', () async {
+      await entitlements.initialize();
+      await entitlements.registerPlusPurchase('plus_monthly',
+          purchaseTimeMs: agedMonthly().purchaseTimeMs);
+      expect(entitlements.hasPlus, isFalse,
+          reason: 'the purchase-anchored window really has elapsed — this is '
+              'the state the live sighting has to rescue');
+    });
+
+    test('Play still reporting the subscription keeps access open', () async {
+      // Play keeps the SAME purchase token across renewals, so the receipt
+      // this returns carries the ORIGINAL purchase time even though the user
+      // has renewed. Before the live-sighting rule this recomputed the same
+      // expired instant and the "only ever extend" guard discarded it,
+      // locking out someone who was still being charged.
+      billing.gateway = _FakeGateway(owned: [agedMonthly()]);
+
+      await billing.refreshEntitlements();
+
+      await entitlements.initialize();
+      expect(entitlements.hasPlus, isTrue,
+          reason: 'presence in queryPurchases IS proof of ownership now');
+    });
+
+    test('the same aged receipt replayed WITHOUT the store grants nothing',
+        () async {
+      // A backup import or a re-read of a stored receipt proves nothing about
+      // the present, so it must not be able to resurrect a lapsed window.
+      await entitlements.initialize();
+      await entitlements.registerPlusPurchase('plus_monthly',
+          purchaseTimeMs: agedMonthly().purchaseTimeMs,
+          confirmedActiveNow: false);
+      expect(entitlements.hasPlus, isFalse);
+    });
+
+    test('a live sighting still cannot stack a second window', () async {
+      billing.gateway = _FakeGateway(owned: [_p('plus_monthly')]);
+      await billing.refreshEntitlements();
+      await entitlements.initialize();
+      final first = (await SharedPreferences.getInstance())
+          .getInt('entitlement_plus_until');
+
+      await billing.refreshEntitlements(force: true);
+      expect(
+          (await SharedPreferences.getInstance())
+              .getInt('entitlement_plus_until'),
+          first,
+          reason: 'a fresh purchase already reaches further than the sighting '
+              'window, so repeated sightings must change nothing');
+    });
+
+    test('refresh is throttled, and force overrides it', () async {
+      final gw = _FakeGateway(owned: [_p('plus_lifetime')]);
+      billing.gateway = gw;
+
+      await billing.refreshEntitlements();
+      await billing.refreshEntitlements();
+      expect(gw.queryCount, 1, reason: 'resume must not storm the store');
+
+      await billing.refreshEntitlements(force: true);
+      expect(gw.queryCount, 2);
+    });
+
+    test('a closed store leaves entitlements untouched', () async {
+      billing.gateway = _FakeGateway(available: false, owned: [_p('plus_yearly')]);
+      await billing.refreshEntitlements();
+      await entitlements.initialize();
+      expect(entitlements.hasPlus, isFalse);
+    });
+  });
+
+  group('the paywall prices what Play will actually charge', () {
+    test('live prices come back keyed by product id', () async {
+      billing.gateway = _FakeGateway(priceList: const {
+        'plus_lifetime': StorePrice(formatted: '₹1,499.00', amount: 1499),
+        'plus_monthly': StorePrice(formatted: '₹49.00', amount: 49),
+      });
+      final prices =
+          await billing.prices(PlusPlan.values.map((p) => p.productId));
+      expect(prices['plus_lifetime']?.formatted, '₹1,499.00');
+      expect(prices['plus_lifetime']?.amount, 1499);
+      expect(prices['plus_monthly']?.formatted, '₹49.00');
+      expect(prices.containsKey('plus_yearly'), isFalse,
+          reason: 'an id the store does not know must be absent, not guessed, '
+              'so the caller falls back to its constant');
+    });
+
+    test('the shipped stub prices nothing and never throws', () async {
+      expect(await billing.prices(const ['plus_lifetime']), isEmpty);
+    });
+  });
 }

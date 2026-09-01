@@ -11,6 +11,29 @@ Also available in the five languages the app ships alongside English:
 practice began; this file remains the full history and the one to write
 first.
 
+## [1.77.0] — 2026-09-01
+
+### Added
+
+- **Budgetify Plus can now be bought through Google Play.** The purchase path
+  is live: the three Plus plans and the Restore button now talk to the Play
+  Store on your phone instead of reporting the shop closed. The prices on the
+  screen are the ones Play itself will charge — the app asks the store rather
+  than trusting a number baked into the build, so what you are shown and what
+  you pay cannot drift apart. A payment made by UPI mandate, which your bank
+  may settle minutes later with Budgetify already closed, is collected on its
+  own the next time you open the app; you never have to go hunting for
+  "Restore purchases" to receive something you have already paid for. A
+  purchase belongs to your Google account rather than to this install, so a
+  new phone or a reinstall brings it back with no account to create and no
+  password to remember.
+  This adds no network access. Play Billing works through the Play Store app
+  already on your phone, so Budgetify still ships with the internet permission
+  removed — the shop is reached by asking the app next door, never by going
+  online.
+  Nothing changes during your free window: every feature stays open, and the
+  Plus screen appears only if you go looking for it.
+
 ## [1.76.0] — 2026-09-01
 
 ### Added

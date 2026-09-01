@@ -60,6 +60,22 @@ enum PlusPlan {
 /// billing is reachable.
 const Duration kPlusSubscriptionGrace = Duration(days: 3);
 
+/// How long a LIVE sighting of an owned subscription keeps access open.
+///
+/// Play returning a subscription from `queryPurchases` is itself proof that
+/// the account owns it *right now* — so a sighting extends access from now,
+/// independently of the purchase-anchored window. Without this a renewing
+/// subscriber lapses the moment the first period elapses: the renewal keeps
+/// the same purchase token, so the anchored window recomputes to the same
+/// stale instant and the "only ever extend" guard discards it.
+///
+/// Seven days is the deliberate trade-off. A paying user who opens the app at
+/// least weekly can never be locked out of something they are still being
+/// charged for; a user who cancels keeps access at most seven days past the
+/// period they already paid for. That asymmetry is the one this codebase
+/// already chose everywhere else — fail open, never strand a payer.
+const Duration kPlusLiveSightingWindow = Duration(days: 7);
+
 /// Everyday price of a single royal avatar (one-time, non-consumable).
 const int kRoyalAvatarPriceInr = 49;
 

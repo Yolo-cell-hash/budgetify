@@ -88,6 +88,28 @@ abstract class BillingGateway {
 
   /// Launch the store purchase flow for [productId].
   Future<BillingResult> launchPurchase(String productId);
+
+  /// Play's own price for each of [productIds], keyed by product id.
+  ///
+  /// Ids the store doesn't know are simply absent, so a caller must always be
+  /// able to fall back. This is what stops the paywall advertising a number
+  /// Play won't charge: the catalogue constants are a preview, this is truth.
+  Future<Map<String, StorePrice>> queryPrices(Iterable<String> productIds);
+}
+
+/// One price as the store states it.
+///
+/// [formatted] is what to show — already localized, tax-inclusive and in the
+/// buyer's currency, which no hardcoded ₹ string can be. [amount] is the same
+/// price as a number, and exists for exactly one reason: deciding whether a
+/// discount is real. A struck-through "was" price is a factual claim, and the
+/// only way to keep it true under any Console configuration is to compare
+/// what Play charges against what we say the everyday price is.
+class StorePrice {
+  final String formatted;
+  final double amount;
+
+  const StorePrice({required this.formatted, required this.amount});
 }
 
 /// The pre-approval gateway: reports the store as unavailable and owns
@@ -107,6 +129,11 @@ class UnavailableBillingGateway implements BillingGateway {
   @override
   Future<BillingResult> launchPurchase(String productId) async =>
       const BillingResult(BillingOutcome.unavailable);
+
+  @override
+  Future<Map<String, StorePrice>> queryPrices(Iterable<String> productIds)
+      async =>
+          const <String, StorePrice>{};
 }
 
 /// What a "Restore purchases" pass found.
@@ -197,10 +224,26 @@ class BillingService {
     }
   }
 
+  /// Play's own formatted prices for [productIds], or an empty map when the
+  /// store can't answer. Never throws — the paywall falls back to the
+  /// catalogue constants.
+  Future<Map<String, StorePrice>> prices(Iterable<String> productIds) async {
+    try {
+      return await _gateway.queryPrices(productIds);
+    } catch (e) {
+      debugPrint("BillingService.prices failed: $e");
+      return const <String, StorePrice>{};
+    }
+  }
+
   /// Re-grant everything the store account owns. Safe to run any time —
   /// grants are idempotent and only ever ADD ownership. This is the whole
   /// "restore purchases" story for an app with no accounts: the Google
   /// account IS the account.
+  ///
+  /// The count reports how many owned products were RECOGNIZED, not how many
+  /// changed anything — a second restore of the same account reports the same
+  /// number, which is what the user means by "what do I own".
   Future<RestoreResultSummary> restorePurchases() async {
     try {
       if (!await _gateway.isAvailable()) {
@@ -209,7 +252,10 @@ class BillingService {
       final owned = await _gateway.queryPurchases();
       var granted = 0;
       for (final p in owned) {
-        if (await _grant(p.productId, purchaseTimeMs: p.purchaseTimeMs)) {
+        // Straight from `queryPurchases`: Play is asserting ownership as of
+        // right now, which is the only signal that survives a renewal.
+        if (await _grant(p.productId,
+            purchaseTimeMs: p.purchaseTimeMs, confirmedActiveNow: true)) {
           granted++;
         }
       }
@@ -220,13 +266,62 @@ class BillingService {
     }
   }
 
+  /// When the last silent refresh actually reached the store. Session-only:
+  /// a cold start runs [refreshEntitlements] again regardless.
+  DateTime? _lastRefresh;
+
+  /// How often the resume-triggered refresh is allowed to hit the store.
+  /// Frequent enough that a renewal is seen long before the sighting window
+  /// lapses, rare enough that flicking in and out of the app isn't a storm of
+  /// IPC calls.
+  static const Duration refreshInterval = Duration(hours: 6);
+
+  /// Silent counterpart to [restorePurchases], for app start and resume.
+  ///
+  /// This is what keeps a paying subscriber entitled. Play does not push
+  /// renewals to the purchase stream — querying is the documented way to
+  /// observe them — so without a call on this path the window set at purchase
+  /// is the only one the app would ever have, and a monthly subscriber would
+  /// go dark on day 34 while still being charged. It also collects a UPI
+  /// payment that settled while the app was closed, which the out-of-band
+  /// stream cannot see because that stream only exists while the process does.
+  ///
+  /// Never throws, never shows anything, and grants are add-only, so the worst
+  /// case of a spurious call is a wasted IPC round trip.
+  Future<void> refreshEntitlements({bool force = false}) async {
+    final last = _lastRefresh;
+    if (!force &&
+        last != null &&
+        DateTime.now().difference(last) < refreshInterval) {
+      return;
+    }
+    try {
+      if (!await _gateway.isAvailable()) return;
+      final owned = await _gateway.queryPurchases();
+      _lastRefresh = DateTime.now();
+      for (final p in owned) {
+        await _grant(p.productId,
+            purchaseTimeMs: p.purchaseTimeMs, confirmedActiveNow: true);
+      }
+    } catch (e) {
+      debugPrint('BillingService.refreshEntitlements failed: $e');
+    }
+  }
+
+  @visibleForTesting
+  void resetRefreshThrottleForTest() => _lastRefresh = null;
+
   /// Route one owned product to its entitlement. Returns whether the product
-  /// was recognized.
-  Future<bool> _grant(String productId, {int? purchaseTimeMs}) async {
+  /// was recognized. [confirmedActiveNow] is passed through from a live
+  /// `queryPurchases` answer — see [EntitlementService.registerPlusPurchase].
+  Future<bool> _grant(String productId,
+      {int? purchaseTimeMs, bool confirmedActiveNow = false}) async {
     final svc = EntitlementService();
     await svc.initialize();
     if (PlusPlan.byProductId(productId) != null) {
-      await svc.registerPlusPurchase(productId, purchaseTimeMs: purchaseTimeMs);
+      await svc.registerPlusPurchase(productId,
+          purchaseTimeMs: purchaseTimeMs,
+          confirmedActiveNow: confirmedActiveNow);
       return true;
     }
     final royalId = royalIdFromProduct(productId);
