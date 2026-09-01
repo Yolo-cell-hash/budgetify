@@ -2469,12 +2469,22 @@ class SmsParserService {
   /// Extract amount from the message with a confidence verdict.
   static _AmountResolution _resolveAmount(String message) {
     // Strip balance/limit fragments ("Avl Bal Rs.12,345.67", "Bal: INR
-    // 5000", "Avl Lmt: INR 45,000") so the generic currency patterns below
-    // never pick up the account balance or card limit instead of the
-    // transaction amount.
+    // 5000", "Avl Lmt: INR 45,000", "Bal:Rs 4500.00") so the generic currency
+    // patterns below never pick up the account balance or card limit instead
+    // of the transaction amount.
+    //
+    // Every currency marker here and below accepts a colon as well as a dot
+    // ("Rs:500.00", "INR:250.00"). Union Bank of India writes its amounts
+    // that way, and nothing in the cascade could read them: the marker
+    // matched, the colon then sat where a digit had to be, and the amount
+    // came back null — which drops the whole message, so those transactions
+    // were never captured at all rather than captured wrongly (device
+    // report, Sep '26). The colon has to be tolerated on both sides of the
+    // problem: here, or a balance written "Bal:Rs:4500" survives the strip
+    // and gets picked as the amount instead.
     final cleaned = message.replaceAll(
       RegExp(
-        r'(?:(?:AVL|AVBL|AVL?BL|AVAILABLE|TOTAL|CLR|CLEAR)\.?\s*)?(?:BAL(?:ANCE)?|LMT|LIMIT)\.?\s*(?:IS|:|-)?\s*(?:RS\.?|INR|₹)?\s*[\d,]+(?:\.\d+)?',
+        r'(?:(?:AVL|AVBL|AVL?BL|AVAILABLE|TOTAL|CLR|CLEAR)\.?\s*)?(?:BAL(?:ANCE)?|LMT|LIMIT)\.?\s*(?:IS|:|-)?\s*(?:RS[.:]?|INR[.:]?|₹)?\s*[\d,]+(?:\.\d+)?',
         caseSensitive: false,
       ),
       ' ',
@@ -2485,22 +2495,22 @@ class SmsParserService {
       // Verb-anchored with optional currency marker — covers SBI's bare
       // format "debited by 35.0" / "credited by 120.0" (no Rs/INR at all)
       RegExp(
-        r'(?:DEBITED|CREDITED)\s+(?:BY|FOR|WITH)\s+(?:RS\.?|INR|₹)?\s*([\d,]+(?:\.\d+)?)',
+        r'(?:DEBITED|CREDITED)\s+(?:BY|FOR|WITH)\s+(?:RS[.:]?|INR[.:]?|₹)?\s*([\d,]+(?:\.\d+)?)',
         caseSensitive: false,
       ),
       // Rs. 1,234.56 or Rs 1234.56 or Rs.1234 (\b keeps "48 HRS 1800..."
       // from matching as an amount)
-      RegExp(r'\bRS\.?\s*([\d,]+\.?\d*)', caseSensitive: false),
+      RegExp(r'\bRS[.:]?\s*([\d,]+\.?\d*)', caseSensitive: false),
       // INR 1,234.56 or INR1234
-      RegExp(r'\bINR\.?\s*([\d,]+\.?\d*)', caseSensitive: false),
+      RegExp(r'\bINR[.:]?\s*([\d,]+\.?\d*)', caseSensitive: false),
       // ₹1,234.56 or ₹ 1234
       RegExp(r'₹\s*([\d,]+\.?\d*)'),
       // Rupees 1234
       RegExp(r'\bRUPEES?\s*([\d,]+\.?\d*)', caseSensitive: false),
       // Amount: 1234.56 or Amt: 1234
-      RegExp(r'\bAMT\.?:?\s*RS?\.?\s*([\d,]+\.?\d*)', caseSensitive: false),
+      RegExp(r'\bAMT\.?:?\s*RS?[.:]?\s*([\d,]+\.?\d*)', caseSensitive: false),
       // for Rs.1234 (specific format)
-      RegExp(r'(?:FOR|OF)\s+RS\.?\s*([\d,]+\.?\d*)', caseSensitive: false),
+      RegExp(r'(?:FOR|OF)\s+RS[.:]?\s*([\d,]+\.?\d*)', caseSensitive: false),
     ];
 
     for (var i = 0; i < patterns.length; i++) {
@@ -2516,7 +2526,7 @@ class SmsParserService {
           // review queue should surface it.
           final certain = i == 0 ||
               RegExp(
-                    r'(?:\bRS\.?|\bINR|₹|\bRUPEES?)\s*[\d,]+',
+                    r'(?:\bRS[.:]?|\bINR[.:]?|₹|\bRUPEES?)\s*[\d,]+',
                     caseSensitive: false,
                   ).allMatches(cleaned).length <=
                   1;

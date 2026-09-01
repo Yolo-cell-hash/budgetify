@@ -1297,4 +1297,84 @@ void main() {
       expect(txn!.merchantName, isNot('Amount'));
     });
   });
+
+  group('Amounts written with a colon after the currency marker', () {
+    // "Rs:500.00" was not a naming problem — it was a capture one. The
+    // marker matched, the colon then sat exactly where the first digit had
+    // to be, every pattern in the cascade fell through, and _resolveAmount
+    // returned null. A null amount drops the whole message, so these
+    // transactions were never recorded at all: the user's report was that
+    // their Union Bank spends simply never appeared (Sep '26). The sender
+    // header was never the problem — it has been allowlisted throughout.
+    test('the Union Bank sender was allowlisted all along', () {
+      expect(SmsParserService.senderTrust('AD-UNIONB-S'),
+          SenderTrust.allowlisted);
+      expect(SmsParserService.senderTrust('VM-UBIINB-S'),
+          SenderTrust.allowlisted);
+      expect(SmsParserService.isBankSms('AD-UNIONB-S'), isTrue);
+    });
+
+    test('a colon-amount debit is captured, not dropped', () {
+      final txn = SmsParserService.parseTransaction(
+        'AD-UNIONB-S',
+        'A/c *1234 Debited for Rs:500.00 on 01-09-2026 15:04:22 by UPI '
+        'ref no 123456789012. Bal:Rs 4500.00 -Union Bank of India',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 500.00);
+      expect(txn.type, TransactionType.debit);
+      expect(txn.accountInfo, 'XX1234');
+    });
+
+    test('a colon-amount credit is captured', () {
+      final txn = SmsParserService.parseTransaction(
+        'AD-UNIONB-S',
+        'A/c *1234 Credited for Rs:900.00 on 01-09-2026 by UPI '
+        'ref no 123456789012. Bal:Rs 5400.00 -Union Bank of India',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 900.00);
+      expect(txn.type, TransactionType.credit);
+    });
+
+    test('INR takes the colon too', () {
+      final txn = SmsParserService.parseTransaction(
+        'VM-UNIONBK-T',
+        'A/c XX1234 debited INR:250.00 on 01-09-2026. Bal INR:4000.00 '
+        '-Union Bank of India',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 250.00);
+    });
+
+    test('the balance is still excluded when it is the colon-written one', () {
+      // The whole point of tolerating the colon on both sides: a balance
+      // written "Bal:Rs:4500" has to keep being stripped, or it becomes the
+      // most attractive number left and gets logged as the spend.
+      final txn = SmsParserService.parseTransaction(
+        'AD-UNIONB-S',
+        'A/c *1234 Debited for Rs:120.00 on 01-09-2026. Bal:Rs:4500.00 '
+        '-Union Bank of India',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 120.00);
+    });
+
+    test('a dotted amount still parses exactly as before', () {
+      final txn = SmsParserService.parseTransaction(
+        'AD-UNIONB-S',
+        'Rs.5000.00 credited to your A/c XXXXXX1234 on 01-09-2026 by NEFT '
+        'from RAMESH KUMAR. Bal Rs.10000.00 -Union Bank of India',
+        now,
+      );
+      expect(txn, isNotNull);
+      expect(txn!.amount, 5000.00);
+      expect(txn.type, TransactionType.credit);
+      expect(txn.merchantName, 'Ramesh Kumar');
+    });
+  });
 }
