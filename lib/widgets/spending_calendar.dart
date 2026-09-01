@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../l10n/l10n.dart';
 import '../providers/theme_provider.dart';
 import '../screens/daily_analysis_screen.dart';
+import '../services/app_events.dart';
 import '../services/database_service.dart';
 import 'privacy_amount.dart';
 
@@ -30,6 +31,23 @@ class _SpendingCalendarState extends State<SpendingCalendar> {
     final now = DateTime.now();
     _month = DateTime(now.year, now.month, 1);
     _load();
+    // The Budgets tab lives in the shell's IndexedStack and this calendar is
+    // a child State that survives its parent's rebuilds, so initState runs
+    // once per launch. Anything that moves spending between days — a
+    // transaction's date corrected, a retag, a deletion — has to pull the
+    // grid back in, or it keeps shading the month as it stood when the tab
+    // was first opened.
+    appDataRevision.addListener(_onExternalDataChange);
+  }
+
+  @override
+  void dispose() {
+    appDataRevision.removeListener(_onExternalDataChange);
+    super.dispose();
+  }
+
+  void _onExternalDataChange() {
+    if (mounted) _load();
   }
 
   Future<void> _load() async {

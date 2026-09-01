@@ -233,6 +233,118 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     await _loadAutoTagRule();
   }
 
+  /// Move this transaction to a different date and time.
+  ///
+  /// A parsed transaction is stamped with the moment its SMS arrived, which
+  /// is right most of the time and wrong in ordinary ways: bank alerts land
+  /// late or in a batch after an outage, an imported statement carries a
+  /// posting date rather than a spend date, and a manual entry gets typed
+  /// days after the money moved. Until now that stamp was final, so a
+  /// transaction in the wrong month quietly bent every figure derived from
+  /// it — and the only way out was to delete and re-enter it by hand.
+  ///
+  /// Nothing downstream needs teaching about this: month totals, the daily
+  /// heatmap, budget progress, trends, insights and the recap are all
+  /// derived from `detected_at` at read time, so correcting it here corrects
+  /// all of them at once.
+  ///
+  /// Two dialogs, one decision. The day is asked first and the clock second,
+  /// and **either Cancel abandons the whole edit** — nothing is written until
+  /// both steps are answered. The first pass let a cancelled time step keep
+  /// the day that had already been chosen, on the reasoning that the day was
+  /// a separate answer already given. It isn't, to the person looking at it:
+  /// they pressed Cancel and the transaction moved anyway. The buttons say so
+  /// now — "Next" on the day, "Save" on the clock — so the second dialog is
+  /// visibly the back half of one action rather than a new question.
+  Future<void> _editDate() async {
+    if (_transaction.id == null) return;
+    final current = _transaction.detectedAt;
+    final now = DateTime.now();
+    final l10n = context.l10nRead;
+
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: current,
+      // Same window the manual-entry screen offers, so a date means the same
+      // thing whichever way the transaction got into the app. Money cannot
+      // have moved later than now, which is what caps the far end. Both ends
+      // stretch to admit the date the row already holds — the picker asserts
+      // if its initial date falls outside the range, and an imported
+      // statement can carry one from either side of the window.
+      firstDate:
+          current.isBefore(DateTime(2020)) ? DateTime(current.year) : DateTime(2020),
+      lastDate: now.isAfter(current) ? now : current,
+      // "Move this transaction to" runs into the picker's own headline, which
+      // is the date being chosen. "Next" says a second step is coming, so
+      // this dialog never reads like the end of the edit.
+      helpText: l10n.moveTransactionTo,
+      confirmText: l10n.commonNext,
+      cancelText: l10n.commonCancel,
+    );
+    if (picked == null || !mounted) return;
+
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(current),
+      // Naming the day just chosen keeps the clock step tied to it; without
+      // it the second dialog gives no clue which date it is setting a time on.
+      helpText: l10n.timeOnDate(l10n.dayMonth(picked)),
+      confirmText: l10n.commonSave,
+      cancelText: l10n.commonCancel,
+    );
+    if (!mounted) return;
+    // Cancelling the clock abandons the day as well. Nothing has been written
+    // yet, so the transaction is left exactly as it was found — said out loud,
+    // because a dialog closing on its own looks the same as one that saved.
+    if (time == null) {
+      showAppToast(context,
+          message: l10n.dateMoveCancelled, type: AppToastType.info);
+      return;
+    }
+
+    final moved = TransactionModel.resolveEditedDate(
+      original: current,
+      pickedDay: picked,
+      now: now,
+      hour: time.hour,
+      minute: time.minute,
+    );
+    if (moved == current) return;
+
+    setState(() => _isSaving = true);
+    try {
+      await _dbService.updateTransactionDate(_transaction.id!, moved);
+      _changed = true;
+      await _refreshTransaction();
+      if (!mounted) return;
+      showAppToast(
+        context,
+        message: l10n.dateMoved,
+        type: AppToastType.success,
+        actionLabel: l10n.commonUndo,
+        duration: const Duration(seconds: 6),
+        onAction: () => _undoDateMove(current),
+      );
+    } catch (e) {
+      if (mounted) {
+        showAppToast(context,
+            message: l10n.errorSaving(e), type: AppToastType.error);
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  /// Put the transaction back on the date it was moved off.
+  Future<void> _undoDateMove(DateTime original) async {
+    if (_transaction.id == null) return;
+    await _dbService.updateTransactionDate(_transaction.id!, original);
+    await _refreshTransaction();
+    if (!mounted) return;
+    showAppToast(context,
+        message: context.l10nRead.dateMoveUndone, type: AppToastType.info);
+  }
+
   /// Clear the tag on this transaction, asking first how far to reach.
   ///
   /// Tagging offers three distances (this one / every past one from this
@@ -1025,9 +1137,34 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                     ],
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    dateFormatter.format(_transaction.detectedAt),
-                    style: TextStyle(fontSize: 13, color: subtextColor),
+                  // The date carries the same pencil the payee row does, for
+                  // the same reason: it is a field the parser guessed and the
+                  // user may need to correct. Direct manipulation rather than
+                  // a menu entry — the value is right here to point at.
+                  Tooltip(
+                    message: context.l10n.editDateTooltip,
+                    child: InkWell(
+                      onTap: _isSaving ? null : _editDate,
+                      borderRadius: BorderRadius.circular(8),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                dateFormatter.format(_transaction.detectedAt),
+                                style: TextStyle(
+                                    fontSize: 13, color: subtextColor),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Icon(Icons.edit_outlined,
+                                size: 14, color: subtextColor),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               ),

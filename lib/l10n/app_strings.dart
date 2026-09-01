@@ -311,6 +311,7 @@ class AppStrings {
   String get commonDelete => _t('Delete', 'हटाएँ', 'हटवा', 'মুছুন', 'తొలగించు', 'நீக்கு');
   String get commonEdit => _t('Edit', 'संपादित करें', 'संपादित करा', 'সম্পাদনা করুন', 'సవరించు', 'திருத்து');
   String get commonContinue => _t('Continue', 'जारी रखें', 'सुरू ठेवा', 'চালিয়ে যান', 'కొనసాగించు', 'தொடரவும்');
+  String get commonNext => _t('Next', 'आगे', 'पुढे', 'পরবর্তী', 'తదుపరి', 'அடுத்து');
   String get commonDone => _t('Done', 'हो गया', 'झाले', 'হয়ে গেছে', 'పూర్తయింది', 'முடிந்தது');
   String get commonClose => _t('Close', 'बंद करें', 'बंद करा', 'বন্ধ করুন', 'మూసివేయి', 'மூடு');
   String get commonAmount => _t('Amount', 'राशि', 'रक्कम', 'পরিমাণ', 'మొత్తం', 'தொகை');
@@ -2108,6 +2109,43 @@ class AppStrings {
           'প্রাপকের নাম বদলানো হয়েছে',
           'చెల్లింపుదారు పేరు మార్చబడింది',
           'பணம் பெறுநர் பெயர் மாற்றப்பட்டது');
+  // Correcting when a transaction happened. The parser stamps a row with the
+  // moment its SMS arrived, which is right most of the time and wrong in the
+  // ordinary ways: alerts land late, a statement is imported in one batch, a
+  // manual entry gets typed days after the spend.
+  String get editDateTooltip => _t('Change date', 'तारीख बदलें', 'तारीख बदला',
+      'তারিখ বদলান', 'తేదీ మార్చండి', 'தேதியை மாற்று');
+  // The two steps of the move, worded so each dialog's help line runs into
+  // its own headline: "Move this transaction to" / "Tue, 18 Aug", then
+  // "Time on 18 Aug" / "07:53". The second names the day just chosen, so the
+  // clock step never floats free of the date it belongs to.
+  String get moveTransactionTo => _t(
+      'Move this transaction to',
+      'इस लेन-देन को यहाँ ले जाएँ',
+      'हा व्यवहार येथे न्या',
+      'এই লেনদেন এখানে সরান',
+      'ఈ లావాదేవీని ఇక్కడికి జరపండి',
+      'இந்தப் பரிவர்த்தனையை இங்கு நகர்த்து');
+  String timeOnDate(String date) => _t(
+      'Time on $date',
+      '$date का समय',
+      '$date ची वेळ',
+      '$date এর সময়',
+      '$date నాటి సమయం',
+      '$date அன்று நேரம்');
+  String get dateMoveCancelled => _t(
+      'Left unchanged',
+      'कोई बदलाव नहीं',
+      'काही बदल नाही',
+      'কোনো পরিবর্তন হয়নি',
+      'ఏమీ మారలేదు',
+      'மாற்றம் இல்லை');
+  String get dateMoved => _t('Date updated', 'तारीख अपडेट हुई',
+      'तारीख अपडेट झाली', 'তারিখ আপডেট হয়েছে', 'తేదీ అప్‌డేట్ అయింది',
+      'தேதி புதுப்பிக்கப்பட்டது');
+  String get dateMoveUndone => _t('Date restored', 'तारीख वापस की गई',
+      'तारीख पूर्ववत केली', 'তারিখ ফিরিয়ে আনা হয়েছে',
+      'తేదీ పునరుద్ధరించబడింది', 'தேதி மீட்டெடுக்கப்பட்டது');
   String get accountLabel => _t('Account', 'खाता', 'खाते', 'অ্যাকাউন্ট', 'ఖాతా', 'கணக்கு');
   String get originalMessage => _t('Original Message', 'मूल संदेश', 'मूळ संदेश', 'মূল বার্তা', 'అసలు సందేశం', 'அசல் செய்தி');
   String get notesLabel => _t('Notes', 'नोट्स', 'नोट्स', 'নোট', 'నోట్‌లు', 'குறிப்புகள்');
