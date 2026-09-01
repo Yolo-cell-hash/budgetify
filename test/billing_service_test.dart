@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:budget_tracker/models/plus_products.dart';
@@ -26,8 +28,12 @@ class _FakeGateway implements BillingGateway {
   Future<List<BillingPurchase>> queryPurchases() async => owned;
 
   @override
-  Future<BillingOutcome> launchPurchase(String productId) async =>
-      purchaseOutcome;
+  Future<BillingResult> launchPurchase(String productId) async =>
+      purchaseOutcome == BillingOutcome.success
+          // A real store hands back the receipt with the verdict; the fake
+          // must too, or the grant path never sees a purchase time.
+          ? BillingResult(purchaseOutcome, purchase: _p(productId))
+          : BillingResult(purchaseOutcome);
 }
 
 BillingPurchase _p(String id) => BillingPurchase(
@@ -178,4 +184,58 @@ void main() {
           reason: 'unearned royals are reset, exactly as before');
     });
   });
+
+  group('grants are replay-safe (what real billing will actually do)', () {
+    Future<int?> plusUntil() async =>
+        (await SharedPreferences.getInstance()).getInt('entitlement_plus_until');
+
+    test('replaying one subscription receipt does not stack the window',
+        () async {
+      await entitlements.initialize();
+      final boughtAt = DateTime.now().millisecondsSinceEpoch;
+
+      await entitlements.registerPlusPurchase('plus_monthly',
+          purchaseTimeMs: boughtAt);
+      final afterBuy = await plusUntil();
+
+      // Exactly what "buy, then tap Restore" does: the same receipt, twice.
+      await entitlements.registerPlusPurchase('plus_monthly',
+          purchaseTimeMs: boughtAt);
+      expect(await plusUntil(), afterBuy,
+          reason: 'a replayed receipt must resolve to the same expiry, '
+              'not hand out a second month');
+    });
+
+    test('a genuine later renewal still moves the window forward', () async {
+      await entitlements.initialize();
+      final first = DateTime.now().millisecondsSinceEpoch;
+      await entitlements.registerPlusPurchase('plus_monthly',
+          purchaseTimeMs: first);
+      final afterFirst = await plusUntil();
+
+      // Play delivers a renewal as a NEW purchase with its own later time.
+      await entitlements.registerPlusPurchase('plus_monthly',
+          purchaseTimeMs: first + const Duration(days: 30).inMilliseconds);
+      expect(await plusUntil(), greaterThan(afterFirst!));
+    });
+
+    test('a purchase settling out of band is granted without a restore',
+        () async {
+      // The UPI story: money leaves, `pending` comes back, and the real
+      // purchase lands later with nothing awaiting it.
+      final settled = StreamController<BillingPurchase>();
+      addTearDown(settled.close);
+      await billing.installGateway(_FakeGateway(),
+          outOfBandPurchases: settled.stream);
+
+      settled.add(_p('plus_lifetime'));
+      await Future<void>.delayed(Duration.zero);
+
+      await entitlements.initialize();
+      expect(entitlements.hasPlus, isTrue,
+          reason: 'a settled UPI purchase must land on its own — the user '
+              'should never have to discover "Restore purchases"');
+    });
+  });
+
 }

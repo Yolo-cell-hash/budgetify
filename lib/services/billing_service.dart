@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 
 import '../models/plus_products.dart';
@@ -41,17 +43,39 @@ class BillingPurchase {
   });
 }
 
+/// How a purchase attempt ended, plus the purchase itself when there was one.
+///
+/// The purchase travels back with the outcome so [BillingService] can grant
+/// from the REAL receipt — its token and its purchase time — instead of
+/// re-deriving them. That matters for subscriptions: the window is anchored to
+/// the purchase instant, so a buy and a later "Restore" of the same receipt
+/// resolve to the same expiry instead of stacking two.
+class BillingResult {
+  final BillingOutcome outcome;
+
+  /// Present only on [BillingOutcome.success].
+  final BillingPurchase? purchase;
+
+  const BillingResult(this.outcome, {this.purchase});
+}
+
 /// The seam where Google Play Billing plugs in.
 ///
-/// The app ships with [UnavailableBillingGateway] until the bank/Play
-/// approvals land. The real implementation (`PlayBillingGateway`, backed by
-/// the `in_app_purchase` plugin) drops in behind this interface WITHOUT
-/// touching any caller: Play Billing talks to the on-device Play Store app
-/// over local IPC, so it works even though Budgetify strips INTERNET from the
-/// release manifest — the Play Store app is the network proxy.
-/// MUST-VERIFY before relying on that: a real sandbox purchase + a
-/// queryPurchases round-trip on an internal-track build with INTERNET still
-/// stripped.
+/// [PlayBillingGateway] is the live implementation, installed from `main.dart`
+/// via [BillingService.installGateway]. This file stays free of the
+/// `in_app_purchase` import so the orchestration layer remains unit-testable;
+/// [UnavailableBillingGateway] is still the default, so anything that never
+/// installs a gateway (every test, and any non-Android platform) behaves as
+/// before.
+///
+/// Play Billing talks to the on-device Play Store app over local IPC, so it
+/// works even though Budgetify strips INTERNET from the release manifest — the
+/// Play Store app is the network proxy. VERIFIED on the merged release
+/// manifest: the billing integration adds exactly one permission,
+/// `com.android.vending.BILLING`, and INTERNET stays absent.
+/// STILL MUST-VERIFY on a device before trusting revenue to it: a real sandbox
+/// purchase and a restore round-trip on an internal-track build with INTERNET
+/// still stripped.
 abstract class BillingGateway {
   /// Whether the store can take purchases right now.
   Future<bool> isAvailable();
@@ -63,7 +87,7 @@ abstract class BillingGateway {
   Future<List<BillingPurchase>> queryPurchases();
 
   /// Launch the store purchase flow for [productId].
-  Future<BillingOutcome> launchPurchase(String productId);
+  Future<BillingResult> launchPurchase(String productId);
 }
 
 /// The pre-approval gateway: reports the store as unavailable and owns
@@ -81,8 +105,8 @@ class UnavailableBillingGateway implements BillingGateway {
       const <BillingPurchase>[];
 
   @override
-  Future<BillingOutcome> launchPurchase(String productId) async =>
-      BillingOutcome.unavailable;
+  Future<BillingResult> launchPurchase(String productId) async =>
+      const BillingResult(BillingOutcome.unavailable);
 }
 
 /// What a "Restore purchases" pass found.
@@ -111,6 +135,41 @@ class BillingService {
   @visibleForTesting
   set gateway(BillingGateway g) => _gateway = g;
 
+  StreamSubscription<BillingPurchase>? _outOfBandSub;
+
+  /// Production wiring: install the live [gateway] and, if it reports
+  /// purchases arriving outside a purchase flow, grant those too.
+  ///
+  /// That second half is what makes UPI work. An Indian user paying by UPI
+  /// mandate gets `pending` while the bank settles — sometimes minutes later,
+  /// often with the app already backgrounded — and the settled purchase then
+  /// arrives with nothing awaiting it. Without this subscription their money
+  /// is taken and the entitlement never lands until they happen to tap
+  /// "Restore purchases". Grants are idempotent, so a purchase seen on both
+  /// paths is harmless.
+  ///
+  /// Deliberately takes a plain [Stream] rather than the concrete gateway so
+  /// this file never imports `in_app_purchase`; the platform plugin is
+  /// constructed in `main.dart` and stays out of every unit test.
+  Future<void> installGateway(
+    BillingGateway gateway, {
+    Stream<BillingPurchase>? outOfBandPurchases,
+  }) async {
+    _gateway = gateway;
+    await _outOfBandSub?.cancel();
+    _outOfBandSub = outOfBandPurchases?.listen(
+      (p) async {
+        try {
+          await _grant(p.productId, purchaseTimeMs: p.purchaseTimeMs);
+        } catch (e) {
+          debugPrint('BillingService: out-of-band grant failed: $e');
+        }
+      },
+      onError: (Object e) =>
+          debugPrint('BillingService: out-of-band stream error: $e'),
+    );
+  }
+
   /// Whether the store can take purchases right now. The paywall uses this to
   /// show its "purchases open soon" state instead of a dead buy button.
   Future<bool> get storeAvailable async {
@@ -125,11 +184,13 @@ class BillingService {
   /// entitlement locally on success.
   Future<BillingOutcome> purchase(String productId) async {
     try {
-      final outcome = await _gateway.launchPurchase(productId);
-      if (outcome == BillingOutcome.success) {
-        await _grant(productId);
+      final result = await _gateway.launchPurchase(productId);
+      if (result.outcome == BillingOutcome.success) {
+        final p = result.purchase;
+        await _grant(p?.productId ?? productId,
+            purchaseTimeMs: p?.purchaseTimeMs);
       }
-      return outcome;
+      return result.outcome;
     } catch (e) {
       debugPrint('BillingService.purchase($productId) failed: $e');
       return BillingOutcome.error;

@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -17,6 +19,8 @@ import 'package:budget_tracker/services/custom_tag_service.dart';
 import 'package:budget_tracker/services/dev_mode.dart';
 import 'package:budget_tracker/services/gamification_service.dart';
 import 'package:budget_tracker/services/entitlement_service.dart';
+import 'package:budget_tracker/services/billing_service.dart';
+import 'package:budget_tracker/services/play_billing_gateway.dart';
 import 'package:budget_tracker/services/royal_notification_skin.dart';
 import 'package:budget_tracker/providers/theme_provider.dart';
 import 'package:budget_tracker/providers/app_preferences.dart';
@@ -125,6 +129,29 @@ Future<void> _initDeferredServices(
     await EntitlementService().syncPortableAnchor();
   } catch (e) {
     debugPrint('EntitlementService.initialize failed: $e');
+  }
+
+  // Live Play Billing. Constructed HERE rather than inside BillingService so
+  // the plugin import stays out of the service layer (and out of every unit
+  // test, which keeps using the unavailable stub).
+  //
+  // Starting the listener at launch is what recovers a purchase the app never
+  // saw resolve: a UPI mandate that settled while the app was closed, a buy
+  // made on another device, or anything Play is still waiting to have
+  // acknowledged. Play refunds an unacknowledged purchase after three days, so
+  // this is the safety net for the user's money as much as for the grant.
+  if (defaultTargetPlatform == TargetPlatform.android) {
+    try {
+      final gateway = PlayBillingGateway()..start();
+      await BillingService().installGateway(
+        gateway,
+        outOfBandPurchases: gateway.outOfBandPurchases,
+      );
+    } catch (e) {
+      // Falls back to the unavailable stub: the paywall shows its calm
+      // "purchases open soon" state rather than a dead button.
+      debugPrint('PlayBillingGateway install failed: $e');
+    }
   }
 
   // An equipped ROYALTY avatar (with its app-wide theme toggle on) dresses

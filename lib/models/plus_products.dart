@@ -1,10 +1,11 @@
 /// The Budgetify Plus product catalog — every purchasable thing in one place.
 ///
-/// PREPARATION ONLY: nothing here talks to Google Play. These ids and prices
-/// are the single source of truth the eventual Play Billing integration will
-/// mirror (the products created in the Play Console MUST use these exact ids).
-/// Until billing is approved and wired, the catalog only feeds the dormant
-/// gate/paywall code paths.
+/// These ids and prices are the single source of truth the live Play Billing
+/// integration mirrors: every product here MUST exist in the Play Console
+/// under exactly this id, or `queryProductDetails` returns nothing and the
+/// paywall reports the store closed. Prices shown here are only for the
+/// paywall preview and tests — the charged price always comes from Play's
+/// `ProductDetails` at purchase time (localized and tax-aware).
 library;
 
 /// The three ways to buy Plus. One entitlement ("plus"), three SKUs.
