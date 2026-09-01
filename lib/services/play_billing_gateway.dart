@@ -55,6 +55,29 @@ class PlayBillingGateway implements BillingGateway {
   /// Collector used only while [queryPurchases] is running.
   List<BillingPurchase>? _restoreBucket;
 
+  /// Completed once the restore stream has gone quiet, so a collection ends as
+  /// soon as the account has finished answering instead of always waiting out
+  /// the cap.
+  Completer<void>? _restoreSettled;
+  Timer? _restoreQuietTimer;
+
+  /// Quiet period after the last restored purchase before a collection is
+  /// considered complete.
+  static const Duration _restoreQuiet = Duration(milliseconds: 800);
+
+  /// Hard ceiling on one collection — what an account owning nothing costs,
+  /// and the backstop if the store never answers at all.
+  static const Duration _restoreCap = Duration(seconds: 6);
+
+  /// The collection currently running, if any. Collection state
+  /// ([_restoreBucket] and friends) is single-instance, so two overlapping
+  /// callers would clobber each other — the first to finish nulls the bucket
+  /// out from under the second, which then returns a truncated answer and
+  /// under-grants. That is reachable now that a silent refresh runs at app
+  /// start while the Restore button is still tappable, so a second caller
+  /// joins the first instead of starting its own.
+  Future<List<BillingPurchase>>? _inFlightQuery;
+
   final StreamController<BillingPurchase> _outOfBand =
       StreamController<BillingPurchase>.broadcast();
 
@@ -88,26 +111,78 @@ class PlayBillingGateway implements BillingGateway {
 
   @override
   Future<List<BillingPurchase>> queryPurchases() async {
+    final running = _inFlightQuery;
+    if (running != null) return running;
+    final query = _collectPurchases();
+    _inFlightQuery = query;
+    try {
+      return await query;
+    } finally {
+      _inFlightQuery = null;
+    }
+  }
+
+  Future<List<BillingPurchase>> _collectPurchases() async {
     if (!await isAvailable()) return const <BillingPurchase>[];
     start();
     // `restorePurchases()` has no completion signal — it re-emits what the
     // account owns onto the shared stream, sometimes across more than one
-    // event. So collect for a short fixed window rather than guess at an end.
-    // This only runs behind the explicit "Restore purchases" button.
+    // event. So collect until the stream goes quiet rather than guess at an
+    // end: settle [_restoreQuiet] after the last arrival, and give up after
+    // [_restoreCap] if nothing ever comes. A fixed wait had to be long enough
+    // for the slowest cold Play Store, which meant every owner — and every
+    // silent refresh — paid that worst case, and an account that answered a
+    // beat late still came back empty and told its owner they own nothing.
     final bucket = <BillingPurchase>[];
     _restoreBucket = bucket;
+    _restoreSettled = Completer<void>();
     try {
       await _iap.restorePurchases();
-      await Future<void>.delayed(const Duration(seconds: 4));
+      await _restoreSettled!.future.timeout(_restoreCap, onTimeout: () {});
     } catch (e) {
       debugPrint('PlayBillingGateway.queryPurchases failed: $e');
     } finally {
       _restoreBucket = null;
+      _restoreQuietTimer?.cancel();
+      _restoreQuietTimer = null;
+      _restoreSettled = null;
     }
     // De-duplicate: an account can report the same product across events, and
     // granting twice must never be able to stack a subscription window.
     final seen = <String>{};
     return bucket.where((p) => seen.add(p.purchaseToken)).toList();
+  }
+
+  @override
+  Future<Map<String, StorePrice>> queryPrices(
+      Iterable<String> productIds) async {
+    final ids = productIds.toSet();
+    if (ids.isEmpty || !await isAvailable()) return const <String, StorePrice>{};
+    final ProductDetailsResponse response;
+    try {
+      response = await _iap.queryProductDetails(ids);
+    } catch (e) {
+      debugPrint('PlayBillingGateway.queryPrices threw: $e');
+      return const <String, StorePrice>{};
+    }
+    if (response.error != null) {
+      debugPrint('PlayBillingGateway.queryPrices: ${response.error}');
+      return const <String, StorePrice>{};
+    }
+    // `price` is already formatted, localized and tax-inclusive — exactly the
+    // string Play will show on its own sheet, which is the point: the two can
+    // no longer disagree. Subscriptions can repeat an id once per offer; the
+    // first wins, matching what [launchPurchase] would actually buy.
+    final out = <String, StorePrice>{};
+    for (final p in response.productDetails) {
+      out.putIfAbsent(
+          p.id, () => StorePrice(formatted: p.price, amount: p.rawPrice));
+    }
+    for (final missing in ids.difference(out.keys.toSet())) {
+      debugPrint('PlayBillingGateway.queryPrices: "$missing" is not a live '
+          'Play product - the paywall will fall back to its constant');
+    }
+    return out;
   }
 
   @override
@@ -135,6 +210,24 @@ class PlayBillingGateway implements BillingGateway {
       debugPrint('PlayBillingGateway: "$productId" is not a live Play product '
           '- check the Play Console id matches PlusPlan exactly');
       return const BillingResult(BillingOutcome.unavailable);
+    }
+
+    if (response.productDetails.length > 1) {
+      // A subscription product yields ONE ProductDetails per base plan or
+      // offer, each carrying its own offerToken — and the token on whichever
+      // entry we hand to `buyNonConsumable` decides what Play charges. Play
+      // does not order these by price or eligibility, so with more than one
+      // entry `.first` is a coin toss between (say) ₹49 and a ₹29 promo.
+      //
+      // The Play Console for this app is therefore configured ONE BASE PLAN
+      // PER PRODUCT, NO OFFERS, which makes this list a singleton. If this
+      // ever fires, someone added an offer in the Console and the paywall's
+      // price and the charged price have silently come apart: either remove
+      // the offer, or teach this method to choose by offer tag.
+      debugPrint('PlayBillingGateway: "$productId" returned '
+          '${response.productDetails.length} offers - the charged price is '
+          'now non-deterministic. Expected exactly one base plan and no '
+          'offers in the Play Console.');
     }
 
     // One flow per product; a second tap joins the first rather than opening
@@ -193,7 +286,17 @@ class PlayBillingGateway implements BillingGateway {
         case PurchaseStatus.purchased:
         case PurchaseStatus.restored:
           final purchase = _toBillingPurchase(d);
-          _restoreBucket?.add(purchase);
+          final bucket = _restoreBucket;
+          if (bucket != null) {
+            bucket.add(purchase);
+            // Restart the quiet countdown: an account answering across several
+            // events keeps the collection open until it really has finished.
+            _restoreQuietTimer?.cancel();
+            _restoreQuietTimer = Timer(_restoreQuiet, () {
+              final settled = _restoreSettled;
+              if (settled != null && !settled.isCompleted) settled.complete();
+            });
+          }
           if (waiting != null) {
             _awaiting.remove(d.productID);
             waiting.complete(

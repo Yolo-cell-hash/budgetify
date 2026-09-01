@@ -147,6 +147,12 @@ Future<void> _initDeferredServices(
         gateway,
         outOfBandPurchases: gateway.outOfBandPurchases,
       );
+      // Ask Play what this account owns, right now — the call that keeps a
+      // renewing subscriber entitled (renewals are never pushed to the
+      // purchase stream, only observed by querying) and that collects a UPI
+      // payment which settled while the app was closed. Unawaited: it costs a
+      // store round trip and must never sit in front of the first frame.
+      unawaited(BillingService().refreshEntitlements(force: true));
     } catch (e) {
       // Falls back to the unavailable stub: the paywall shows its calm
       // "purchases open soon" state rather than a dead button.
@@ -327,6 +333,12 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
       }
     } else if (state == AppLifecycleState.resumed) {
       _fgSince = DateTime.now();
+      // Re-ask Play what's owned. Self-throttled to once every few hours, so
+      // this is nearly always a no-op; it exists so a subscription that renewed
+      // while the app was backgrounded is seen long before the sighting window
+      // lapses. Deliberately ahead of the early return below — a user who
+      // keeps the app locked still keeps paying.
+      unawaited(BillingService().refreshEntitlements());
       final pausedAt = _pausedAt;
       _pausedAt = null;
       if (_splashing || _locked || pausedAt == null) return;
