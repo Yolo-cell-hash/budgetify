@@ -461,11 +461,16 @@ class EntitlementService {
   }
 
   /// Record a completed Plus purchase (from BillingService, a restore, or a
-  /// backup import). For subscriptions the paid window extends from the later
-  /// of now / the current expiry, so stacking a renewal never loses time.
+  /// backup import). For subscriptions the paid window only ever moves
+  /// forward, so no replay can lose or duplicate time.
   /// [purchaseTimeMs] anchors the window for restores of an old purchase.
+  ///
+  /// [confirmedActiveNow] means Play answered `queryPurchases` with this
+  /// product a moment ago — i.e. the account owns it *at this instant*. Only
+  /// the live store may set it; a backup import or a replayed receipt must
+  /// not, since neither proves anything about now.
   Future<void> registerPlusPurchase(String productId,
-      {int? purchaseTimeMs}) async {
+      {int? purchaseTimeMs, bool confirmedActiveNow = false}) async {
     final plan = PlusPlan.byProductId(productId);
     if (plan == null) return;
     final prefs = await SharedPreferences.getInstance();
@@ -479,9 +484,24 @@ class EntitlementService {
             ? const Duration(days: 31)
             : const Duration(days: 366);
         final anchorMs = purchaseTimeMs ?? _effectiveNow.millisecondsSinceEpoch;
-        final start =
-            anchorMs > _plusUntilMs ? anchorMs : _plusUntilMs; // stack renewals
-        final until = start + (period + kPlusSubscriptionGrace).inMilliseconds;
+        // ABSOLUTE window, always measured from the purchase itself, then kept
+        // only if it reaches further than what we already hold. This makes a
+        // re-grant IDEMPOTENT: buying and then tapping "Restore" replays the
+        // same purchase, computes the same instant, and changes nothing. (The
+        // old form measured from the later of anchor/current expiry, so a
+        // replay silently bought the user another month.)
+        final anchored =
+            anchorMs + (period + kPlusSubscriptionGrace).inMilliseconds;
+        // A LIVE sighting is the second, independent witness — and the only
+        // one that survives a renewal. Play keeps the same purchase token
+        // across renewals, so [anchored] recomputes to the same stale instant
+        // forever; without this a monthly subscriber would go dark on day 34
+        // while still being charged. See [kPlusLiveSightingWindow].
+        final sighted = confirmedActiveNow
+            ? _effectiveNow.millisecondsSinceEpoch +
+                kPlusLiveSightingWindow.inMilliseconds
+            : 0;
+        final until = anchored > sighted ? anchored : sighted;
         if (until > _plusUntilMs) {
           _plusUntilMs = until;
           await prefs.setInt(_plusUntilKey, until);

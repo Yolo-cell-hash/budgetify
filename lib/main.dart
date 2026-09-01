@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -17,6 +19,8 @@ import 'package:budget_tracker/services/custom_tag_service.dart';
 import 'package:budget_tracker/services/dev_mode.dart';
 import 'package:budget_tracker/services/gamification_service.dart';
 import 'package:budget_tracker/services/entitlement_service.dart';
+import 'package:budget_tracker/services/billing_service.dart';
+import 'package:budget_tracker/services/play_billing_gateway.dart';
 import 'package:budget_tracker/services/royal_notification_skin.dart';
 import 'package:budget_tracker/providers/theme_provider.dart';
 import 'package:budget_tracker/providers/app_preferences.dart';
@@ -125,6 +129,35 @@ Future<void> _initDeferredServices(
     await EntitlementService().syncPortableAnchor();
   } catch (e) {
     debugPrint('EntitlementService.initialize failed: $e');
+  }
+
+  // Live Play Billing. Constructed HERE rather than inside BillingService so
+  // the plugin import stays out of the service layer (and out of every unit
+  // test, which keeps using the unavailable stub).
+  //
+  // Starting the listener at launch is what recovers a purchase the app never
+  // saw resolve: a UPI mandate that settled while the app was closed, a buy
+  // made on another device, or anything Play is still waiting to have
+  // acknowledged. Play refunds an unacknowledged purchase after three days, so
+  // this is the safety net for the user's money as much as for the grant.
+  if (defaultTargetPlatform == TargetPlatform.android) {
+    try {
+      final gateway = PlayBillingGateway()..start();
+      await BillingService().installGateway(
+        gateway,
+        outOfBandPurchases: gateway.outOfBandPurchases,
+      );
+      // Ask Play what this account owns, right now — the call that keeps a
+      // renewing subscriber entitled (renewals are never pushed to the
+      // purchase stream, only observed by querying) and that collects a UPI
+      // payment which settled while the app was closed. Unawaited: it costs a
+      // store round trip and must never sit in front of the first frame.
+      unawaited(BillingService().refreshEntitlements(force: true));
+    } catch (e) {
+      // Falls back to the unavailable stub: the paywall shows its calm
+      // "purchases open soon" state rather than a dead button.
+      debugPrint('PlayBillingGateway install failed: $e');
+    }
   }
 
   // An equipped ROYALTY avatar (with its app-wide theme toggle on) dresses
@@ -300,6 +333,12 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
       }
     } else if (state == AppLifecycleState.resumed) {
       _fgSince = DateTime.now();
+      // Re-ask Play what's owned. Self-throttled to once every few hours, so
+      // this is nearly always a no-op; it exists so a subscription that renewed
+      // while the app was backgrounded is seen long before the sighting window
+      // lapses. Deliberately ahead of the early return below — a user who
+      // keeps the app locked still keeps paying.
+      unawaited(BillingService().refreshEntitlements());
       final pausedAt = _pausedAt;
       _pausedAt = null;
       if (_splashing || _locked || pausedAt == null) return;
