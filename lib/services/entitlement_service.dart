@@ -468,9 +468,16 @@ class EntitlementService {
             ? const Duration(days: 31)
             : const Duration(days: 366);
         final anchorMs = purchaseTimeMs ?? _effectiveNow.millisecondsSinceEpoch;
-        final start =
-            anchorMs > _plusUntilMs ? anchorMs : _plusUntilMs; // stack renewals
-        final until = start + (period + kPlusSubscriptionGrace).inMilliseconds;
+        // ABSOLUTE window, always measured from the purchase itself, then kept
+        // only if it reaches further than what we already hold. This makes a
+        // re-grant IDEMPOTENT: buying and then tapping "Restore" replays the
+        // same purchase, computes the same instant, and changes nothing. (The
+        // old form measured from the later of anchor/current expiry, so a
+        // replay silently bought the user another month.) A real Play renewal
+        // is a NEW purchase carrying its own later purchaseTime, so genuine
+        // renewals still move the window forward.
+        final until =
+            anchorMs + (period + kPlusSubscriptionGrace).inMilliseconds;
         if (until > _plusUntilMs) {
           _plusUntilMs = until;
           await prefs.setInt(_plusUntilKey, until);
