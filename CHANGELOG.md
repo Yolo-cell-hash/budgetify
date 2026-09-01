@@ -11,6 +11,55 @@ Also available in the five languages the app ships alongside English:
 practice began; this file remains the full history and the one to write
 first.
 
+## [1.76.0] — 2026-09-01
+
+### Added
+
+- **A transaction's date can now be corrected.** Tap the date under the
+  amount on any transaction to move it to when the money actually moved.
+  Bank alerts arrive late, an imported statement carries a posting date
+  rather than a spend date, and a manual entry gets typed days after the
+  fact — until now that stamp was final, and a transaction sitting in the
+  wrong month quietly bent every figure drawn from it. Everything dated
+  follows the correction at once: month totals, the spending heatmap, budget
+  progress, trends, insights and the recap. The move is undoable from the
+  toast it leaves, and the transaction keeps its identity, so a later SMS
+  rescan will not bring it back as a duplicate. A correction travels in your
+  backups too, so a date you fixed comes back fixed after a reinstall and
+  restore — it is treated as your decision, like a tag or a note, not
+  something the next SMS scan may overwrite.
+  Picking is two steps — the day, then the time — and Cancel at either one
+  leaves the transaction exactly where it was, never half-moved.
+
+### Fixed
+
+- **Union Bank of India transactions are captured again.** Union Bank writes
+  its amounts with a colon — "Rs:500.00" — and nothing in the parser could
+  get past it: the currency marker matched, the colon then sat exactly where
+  the first digit had to be, and the amount came back empty. An empty amount
+  drops the whole message, so these spends were never recorded at all rather
+  than recorded wrongly. Amounts written that way are read now, on both
+  `Rs:` and `INR:`, and a balance written the same way in the same message
+  ("Bal:Rs:4,500") is still kept from being mistaken for the spend. The
+  sender header was never the problem — it has been recognised throughout.
+  Because these messages were never stored, there was nothing to re-read: the
+  app forgets how far it has scanned once on this update and walks your
+  inbox again, so the spends it missed are picked up rather than only new
+  ones. Anything already imported, or that you deleted, is left alone.
+- **The date and time pickers wear your theme.** They were the last dialogs
+  in the app still dressed by Material rather than by your palette, and it
+  showed — a gold hour field beside a rose dial, on a canvas that matched
+  neither. Every picker in the app now takes its surface, accent and type
+  from the theme you have equipped, royal courts included: one accent marks
+  the selected day, the dial hand and the hour you are setting, today is
+  outlined rather than filled so it can't be mistaken for your choice, and
+  the hour field is a wash of the accent instead of a solid block shouting
+  over the dial.
+- **The spending heatmap keeps up with the rest of the app.** The Budgets
+  tab's calendar loaded once and then held that month as it stood, so a
+  transaction retagged, deleted or moved elsewhere left the shading stale
+  until the app was restarted.
+
 ## [1.75.4] — 2026-08-29
 
 ### Fixed

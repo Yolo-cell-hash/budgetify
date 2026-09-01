@@ -292,6 +292,20 @@ ThemeDress? courtDressFor(String avatarKind, String avatarValue) {
       bottomNavigationBarTheme: isDark
           ? base.bottomNavigationBarTheme.copyWith(selectedItemColor: tint)
           : base.bottomNavigationBarTheme,
+      // The pickers read the court through their own component themes, so
+      // they have to be rebuilt here like every other baked slot. Dark only,
+      // for the same reason the buttons above are: light keeps its ink
+      // interactive accent, and only the tab indicator and the snackbar
+      // action follow the court there. Skipping this is what left a gold
+      // hour field sitting beside a rose dial.
+      datePickerTheme: isDark
+          ? AppTheme.datePickerThemeFor(colors,
+              accent: tint, onAccent: buttonInk)
+          : base.datePickerTheme,
+      timePickerTheme: isDark
+          ? AppTheme.timePickerThemeFor(colors,
+              accent: tint, onAccent: buttonInk)
+          : base.timePickerTheme,
       tabBarTheme: base.tabBarTheme.copyWith(
         labelColor: isDark ? tint : base.tabBarTheme.labelColor,
         indicatorColor: tint,

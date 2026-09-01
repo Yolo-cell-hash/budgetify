@@ -398,6 +398,43 @@ class SmsService {
     }
   }
 
+  /// The release whose parser change can recover messages earlier versions
+  /// dropped, and the key remembering that its one-time re-read has run.
+  ///
+  /// A parser fix that renames a payee can be applied to history by re-reading
+  /// stored rows, which is what the schema migrations do. A fix that makes a
+  /// message *parse at all* cannot: there is no row to re-read, because the
+  /// message was refused and nothing was ever written. The only way back to it
+  /// is the inbox — and the watermark, whose whole job is to stop the inbox
+  /// being re-read, has long since advanced past it.
+  ///
+  /// So a release that widens what the parser accepts drops the watermark once,
+  /// and the next scans walk the history window again. Re-reading is safe by
+  /// construction: every message goes back through the fingerprint check, the
+  /// deleted-transaction tombstones and the mute list, so anything already
+  /// imported is skipped and anything the user threw away stays gone.
+  ///
+  /// 1.76.0 is here because Union Bank of India writes its amounts with a
+  /// colon ("Rs:500.00"), which no amount pattern could read — so those
+  /// messages were dropped whole, and a user's Union Bank spends simply never
+  /// appeared (report, Sep '26). Without this they would stay missing, and the
+  /// fix would only ever apply to messages arriving from now on.
+  static const String _rescanReleaseKey = 'sms_rescan_release';
+  static const String _rescanRelease = '1.76.0';
+
+  /// Drop the watermark once per [_rescanRelease], so the parser's new reach
+  /// is applied to the inbox that is already on the device.
+  Future<void> _maybeRescanForParserFix() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getString(_rescanReleaseKey) == _rescanRelease) return;
+    // Marked before the scan, not after: the walk is deliberately spread over
+    // several launches (see [_maxMessagesPerWindow]), and the watermark it
+    // leaves behind is what resumes it. Marking afterwards would reset that
+    // progress every launch and start the year over each time.
+    await prefs.setString(_rescanReleaseKey, _rescanRelease);
+    await prefs.remove(_watermarkKey);
+  }
+
   /// Forget how far the inbox has been scanned so the next scan re-imports from
   /// scratch. Call after a restore or a data wipe, where the database no longer
   /// matches what the watermark claims was imported.
@@ -433,6 +470,10 @@ class SmsService {
     final transactions = <TransactionModel>[];
 
     try {
+      // Once per release that widens the parser: forget how far the inbox has
+      // been read, so messages older versions refused get a second look.
+      await _maybeRescanForParserFix();
+
       final now = DateTime.now();
       final watermark = await _readWatermark();
       var cursor = watermark != null

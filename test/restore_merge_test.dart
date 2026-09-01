@@ -11,13 +11,14 @@ Map<String, Object?> row({
   String? taxBucket,
   num? splitShare,
   String? merchantName,
+  int? detectedAt,
 }) =>
     {
       'amount': 1200.0,
       'type': 0,
       'sender': 'VM-HDFCBK-S',
       'message': 'Rs 1200 debited',
-      'detected_at': 1754380800000,
+      'detected_at': detectedAt ?? 1754380800000,
       'category': category,
       'is_classified': isClassified ?? (category == null ? 0 : 1),
       'notes': notes,
@@ -289,6 +290,63 @@ void main() {
         ),
         isFalse,
       );
+    });
+  });
+
+  group('a corrected date survives reinstall + restore', () {
+    // The post-reinstall scan re-derives the date from the same SMS, so the
+    // local row always comes back on the parse date. A backup that disagrees
+    // can only be carrying a correction the user made by hand — and until
+    // this clause existed, that correction was the one decision a restore
+    // silently threw away.
+    const smsDate = 1754380800000; // the moment the alert arrived
+    const movedTo = 1754121600000; // where the user put it: three days back
+
+    test('the backup date wins over the rescanned parse date', () {
+      final updates = RestoreMerge.updatesFor(
+        backup: row(detectedAt: movedTo),
+        local: row(detectedAt: smsDate),
+      );
+
+      expect(updates['detected_at'], movedTo);
+    });
+
+    test('an untouched date is not restated, so the count stays honest', () {
+      final updates = RestoreMerge.updatesFor(
+        backup: row(detectedAt: smsDate),
+        local: row(detectedAt: smsDate),
+      );
+
+      expect(updates.containsKey('detected_at'), isFalse);
+    });
+
+    test('a missing or malformed date never clears the local one', () {
+      for (final bad in <Object?>[null, '2026-08-05', 1754121600000.0]) {
+        final updates = RestoreMerge.updatesFor(
+          backup: {...row(), 'detected_at': bad},
+          local: row(detectedAt: smsDate),
+        );
+        expect(updates.containsKey('detected_at'), isFalse,
+            reason: 'backup date $bad must not touch the local row');
+      }
+    });
+
+    test('the date rides along with every other decision', () {
+      final updates = RestoreMerge.updatesFor(
+        backup: row(
+          category: 'Food & Dining',
+          notes: 'split with Anu',
+          splitShare: 600,
+          detectedAt: movedTo,
+        ),
+        local: row(detectedAt: smsDate, reviewReasons: 'payee_unknown'),
+      );
+
+      expect(updates['detected_at'], movedTo);
+      expect(updates['category'], 'Food & Dining');
+      expect(updates['notes'], 'split with Anu');
+      expect(updates['split_share'], 600.0);
+      expect(updates['review_reasons'], isNull);
     });
   });
 }
