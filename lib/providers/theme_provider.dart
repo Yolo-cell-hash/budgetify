@@ -266,6 +266,16 @@ class AppTheme {
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
       ),
+      datePickerTheme: datePickerThemeFor(
+        c,
+        accent: AppColors.inkPrimary,
+        onAccent: Colors.white,
+      ),
+      timePickerTheme: timePickerThemeFor(
+        c,
+        accent: AppColors.inkPrimary,
+        onAccent: Colors.white,
+      ),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: AppColors.inkPrimary,
         contentTextStyle: const TextStyle(color: Colors.white),
@@ -403,6 +413,16 @@ class AppTheme {
       dialogTheme: const DialogThemeData(
         backgroundColor: DarkModeColors.cardLight,
         surfaceTintColor: Colors.transparent,
+      ),
+      datePickerTheme: datePickerThemeFor(
+        c,
+        accent: AppColors.gold,
+        onAccent: const Color(0xFF15110A),
+      ),
+      timePickerTheme: timePickerThemeFor(
+        c,
+        accent: AppColors.gold,
+        onAccent: const Color(0xFF15110A),
       ),
       popupMenuTheme: const PopupMenuThemeData(
         color: DarkModeColors.cardLight,
@@ -620,6 +640,8 @@ class AppTheme {
         backgroundColor: c.surface,
         surfaceTintColor: Colors.transparent,
       ),
+      datePickerTheme: datePickerThemeFor(c, accent: accent, onAccent: onAccent),
+      timePickerTheme: timePickerThemeFor(c, accent: accent, onAccent: onAccent),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: accent,
         contentTextStyle: TextStyle(color: onAccent),
@@ -765,6 +787,8 @@ class AppTheme {
         backgroundColor: c.cardAlt,
         surfaceTintColor: Colors.transparent,
       ),
+      datePickerTheme: datePickerThemeFor(c, accent: accent, onAccent: onAccent),
+      timePickerTheme: timePickerThemeFor(c, accent: accent, onAccent: onAccent),
       popupMenuTheme: PopupMenuThemeData(
         color: c.cardAlt,
         surfaceTintColor: Colors.transparent,
@@ -805,6 +829,173 @@ class AppTheme {
   /// This has to be set explicitly on every [AppBarTheme], because an AppBar
   /// with no `systemOverlayStyle` falls back to [SystemUiOverlayStyle.light] /
   /// `.dark`, and both of those hardcode `systemNavigationBarColor: black`.
+  // ==================== DATE & TIME PICKERS ====================
+  //
+  // Material's pickers were the last dialogs in the app still dressed by
+  // Material rather than by the palette, and they looked it: a gold
+  // hour field next to a rose dial on a canvas that was neither.
+  //
+  // Two separate causes, both fixed by pinning these themes explicitly.
+  //
+  // 1. `ColorScheme.light/dark(...)` only fills the roles it is handed. Every
+  //    container role left unset keeps Material's baseline value, and the
+  //    time picker reads container roles — not `primary` — for its
+  //    hour/minute field. So the field never followed the theme at all.
+  //
+  // 2. The royal dress re-colours eight component themes so a court reaches
+  //    the buttons, the nav bar and the chips. It could not reach the pickers
+  //    because they had no component theme to re-colour: `colorScheme.primary`
+  //    went rose with the court while the untouched container roles stayed
+  //    where they were. Hence gold and rose in one dialog.
+  //
+  // Everything below is read from [AppColors], never restated — brightness
+  // alone cannot tell smokyIvory from light, and a hand-written hex here
+  // would strand all six reward palettes exactly as it did on the screens
+  // guarded by screen_palette_test.dart.
+
+  // Both builders are public for one caller: the royal dress in
+  // royal_avatars.dart, which has to rebuild them in the court's shade the
+  // same way it rebuilds the button and chip themes. Nothing else should
+  // construct these — the four theme builders below already carry them.
+
+  /// Rounded-rectangle selection, sized so a two-digit day sits centred.
+  static const _pickerDayShape = RoundedRectangleBorder(
+    borderRadius: BorderRadius.all(Radius.circular(12)),
+  );
+
+  static DatePickerThemeData datePickerThemeFor(
+    AppColors c, {
+    required Color accent,
+    required Color onAccent,
+  }) {
+    Color? day(Set<WidgetState> states) {
+      if (states.contains(WidgetState.disabled)) {
+        return c.textTertiary.withValues(alpha: 0.4);
+      }
+      if (states.contains(WidgetState.selected)) return onAccent;
+      return c.text;
+    }
+
+    return DatePickerThemeData(
+      backgroundColor: c.card,
+      surfaceTintColor: Colors.transparent,
+      shadowColor: Colors.transparent,
+      elevation: 0,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(20)),
+      ),
+      // The header shares the dialog's surface instead of Material's tinted
+      // band, so the sheet reads as one card rather than two stacked strips.
+      headerBackgroundColor: c.card,
+      headerForegroundColor: c.text,
+      headerHelpStyle: TextStyle(
+        color: c.textSecondary,
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0.4,
+      ),
+      headerHeadlineStyle: TextStyle(
+        color: c.text,
+        fontSize: 28,
+        fontWeight: FontWeight.w600,
+        letterSpacing: -0.6,
+      ),
+      weekdayStyle: TextStyle(
+        color: c.textTertiary,
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+      ),
+      dayStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+      dayForegroundColor: WidgetStateProperty.resolveWith(day),
+      dayBackgroundColor: WidgetStateProperty.resolveWith((states) =>
+          states.contains(WidgetState.selected) ? accent : Colors.transparent),
+      dayOverlayColor:
+          WidgetStateProperty.all(accent.withValues(alpha: 0.10)),
+      dayShape: const WidgetStatePropertyAll(_pickerDayShape),
+      // Today is outlined rather than filled, so "today" and "the day you
+      // picked" can never be mistaken for each other.
+      todayForegroundColor: WidgetStateProperty.resolveWith((states) =>
+          states.contains(WidgetState.selected) ? onAccent : accent),
+      todayBackgroundColor: WidgetStateProperty.resolveWith((states) =>
+          states.contains(WidgetState.selected) ? accent : Colors.transparent),
+      todayBorder: BorderSide(color: accent, width: 1.2),
+      yearStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+      yearForegroundColor: WidgetStateProperty.resolveWith(day),
+      yearBackgroundColor: WidgetStateProperty.resolveWith((states) =>
+          states.contains(WidgetState.selected) ? accent : Colors.transparent),
+      yearOverlayColor:
+          WidgetStateProperty.all(accent.withValues(alpha: 0.10)),
+      dividerColor: c.border,
+      cancelButtonStyle: TextButton.styleFrom(foregroundColor: c.textSecondary),
+      confirmButtonStyle: TextButton.styleFrom(foregroundColor: accent),
+    );
+  }
+
+  static TimePickerThemeData timePickerThemeFor(
+    AppColors c, {
+    required Color accent,
+    required Color onAccent,
+  }) {
+    return TimePickerThemeData(
+      backgroundColor: c.card,
+      elevation: 0,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(20)),
+      ),
+      helpTextStyle: TextStyle(
+        color: c.textSecondary,
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0.4,
+      ),
+      // The selected hour/minute is a wash of the accent with accent-coloured
+      // figures, not a solid block. A solid fill at this size was the loudest
+      // thing on screen and fought the dial for attention.
+      hourMinuteColor: WidgetStateColor.resolveWith((states) =>
+          states.contains(WidgetState.selected)
+              ? accent.withValues(alpha: 0.16)
+              : c.cardAlt),
+      // The unselected half is muted rather than equal-weight. Light's accent
+      // is ink, so a wash of it is simply grey — without this the selected
+      // and unselected fields read almost identically there.
+      hourMinuteTextColor: WidgetStateColor.resolveWith((states) =>
+          states.contains(WidgetState.selected) ? accent : c.textSecondary),
+      hourMinuteTextStyle: const TextStyle(
+        fontSize: 44,
+        fontWeight: FontWeight.w600,
+        letterSpacing: -1,
+      ),
+      hourMinuteShape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(14)),
+      ),
+      // dialTextStyle is deliberately left unset. Setting it replaces the
+      // family rather than merging into it, so the numerals fell back off
+      // Manrope and rendered in whatever the platform had — caught by the
+      // proof sheets in picker_render_preview_test.dart. Size and weight are
+      // not worth losing the brand face over.
+      timeSelectorSeparatorColor:
+          WidgetStateProperty.all(c.textSecondary),
+      dayPeriodColor: WidgetStateColor.resolveWith((states) =>
+          states.contains(WidgetState.selected)
+              ? accent.withValues(alpha: 0.16)
+              : Colors.transparent),
+      dayPeriodTextColor: WidgetStateColor.resolveWith((states) =>
+          states.contains(WidgetState.selected) ? accent : c.textSecondary),
+      dayPeriodBorderSide: BorderSide(color: c.border),
+      dayPeriodShape: RoundedRectangleBorder(
+        borderRadius: const BorderRadius.all(Radius.circular(14)),
+        side: BorderSide(color: c.border),
+      ),
+      dialBackgroundColor: c.cardAlt,
+      dialHandColor: accent,
+      dialTextColor: WidgetStateColor.resolveWith((states) =>
+          states.contains(WidgetState.selected) ? onAccent : c.text),
+      entryModeIconColor: c.textSecondary,
+      cancelButtonStyle: TextButton.styleFrom(foregroundColor: c.textSecondary),
+      confirmButtonStyle: TextButton.styleFrom(foregroundColor: accent),
+    );
+  }
+
   static SystemUiOverlayStyle _systemOverlayStyle(Brightness brightness) {
     final isLight = brightness == Brightness.light;
     return SystemUiOverlayStyle(

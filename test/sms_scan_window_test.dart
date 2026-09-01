@@ -31,7 +31,10 @@ void main() {
   }
 
   setUp(() {
-    SharedPreferences.setMockInitialValues({});
+    // Seeded past the one-time post-upgrade re-read, so these tests inspect
+    // the steady-state watermark behaviour they are about. The re-read itself
+    // is pinned separately at the bottom of this file.
+    SharedPreferences.setMockInitialValues({'sms_rescan_release': '1.76.0'});
     queries = [];
     permissionGranted = true;
 
@@ -149,6 +152,7 @@ void main() {
     // A carrier stamping a message a year ahead, or a device clock that jumped,
     // must not park the watermark past now and stop scanning for good.
     SharedPreferences.setMockInitialValues({
+      'sms_rescan_release': '1.76.0',
       'sms_scan_watermark':
           DateTime.now().add(const Duration(days: 365)).millisecondsSinceEpoch,
     });
@@ -168,5 +172,44 @@ void main() {
 
     expect(found, isEmpty);
     expect(queries, isEmpty);
+  });
+
+  group('the one-time re-read after a parser widens', () {
+    // A parser fix that renames a payee can be applied to stored rows. One
+    // that makes a message parse at all cannot: nothing was ever stored, and
+    // the watermark has moved past the message. So the release drops the
+    // watermark once and walks the history window again.
+    test('a watermark from before the release is dropped, not resumed from',
+        () async {
+      final yesterday =
+          DateTime.now().subtract(const Duration(days: 1)).millisecondsSinceEpoch;
+      SharedPreferences.setMockInitialValues({
+        'sms_scan_watermark': yesterday,
+      });
+
+      await SmsService().scanExistingSms();
+
+      // A resumed scan would open one slice just under the watermark; a
+      // dropped one reaches back across the whole history window instead.
+      expect(queries.length, greaterThan(1));
+      final (since, _) = boundsOf(queries.first);
+      expect(since, lessThan(yesterday));
+      final reachDays = DateTime.now()
+          .difference(DateTime.fromMillisecondsSinceEpoch(since))
+          .inDays;
+      expect(reachDays, greaterThan(300));
+    });
+
+    test('it happens once, and later scans resume normally', () async {
+      await SmsService().scanExistingSms();
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('sms_rescan_release'), '1.76.0');
+
+      queries = [];
+      await SmsService().scanExistingSms();
+
+      // Back to the watermark's single overlapping slice.
+      expect(queries, hasLength(1));
+    });
   });
 }
