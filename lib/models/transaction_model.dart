@@ -101,6 +101,48 @@ class TransactionModel {
     );
   }
 
+  /// The moment a transaction should be moved to, given a day the user picked
+  /// and — optionally — a time they picked with it.
+  ///
+  /// Pure, and separate from the pickers that feed it, because the three
+  /// rules it encodes are all edge cases:
+  ///
+  /// - A clock left where the picker opened it rides across whole, seconds
+  ///   and milliseconds included. Two transactions a minute apart keep their
+  ///   order within the day, and "move it back one day" never silently
+  ///   rewrites the time to midnight.
+  /// - A clock the user did set lands on the second, because a time typed by
+  ///   hand carries no meaningful seconds.
+  /// - The result is clamped to [now]. Money cannot have moved later than
+  ///   the present, and picking today plus a later hour is exactly the case
+  ///   a date picker's own ceiling cannot catch.
+  ///
+  /// [hour] and [minute] are required, and that is load-bearing rather than
+  /// tidiness. They were once nullable, meaning "the user backed out of the
+  /// clock, keep the old one" — which is precisely how a cancelled second
+  /// step still moved the transaction. With a day and no time unrepresentable
+  /// here, a half-answered edit cannot be built at all, and the flow has to
+  /// abandon it instead.
+  static DateTime resolveEditedDate({
+    required DateTime original,
+    required DateTime pickedDay,
+    required DateTime now,
+    required int hour,
+    required int minute,
+  }) {
+    final keepsTime = hour == original.hour && minute == original.minute;
+    final moved = DateTime(
+      pickedDay.year,
+      pickedDay.month,
+      pickedDay.day,
+      keepsTime ? original.hour : hour,
+      keepsTime ? original.minute : minute,
+      keepsTime ? original.second : 0,
+      keepsTime ? original.millisecond : 0,
+    );
+    return moved.isAfter(now) ? now : moved;
+  }
+
   /// Compute a deterministic fingerprint for deduplication.
   /// Two SMS messages that represent the same real-world transaction will
   /// produce the same fingerprint even if their timestamps differ slightly.

@@ -1226,6 +1226,64 @@ class DatabaseService {
     return n;
   }
 
+  /// Move one transaction to a different date and time.
+  ///
+  /// A targeted single-column write rather than a whole-row rewrite: the
+  /// message, payee, tag and split share are no part of this edit, and the
+  /// caller may have been holding its model since before another screen
+  /// touched one of them.
+  ///
+  /// The fingerprint is deliberately NOT recomputed. It is the dedup key an
+  /// SMS rescan matches a stored row against, and it is derived from the
+  /// timestamp the message originally arrived with — recomputing it from the
+  /// corrected date would make the row stop matching its own SMS, and the
+  /// next inbox scan would import that message again as a second
+  /// transaction. Rows old enough to predate the fingerprint column get
+  /// theirs backfilled here from the date they still have, for exactly the
+  /// same reason: once the date moves, the message + timestamp fallback in
+  /// [transactionExists] can no longer recognise them either, so the
+  /// fingerprint has to be present to do it instead.
+  Future<int> updateTransactionDate(int id, DateTime newDate) async {
+    final db = await database;
+    final existing = await getTransactionById(id);
+    if (existing == null) return 0;
+
+    final n = await db.update(
+      'transactions',
+      {'detected_at': newDate.millisecondsSinceEpoch},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+
+    if (existing.fingerprint == null) {
+      // A separate, conflict-ignored statement: fingerprint is uniquely
+      // indexed, and a legacy duplicate row could already hold this value.
+      // A collision there must not roll back the move the user asked for.
+      await db.update(
+        'transactions',
+        {
+          'fingerprint': TransactionModel.computeFingerprint(
+            amount: existing.amount,
+            type: existing.type,
+            sender: existing.sender,
+            message: existing.message,
+            detectedAt: existing.detectedAt, // as received, not as corrected
+          ),
+        },
+        where: 'id = ?',
+        whereArgs: [id],
+        conflictAlgorithm: ConflictAlgorithm.ignore,
+      );
+    }
+
+    // Every dated figure in the app — month totals, the daily heatmap, budget
+    // progress, trends, the recap — is derived from this column, and the
+    // shell keeps those screens alive in an IndexedStack holding numbers
+    // computed before the move. Without this they keep showing them.
+    notifyAppDataChanged();
+    return n;
+  }
+
   /// Set (or clear, with null) the tax-deduction bucket on one transaction.
   /// A targeted single-column write so tagging never rewrites the whole row.
   Future<int> setTaxBucket(int transactionId, String? bucketId) async {

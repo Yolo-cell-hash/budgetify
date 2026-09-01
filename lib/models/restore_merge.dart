@@ -105,6 +105,28 @@ class RestoreMerge {
       out['split_share'] = share.toDouble();
     }
 
+    // ── The date, when the user corrected it ──────────────────────────
+    // A transaction's date is normally the moment its SMS arrived, and the
+    // post-reinstall scan re-derives exactly that from the same message. So
+    // the local row's date is the parse date by construction, and the only
+    // thing that can make the backup's date differ from it is the user having
+    // moved the transaction by hand.
+    //
+    // That correction is a decision in the same family as the tag, the note
+    // and the split share, and without this clause it was the one decision a
+    // restore threw away: the row came back on the SMS's date, silently, in
+    // whatever month the bank had happened to send the alert.
+    //
+    // The narrow case this cannot tell apart is a date edited on THIS device
+    // between the first scan and the restore — the backup would win there
+    // too. It is the same call [category] and [tax_bucket] already make ("the
+    // backup is authoritative for a value it actually has"), and the window
+    // is the few minutes of a restore flow.
+    final backupDate = backup['detected_at'];
+    if (backupDate is int && local['detected_at'] != backupDate) {
+      out['detected_at'] = backupDate;
+    }
+
     // ── The payee ─────────────────────────────────────────────────────
     // Only fills a gap. A name the user taught is worth restoring, but the
     // local row was parsed by today's reader, which may well name a payee the
