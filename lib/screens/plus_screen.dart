@@ -89,6 +89,29 @@ class _PlusScreenState extends State<PlusScreen>
     duration: const Duration(milliseconds: 2600),
   );
 
+  /// Play's own formatted prices, keyed by product id, once the store has
+  /// answered. Empty until then and whenever the store can't answer, which is
+  /// why every read falls back to the catalogue constant.
+  Map<String, StorePrice> _livePrices = const <String, StorePrice>{};
+
+  /// Whether the struck-through everyday price is a TRUE claim for [plan]
+  /// right now — i.e. Play is really about to charge less than [priceInr].
+  ///
+  /// An offer window is our calendar, not Play's. If the Console isn't
+  /// running a matching discount, Play charges the everyday price and the
+  /// strikethrough would either advertise a saving that doesn't exist (before
+  /// live prices) or cross out a number identical to the one beside it. Both
+  /// are wrong, so the "was" price only appears once the store's own answer
+  /// says it's a real reduction. Before the store answers we fall back to the
+  /// catalogue, which is honest exactly while it mirrors the Console — the
+  /// same assumption the constants already rest on.
+  bool _discountIsReal(PlusPlan plan) {
+    if (!_onOffer) return false;
+    final live = _livePrices[plan.productId];
+    if (live == null) return true;
+    return live.amount < plan.priceInr;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -98,6 +121,20 @@ class _PlusScreenState extends State<PlusScreen>
         _shimmer.repeat();
       }
     });
+    _loadLivePrices();
+  }
+
+  /// Replace the previewed constants with what Play will actually charge.
+  ///
+  /// The constants are honest only while they match the Play Console; this
+  /// makes them a fallback rather than a claim. It also localizes for free —
+  /// Play returns the price already formatted for the buyer's country and
+  /// tax rules, which no hardcoded ₹ string can do.
+  Future<void> _loadLivePrices() async {
+    final prices = await BillingService()
+        .prices(PlusPlan.values.map((p) => p.productId));
+    if (!mounted || prices.isEmpty) return;
+    setState(() => _livePrices = prices);
   }
 
   @override
@@ -130,9 +167,16 @@ class _PlusScreenState extends State<PlusScreen>
 
   String _rupees(int amount) => _inr.format(amount);
 
-  /// What [plan] costs right now — the offer price during a campaign, the
-  /// everyday price otherwise.
+  /// What [plan] costs right now — Play's own price when the store has
+  /// answered, the catalogue constant until then.
+  ///
+  /// Play charges what the Console says, offer window or not, so its answer
+  /// wins outright: during a campaign the Console's discounted price IS the
+  /// live price. The constant only fills the gap before the store replies (or
+  /// when it can't), and the struck-through base price below stays ours —
+  /// Play has no notion of "what this used to cost".
   String _price(PlusPlan plan) =>
+      _livePrices[plan.productId]?.formatted ??
       _rupees(plan.priceFor(onOffer: _onOffer));
 
   Future<void> _buy() async {
@@ -210,7 +254,11 @@ class _PlusScreenState extends State<PlusScreen>
                   children: [
                     _staggered(0, _hero(colors, l10n)),
                     const SizedBox(height: 22),
-                    if (_offer != null) ...[
+                    // Gated on the discount being REAL, not merely on our
+                    // calendar saying a window is open: the banner quotes a
+                    // saving percentage, which is a claim about what Play is
+                    // about to charge. See [_discountIsReal].
+                    if (_offer != null && _discountIsReal(_selected)) ...[
                       _staggered(1, _offerBanner(colors, l10n, _offer)),
                       const SizedBox(height: 14),
                     ],
@@ -516,7 +564,7 @@ class _PlusScreenState extends State<PlusScreen>
                   // Secondary (not tertiary) ink and a double-weight rule keep
                   // the line crisp at 13.5sp on every theme; the price below
                   // still wins on size and weight, so the hierarchy holds.
-                  if (_onOffer) ...[
+                  if (_discountIsReal(plan)) ...[
                     Text(
                       _rupees(plan.priceInr),
                       style: TextStyle(
@@ -574,7 +622,7 @@ class _PlusScreenState extends State<PlusScreen>
             ),
           ),
           Text(
-            _onOffer
+            _discountIsReal(_selected)
                 ? '${l10n.plusOfferFootnote}\n${l10n.plusFootnote}'
                 : l10n.plusFootnote,
             textAlign: TextAlign.center,

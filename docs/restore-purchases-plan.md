@@ -15,9 +15,9 @@ app-side identity at all. Everything below is engineering around that fact.
 
 | Product id | Type | Price | Grants |
 |---|---|---|---|
-| `plus_lifetime` | one-time non-consumable | ₹699 | Plus forever |
-| `plus_yearly` | auto-renewing sub | ₹299/yr | Plus while active |
-| `plus_monthly` | auto-renewing sub | ₹29/mo | Plus while active |
+| `plus_lifetime` | one-time non-consumable | ₹1,499 | Plus forever |
+| `plus_yearly` | auto-renewing sub | ₹499/yr | Plus while active |
+| `plus_monthly` | auto-renewing sub | ₹49/mo | Plus while active |
 | `royal_<id>` ×6 | one-time non-consumable | ₹49 | that royal avatar |
 
 Royal products: `royal_sovereign`, `royal_empress`, `royal_prince`,
@@ -105,15 +105,29 @@ and only when Play answers authoritatively).
 
 ## 4. Subscription expiry without a server
 
-No server ⇒ no Real-Time Developer Notifications. Instead:
-* On grant/renewal/restore, extend `entitlement_plus_until` from the later of
-  (now, current expiry) by the plan period + **3-day grace**
-  (`kPlusSubscriptionGrace`).
-* Every foreground session where Play is reachable, refresh via
-  `queryPurchases()` — an active sub re-extends the window, an expired one
-  simply stops extending, and access ends when the cached window + grace runs
-  out. Clock rollback is neutralized by the existing monotonic `_effectiveNow`.
-* **Lead with lifetime** (₹699): non-consumables never expire, never need
+No server ⇒ no Real-Time Developer Notifications. Instead, `entitlement_plus_until`
+takes the furthest of **two independent witnesses**, and only ever moves forward:
+* **Purchase-anchored.** `purchaseTime + period + 3-day grace`
+  (`kPlusSubscriptionGrace`), measured absolutely from the receipt. Absolute so
+  a replay is idempotent: buying and then tapping Restore recomputes the same
+  instant instead of quietly handing out a second month.
+* **Live sighting.** `now + 7 days` (`kPlusLiveSightingWindow`), set only when
+  Play answered `queryPurchases` with the product *this moment*
+  (`confirmedActiveNow`). This is the witness that survives a renewal, and it
+  is not optional: **Play keeps the same purchase token across renewals**, so
+  the anchored value recomputes to the same stale instant forever and the
+  only-ever-extend guard discards it. Without a live sighting a monthly
+  subscriber goes dark on day 34 while still being charged.
+* A backup import and a re-read receipt are NOT sightings — neither proves
+  anything about the present, so neither can resurrect a lapsed window.
+* `BillingService.refreshEntitlements()` supplies the sightings: forced at app
+  start, and throttled to `refreshInterval` (6h) on resume. Play does not push
+  renewals to the purchase stream; querying is the only way to see them.
+* Cancel ⇒ Play keeps reporting the sub until the paid period ends, so the last
+  sighting lands there and access stops at most 7 days later. That overhang is
+  the deliberate cost of never stranding a payer. Clock rollback is neutralized
+  by the existing monotonic `_effectiveNow`.
+* **Lead with lifetime** (₹1,499): non-consumables never expire, never need
   re-verification — the perfect offline SKU. The paywall already pre-selects
   it.
 
@@ -124,32 +138,58 @@ No server ⇒ no Real-Time Developer Notifications. Instead:
 | Reinstall, same Google account | Layer 1 restores everything; Layers 2–3 usually got there first. |
 | New phone, same account | Same as above (queryPurchases is account-scoped). |
 | Different Google account | Purchases genuinely aren't theirs → paywall. This is correct and matches every Play app. |
-| Refunded/revoked purchase | Disappears from queryPurchases; cached grant survives until the (later-phase) re-verify pass expires it. Acceptable client-side risk. |
-| Pending UPI payment | `BillingOutcome.pending`: grant nothing; the next queryPurchases pass grants it once it settles. |
+| Refunded/revoked subscription | Disappears from queryPurchases, so the sightings stop and access ends within `kPlusLiveSightingWindow` (7 days). A refunded `plus_lifetime` still sticks — the bool has no expiry — which stays the accepted client-side risk. |
+| Pending UPI payment | `BillingOutcome.pending`: grant nothing. If it settles while the app lives, the out-of-band stream grants it; if it settles after the app is closed, the forced `refreshEntitlements()` at next start does. Either way the user never has to find "Restore purchases". |
 | Play Store app missing/ancient | Gateway reports unavailable → gates stay… whatever the cache says; fail-open covers the rest. |
 | Clock wound back to fake trial/sub | Monotonic `entitlement_last_seen_at` guard already blocks it. |
 | "Clear data" to reset the trial | Blocked. `EntitlementService.applyInstallRecordFloor()` re-ages the anchor from Android's package install record, which is not app data and survives the wipe. |
 | Reinstall, then restore a backup | Trial continues correctly — the anchor rides in the backup, earliest-wins, and the file's own `createdAt` backs it up. |
-| Reinstall and start FRESH (no restore) | **Genuinely resets the free window — accepted.** No server, no accounts, no INTERNET: nothing client-side can outlive an uninstall. The price is their entire history — transactions, tags, rules, budgets, streak, earned royals — paid twice a year, forever. That is a steeper toll than ₹699 for anyone the app is actually for. Do not ship a "start fresh but keep my data" path; that would be the exploit's front door. |
+| Reinstall and start FRESH (no restore) | **Genuinely resets the free window — accepted.** No server, no accounts, no INTERNET: nothing client-side can outlive an uninstall. The price is their entire history — transactions, tags, rules, budgets, streak, earned royals — paid twice a year, forever. That is a steeper toll than ₹1,499 for anyone the app is actually for. Do not ship a "start fresh but keep my data" path; that would be the exploit's front door. |
 
 ## 6. Billing-day checklist (when bank + Play approval land)
 
-1. Add `in_app_purchase` (or `billing_client`) dependency.
-2. Implement `PlayBillingGateway implements BillingGateway` (~150 lines):
-   `isAvailable` → connection check; `queryPurchases` → map `PurchaseDetails`;
-   `launchPurchase` → buy flow + **acknowledge within 3 days** (unacknowledged
-   purchases auto-refund).
-3. Swap the gateway in `BillingService` (one line) + add the silent restore
-   triggers (§3).
-4. Create the 9 products in the Play Console with the §1 ids; real prices come
-   from `ProductDetails` at display time (the catalog's ₹ constants are only
-   the pre-billing preview).
+1. ~~Add `in_app_purchase` dependency.~~ **DONE (1.77.0)** — `^3.3.0`, which
+   pulls Play Billing Library 8.0.0.
+2. ~~Implement `PlayBillingGateway`.~~ **DONE (1.77.0)** — `isAvailable`,
+   `queryPurchases`, `launchPurchase`, `queryPrices`; acknowledges every
+   delivered purchase FIRST, before anything that can throw (unacknowledged
+   purchases auto-refund after three days).
+3. ~~Swap the gateway + add the silent restore triggers.~~ **DONE (1.77.0)** —
+   `refreshEntitlements()` at app start (forced) and on resume (6h throttle).
+   The third trigger from §3 — one last query before a gate denies — was
+   deliberately dropped: resume already covers it, and putting a store round
+   trip in front of the paywall would stall the UI for the one user in a
+   thousand it could help.
+4. Create the products in the Play Console with the §1 ids. **Only the three
+   Plus ids are needed today** — royals are still "Coming soon" and nothing
+   calls `royalProductId()` yet.
+   * `plus_lifetime` as a one-time product; `plus_monthly` and `plus_yearly` as
+     **two separate subscription products**, one base plan each. They must not
+     be consolidated into one product with two base plans: `_grant` routes on
+     product id via `PlusPlan.byProductId`, so a shared id is charged and then
+     ignored.
+   * **No Console offers, on any of them.** A subscription yields one
+     `ProductDetails` per base plan *or offer*, each with its own offerToken,
+     and `launchPurchase` takes `.first` — with more than one entry the charged
+     price is a coin toss. `PlayBillingGateway` logs loudly if this ever
+     happens. The plugin also only reads the singular
+     `oneTimePurchaseOfferDetails`, so an offer on `plus_lifetime` would never
+     be applied at all. Until the gateway learns to select by offer tag, run
+     `plus_offers.dart` windows as real **price edits** in the Console.
+   * Prices are read live via `queryPrices` and rendered by the paywall; the
+     catalog's ₹ constants are only the fallback before the store answers.
 5. **CRITICAL VERIFICATION:** internal-track build, INTERNET still stripped —
    complete a sandbox purchase AND a reinstall-restore round-trip. This
-   validates the local-IPC assumption everything rests on.
+   validates the local-IPC assumption everything rests on. Verified so far only
+   on the artifact: the merged release manifest adds exactly one permission,
+   `com.android.vending.BILLING` (from the billing AAR, not the Flutter
+   plugin), and INTERNET stays absent. **The device half is still outstanding.**
+   Use an accelerated test renewal (license testers) to prove the sighting rule
+   in §4 — that is the one behaviour no unit test can settle.
 6. Grandfather closed testers with Play promo codes for `plus_lifetime`.
 7. Royal purchases: replace the picker's "Coming soon" pill with the ₹49 buy
-   flow (backend — ownership, equip-honouring, backup — is already live).
+   flow (backend — ownership, equip-honouring, backup — is already live), and
+   create the six `royal_*` products at that point.
 
 ## 7. What was deliberately NOT done now
 
