@@ -2,13 +2,18 @@ import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show SystemNavigator;
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../l10n/l10n.dart';
 
+import '../models/plus_offers.dart';
+import '../models/plus_products.dart';
 import '../providers/app_preferences.dart';
 import '../providers/theme_provider.dart';
 import '../services/app_icon_service.dart';
+import '../services/billing_service.dart';
+import '../services/entitlement_service.dart';
 import '../services/gamification_service.dart';
 import 'app_dialog.dart';
 import 'app_toast.dart';
@@ -18,11 +23,14 @@ import 'royal_avatars.dart';
 /// Edit the profile's avatar (emoji or procedural pixel) + accent + username.
 /// Returns the edited [GamiProfile], or null if cancelled.
 ///
-/// Royal avatars are gated: [unlockedRoyals] are the ids the user has already
-/// unlocked (via streak picks), and [royalPicksAvailable] is how many
-/// still-locked royals they may unlock right now. Spending a pick calls
-/// [onUnlockRoyal] so the host can persist it. The currently-equipped royal
-/// (if any) is always treated as unlocked, so nobody loses their face.
+/// Royal avatars are gated two ways, and both live here. [unlockedRoyals] are
+/// the ids the user already has — streak picks AND royals bought outright,
+/// which is what `GamificationService.unlockedRoyalIds()` unions — and
+/// [royalPicksAvailable] is how many still-locked royals a streak entitles
+/// them to take for free right now. Spending a pick calls [onUnlockRoyal] so
+/// the host can persist it; buying goes straight to [BillingService], which
+/// records ownership itself. The currently-equipped royal (if any) is always
+/// treated as unlocked, so nobody loses their face.
 Future<GamiProfile?> showAvatarPicker(
   BuildContext context,
   GamiProfile initial, {
@@ -30,6 +38,7 @@ Future<GamiProfile?> showAvatarPicker(
   int royalPicksAvailable = 0,
   Future<void> Function(String royalId)? onUnlockRoyal,
   bool scrollToRoyalty = false,
+  DateTime Function()? nowSource,
 }) {
   return showModalBottomSheet<GamiProfile>(
     context: context,
@@ -41,6 +50,7 @@ Future<GamiProfile?> showAvatarPicker(
       royalPicksAvailable: royalPicksAvailable,
       onUnlockRoyal: onUnlockRoyal,
       scrollToRoyalty: scrollToRoyalty,
+      nowSource: nowSource,
     ),
   );
 }
@@ -103,12 +113,20 @@ class _AvatarPickerSheet extends StatefulWidget {
   final int royalPicksAvailable;
   final Future<void> Function(String royalId)? onUnlockRoyal;
   final bool scrollToRoyalty;
+
+  /// Injectable clock. A royal's price depends on the calendar (offer
+  /// windows), so a test must be able to pin the date — otherwise the same
+  /// suite would quote a different price at Diwali than in July. Null in
+  /// production.
+  final DateTime Function()? nowSource;
+
   const _AvatarPickerSheet({
     required this.initial,
     this.unlockedRoyals = const {},
     this.royalPicksAvailable = 0,
     this.onUnlockRoyal,
     this.scrollToRoyalty = false,
+    this.nowSource,
   });
 
   @override
@@ -131,6 +149,35 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
   // Picks left to spend on still-locked royals this session.
   late int _picks = widget.royalPicksAvailable;
 
+  /// The discount window running when the picker opened, or null at the
+  /// everyday price. Read ONCE: a window flipping mid-session would swap the
+  /// price under the user's finger. Fails to null on any error — quoting the
+  /// base price and charging it is merely unexciting, while quoting a
+  /// discount Play won't honour is a refund and a one-star review.
+  late final PlusOffer? _offer = _readOffer();
+
+  bool get _onOffer => _offer != null;
+
+  /// Play's own prices for the royal catalogue, keyed by product id. Empty
+  /// until the store answers — and whenever it can't — which is why every
+  /// read falls back to the catalogue constant.
+  Map<String, StorePrice> _royalPrices = const <String, StorePrice>{};
+
+  /// True while a royal purchase flow is open, so a second tap can't ask the
+  /// store for a second sheet.
+  bool _buying = false;
+
+  PlusOffer? _readOffer() {
+    try {
+      final now = widget.nowSource?.call();
+      final svc = EntitlementService();
+      return now == null ? svc.activeOffer : svc.offerAt(now);
+    } catch (e) {
+      debugPrint('AvatarPicker: offer window unreadable, using base price: $e');
+      return null;
+    }
+  }
+
   String _sanitizedInitialValue() {
     final v = widget.initial.avatarKind == 'pixel'
         ? widget.initial.avatarValue
@@ -146,6 +193,7 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
   @override
   void initState() {
     super.initState();
+    _loadRoyalPrices();
     if (widget.scrollToRoyalty) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         // Let the sheet finish presenting, then bring ROYALTY into view.
@@ -173,6 +221,100 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
       _value = '${r.spriteIndex}';
     });
     await widget.onUnlockRoyal?.call(r.id);
+  }
+
+  // ── What a royal costs ─────────────────────────────────────────────────
+
+  /// Replace the previewed constant with what Play will actually charge.
+  ///
+  /// [kRoyalAvatarPriceInr] is honest only while it matches the Play Console;
+  /// asking the store makes it a fallback rather than a claim. It also
+  /// localizes for free — Play returns the price already formatted for the
+  /// buyer's country and tax rules, which no hardcoded rupee string can do.
+  Future<void> _loadRoyalPrices() async {
+    final prices = await BillingService()
+        .prices(kRoyalAvatars.map((r) => royalProductId(r.id)));
+    if (!mounted || prices.isEmpty) return;
+    setState(() => _royalPrices = prices);
+  }
+
+  static final NumberFormat _inr =
+      NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
+
+  /// What [r] costs right now — Play's own price once the store has answered,
+  /// the catalogue constant until then. Play charges what the Console says,
+  /// offer window or not, so its answer wins outright.
+  String _royalPrice(RoyalAvatar r) =>
+      _royalPrices[royalProductId(r.id)]?.formatted ??
+      _inr.format(royalAvatarPriceInr(onOffer: _onOffer));
+
+  /// Whether the struck-through everyday price is a TRUE claim right now —
+  /// i.e. Play is really about to charge less than [kRoyalAvatarPriceInr].
+  ///
+  /// An offer window is our calendar, not Play's. With no matching Console
+  /// discount Play charges the everyday price, and the strikethrough would
+  /// cross out a number identical to the one beside it — so the "was" price
+  /// only appears once the store's own answer says the reduction is real.
+  bool _royalDiscountIsReal(RoyalAvatar r) {
+    if (!_onOffer) return false;
+    final live = _royalPrices[royalProductId(r.id)];
+    if (live == null) return true;
+    return live.amount < kRoyalAvatarPriceInr;
+  }
+
+  /// Buy [r] outright, then equip it and close the court sheet.
+  ///
+  /// Ownership is persisted by [BillingService] itself (via
+  /// `EntitlementService.registerRoyalPurchase`), not by Save — so backing out
+  /// of the picker afterwards can never lose a royal somebody paid for. The
+  /// equip still rides on Save, exactly like a pick-unlocked royal.
+  Future<void> _buyRoyal(
+    BuildContext sheetCtx,
+    RoyalAvatar r,
+    StateSetter setSheetState,
+  ) async {
+    if (_buying || _isRoyalUnlocked(r)) return;
+    setState(() => _buying = true);
+    setSheetState(() {});
+    final l10n = context.l10nRead;
+
+    final outcome = await BillingService().purchase(royalProductId(r.id));
+    if (!mounted) return;
+    final bought = outcome == BillingOutcome.success;
+    setState(() {
+      _buying = false;
+      if (bought) {
+        _unlocked.add(r.id);
+        _value = '${r.spriteIndex}';
+      }
+    });
+    if (sheetCtx.mounted) {
+      // Close on success (the picker behind now shows him equipped); on any
+      // other verdict leave the sheet up, just no longer busy.
+      if (bought) {
+        Navigator.pop(sheetCtx);
+      } else {
+        setSheetState(() {});
+      }
+    }
+    switch (outcome) {
+      case BillingOutcome.success:
+        showAppToast(
+          context,
+          message: l10n.royalPurchasedToast(l10n.royalAvatarName(r.id)),
+          type: AppToastType.success,
+        );
+      case BillingOutcome.unavailable:
+        showAppToast(
+          context,
+          message: l10n.plusStoreUnavailable,
+          type: AppToastType.info,
+        );
+      case BillingOutcome.cancelled:
+      case BillingOutcome.pending:
+      case BillingOutcome.error:
+        break; // the store's own sheet already told the story
+    }
   }
 
   @override
@@ -342,8 +484,8 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
   );
 
   /// The ROYALTY unlock status: a gold call-to-action when picks are waiting,
-  /// a calm "coming soon" hint otherwise. Hidden once the whole court is
-  /// unlocked (nothing left to say).
+  /// otherwise a calm line naming both routes in — a streak, or a purchase.
+  /// Hidden once the whole court is unlocked (nothing left to say).
   Widget _royalStatusLine(AppColors colors) {
     final allUnlocked = kRoyalAvatars.every(_isRoyalUnlocked);
     if (allUnlocked) return const SizedBox.shrink();
@@ -607,8 +749,8 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
               ),
               const SizedBox(height: 14),
               // Unlocked royals get the app-wide theme toggle + Equip. A
-              // still-locked royal shows either an Unlock action (a pick is
-              // waiting) or a calm "coming soon" note.
+              // still-locked royal shows either a free Unlock action (a pick
+              // is waiting) or its price and a buy action.
               if (unlocked) ...[
                 // "Apply app-wide <court> theme" — the royal's own wording.
                 SwitchListTile(
@@ -764,37 +906,96 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
                   ),
                 ),
               ] else ...[
-                // Locked with no pick to spend: a calm coming-soon note.
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: colors.cardAlt,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: colors.border),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.lock_rounded,
-                        size: 16,
-                        color: colors.textSecondary,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          ctx.l10n.royalLockedSheetNote,
-                          style: TextStyle(
-                            fontSize: 12,
-                            height: 1.35,
-                            color: colors.textSecondary,
-                          ),
+                // Locked with no pick to spend, so this royal is bought:
+                // price first, then the action, then the free route — which
+                // never stops being open, and is the reason this sheet reads
+                // as an offer rather than a toll gate.
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    // The everyday price, struck through — drawn only when
+                    // Play confirms it is really about to charge less.
+                    if (_royalDiscountIsReal(r)) ...[
+                      Text(
+                        _inr.format(kRoyalAvatarPriceInr),
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: colors.textSecondary,
+                          decoration: TextDecoration.lineThrough,
+                          decorationColor: colors.textSecondary,
+                          decorationThickness: 2.2,
                         ),
                       ),
+                      const SizedBox(width: 8),
                     ],
+                    Text(
+                      _royalPrice(r),
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                        color: accent,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  ctx.l10n.royalPriceCaption,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: colors.textTertiary,
                   ),
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _buying
+                        ? null
+                        : () => _buyRoyal(ctx, r, setSheetState),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: accent,
+                      foregroundColor: onAccent,
+                      disabledBackgroundColor: accent.withValues(alpha: 0.35),
+                    ),
+                    icon: _buying
+                        ? SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                onAccent,
+                              ),
+                            ),
+                          )
+                        : const Icon(Icons.lock_open_rounded, size: 18),
+                    label: Text(ctx.l10n.buyRoyalCta(_royalPrice(r))),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.local_fire_department_rounded,
+                      size: 16,
+                      color: colors.textSecondary,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        ctx.l10n.royalLockedSheetNote,
+                        style: TextStyle(
+                          fontSize: 12,
+                          height: 1.35,
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ],
@@ -814,7 +1015,9 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
     final unlocked = _isRoyalUnlocked(r);
     final equipped = unlocked && _value == value;
     final unlockable = !unlocked && _picks > 0;
-    final lockedSoon = !unlocked && !unlockable;
+    // Locked with no pick waiting: still fully visible, and now carrying its
+    // price rather than a promise.
+    final forSale = !unlocked && !unlockable;
     // The bright accent tints the tile fill; text + border use the deep
     // shade on a light surface so the selected name never sits gold-on-
     // yellow (illegible in light mode; fine on the dark tile).
@@ -826,7 +1029,7 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
         ? ink
         : unlockable
         ? colors.brandAccent.withValues(alpha: 0.6)
-        : lockedSoon
+        : forSale
         ? colors.border
         : ink.withValues(alpha: 0.35);
     return GestureDetector(
@@ -836,7 +1039,7 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
           borderRadius: BorderRadius.circular(16),
           gradient: LinearGradient(
             colors: [
-              (lockedSoon ? colors.textTertiary : accent).withValues(
+              (forSale ? colors.textTertiary : accent).withValues(
                 alpha: equipped ? 0.16 : 0.07,
               ),
               Colors.transparent,
@@ -863,7 +1066,7 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
                 children: [
                   // The living royal, always visible — locked ones just dimmed.
                   Opacity(
-                    opacity: lockedSoon ? 0.82 : 1,
+                    opacity: forSale ? 0.82 : 1,
                     child: ClipOval(
                       child: AvatarView(
                         kind: 'pixel',
@@ -885,7 +1088,7 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
                       letterSpacing: 0.3,
                       color: equipped
                           ? ink
-                          : lockedSoon
+                          : forSale
                           ? colors.textTertiary
                           : colors.textSecondary,
                     ),
@@ -896,13 +1099,14 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
                     equipped: equipped,
                     unlocked: unlocked,
                     unlockable: unlockable,
+                    price: _royalPrice(r),
                     accent: ink,
                   ),
                 ],
               ),
             ),
             // A subtle corner lock — signals "locked" without hiding the face.
-            if (lockedSoon)
+            if (forSale)
               Positioned(top: 8, right: 8, child: _cornerLock(colors)),
           ],
         ),
@@ -922,12 +1126,16 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
   );
 
   /// The status pill under every royal tile — present in all states so the
-  /// tiles share one height: Equipped / Tap to equip / Unlock / Coming soon.
+  /// tiles share one height: Equipped / Tap to equip / Unlock / the price.
+  ///
+  /// A pick beats money: while one is waiting the pill offers the free unlock
+  /// and says nothing about cost, because for this user there isn't one.
   Widget _royalTilePill({
     required AppColors colors,
     required bool equipped,
     required bool unlocked,
     required bool unlockable,
+    required String price,
     required Color accent,
   }) {
     final (IconData? icon, String label, Color fg) = equipped
@@ -940,7 +1148,7 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
             context.l10n.royalUnlockable,
             colors.brandAccent,
           )
-        : (null, context.l10n.royalComingSoon, colors.textTertiary);
+        : (null, price, colors.textSecondary);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(

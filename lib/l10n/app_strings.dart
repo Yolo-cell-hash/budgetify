@@ -4548,18 +4548,16 @@ class AppStrings {
         'நீங்கள் $n ராயல் பிக் சம்பாதித்துள்ளீர்கள் — பூட்டப்பட்ட எந்த ராயலையும் தட்டி திறங்கள்.',
       );
 
-  /// Section status when royals stay locked (no picks to spend yet).
+  /// Section status when royals stay locked (no picks to spend yet). Names
+  /// both routes in: a streak earns one free, and any royal can be bought.
   String get royalLockedHint => _t(
-        'Unlock royals by reaching 10- and 24-day streaks. The rest are coming soon.',
-        '10 और 24-दिन की स्ट्रीक तक पहुँचकर रॉयल अनलॉक करें। बाकी जल्द ही आ रहे हैं।',
-        '10 आणि 24-दिवसांची स्ट्रीक गाठून रॉयल अनलॉक करा. बाकीचे लवकरच येत आहेत.',
-        '10 ও 24-দিনের স্ট্রিকে পৌঁছে রয়্যাল আনলক করুন। বাকিগুলো শীঘ্রই আসছে।',
-        '10 మరియు 24-రోజుల స్ట్రీక్‌లు చేరుకోవడం ద్వారా రాయల్స్‌ను అన్‌లాక్ చేయండి. మిగిలినవి త్వరలో వస్తాయి.',
-        '10 மற்றும் 24-நாள் ஸ்ட்ரீக்குகளை அடைந்து ராயல்களைத் திறங்கள். மற்றவை விரைவில் வரும்.',
+        'Reach a 10- or 24-day streak to earn a free royal pick — or unlock any royal outright.',
+        '10 या 24-दिन की स्ट्रीक तक पहुँचकर मुफ़्त रॉयल पिक कमाएँ — या कोई भी रॉयल सीधे अनलॉक करें।',
+        '10 किंवा 24-दिवसांची स्ट्रीक गाठून मोफत रॉयल पिक कमवा — किंवा कोणताही रॉयल थेट अनलॉक करा.',
+        '10 বা 24-দিনের স্ট্রিকে পৌঁছে বিনামূল্যে রয়্যাল পিক অর্জন করুন — অথবা যেকোনো রয়্যাল সরাসরি আনলক করুন।',
+        '10 లేదా 24-రోజుల స్ట్రీక్ చేరుకుని ఉచిత రాయల్ పిక్ సంపాదించండి — లేదా ఏ రాయల్‌నైనా నేరుగా అన్‌లాక్ చేయండి.',
+        '10 அல்லது 24-நாள் ஸ்ட்ரீக்கை அடைந்து இலவச ராயல் பிக் பெறுங்கள் — அல்லது எந்த ராயலையும் நேரடியாகத் திறங்கள்.',
       );
-
-  /// Small pill on a locked royal tile.
-  String get royalComingSoon => _t('Coming soon', 'जल्द आ रहा है', 'लवकरच येत आहे', 'শীঘ্রই আসছে', 'త్వరలో వస్తుంది', 'விரைவில் வரும்');
 
   /// Small pill on a royal tile the user may spend a pick on.
   String get royalUnlockable => _t('Unlock', 'अनलॉक', 'अनलॉक', 'আনলক', 'అన్‌లాక్', 'திற');
@@ -4572,14 +4570,45 @@ class AppStrings {
   String get unlockRoyalCta =>
       _t('Unlock & equip', 'अनलॉक और धारण करें', 'अनलॉक व धारण करा', 'আনলক ও পরিধান', 'అన్‌లాక్ & ధరించు', 'திறந்து அணி');
 
-  /// Locked-sheet note when the user has no picks left to spend.
+  /// Note under the buy action: paying is never the only way in.
   String get royalLockedSheetNote => _t(
-        'Reach a 10- or 24-day streak to earn a pick and unlock a royal. More royals coming soon.',
-        'पिक कमाने और रॉयल अनलॉक करने के लिए 10 या 24-दिन की स्ट्रीक तक पहुँचें। और रॉयल जल्द आ रहे हैं।',
-        'पिक कमावण्यासाठी आणि रॉयल अनलॉक करण्यासाठी 10 किंवा 24-दिवसांची स्ट्रीक गाठा. आणखी रॉयल लवकरच येत आहेत.',
-        'একটি পিক অর্জন করে রয়্যাল আনলক করতে 10 বা 24-দিনের স্ট্রিকে পৌঁছান। আরও রয়্যাল শীঘ্রই আসছে।',
-        'పిక్ సంపాదించి రాయల్‌ను అన్‌లాక్ చేయడానికి 10 లేదా 24-రోజుల స్ట్రీక్ చేరుకోండి. మరిన్ని రాయల్స్ త్వరలో వస్తాయి.',
-        'ஒரு பிக் சம்பாதித்து ராயலைத் திறக்க 10 அல்லது 24-நாள் ஸ்ட்ரீக்கை அடையுங்கள். மேலும் ராயல்கள் விரைவில் வரும்.',
+        'Or earn a free royal pick by reaching a 10- or 24-day streak.',
+        'या 10 या 24-दिन की स्ट्रीक तक पहुँचकर मुफ़्त रॉयल पिक कमाएँ।',
+        'किंवा 10 किंवा 24-दिवसांची स्ट्रीक गाठून मोफत रॉयल पिक कमवा.',
+        'অথবা 10 বা 24-দিনের স্ট্রিকে পৌঁছে বিনামূল্যে রয়্যাল পিক অর্জন করুন।',
+        'లేదా 10 లేదా 24-రోజుల స్ట్రీక్ చేరుకుని ఉచిత రాయల్ పిక్ సంపాదించండి.',
+        'அல்லது 10 அல்லது 24-நாள் ஸ்ட்ரீக்கை அடைந்து இலவச ராயல் பிக் பெறுங்கள்.',
+      );
+
+  /// What the money buys, under the price in the royal's court sheet. A royal
+  /// is a one-time, non-consumable product — never a subscription.
+  String get royalPriceCaption => _t(
+        'One-time · yours forever',
+        'एक बार · हमेशा के लिए आपका',
+        'एकदाच · कायमचे तुमचे',
+        'একবার · চিরকাল আপনার',
+        'ఒకసారి · ఎప్పటికీ మీది',
+        'ஒருமுறை · என்றும் உங்களுடையது',
+      );
+
+  /// Primary action in the royal sheet when the royal has to be bought.
+  String buyRoyalCta(String price) => _t(
+        'Unlock for $price',
+        '$price में अनलॉक करें',
+        '$price मध्ये अनलॉक करा',
+        '$price-এ আনলক করুন',
+        '$price కు అన్‌లాక్ చేయండి',
+        '$price-க்கு திறக்கவும்',
+      );
+
+  /// Toast shown after a royal is bought outright.
+  String royalPurchasedToast(String name) => _t(
+        '$name is yours! Equipped and ready.',
+        '$name अब आपका है! धारण कर लिया गया।',
+        '$name आता तुमचा आहे! धारण केला.',
+        '$name এখন আপনার! পরিধান করা হয়েছে।',
+        '$name ఇప్పుడు మీది! ధరించారు.',
+        '$name இப்போது உங்களுடையது! அணியப்பட்டது.',
       );
 
   /// Toast shown after a royal is unlocked with a pick.
