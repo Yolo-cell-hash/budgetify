@@ -31,7 +31,7 @@ import 'royal_avatars.dart';
 ///
 /// The last five are SIGNATURE moves — one per royal, played at the end of the
 /// launch entrance so each court member says hello in a way only they could
-/// (see `_signatureActionFor` in royal_reactions.dart).
+/// (see `royalSignatureAction` in royal_reactions.dart).
 enum RoyalAction {
   idle,
   walk,
