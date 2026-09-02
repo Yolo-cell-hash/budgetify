@@ -87,14 +87,25 @@ abstract class BillingGateway {
   Future<List<BillingPurchase>> queryPurchases();
 
   /// Launch the store purchase flow for [productId].
-  Future<BillingResult> launchPurchase(String productId);
+  ///
+  /// [preferOffer] asks for the discounted offer rather than the everyday base
+  /// plan. A Play subscription can return several entries for one product id —
+  /// the base plan plus every offer the buyer is eligible for — and the entry
+  /// handed to the billing flow decides what Play charges. The caller owns
+  /// that decision because the calendar that governs it ([PlusOffer]) lives in
+  /// this app, not in the Console.
+  Future<BillingResult> launchPurchase(String productId,
+      {bool preferOffer = false});
 
   /// Play's own price for each of [productIds], keyed by product id.
   ///
   /// Ids the store doesn't know are simply absent, so a caller must always be
   /// able to fall back. This is what stops the paywall advertising a number
   /// Play won't charge: the catalogue constants are a preview, this is truth.
-  Future<Map<String, StorePrice>> queryPrices(Iterable<String> productIds);
+  /// [preferOffer] must match what [launchPurchase] will be given, or the
+  /// paywall would quote one entry's price and buy another's.
+  Future<Map<String, StorePrice>> queryPrices(Iterable<String> productIds,
+      {bool preferOffer = false});
 }
 
 /// One price as the store states it.
@@ -127,13 +138,14 @@ class UnavailableBillingGateway implements BillingGateway {
       const <BillingPurchase>[];
 
   @override
-  Future<BillingResult> launchPurchase(String productId) async =>
+  Future<BillingResult> launchPurchase(String productId,
+          {bool preferOffer = false}) async =>
       const BillingResult(BillingOutcome.unavailable);
 
   @override
-  Future<Map<String, StorePrice>> queryPrices(Iterable<String> productIds)
-      async =>
-          const <String, StorePrice>{};
+  Future<Map<String, StorePrice>> queryPrices(Iterable<String> productIds,
+          {bool preferOffer = false}) async =>
+      const <String, StorePrice>{};
 }
 
 /// What a "Restore purchases" pass found.
@@ -163,6 +175,26 @@ class BillingService {
   set gateway(BillingGateway g) => _gateway = g;
 
   StreamSubscription<BillingPurchase>? _outOfBandSub;
+
+  /// Whether one of the app's own discount windows is running right now.
+  ///
+  /// This is the whole reason the Console offer can stay permanently active:
+  /// its eligibility is "Developer determined", so Play never applies it
+  /// unasked, and [PlusOffer] alone decides when a discount runs. Both the
+  /// price shown and the price charged are driven from this one answer.
+  ///
+  /// Fails CLOSED — any doubt means the everyday price. Quoting the base price
+  /// and charging it is merely unexciting; quoting a discount Play won't
+  /// honour is a refund and a one-star review.
+  @visibleForTesting
+  bool get offerWindowOpen {
+    try {
+      return EntitlementService().activeOffer != null;
+    } catch (e) {
+      debugPrint('BillingService: offer window unreadable, using base price: $e');
+      return false;
+    }
+  }
 
   /// Production wiring: install the live [gateway] and, if it reports
   /// purchases arriving outside a purchase flow, grant those too.
@@ -211,7 +243,8 @@ class BillingService {
   /// entitlement locally on success.
   Future<BillingOutcome> purchase(String productId) async {
     try {
-      final result = await _gateway.launchPurchase(productId);
+      final result = await _gateway.launchPurchase(productId,
+          preferOffer: offerWindowOpen);
       if (result.outcome == BillingOutcome.success) {
         final p = result.purchase;
         await _grant(p?.productId ?? productId,
@@ -229,7 +262,8 @@ class BillingService {
   /// catalogue constants.
   Future<Map<String, StorePrice>> prices(Iterable<String> productIds) async {
     try {
-      return await _gateway.queryPrices(productIds);
+      return await _gateway.queryPrices(productIds,
+          preferOffer: offerWindowOpen);
     } catch (e) {
       debugPrint("BillingService.prices failed: $e");
       return const <String, StorePrice>{};
