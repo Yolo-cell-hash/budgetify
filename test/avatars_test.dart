@@ -536,9 +536,14 @@ void main() {
       expect(find.text('The Sovereign'), findsWidgets);
       expect(find.text('Equip'), findsOneWidget);
 
-      // Flip the theme toggle off, equip him, then save the picker.
-      await tester.tap(
-          find.widgetWithText(SwitchListTile, 'Apply app-wide Crimson theme'));
+      // Flip the theme toggle off, equip him, then save the picker. The
+      // sheet now carries the animation reel above these controls, so scroll
+      // the switch into view rather than tapping where it used to sit.
+      final themeSwitch =
+          find.widgetWithText(SwitchListTile, 'Apply app-wide Crimson theme');
+      await tester.ensureVisible(themeSwitch);
+      await tester.pump();
+      await tester.tap(themeSwitch);
       await tester.pump();
       await tester.ensureVisible(find.text('Equip'));
       await tester.pump();

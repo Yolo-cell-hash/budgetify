@@ -584,7 +584,10 @@ _BootBeats _bootBeatsFor(String id) => switch (id) {
 /// [RoyalAction.wave] stays the fallback for any royal added later that has no
 /// signature authored yet — better a plain hello than an assertion failure in
 /// a cosmetic overlay.
-RoyalAction _signatureActionFor(String id) => switch (id) {
+///
+/// Public because the avatar picker previews it before purchase: a buyer who
+/// cannot see the move is being asked to pay for a description of it.
+RoyalAction royalSignatureAction(String id) => switch (id) {
       'empress' => RoyalAction.spell,
       'princess' => RoyalAction.kiss,
       'darkprince' => RoyalAction.menace,
@@ -604,7 +607,7 @@ RoyalAction _signatureActionFor(String id) => switch (id) {
 
 /// Whether [a] is performed from the saddle (so the frame keeps the wide ride
 /// box) rather than on foot.
-bool _isMounted(RoyalAction a) =>
+bool royalActionIsMounted(RoyalAction a) =>
     a == RoyalAction.ride || a == RoyalAction.roar;
 
 /// One frame of a routine: where the character is, what it's doing, and what
@@ -686,6 +689,14 @@ const double _cw = 78;
 const double _ch = 100;
 const double _rw = 150;
 const double _rh = 96;
+
+/// The two boxes a royal is drawn in, exported so anything previewing the
+/// character outside this host (the avatar picker's stage) uses the same
+/// proportions. A figure drawn in the wrong box does not just letterbox — the
+/// rig lays a mount out horizontally against the width, so a ride squeezed
+/// into the standing box comes out as a giant head on a pony.
+const Size kRoyalStandBox = Size(_cw, _ch);
+const Size kRoyalRideBox = Size(_rw, _rh);
 
 /// Mounted in `MaterialApp.builder` (inside the app-lock gate). Loads the
 /// equipped royal, plays a welcome routine once at launch, turns reaction
@@ -1619,9 +1630,9 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
     // ── The signature ──────────────────────────────────────────────────────
     // Every royal used to end on the same wave here. Now each signs off in its
     // own way, and the Sovereign stays in the saddle for his, because the move
-    // is the lion's (see [_signatureActionFor]).
-    final sig = _signatureActionFor(_royal?.id ?? '');
-    final mounted = _isMounted(sig);
+    // is the lion's (see [royalSignatureAction]).
+    final sig = royalSignatureAction(_royal?.id ?? '');
+    final mounted = royalActionIsMounted(sig);
     final sigC = mounted ? rideHomeC : waveC;
     // Facing: the signature is aimed at the USER, so the royal turns to the
     // roomier side of the screen rather than off the edge it came in from.
@@ -2412,7 +2423,7 @@ class _RoyalReactionHostState extends State<RoyalReactionHost>
         final icon = _anchorCenter(mq.size, mq.padding);
         final f = _frame(routine, _ctrl.value, icon, mq.size, mq.padding);
         final shakeOff = f.shake > 0 ? _shake(f.shake) : Offset.zero;
-        final wide = _isMounted(f.action);
+        final wide = royalActionIsMounted(f.action);
         final boxW = wide ? _rw : _cw;
         final boxH = wide ? _rh : _ch;
 

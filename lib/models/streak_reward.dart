@@ -89,7 +89,7 @@ const List<StreakReward> kStreakRewards = [
     days: 10,
     name: 'Royal Unlock',
     blurb:
-        'Choose any one of the six royal avatars to unlock. Unlocked at a 10-day streak.',
+        'Choose any one of the royal avatars to unlock. Unlocked at a 10-day streak.',
     kind: StreakRewardKind.royalPick,
     rarity: BadgeRarity.gold,
     emblem: '👑',
@@ -126,7 +126,7 @@ const List<StreakReward> kStreakRewards = [
     days: 24,
     name: 'Royal Unlock',
     blurb:
-        'Choose another royal avatar to unlock, from the remaining five. Unlocked at a 24-day streak.',
+        'Choose another royal avatar to unlock. Unlocked at a 24-day streak.',
     kind: StreakRewardKind.royalPick,
     rarity: BadgeRarity.platinum,
     emblem: '👑',
@@ -208,6 +208,17 @@ const List<StreakReward> kStreakRewards = [
 /// Streak lengths (in days) that each grant one royal-avatar pick. Kept in
 /// sync with the [StreakRewardKind.royalPick] entries in [kStreakRewards].
 const List<int> kRoyalPickStreaks = [10, 24];
+
+/// Streak Freezes paid instead of a royal pick that has nothing left to
+/// unlock — i.e. the user already owns every royal, whether by streak or by
+/// purchase.
+///
+/// A pick is only ever worth the royal it opens. Someone who bought the whole
+/// court before day 10 would otherwise walk up to a gold milestone, tap
+/// "Unlock Now", and land in a picker where everything is already theirs — a
+/// reward that reads as a bug. Two freezes matches the day-18 pack, which is
+/// the closest thing the Road has to a comparable prize.
+const int kRoyalPickFreezeSubstitute = 2;
 
 /// How many royal picks a [longestStreak] has earned (0, 1 or 2).
 int royalPicksEarned(int longestStreak) =>

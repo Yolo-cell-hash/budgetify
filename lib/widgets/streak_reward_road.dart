@@ -25,6 +25,12 @@ class StreakRewardRoad extends StatelessWidget {
   /// When null, royal-pick milestones fall back to an informational hint.
   final VoidCallback? onChooseRoyal;
 
+  /// Royal-pick milestones that were paid out in Streak Freezes because the
+  /// user already owns every royal — see
+  /// `GamificationService.syncRoyalPickSubstitutes`. Those tiles show what was
+  /// actually granted instead of offering a pick that would open nothing.
+  final Set<String> substitutedRoyalPicks;
+
   /// Outer padding; defaults suit a scrollable page.
   final EdgeInsets padding;
 
@@ -34,6 +40,7 @@ class StreakRewardRoad extends StatelessWidget {
     required this.longestStreak,
     this.royalPicksSpent = 0,
     this.onChooseRoyal,
+    this.substitutedRoyalPicks = const {},
     this.padding = const EdgeInsets.fromLTRB(16, 16, 16, 32),
   });
 
@@ -57,6 +64,8 @@ class StreakRewardRoad extends StatelessWidget {
               currentStreak: currentStreak,
               royalPicksSpent: royalPicksSpent,
               onChooseRoyal: onChooseRoyal,
+              substituted:
+                  substitutedRoyalPicks.contains(kStreakRewards[i].id),
               isFirst: i == 0,
               nextUnlocked: i + 1 < kStreakRewards.length
                   ? kStreakRewards[i + 1].isUnlocked(longestStreak)
@@ -155,6 +164,7 @@ class _MilestoneTile extends StatelessWidget {
   final int currentStreak;
   final int royalPicksSpent;
   final VoidCallback? onChooseRoyal;
+  final bool substituted;
   final bool isFirst;
   final bool nextUnlocked;
 
@@ -164,6 +174,7 @@ class _MilestoneTile extends StatelessWidget {
     required this.currentStreak,
     required this.royalPicksSpent,
     required this.onChooseRoyal,
+    required this.substituted,
     required this.isFirst,
     required this.nextUnlocked,
   });
@@ -183,7 +194,9 @@ class _MilestoneTile extends StatelessWidget {
             bottomFilled: nextUnlocked,
             node: BadgeMedallion(
               rarity: reward.rarity,
-              emblem: reward.emblem,
+              // A substituted milestone keeps its rarity — it was still a
+              // 10- or 24-day streak — but wears the freeze it actually paid.
+              emblem: substituted ? '🧊' : reward.emblem,
               earned: unlocked,
               size: 52,
               animate: unlocked,
@@ -199,6 +212,7 @@ class _MilestoneTile extends StatelessWidget {
                 currentStreak: currentStreak,
                 royalPicksSpent: royalPicksSpent,
                 onChooseRoyal: onChooseRoyal,
+                substituted: substituted,
               ),
             ),
           ),
@@ -252,7 +266,12 @@ class _RewardCard extends StatelessWidget {
     required this.currentStreak,
     this.royalPicksSpent = 0,
     this.onChooseRoyal,
+    this.substituted = false,
   });
+
+  /// This royal-pick milestone paid Streak Freezes instead of a pick, because
+  /// the whole court was already owned when it landed.
+  final bool substituted;
 
   /// This royal-pick milestone's position among royal picks (1st = 10-day,
   /// 2nd = 24-day) — used to tell if its pick has already been spent.
@@ -285,6 +304,11 @@ class _RewardCard extends StatelessWidget {
           Row(
             children: [
               switch (reward.kind) {
+                // A substituted pick shows what was actually granted. Leaving
+                // the crown on a tile that paid freezes would be the same lie
+                // the substitution exists to remove.
+                StreakRewardKind.royalPick when substituted =>
+                  const _FreezePackPreview(count: kRoyalPickFreezeSubstitute),
                 StreakRewardKind.royalPick => const _RoyalCrownPreview(),
                 StreakRewardKind.freeze =>
                   _FreezePackPreview(count: reward.freezeCount),
@@ -316,7 +340,10 @@ class _RewardCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      context.l10n.streakRewardName(reward.id),
+                      substituted
+                          ? context.l10n
+                              .freezePackName(kRoyalPickFreezeSubstitute)
+                          : context.l10n.streakRewardName(reward.id),
                       style: TextStyle(
                         fontSize: 14.5,
                         fontWeight: FontWeight.w700,
@@ -331,7 +358,10 @@ class _RewardCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            context.l10n.streakRewardBlurb(reward.id),
+            substituted
+                ? context.l10n.royalPickSubstituteBlurb(
+                    kRoyalPickFreezeSubstitute)
+                : context.l10n.streakRewardBlurb(reward.id),
             style: TextStyle(
               fontSize: 12.5,
               height: 1.35,
@@ -370,6 +400,27 @@ class _RewardCard extends StatelessWidget {
     }
 
     if (reward.kind == StreakRewardKind.royalPick) {
+      // Paid in freezes: say so, and say why. Offering "Unlock Now" here
+      // would walk the user into a picker where everything is already theirs.
+      if (substituted) {
+        return Row(
+          children: [
+            Icon(Icons.ac_unit_rounded, size: 16, color: colors.accent),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                context.l10n.freezePackAdded,
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.35,
+                  fontWeight: FontWeight.w600,
+                  color: colors.accent,
+                ),
+              ),
+            ),
+          ],
+        );
+      }
       // Pick already spent on a royal → a claimed confirmation.
       if (_royalPickSpent) {
         return Row(

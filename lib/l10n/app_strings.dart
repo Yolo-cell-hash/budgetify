@@ -4580,6 +4580,18 @@ class AppStrings {
         'அல்லது 10 அல்லது 24-நாள் ஸ்ட்ரீக்கை அடைந்து இலவச ராயல் பிக் பெறுங்கள்.',
       );
 
+  /// Caption under the court sheet's animation reel. Names what the strip is
+  /// showing, so a buyer knows the moves are this royal's own and not a
+  /// generic sizzle loop.
+  String get royalPreviewCaption => _t(
+        'Their own moves, live — this is what joins your app.',
+        'इनकी अपनी चालें, लाइव — यही आपके ऐप में शामिल होगा।',
+        'यांच्या स्वतःच्या हालचाली, लाइव्ह — हेच तुमच्या ॲपमध्ये येईल.',
+        'এদের নিজস্ব চলন, লাইভ — এটিই আপনার অ্যাপে যুক্ত হবে।',
+        'వీరి సొంత కదలికలు, ప్రత్యక్షంగా — ఇదే మీ యాప్‌లో చేరుతుంది.',
+        'இவர்களின் சொந்த அசைவுகள், நேரலையில் — இதுவே உங்கள் செயலியில் சேரும்.',
+      );
+
   /// What the money buys, under the price in the royal's court sheet. A royal
   /// is a one-time, non-consumable product — never a subscription.
   String get royalPriceCaption => _t(
@@ -4619,6 +4631,29 @@ class AppStrings {
         '$name আনলক হয়েছে! পরিধান করা হয়েছে।',
         '$name అన్‌లాక్ అయింది! ధరించారు.',
         '$name திறக்கப்பட்டது! அணியப்பட்டது.',
+      );
+
+  // ── Royal pick paid out as freezes (whole court already owned) ──────────
+  /// Tile name for a royal-pick milestone that paid Streak Freezes instead.
+  /// Parameterised rather than reusing `streakRewardName('freeze_pack_2')`,
+  /// which is that specific 18-day milestone's name, not a count.
+  String freezePackName(int n) => _t(
+        '+$n Streak Freezes',
+        '+$n स्ट्रीक फ़्रीज़',
+        '+$n स्ट्रीक फ्रीझ',
+        '+$n স্ট্রিক ফ্রিজ',
+        '+$n స్ట్రీక్ ఫ్రీజ్‌లు',
+        '+$n ஸ்ட்ரீக் ஃப்ரீஸ்கள்',
+      );
+
+  /// Tile blurb for a substituted royal pick: what it paid, and why.
+  String royalPickSubstituteBlurb(int n) => _t(
+        'You already own every royal, so this milestone paid $n Streak Freezes instead — an alternate reward, worth the same streak.',
+        'आपके पास पहले से हर रॉयल है, इसलिए इस पड़ाव ने बदले में $n स्ट्रीक फ़्रीज़ दिए — वैकल्पिक इनाम, उसी स्ट्रीक के बराबर।',
+        'तुमच्याकडे आधीच प्रत्येक रॉयल आहे, म्हणून या टप्प्याने त्याऐवजी $n स्ट्रीक फ्रीझ दिले — पर्यायी बक्षीस, त्याच स्ट्रीकइतकेच.',
+        'আপনার কাছে ইতিমধ্যেই প্রতিটি রয়্যাল আছে, তাই এই ধাপটি বদলে $n স্ট্রিক ফ্রিজ দিয়েছে — একটি বিকল্প পুরস্কার, একই স্ট্রিকের সমান।',
+        'మీ దగ్గర ఇప్పటికే ప్రతి రాయల్ ఉంది, కాబట్టి ఈ మైలురాయి బదులుగా $n స్ట్రీక్ ఫ్రీజ్‌లు ఇచ్చింది — ప్రత్యామ్నాయ బహుమతి, అదే స్ట్రీక్‌కు సమానం.',
+        'உங்களிடம் ஏற்கெனவே ஒவ்வொரு ராயலும் உள்ளது, எனவே இந்த மைல்கல் அதற்குப் பதிலாக $n ஸ்ட்ரீக் ஃப்ரீஸ்களை வழங்கியது — ஒரு மாற்று வெகுமதி, அதே ஸ்ட்ரீக்குக்கு நிகரானது.',
       );
 
   /// Road button that jumps to the ROYALTY picker to spend a royal pick.

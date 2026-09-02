@@ -38,6 +38,10 @@ class _StreakRewardsScreenState extends State<StreakRewardsScreen> {
   int _royalPicksSpent = 0;
   int _royalPicks = 0;
 
+  /// Royal-pick milestones already paid out as Streak Freezes, because the
+  /// whole court was owned by the time they landed.
+  Set<String> _substitutedPicks = const {};
+
   @override
   void initState() {
     super.initState();
@@ -55,6 +59,9 @@ class _StreakRewardsScreenState extends State<StreakRewardsScreen> {
     // Catch up Road freeze packs first (e.g. a backup restore just raised the
     // longest streak), so the tray below reflects them.
     await _svc.syncFreezePacks();
+    // ...and pay out any royal pick that has nothing left to unlock, for the
+    // user who bought the whole court before the milestone landed.
+    await _svc.syncRoyalPickSubstitutes();
     final info = await _svc.streakInfo();
     final freeze = await _svc.freezeInfo();
     final saveOffer = await _svc.streakSaveOffer();
@@ -64,6 +71,7 @@ class _StreakRewardsScreenState extends State<StreakRewardsScreen> {
     final unlockedRoyals = await _svc.unlockedRoyalIds();
     final picksSpent = (await _svc.streakPickedRoyalIds()).length;
     final royalPicks = await _svc.availableRoyalPicks();
+    final substituted = await _svc.substitutedRoyalPickIds();
     if (mounted) {
       setState(() {
         _streak = info;
@@ -75,6 +83,7 @@ class _StreakRewardsScreenState extends State<StreakRewardsScreen> {
         _unlockedRoyals = unlockedRoyals;
         _royalPicksSpent = picksSpent;
         _royalPicks = royalPicks;
+        _substitutedPicks = substituted;
       });
     }
   }
@@ -174,6 +183,7 @@ class _StreakRewardsScreenState extends State<StreakRewardsScreen> {
                     currentStreak: streak.current,
                     longestStreak: streak.longest,
                     royalPicksSpent: _royalPicksSpent,
+                    substitutedRoyalPicks: _substitutedPicks,
                     onChooseRoyal: _openRoyaltyPicker,
                     padding: const EdgeInsets.only(top: 16, bottom: 8),
                   ),

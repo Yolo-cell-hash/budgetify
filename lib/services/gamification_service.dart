@@ -7,7 +7,7 @@ import '../models/holding.dart';
 import '../models/streak_reward.dart';
 import '../models/transaction_model.dart';
 import '../widgets/avatars.dart' show legacyEmojiSeed;
-import '../widgets/royal_avatars.dart' show royalAvatarAt;
+import '../widgets/royal_avatars.dart' show kRoyalAvatars, royalAvatarAt;
 import 'database_service.dart';
 import 'entitlement_service.dart';
 import 'savings_goal_service.dart';
@@ -604,11 +604,78 @@ class GamificationService {
   /// spent — how many still-locked royals they may unlock right now. Only
   /// streak-picked royals count as spent picks; a purchased royal never
   /// consumes one.
+  ///
+  /// Zero once the whole court is owned: a pick is worth exactly the royal it
+  /// opens, so with nothing left to open there is no pick to offer. Those
+  /// milestones pay out in freezes instead — see [syncRoyalPickSubstitutes].
   Future<int> availableRoyalPicks() async {
+    if (await allRoyalsUnlocked()) return 0;
     final info = await streakInfo();
     final spent = (await streakPickedRoyalIds()).length;
     return (royalPicksEarned(info.longest) - spent)
         .clamp(0, kRoyalPickStreaks.length);
+  }
+
+  /// Whether every royal in the court is already the user's — by streak pick,
+  /// by purchase, or any mix of the two.
+  Future<bool> allRoyalsUnlocked() async {
+    final owned = await unlockedRoyalIds();
+    return kRoyalAvatars.every((r) => owned.contains(r.id));
+  }
+
+  /// Blob key: royal-pick milestones already paid out as freezes.
+  static const String _substitutedPicksKey = 'royalPickFreezes';
+
+  /// The royal-pick milestones that were paid in Streak Freezes because there
+  /// was no royal left to unlock. The Road reads this to relabel those tiles.
+  Future<Set<String>> substitutedRoyalPickIds() async =>
+      ((await _read())[_substitutedPicksKey] as List?)?.cast<String>().toSet() ??
+          <String>{};
+
+  /// Pay out any royal-pick milestone that has nothing left to unlock.
+  ///
+  /// Runs when the Road is read, mirroring [syncFreezePacks] — deliberately
+  /// NOT inside the daily roll, because every writer of this blob does an
+  /// unsynchronised read-modify-write and a second concurrent writer would
+  /// silently clobber the first.
+  ///
+  /// Two rules keep it honest:
+  ///   * only when the WHOLE court is owned, so a user still missing one royal
+  ///     keeps the pick that would open it, and
+  ///   * only on picks that were never spent. A pick already traded for a
+  ///     royal was never worthless, and paying freezes for it too would be
+  ///     paying twice for one milestone. Spent picks fill from the earliest
+  ///     milestone (the Road's own ordinal rule), so the unspent ones are the
+  ///     later entries.
+  Future<void> syncRoyalPickSubstitutes() async {
+    if (!await allRoyalsUnlocked()) return;
+    final spent = (await streakPickedRoyalIds()).length;
+
+    final blob = await _read();
+    final st = (blob['streak'] as Map?)?.cast<String, dynamic>() ?? {};
+    final longest = (st['longest'] as num?)?.toInt() ?? 0;
+    final granted =
+        ((blob[_substitutedPicksKey] as List?)?.cast<String>() ?? const [])
+            .toSet();
+    var freezes = (st['freezes'] as num?)?.toInt() ?? 0;
+    var ordinal = 0;
+    var changed = false;
+
+    for (final r in kStreakRewards) {
+      if (r.kind != StreakRewardKind.royalPick) continue;
+      ordinal++;
+      if (!r.isUnlocked(longest) || ordinal <= spent) continue;
+      if (granted.add(r.id)) {
+        freezes = (freezes + kRoyalPickFreezeSubstitute).clamp(0, maxFreezes);
+        changed = true;
+      }
+    }
+    if (!changed) return;
+
+    st['freezes'] = freezes;
+    blob['streak'] = st;
+    blob[_substitutedPicksKey] = granted.toList()..sort();
+    await _write(blob);
   }
 
   Set<String> _picked(Map<String, dynamic> blob) =>

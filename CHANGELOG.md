@@ -11,6 +11,32 @@ Also available in the five languages the app ships alongside English:
 practice began; this file remains the full history and the one to write
 first.
 
+## [1.81.0] — 2026-09-03
+
+### Added
+
+- **See a royal move before you buy them.** Every royal's card now plays a
+  short loop of the character itself — standing, performing their own
+  signature move, and travelling the way only they do, whether that is a lion,
+  a floating palanquin, a winged unicorn or, for the Huntress, her own two
+  feet. It runs on the locked card too, which is the point: the crown you are
+  being offered is a full-body character who walks your app, rides in when you
+  open it and signs off with a move nobody else in the court has, and until
+  now the only way to see any of that was to pay first. If you have asked your
+  phone to reduce motion, the loop holds still on the signature pose instead.
+
+### Changed
+
+- **A streak milestone can no longer hand you a royal you already own.** The
+  10- and 24-day milestones grant a royal pick, which is worth exactly the
+  royal it opens — so for anyone who already has the whole court, they were
+  walking up to a gold milestone, tapping "Unlock Now", and arriving at a
+  picker where everything was already theirs. Those milestones now pay **two
+  Streak Freezes** each instead, and say plainly that they did and why. The
+  swap only happens when every royal is genuinely yours, and never on a pick
+  you had already spent — that one bought you a royal, and it is not paid for
+  twice.
+
 ## [1.80.0] — 2026-09-02
 
 ### Added
