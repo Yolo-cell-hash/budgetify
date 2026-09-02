@@ -38,6 +38,10 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
   // bought with money (unlockedRoyalIds unions purchases).
   int _royalPicksSpent = 0;
   int _royalPicks = 0;
+
+  /// Royal-pick milestones already paid out as Streak Freezes, because the
+  /// whole court was owned by the time they landed.
+  Set<String> _substitutedPicks = const {};
   bool _loading = true;
 
   @override
@@ -64,6 +68,10 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
     final unlockedRoyals = await _svc.unlockedRoyalIds();
     final picksSpent = (await _svc.streakPickedRoyalIds()).length;
     final royalPicks = await _svc.availableRoyalPicks();
+    // Pay out any royal pick with nothing left to unlock (whole court bought),
+    // then read back which milestones that covered.
+    await _svc.syncRoyalPickSubstitutes();
+    final substituted = await _svc.substitutedRoyalPickIds();
     if (!mounted) return;
     setState(() {
       _profile = profile;
@@ -72,6 +80,7 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
       _unlockedRoyals = unlockedRoyals;
       _royalPicksSpent = picksSpent;
       _royalPicks = royalPicks;
+      _substitutedPicks = substituted;
       _loading = false;
     });
     if (celebrate) {
@@ -205,6 +214,7 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
         currentStreak: stats.currentStreak,
         longestStreak: stats.longestStreak,
         royalPicksSpent: _royalPicksSpent,
+        substitutedRoyalPicks: _substitutedPicks,
         onChooseRoyal: () => _openAvatarPicker(scrollToRoyalty: true),
       ),
     );

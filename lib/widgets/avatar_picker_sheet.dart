@@ -19,6 +19,7 @@ import 'app_dialog.dart';
 import 'app_toast.dart';
 import 'avatars.dart';
 import 'royal_avatars.dart';
+import 'royal_preview_stage.dart';
 
 /// Edit the profile's avatar (emoji or procedural pixel) + accent + username.
 /// Returns the edited [GamiProfile], or null if cancelled.
@@ -745,6 +746,23 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
                       ),
                     ),
                   ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              // What the money is actually for. The circle above is the face
+              // that lands on the profile; this is the character that walks
+              // the app, and a buyer who has not seen it is being asked to
+              // pay for a description. Runs on the locked sheet as well —
+              // that is the sheet where it earns its space.
+              RoyalPreviewStage(royal: r),
+              const SizedBox(height: 6),
+              Text(
+                ctx.l10n.royalPreviewCaption,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  height: 1.3,
+                  color: colors.textTertiary,
                 ),
               ),
               const SizedBox(height: 14),
