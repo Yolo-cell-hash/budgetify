@@ -11,6 +11,27 @@ Also available in the five languages the app ships alongside English:
 practice began; this file remains the full history and the one to write
 first.
 
+## [1.80.0] — 2026-09-02
+
+### Added
+
+- **A royal avatar can now be bought outright.** The court used to open one
+  way only: reach a 10- or 24-day streak, earn a royal pick, and choose who to
+  crown. That has not changed — a pick still takes any royal for nothing, and
+  while one is waiting for you the app does not mention money at all. What is
+  new is a second door for the rest of the court: every locked royal now shows
+  what they cost instead of promising to arrive some day, and their court
+  sheet will sell them to you. One payment, no subscription, kept on your
+  Google account rather than on this install — so a new phone or a reinstall
+  brings them back.
+  The price on screen is the price Google Play will charge. The app asks the
+  store rather than trusting a number baked into the build, so what is on the
+  tile and what leaves your account cannot drift apart. During an offer week
+  the everyday price is struck through only once Play confirms it really is
+  charging less, so a saving you are shown is always a saving you get.
+  Nothing you already own changes, and no royal you unlocked with a streak has
+  been put back behind a price.
+
 ## [1.77.0] — 2026-09-01
 
 ### Added

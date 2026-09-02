@@ -677,7 +677,7 @@ void main() {
       }
     });
 
-    testWidgets('locked royals read "Coming soon" and cannot be equipped',
+    testWidgets('locked royals carry their price and cannot be equipped free',
         (tester) async {
       final royal = kRoyalAvatars.first;
       await tester.pumpWidget(
@@ -701,6 +701,10 @@ void main() {
                     onPressed: () => showAvatarPicker(
                       ctx,
                       const GamiProfile(avatarKind: 'pixel', avatarValue: '0'),
+                      // An ordinary mid-July day: no offer window, so the
+                      // court is quoted at the everyday price. Unpinned, this
+                      // test would read ₹29 during a festive week.
+                      nowSource: () => DateTime(2026, 7, 15),
                     ),
                     child: const Text('open'),
                   ),
@@ -714,21 +718,24 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
 
-      // Locked tiles carry a "Coming soon" pill and the section hint.
+      // Locked tiles carry their price where the status pill goes.
       final tile = find.byWidgetPredicate(
           (w) => w is AnimatedRoyalAvatar && w.royal.id == royal.id);
       await tester.ensureVisible(tile);
       await tester.pump();
-      expect(find.text('Coming soon'), findsWidgets);
+      expect(find.text('₹49'), findsWidgets);
 
-      // The court sheet offers neither Equip nor Unlock — just the note.
+      // The court sheet offers neither Equip nor a free pick — it sells,
+      // and keeps the streak route in view. (royal_pricing_test.dart drives
+      // the purchase itself.)
       await tester.tap(tile, warnIfMissed: false);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
       expect(find.text('Equip'), findsNothing);
       expect(find.text('Unlock & equip'), findsNothing);
-      expect(find.textContaining('Reach a 10- or 24-day streak'),
-          findsOneWidget);
+      expect(find.text('Unlock for ₹49'), findsOneWidget);
+      expect(find.text('Or earn a free royal pick by reaching a 10- or '
+          '24-day streak.'), findsOneWidget);
     });
 
     testWidgets('a royal pick unlocks and equips a chosen royal',
