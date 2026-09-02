@@ -384,6 +384,22 @@ class PlayBillingGateway implements BillingGateway {
         }
       }
 
+      // A verdict with NO product attached. The plugin synthesises one of
+      // these whenever Play answers with an empty purchase list -- the user
+      // backing out, ITEM_ALREADY_OWNED, most billing errors -- and it carries
+      // `productID: ''`. Keyed by product it would match no waiter at all, so
+      // the purchase future would hang until its five-minute timeout: a buy
+      // button spinning long after the buyer simply changed their mind. Route
+      // it to whatever flow is actually in flight instead.
+      if (d.productID.isEmpty) {
+        _resolveAllAwaiting(switch (d.status) {
+          PurchaseStatus.canceled => BillingOutcome.cancelled,
+          PurchaseStatus.pending => BillingOutcome.pending,
+          _ => BillingOutcome.error,
+        }, d);
+        continue;
+      }
+
       final waiting = _awaiting[d.productID];
       switch (d.status) {
         case PurchaseStatus.purchased:
@@ -427,6 +443,20 @@ class PlayBillingGateway implements BillingGateway {
           }
       }
     }
+  }
+
+  /// Hand [outcome] to every in-flight purchase. Used only for verdicts Play
+  /// reports without naming a product; there is at most one flow open per
+  /// product and, in practice, only one open at all.
+  void _resolveAllAwaiting(BillingOutcome outcome, PurchaseDetails d) {
+    if (_awaiting.isEmpty) return;
+    debugPrint('PlayBillingGateway: product-less ${d.status} '
+        '(${d.error?.message ?? 'no message'}) -> resolving '
+        '${_awaiting.length} in-flight purchase(s) as $outcome');
+    for (final completer in List.of(_awaiting.values)) {
+      if (!completer.isCompleted) completer.complete(BillingResult(outcome));
+    }
+    _awaiting.clear();
   }
 
   BillingPurchase _toBillingPurchase(PurchaseDetails d) => BillingPurchase(
