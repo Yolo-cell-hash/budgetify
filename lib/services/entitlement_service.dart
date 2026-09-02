@@ -50,6 +50,11 @@ class EntitlementService {
   /// 0 / absent = no subscription. Extended on purchase/renewal/restore.
   static const String _plusUntilKey = 'entitlement_plus_until';
 
+  /// Product id of the most recent SUBSCRIPTION granted, so the app can say
+  /// which plan is running rather than only that something is. Lifetime is
+  /// tracked separately by [_plusLifetimeKey] and always outranks this.
+  static const String _plusPlanKey = 'entitlement_plus_plan';
+
   /// Royal avatar ids bought outright (₹49 one-time each). Distinct from the
   /// streak-picked royals, which GamificationService owns.
   static const String _ownedRoyalsKey = 'entitlement_owned_royals';
@@ -128,6 +133,7 @@ class EntitlementService {
   DateTime? _lastSeen;
   bool _plusLifetime = false;
   int _plusUntilMs = 0;
+  String? _plusPlanId;
   Set<String> _ownedRoyals = <String>{};
   Set<String> _dismissedNotices = <String>{};
   bool _initialized = false;
@@ -163,6 +169,7 @@ class EntitlementService {
 
     _plusLifetime = prefs.getBool(_plusLifetimeKey) ?? false;
     _plusUntilMs = prefs.getInt(_plusUntilKey) ?? 0;
+    _plusPlanId = prefs.getString(_plusPlanKey);
     _ownedRoyals =
         (prefs.getStringList(_ownedRoyalsKey) ?? const <String>[]).toSet();
     _dismissedNotices =
@@ -443,6 +450,32 @@ class EntitlementService {
   /// only ever err on the side of letting the user through.
   bool get hasFullAccess => trialActive || hasPlus;
 
+  /// Whether Plus is owned outright rather than rented.
+  bool get hasLifetimePlus => _plusLifetime;
+
+  /// The plan currently providing access, or null when nothing is owned.
+  ///
+  /// Lifetime always wins: someone who bought it outright and also happens to
+  /// hold a lapsed subscription is a lifetime owner, not a subscriber.
+  PlusPlan? get activePlusPlan {
+    if (_plusLifetime) return PlusPlan.lifetime;
+    if (!hasPlus) return null;
+    final id = _plusPlanId;
+    return id == null ? null : PlusPlan.byProductId(id);
+  }
+
+  /// How long subscription access is guaranteed locally, or null for lifetime
+  /// (never expires) and for no subscription at all.
+  ///
+  /// NOT the renewal date, and deliberately not labelled as one. Play owns the
+  /// real billing schedule and this app never sees it; what this holds is the
+  /// end of the window a purchase or a live sighting has already bought,
+  /// including [kPlusSubscriptionGrace]. So it is the honest answer to "until
+  /// when am I definitely covered", not "when will I next be charged".
+  DateTime? get plusAccessUntil => _plusLifetime || _plusUntilMs <= 0
+      ? null
+      : DateTime.fromMillisecondsSinceEpoch(_plusUntilMs);
+
   /// Whether [feature] is usable right now. All Plus features currently share
   /// the master gate; the per-feature enum exists so a later phase can vary
   /// messaging (or grandfather a feature) without re-touching call sites.
@@ -480,6 +513,12 @@ class EntitlementService {
         await prefs.setBool(_plusLifetimeKey, true);
       case PlusPlan.monthly:
       case PlusPlan.yearly:
+        // Remember WHICH plan, so the paywall can name it and stop offering
+        // what is already running.
+        if (_plusPlanId != plan.productId) {
+          _plusPlanId = plan.productId;
+          await prefs.setString(_plusPlanKey, plan.productId);
+        }
         final period = plan == PlusPlan.monthly
             ? const Duration(days: 31)
             : const Duration(days: 366);
@@ -647,6 +686,7 @@ class EntitlementService {
     _lastSeen = null;
     _plusLifetime = false;
     _plusUntilMs = 0;
+    _plusPlanId = null;
     _ownedRoyals = <String>{};
     _dismissedNotices = <String>{};
   }

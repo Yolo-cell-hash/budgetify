@@ -270,4 +270,86 @@ void main() {
       expect(await allowed, isFalse);
     });
   }
+
+  group('the paywall stops selling what you already have', () {
+    /// Put the user on [plan] with a live window, the way a real purchase does.
+    Future<void> own(PlusPlan plan) async {
+      EntitlementService.debugTrialRestartAt = DateTime.utc(2020, 1, 1);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(
+          'entitlement_first_launch_at',
+          DateTime.now()
+              .subtract(const Duration(days: 400))
+              .millisecondsSinceEpoch);
+      EntitlementService().resetForTest();
+      await EntitlementService().initialize();
+      await EntitlementService().registerPlusPurchase(plan.productId,
+          purchaseTimeMs: DateTime.now().millisecondsSinceEpoch);
+    }
+
+    double opacityOf(WidgetTester tester, String planLabel) {
+      final op = tester.widget<Opacity>(
+        find
+            .ancestor(of: find.text(planLabel), matching: find.byType(Opacity))
+            .first,
+      );
+      return op.opacity;
+    }
+
+    testWidgets('on Monthly: nothing is spent, the rest are upgrades',
+        (tester) async {
+      await own(PlusPlan.monthly);
+      await tester.pumpWidget(host());
+      await tester.pump(const Duration(seconds: 1));
+
+      final en = AppStrings(AppLanguage.english);
+      expect(find.text(en.plusPlanActive), findsOneWidget);
+      expect(find.text(en.plusPlanUpgrade), findsNWidgets(2),
+          reason: 'Yearly and Lifetime are both a step up from Monthly');
+      expect(find.textContaining(en.plusPlanMonthly), findsWidgets);
+      expect(opacityOf(tester, en.plusPlanMonthly), 1.0,
+          reason: 'the plan you are ON is never greyed');
+    });
+
+    testWidgets('on Yearly: Monthly is spent, Lifetime is the only upgrade',
+        (tester) async {
+      await own(PlusPlan.yearly);
+      await tester.pumpWidget(host());
+      await tester.pump(const Duration(seconds: 1));
+
+      final en = AppStrings(AppLanguage.english);
+      expect(find.text(en.plusPlanActive), findsOneWidget);
+      expect(find.text(en.plusPlanUpgrade), findsOneWidget,
+          reason: 'only Lifetime outranks Yearly');
+      expect(opacityOf(tester, en.plusPlanMonthly), lessThan(1.0),
+          reason: 'a cheaper plan is not a thing you can buy from here');
+    });
+
+    testWidgets('on Lifetime: there is nothing left to sell', (tester) async {
+      await own(PlusPlan.lifetime);
+      await tester.pumpWidget(host());
+      await tester.pump(const Duration(seconds: 1));
+
+      final en = AppStrings(AppLanguage.english);
+      expect(find.text(en.plusPlanUpgrade), findsNothing);
+      expect(find.text(en.plusPlanActive), findsOneWidget);
+      expect(opacityOf(tester, en.plusPlanMonthly), lessThan(1.0));
+      expect(opacityOf(tester, en.plusPlanYearly), lessThan(1.0));
+    });
+
+    testWidgets('a spent tile cannot be selected', (tester) async {
+      await own(PlusPlan.yearly);
+      await tester.pumpWidget(host());
+      await tester.pump(const Duration(seconds: 1));
+
+      final en = AppStrings(AppLanguage.english);
+      await tester.tap(find.text(en.plusPlanMonthly), warnIfMissed: false);
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Selection did not move onto the plan they cannot buy.
+      expect(find.text(en.plusPlanActive), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
 }

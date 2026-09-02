@@ -94,8 +94,13 @@ abstract class BillingGateway {
   /// handed to the billing flow decides what Play charges. The caller owns
   /// that decision because the calendar that governs it ([PlusOffer]) lives in
   /// this app, not in the Console.
+  ///
+  /// [replaces] names a subscription the buyer is already on, so Play REPLACES
+  /// it instead of selling a second one alongside it. Required whenever they
+  /// move between plus_monthly and plus_yearly, which are separate Play
+  /// products rather than base plans of one subscription.
   Future<BillingResult> launchPurchase(String productId,
-      {bool preferOffer = false});
+      {bool preferOffer = false, String? replaces});
 
   /// Play's own price for each of [productIds], keyed by product id.
   ///
@@ -139,7 +144,7 @@ class UnavailableBillingGateway implements BillingGateway {
 
   @override
   Future<BillingResult> launchPurchase(String productId,
-          {bool preferOffer = false}) async =>
+          {bool preferOffer = false, String? replaces}) async =>
       const BillingResult(BillingOutcome.unavailable);
 
   @override
@@ -241,10 +246,10 @@ class BillingService {
 
   /// Buy [productId] (a [PlusPlan] SKU or a `royal_*` product) and grant the
   /// entitlement locally on success.
-  Future<BillingOutcome> purchase(String productId) async {
+  Future<BillingOutcome> purchase(String productId, {String? replaces}) async {
     try {
       final result = await _gateway.launchPurchase(productId,
-          preferOffer: offerWindowOpen);
+          preferOffer: offerWindowOpen, replaces: replaces);
       if (result.outcome == BillingOutcome.success) {
         final p = result.purchase;
         await _grant(p?.productId ?? productId,
