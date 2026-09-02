@@ -105,6 +105,37 @@ class _PlusScreenState extends State<PlusScreen>
   /// says it's a real reduction. Before the store answers we fall back to the
   /// catalogue, which is honest exactly while it mirrors the Console — the
   /// same assumption the constants already rest on.
+  /// The plan currently providing access, or null while nothing is owned.
+  /// Read once per build so a purchase mid-screen can't make tiles disagree.
+  PlusPlan? get _activePlan => EntitlementService().activePlusPlan;
+
+  /// Tier order, cheapest first. The whole "what can I still buy" rule reduces
+  /// to comparing rank against what is already owned.
+  static int _rank(PlusPlan p) => switch (p) {
+        PlusPlan.monthly => 0,
+        PlusPlan.yearly => 1,
+        PlusPlan.lifetime => 2,
+      };
+
+  bool _isActive(PlusPlan p) => _activePlan == p;
+
+  /// A plan at or below what is already owned: nothing to sell, so it is shown
+  /// greyed rather than hidden — disappearing tiles would make the catalogue
+  /// look broken, and the buyer still wants to see what they are on.
+  bool _isSpent(PlusPlan p) {
+    final active = _activePlan;
+    if (active == null || active == p) return false;
+    return _rank(p) < _rank(active) || active == PlusPlan.lifetime;
+  }
+
+  /// A genuine step up from what is owned.
+  bool _isUpgrade(PlusPlan p) {
+    final active = _activePlan;
+    return active != null && _rank(p) > _rank(active);
+  }
+
+  bool _isBuyable(PlusPlan p) => !_isActive(p) && !_isSpent(p);
+
   bool _discountIsReal(PlusPlan plan) {
     if (!_onOffer) return false;
     final live = _livePrices[plan.productId];
@@ -181,13 +212,37 @@ class _PlusScreenState extends State<PlusScreen>
 
   Future<void> _buy() async {
     if (_busy) return;
+    final target = _selected;
+    if (!_isBuyable(target)) return;
     setState(() => _busy = true);
     final l10n = context.l10nRead;
-    final outcome = await BillingService().purchase(_selected.productId);
+
+    // Moving between two SUBSCRIPTIONS has to replace, not stack: plus_monthly
+    // and plus_yearly are separate Play products, so buying one while the
+    // other runs would bill both. Lifetime is a one-time product and cannot
+    // replace a subscription, which is what the reminder below is for.
+    final was = _activePlan;
+    final swapping = was != null &&
+        was != PlusPlan.lifetime &&
+        target != PlusPlan.lifetime;
+
+    final outcome = await BillingService().purchase(
+      target.productId,
+      replaces: swapping ? was.productId : null,
+    );
     if (!mounted) return;
     setState(() => _busy = false);
     switch (outcome) {
       case BillingOutcome.success:
+        // Bought Plus outright while still renting it. Play cannot cancel the
+        // subscription for us and will keep charging until the user does, so
+        // say so plainly rather than let them find out on a statement.
+        if (target == PlusPlan.lifetime &&
+            was != null &&
+            was != PlusPlan.lifetime) {
+          await _showCancelReminder(l10n);
+          if (!mounted) return;
+        }
         showAppToast(context,
             message: l10n.plusActive, type: AppToastType.success);
         Navigator.of(context).pop();
@@ -199,6 +254,30 @@ class _PlusScreenState extends State<PlusScreen>
       case BillingOutcome.error:
         break; // store UI already told the story; nothing to add
     }
+  }
+
+  /// Tell a fresh lifetime owner to stop the subscription they no longer need.
+  ///
+  /// No deep link on purpose: this app ships without INTERNET and without a
+  /// URL launcher, so it names the path instead of pretending to open it.
+  Future<void> _showCancelReminder(AppStrings l10n) async {
+    final colors = AppColors.of(context);
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: colors.card,
+        title: Text(l10n.plusCancelSubTitle,
+            style: TextStyle(color: colors.text)),
+        content: Text(l10n.plusCancelSubBody,
+            style: TextStyle(color: colors.textSecondary, height: 1.45)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(l10n.gotIt),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _restore() async {
@@ -264,6 +343,10 @@ class _PlusScreenState extends State<PlusScreen>
                     ],
                     _staggered(2, _featureList(colors, l10n)),
                     const SizedBox(height: 22),
+                    if (_activePlan != null) ...[
+                      _staggered(2, _activePlanBanner(colors, l10n)),
+                      const SizedBox(height: 14),
+                    ],
                     for (final (i, plan) in const [
                       PlusPlan.lifetime,
                       PlusPlan.yearly,
@@ -451,15 +534,82 @@ class _PlusScreenState extends State<PlusScreen>
     );
   }
 
+  /// What the buyer already has, stated before the tiles that try to sell more.
+  ///
+  /// Someone who opens this screen while paying deserves the answer to "what
+  /// am I on and until when" before any pitch — and it is the piece that makes
+  /// the greyed-out tiers read as informative rather than broken.
+  Widget _activePlanBanner(AppColors colors, AppStrings l10n) {
+    final plan = _activePlan!;
+    final name = switch (plan) {
+      PlusPlan.monthly => l10n.plusPlanMonthly,
+      PlusPlan.yearly => l10n.plusPlanYearly,
+      PlusPlan.lifetime => l10n.plusPlanLifetime,
+    };
+    final until = EntitlementService().plusAccessUntil;
+    final detail = plan == PlusPlan.lifetime || until == null
+        ? l10n.plusCoveredForever
+        : l10n.plusCoveredUntil(DateFormat.yMMMd().format(until));
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+      decoration: BoxDecoration(
+        color: colors.cardAlt,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.brandAccentDeep, width: 1.4),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.verified_rounded, size: 20, color: colors.brandAccentDeep),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n.plusOnPlan(name),
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: colors.text,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  detail,
+                  style: TextStyle(fontSize: 12, color: colors.textSecondary),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _planCard(AppColors colors, AppStrings l10n, PlusPlan plan) {
-    final selected = _selected == plan;
-    final (name, cadence, chip) = switch (plan) {
+    final active = _isActive(plan);
+    final spent = _isSpent(plan);
+    final buyable = _isBuyable(plan);
+    final selected = _selected == plan && buyable;
+    final (name, cadence, marketingChip) = switch (plan) {
       PlusPlan.monthly => (l10n.plusPlanMonthly, l10n.plusPerMonth, null),
       PlusPlan.yearly => (l10n.plusPlanYearly, l10n.plusPerYear, l10n.plusBestValue),
       PlusPlan.lifetime => (l10n.plusPlanLifetime, l10n.plusOneTime, l10n.plusMostLoved),
     };
-    return GestureDetector(
-      onTap: () => setState(() => _selected = plan),
+    // What the plan IS to this buyer outranks what marketing calls it: someone
+    // already on Yearly needs to see "Active", not "Best value".
+    final chip = active
+        ? l10n.plusPlanActive
+        : _isUpgrade(plan)
+            ? l10n.plusPlanUpgrade
+            : marketingChip;
+    return Opacity(
+      // Spent tiers stay legible but visibly out of play; the active one keeps
+      // full contrast because it is the answer to "what am I on?".
+      opacity: spent ? 0.42 : 1,
+      child: GestureDetector(
+      onTap: buyable ? () => setState(() => _selected = plan) : null,
       child: AnimatedScale(
         scale: selected ? 1.0 : 0.98,
         duration: const Duration(milliseconds: 180),
@@ -592,6 +742,7 @@ class _PlusScreenState extends State<PlusScreen>
           ),
         ),
       ),
+    ),
     );
   }
 
