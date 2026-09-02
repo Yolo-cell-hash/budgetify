@@ -36,18 +36,27 @@ class _FakeGateway implements BillingGateway {
     return owned;
   }
 
-  @override
-  Future<BillingResult> launchPurchase(String productId) async =>
-      purchaseOutcome == BillingOutcome.success
-          // A real store hands back the receipt with the verdict; the fake
-          // must too, or the grant path never sees a purchase time.
-          ? BillingResult(purchaseOutcome, purchase: _p(productId))
-          : BillingResult(purchaseOutcome);
+  /// What the service last asked for, so a test can assert the CALENDAR is
+  /// what drives offer selection rather than the gateway guessing.
+  bool? lastPreferOffer;
 
   @override
-  Future<Map<String, StorePrice>> queryPrices(Iterable<String> productIds)
-      async =>
-          priceList;
+  Future<BillingResult> launchPurchase(String productId,
+      {bool preferOffer = false}) async {
+    lastPreferOffer = preferOffer;
+    return purchaseOutcome == BillingOutcome.success
+        // A real store hands back the receipt with the verdict; the fake
+        // must too, or the grant path never sees a purchase time.
+        ? BillingResult(purchaseOutcome, purchase: _p(productId))
+        : BillingResult(purchaseOutcome);
+  }
+
+  @override
+  Future<Map<String, StorePrice>> queryPrices(Iterable<String> productIds,
+      {bool preferOffer = false}) async {
+    lastPreferOffer = preferOffer;
+    return priceList;
+  }
 }
 
 BillingPurchase _p(String id) => BillingPurchase(
@@ -355,4 +364,67 @@ void main() {
       expect(await billing.prices(const ['plus_lifetime']), isEmpty);
     });
   });
+
+  group('the calendar decides the price, not the store', () {
+    /// Push first-launch back far enough that the free window has just closed,
+    /// which opens the seven-day welcome offer. Deterministic in a way a
+    /// festive window is not -- a suite run during Diwali must not see
+    /// different prices than one run in July.
+    Future<void> seedJustLapsedTrial() async {
+      // Make the 15 Aug 2026 restart clamp inert; otherwise every seeded
+      // anchor is dragged forward to it and no trial can ever have lapsed.
+      EntitlementService.debugTrialRestartAt = DateTime.utc(2020, 1, 1);
+      final prefs = await SharedPreferences.getInstance();
+      final ended = DateTime.now()
+          .subtract(EntitlementService.trialDuration)
+          .subtract(const Duration(days: 1));
+      await prefs.setInt(
+          'entitlement_first_launch_at', ended.millisecondsSinceEpoch);
+      await prefs.setInt(
+          'entitlement_last_seen_at', DateTime.now().millisecondsSinceEpoch);
+      entitlements.resetForTest();
+      await entitlements.initialize();
+    }
+
+    test('a live window asks the store for the offer', () async {
+      await seedJustLapsedTrial();
+      expect(entitlements.activeOffer, isNotNull,
+          reason: 'welcome week should be running');
+
+      final gw = _FakeGateway();
+      billing.gateway = gw;
+      await billing.purchase('plus_monthly');
+
+      expect(gw.lastPreferOffer, isTrue,
+          reason: 'the ₹29 offer is only ever applied because OUR calendar '
+              'asked for it - Play never applies it unasked');
+    });
+
+    test('what is quoted is what will be bought', () async {
+      // The paywall must not price one entry and purchase another, so both
+      // calls have to be handed the same answer.
+      await seedJustLapsedTrial();
+      final gw = _FakeGateway();
+      billing.gateway = gw;
+
+      await billing.prices(const ['plus_monthly']);
+      final quoted = gw.lastPreferOffer;
+      await billing.purchase('plus_monthly');
+
+      expect(gw.lastPreferOffer, quoted);
+    });
+
+    test('the flag always mirrors the offer window', () async {
+      // Whatever today happens to be, the two must never disagree.
+      EntitlementService.debugTrialRestartAt = DateTime.utc(2020, 1, 1);
+      await entitlements.initialize();
+      final gw = _FakeGateway();
+      billing.gateway = gw;
+      await billing.purchase('plus_lifetime');
+
+      expect(gw.lastPreferOffer, billing.offerWindowOpen);
+      expect(billing.offerWindowOpen, entitlements.activeOffer != null);
+    });
+  });
+
 }
