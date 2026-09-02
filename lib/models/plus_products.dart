@@ -54,6 +54,19 @@ enum PlusPlan {
   }
 }
 
+/// The Play Console offer tag carried by every Budgetify Plus discount offer.
+///
+/// Selection is by TAG rather than by offer id, so a later `diwali-29` or
+/// `holi-29` can sit alongside `plus-offer-monthly` and be picked up with no
+/// code change — they only have to carry this tag.
+///
+/// Eligibility on those offers is "Developer determined", which means Play
+/// returns the offer but never applies it on its own: the app must hand back
+/// its offer token. That is exactly what makes [PlusOffer] the single source
+/// of truth for when a discount runs — the Console holds a permanently active
+/// offer, and this app decides the calendar.
+const String kPlusOfferTag = 'plus-offer';
+
 /// Grace window added on top of a subscription period so a lapsed renewal
 /// (offline device, temporary card failure) never locks features the moment
 /// the clock ticks over. Truth is re-established by `queryPurchases` whenever

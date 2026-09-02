@@ -1,7 +1,10 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:in_app_purchase/in_app_purchase.dart';
+import 'package:in_app_purchase_android/in_app_purchase_android.dart';
+
+import '../models/plus_products.dart';
 
 import 'billing_service.dart';
 
@@ -41,6 +44,72 @@ import 'billing_service.dart';
 /// `completePurchase` is the plugin's acknowledge, so it runs for every
 /// delivered purchase that still wants it, on both paths, before anything else
 /// that could throw.
+/// One entry as Play described it, reduced to just what picking needs.
+///
+/// Deliberately plugin-free so [selectEntry] can be unit-tested without a
+/// platform channel: the messy extraction lives in [_describe], the decision
+/// lives here in the open.
+class OfferCandidate {
+  /// Null for a base plan. Non-null for an offer.
+  final String? offerId;
+  final List<String> tags;
+
+  /// First pricing phase — the discounted one when this is an offer.
+  final double price;
+
+  const OfferCandidate({
+    required this.offerId,
+    required this.tags,
+    required this.price,
+  });
+}
+
+/// Which of [candidates] to buy (and to quote), or null if there is nothing.
+///
+/// A Play subscription returns ONE entry per base plan or eligible offer, all
+/// under the same product id, and Play does not order them by price or by
+/// anything else useful. Taking `.first` — which this gateway used to do — is
+/// therefore a coin toss between the everyday price and a discount, and the
+/// paywall would quote one while Play charged the other.
+///
+///   * In a discount window, take the cheapest entry tagged [kPlusOfferTag].
+///     Cheapest is only a tiebreak; the tag is what identifies OUR offer, so
+///     an unrelated one Play happens to return can never be picked by accident.
+///   * Otherwise take the base plan — the entry with no offer id — so a
+///     permanently-active Console offer is simply not used out of season.
+///   * A one-time product has a single, offer-less entry and falls through to
+///     the base-plan branch unchanged.
+///
+/// Fails CLOSED: with no base plan and no eligible offer it returns the
+/// dearest entry rather than the cheapest, so an unreadable catalogue can
+/// never quietly undercharge.
+@visibleForTesting
+int? selectEntry(List<OfferCandidate> candidates, {required bool preferOffer}) {
+  if (candidates.isEmpty) return null;
+
+  if (preferOffer) {
+    int? best;
+    for (var i = 0; i < candidates.length; i++) {
+      if (!candidates[i].tags.contains(kPlusOfferTag)) continue;
+      if (best == null || candidates[i].price < candidates[best].price) best = i;
+    }
+    if (best != null) return best;
+    // Window open but the Console has no matching offer live. Fall through to
+    // the base plan: the paywall's own guard already refuses to draw a
+    // strikethrough unless Play confirms a real reduction.
+  }
+
+  for (var i = 0; i < candidates.length; i++) {
+    if (candidates[i].offerId == null) return i;
+  }
+
+  var dearest = 0;
+  for (var i = 1; i < candidates.length; i++) {
+    if (candidates[i].price > candidates[dearest].price) dearest = i;
+  }
+  return dearest;
+}
+
 class PlayBillingGateway implements BillingGateway {
   PlayBillingGateway({InAppPurchase? iap}) : _iap = iap ?? InAppPurchase.instance;
 
@@ -154,8 +223,8 @@ class PlayBillingGateway implements BillingGateway {
   }
 
   @override
-  Future<Map<String, StorePrice>> queryPrices(
-      Iterable<String> productIds) async {
+  Future<Map<String, StorePrice>> queryPrices(Iterable<String> productIds,
+      {bool preferOffer = false}) async {
     final ids = productIds.toSet();
     if (ids.isEmpty || !await isAvailable()) return const <String, StorePrice>{};
     final ProductDetailsResponse response;
@@ -171,12 +240,23 @@ class PlayBillingGateway implements BillingGateway {
     }
     // `price` is already formatted, localized and tax-inclusive — exactly the
     // string Play will show on its own sheet, which is the point: the two can
-    // no longer disagree. Subscriptions can repeat an id once per offer; the
-    // first wins, matching what [launchPurchase] would actually buy.
-    final out = <String, StorePrice>{};
+    // no longer disagree.
+    //
+    // A subscription repeats its id once per base plan and per eligible offer,
+    // so group first and then apply the SAME choice [launchPurchase] will make.
+    // Quoting and charging therefore agree by construction rather than by
+    // coincidence.
+    final grouped = <String, List<ProductDetails>>{};
     for (final p in response.productDetails) {
-      out.putIfAbsent(
-          p.id, () => StorePrice(formatted: p.price, amount: p.rawPrice));
+      (grouped[p.id] ??= <ProductDetails>[]).add(p);
+    }
+    final out = <String, StorePrice>{};
+    for (final entry in grouped.entries) {
+      final pick = _choose(entry.value, preferOffer);
+      if (pick != null) {
+        out[entry.key] =
+            StorePrice(formatted: pick.price, amount: pick.rawPrice);
+      }
     }
     for (final missing in ids.difference(out.keys.toSet())) {
       debugPrint('PlayBillingGateway.queryPrices: "$missing" is not a live '
@@ -186,7 +266,8 @@ class PlayBillingGateway implements BillingGateway {
   }
 
   @override
-  Future<BillingResult> launchPurchase(String productId) async {
+  Future<BillingResult> launchPurchase(String productId,
+      {bool preferOffer = false}) async {
     if (!await isAvailable()) {
       return const BillingResult(BillingOutcome.unavailable);
     }
@@ -212,23 +293,8 @@ class PlayBillingGateway implements BillingGateway {
       return const BillingResult(BillingOutcome.unavailable);
     }
 
-    if (response.productDetails.length > 1) {
-      // A subscription product yields ONE ProductDetails per base plan or
-      // offer, each carrying its own offerToken — and the token on whichever
-      // entry we hand to `buyNonConsumable` decides what Play charges. Play
-      // does not order these by price or eligibility, so with more than one
-      // entry `.first` is a coin toss between (say) ₹49 and a ₹29 promo.
-      //
-      // The Play Console for this app is therefore configured ONE BASE PLAN
-      // PER PRODUCT, NO OFFERS, which makes this list a singleton. If this
-      // ever fires, someone added an offer in the Console and the paywall's
-      // price and the charged price have silently come apart: either remove
-      // the offer, or teach this method to choose by offer tag.
-      debugPrint('PlayBillingGateway: "$productId" returned '
-          '${response.productDetails.length} offers - the charged price is '
-          'now non-deterministic. Expected exactly one base plan and no '
-          'offers in the Play Console.');
-    }
+    final chosen = _choose(response.productDetails, preferOffer);
+    if (chosen == null) return const BillingResult(BillingOutcome.error);
 
     // One flow per product; a second tap joins the first rather than opening
     // a second store sheet.
@@ -242,9 +308,16 @@ class PlayBillingGateway implements BillingGateway {
     try {
       // Subscriptions go through buyNonConsumable too — "consumable" here
       // means a product meant to be bought repeatedly, which none of ours are.
+      // Hand back the token of the entry we actually chose. The platform
+      // would fall back to reading it off productDetails anyway, but saying it
+      // out loud is the point of this change: the offer is applied because the
+      // calendar asked for it, never because it happened to sort first.
       launched = await _iap.buyNonConsumable(
-        purchaseParam:
-            PurchaseParam(productDetails: response.productDetails.first),
+        purchaseParam: GooglePlayPurchaseParam(
+          productDetails: chosen,
+          offerToken:
+              chosen is GooglePlayProductDetails ? chosen.offerToken : null,
+        ),
       );
     } catch (e) {
       debugPrint('buyNonConsumable($productId) threw: $e');
@@ -267,6 +340,36 @@ class PlayBillingGateway implements BillingGateway {
         return const BillingResult(BillingOutcome.pending);
       },
     );
+  }
+
+  /// Reduce one Play entry to the fields [selectEntry] needs.
+  ///
+  /// For subscriptions the offer metadata hangs off the wrapper at
+  /// [GooglePlayProductDetails.subscriptionIndex]; a one-time product has none,
+  /// which correctly reads as a base plan.
+  OfferCandidate _describe(ProductDetails pd) {
+    if (pd is GooglePlayProductDetails) {
+      final idx = pd.subscriptionIndex;
+      final all = pd.productDetails.subscriptionOfferDetails;
+      if (idx != null && all != null && idx < all.length) {
+        final d = all[idx];
+        return OfferCandidate(
+          offerId: d.offerId,
+          tags: d.offerTags,
+          price: pd.rawPrice,
+        );
+      }
+    }
+    return OfferCandidate(offerId: null, tags: const [], price: pd.rawPrice);
+  }
+
+  /// The entry to buy/quote for one product, applying [selectEntry].
+  ProductDetails? _choose(List<ProductDetails> entries, bool preferOffer) {
+    final i = selectEntry(
+      entries.map(_describe).toList(growable: false),
+      preferOffer: preferOffer,
+    );
+    return i == null ? null : entries[i];
   }
 
   Future<void> _onPurchases(List<PurchaseDetails> updates) async {
