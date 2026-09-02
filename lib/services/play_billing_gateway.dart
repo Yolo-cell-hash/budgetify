@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:in_app_purchase/in_app_purchase.dart';
+import 'package:in_app_purchase_android/billing_client_wrappers.dart';
 import 'package:in_app_purchase_android/in_app_purchase_android.dart';
 
 import '../models/plus_products.dart';
@@ -120,6 +121,14 @@ class PlayBillingGateway implements BillingGateway {
   /// Completers for purchases an active [launchPurchase] is awaiting, keyed by
   /// product id. At most one flow per product is in flight at a time.
   final Map<String, Completer<BillingResult>> _awaiting = {};
+
+  /// The raw Play receipt for everything currently owned, keyed by product id.
+  ///
+  /// A subscription swap has to hand Play the OLD purchase, and it wants the
+  /// plugin's own [GooglePlayPurchaseDetails] -- our [BillingPurchase] carries
+  /// too little. Filled from every purchased/restored update, including the
+  /// restore pass [queryPurchases] runs.
+  final Map<String, GooglePlayPurchaseDetails> _owned = {};
 
   /// Collector used only while [queryPurchases] is running.
   List<BillingPurchase>? _restoreBucket;
@@ -267,7 +276,7 @@ class PlayBillingGateway implements BillingGateway {
 
   @override
   Future<BillingResult> launchPurchase(String productId,
-      {bool preferOffer = false}) async {
+      {bool preferOffer = false, String? replaces}) async {
     if (!await isAvailable()) {
       return const BillingResult(BillingOutcome.unavailable);
     }
@@ -317,6 +326,7 @@ class PlayBillingGateway implements BillingGateway {
           productDetails: chosen,
           offerToken:
               chosen is GooglePlayProductDetails ? chosen.offerToken : null,
+          changeSubscriptionParam: await _swapFrom(replaces),
         ),
       );
     } catch (e) {
@@ -372,6 +382,39 @@ class PlayBillingGateway implements BillingGateway {
     return i == null ? null : entries[i];
   }
 
+  /// Describe the subscription [replaces] is on, so Play REPLACES it rather
+  /// than selling a second one alongside it.
+  ///
+  /// plus_monthly and plus_yearly are separate Play products, not two base
+  /// plans of one subscription, so without this a monthly subscriber who
+  /// "upgrades" simply ends up paying for both. withTimeProration switches
+  /// them over immediately and credits the time they already paid for -- the
+  /// only fair mode when the billing periods differ.
+  ///
+  /// Null when there is nothing to replace, so an ordinary first purchase
+  /// falls through unchanged.
+  Future<ChangeSubscriptionParam?> _swapFrom(String? replaces) async {
+    if (replaces == null) return null;
+    var old = _owned[replaces];
+    if (old == null) {
+      // Cold start: nothing has come down the stream yet. A restore pass
+      // re-emits everything the account owns, which fills the cache.
+      await queryPurchases();
+      old = _owned[replaces];
+    }
+    if (old == null) {
+      // Play does not think they own it, so there is nothing to replace and
+      // selling the new plan outright is the correct outcome.
+      debugPrint('PlayBillingGateway: asked to replace "$replaces" but Play '
+          'reports no such purchase; buying outright instead');
+      return null;
+    }
+    return ChangeSubscriptionParam(
+      oldPurchaseDetails: old,
+      replacementMode: ReplacementMode.withTimeProration,
+    );
+  }
+
   Future<void> _onPurchases(List<PurchaseDetails> updates) async {
     for (final d in updates) {
       // Acknowledge FIRST. Play auto-refunds anything unacknowledged after
@@ -384,11 +427,28 @@ class PlayBillingGateway implements BillingGateway {
         }
       }
 
+      // A verdict with NO product attached. The plugin synthesises one of
+      // these whenever Play answers with an empty purchase list -- the user
+      // backing out, ITEM_ALREADY_OWNED, most billing errors -- and it carries
+      // `productID: ''`. Keyed by product it would match no waiter at all, so
+      // the purchase future would hang until its five-minute timeout: a buy
+      // button spinning long after the buyer simply changed their mind. Route
+      // it to whatever flow is actually in flight instead.
+      if (d.productID.isEmpty) {
+        _resolveAllAwaiting(switch (d.status) {
+          PurchaseStatus.canceled => BillingOutcome.cancelled,
+          PurchaseStatus.pending => BillingOutcome.pending,
+          _ => BillingOutcome.error,
+        }, d);
+        continue;
+      }
+
       final waiting = _awaiting[d.productID];
       switch (d.status) {
         case PurchaseStatus.purchased:
         case PurchaseStatus.restored:
           final purchase = _toBillingPurchase(d);
+          if (d is GooglePlayPurchaseDetails) _owned[d.productID] = d;
           final bucket = _restoreBucket;
           if (bucket != null) {
             bucket.add(purchase);
@@ -427,6 +487,20 @@ class PlayBillingGateway implements BillingGateway {
           }
       }
     }
+  }
+
+  /// Hand [outcome] to every in-flight purchase. Used only for verdicts Play
+  /// reports without naming a product; there is at most one flow open per
+  /// product and, in practice, only one open at all.
+  void _resolveAllAwaiting(BillingOutcome outcome, PurchaseDetails d) {
+    if (_awaiting.isEmpty) return;
+    debugPrint('PlayBillingGateway: product-less ${d.status} '
+        '(${d.error?.message ?? 'no message'}) -> resolving '
+        '${_awaiting.length} in-flight purchase(s) as $outcome');
+    for (final completer in List.of(_awaiting.values)) {
+      if (!completer.isCompleted) completer.complete(BillingResult(outcome));
+    }
+    _awaiting.clear();
   }
 
   BillingPurchase _toBillingPurchase(PurchaseDetails d) => BillingPurchase(

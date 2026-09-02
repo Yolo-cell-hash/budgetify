@@ -40,10 +40,14 @@ class _FakeGateway implements BillingGateway {
   /// what drives offer selection rather than the gateway guessing.
   bool? lastPreferOffer;
 
+  /// The subscription the service asked Play to replace, if any.
+  String? lastReplaces;
+
   @override
   Future<BillingResult> launchPurchase(String productId,
-      {bool preferOffer = false}) async {
+      {bool preferOffer = false, String? replaces}) async {
     lastPreferOffer = preferOffer;
+    lastReplaces = replaces;
     return purchaseOutcome == BillingOutcome.success
         // A real store hands back the receipt with the verdict; the fake
         // must too, or the grant path never sees a purchase time.

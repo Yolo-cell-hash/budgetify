@@ -5294,6 +5294,68 @@ class AppStrings {
         'పన్ను మినహాయింపు ఎగుమతులు',
         'வரி விலக்கு ஏற்றுமதிகள்',
       );
+  /// Chip on the plan the buyer is already on.
+  String get plusPlanActive => _t('Active', 'सक्रिय', 'सक्रिय', 'সক্রিয়', 'యాక్టివ్', 'செயலில்');
+
+  /// Chip on a plan that is a genuine step up from the one they hold.
+  String get plusPlanUpgrade => _t(
+        'Upgrade Plan',
+        'प्लान अपग्रेड करें',
+        'प्लॅन अपग्रेड करा',
+        'প্ল্যান আপগ্রেড করুন',
+        'ప్లాన్ అప్‌గ్రేడ్ చేయండి',
+        'திட்டத்தை மேம்படுத்து',
+      );
+
+  /// Banner above the plans: which one is running.
+  String plusOnPlan(String plan) => _t(
+        "You're on $plan",
+        'आप $plan पर हैं',
+        'तुम्ही $plan वर आहात',
+        'আপনি $plan-এ আছেন',
+        'మీరు $plan లో ఉన్నారు',
+        'நீங்கள் $plan இல் உள்ளீர்கள்',
+      );
+
+  /// How long access is guaranteed. Deliberately not "renews on" — Play owns
+  /// the billing schedule and the app never sees it.
+  String plusCoveredUntil(String date) => _t(
+        'Covered through $date',
+        '$date तक कवर',
+        '$date पर्यंत कव्हर',
+        '$date পর্যন্ত কভার',
+        '$date వరకు కవర్',
+        '$date வரை உள்ளடக்கம்',
+      );
+
+  /// Lifetime is forever, no date to show.
+  String get plusCoveredForever => _t(
+        'Yours forever — no renewals',
+        'हमेशा के लिए आपका — कोई नवीनीकरण नहीं',
+        'कायमचे तुमचे — नूतनीकरण नाही',
+        'চিরকাল আপনার — কোনো নবায়ন নেই',
+        'ఎప్పటికీ మీదే — పునరుద్ధరణలు లేవు',
+        'என்றென்றும் உங்களுடையது — புதுப்பித்தல் இல்லை',
+      );
+
+  String get plusCancelSubTitle => _t(
+        'Cancel your subscription',
+        'अपनी सब्सक्रिप्शन रद्द करें',
+        'तुमची सबस्क्रिप्शन रद्द करा',
+        'আপনার সাবস্ক্রিপশন বাতিল করুন',
+        'మీ సబ్‌స్క్రిప్షన్‌ను రద్దు చేయండి',
+        'உங்கள் சந்தாவை ரத்து செய்யுங்கள்',
+      );
+
+  String get plusCancelSubBody => _t(
+        "Plus is yours forever now. Your old subscription won't stop on its own — open the Play Store, go to Payments and subscriptions, and cancel it, or you'll keep being charged.",
+        'Plus अब हमेशा के लिए आपका है। आपकी पुरानी सब्सक्रिप्शन अपने आप बंद नहीं होगी — Play Store खोलें, भुगतान और सदस्यताएँ में जाएँ और उसे रद्द करें, वरना शुल्क लगता रहेगा।',
+        'Plus आता कायमचे तुमचे आहे. तुमची जुनी सबस्क्रिप्शन आपोआप थांबणार नाही — Play Store उघडा, पेमेंट आणि सदस्यता मध्ये जा आणि ती रद्द करा, अन्यथा शुल्क सुरू राहील.',
+        'Plus এখন চিরকাল আপনার। আপনার পুরোনো সাবস্ক্রিপশন নিজে থেকে বন্ধ হবে না — Play Store খুলুন, পেমেন্ট ও সাবস্ক্রিপশনে যান এবং সেটি বাতিল করুন, নাহলে চার্জ চলতেই থাকবে।',
+        'Plus ఇప్పుడు ఎప్పటికీ మీదే. మీ పాత సబ్‌స్క్రిప్షన్ దానంతట అది ఆగదు — Play Store తెరిచి, చెల్లింపులు మరియు సబ్‌స్క్రిప్షన్‌లలోకి వెళ్లి దాన్ని రద్దు చేయండి, లేకపోతే ఛార్జీలు కొనసాగుతాయి.',
+        'Plus இப்போது என்றென்றும் உங்களுடையது. உங்கள் பழைய சந்தா தானாக நிற்காது — Play Store ஐத் திறந்து, கட்டணங்கள் மற்றும் சந்தாக்கள் பகுதிக்குச் சென்று அதை ரத்து செய்யுங்கள், இல்லையெனில் கட்டணம் தொடரும்.',
+      );
+
   String get plusPlanMonthly => _t('Monthly', 'मासिक', 'मासिक', 'মাসিক', 'నెలవారీ', 'மாதாந்திர');
   String get plusPlanYearly => _t('Yearly', 'वार्षिक', 'वार्षिक', 'বার্ষিক', 'వార్షిక', 'வருடாந்திர');
   String get plusPlanLifetime => _t('Lifetime', 'लाइफ़टाइम', 'लाइफटाइम', 'লাইফটাইম', 'లైఫ్‌టైమ్', 'வாழ்நாள்');

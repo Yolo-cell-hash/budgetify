@@ -1109,31 +1109,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  /// The row itself. Two states:
+  /// The row itself. Two states, both of which now lead somewhere:
   ///
-  ///   * **owned** — a plain confirmation with no chevron and no tap. Sending
-  ///     a paying user back to a screen that sells what they already own is
-  ///     the one version of this row that would feel like a shakedown.
+  ///   * **owned** — names the plan and how long it is covered for, and opens
+  ///     the Plus screen. That screen used to be nothing but a pitch, which is
+  ///     why a paying user was deliberately kept out of it; it now leads with
+  ///     what they already have and greys out what they cannot buy, so it is
+  ///     the natural home for "what does my plan include, and until when".
   ///   * **lapsed** — the ask, named in terms of what comes back rather than
   ///     what was taken away.
   Widget _buildPlusTile({required bool owned}) {
     final colors = AppColors.of(context);
+    final l10n = context.l10n;
+    final entitlements = EntitlementService();
+    final plan = entitlements.activePlusPlan;
+
+    String subtitle() {
+      if (!owned) return l10n.plusSettingsLockedDesc;
+      if (plan == null) return l10n.plusSettingsOwnedDesc;
+      final name = switch (plan) {
+        PlusPlan.monthly => l10n.plusPlanMonthly,
+        PlusPlan.yearly => l10n.plusPlanYearly,
+        PlusPlan.lifetime => l10n.plusPlanLifetime,
+      };
+      final until = entitlements.plusAccessUntil;
+      final detail = plan == PlusPlan.lifetime || until == null
+          ? l10n.plusCoveredForever
+          : l10n.plusCoveredUntil(DateFormat.yMMMd().format(until));
+      return '${l10n.plusOnPlan(name)} · $detail';
+    }
+
     return ListTile(
       leading: Icon(
         owned ? Icons.workspace_premium_rounded : Icons.auto_awesome_rounded,
         color: Theme.of(context).colorScheme.primary,
       ),
-      title: Text(context.l10n.plusTitle),
+      title: Text(l10n.plusTitle),
       subtitle: Text(
-        owned
-            ? context.l10n.plusSettingsOwnedDesc
-            : context.l10n.plusSettingsLockedDesc,
-        style: TextStyle(
-          color: colors.textSecondary,
-        ),
+        subtitle(),
+        style: TextStyle(color: colors.textSecondary),
       ),
-      trailing: owned ? null : const Icon(Icons.chevron_right_rounded, size: 20),
-      onTap: owned ? null : _openPlusScreen,
+      trailing: const Icon(Icons.chevron_right_rounded, size: 20),
+      onTap: _openPlusScreen,
     );
   }
 
