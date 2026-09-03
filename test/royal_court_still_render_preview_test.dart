@@ -21,7 +21,7 @@ import 'package:budget_tracker/providers/app_preferences.dart';
 import 'package:budget_tracker/providers/locale_provider.dart';
 import 'package:budget_tracker/providers/theme_provider.dart';
 import 'package:budget_tracker/widgets/royal_avatars.dart';
-import 'package:budget_tracker/widgets/royal_court_still.dart';
+import 'package:budget_tracker/widgets/royal_showcase.dart';
 
 const _outDirOverride = String.fromEnvironment('COURT_STILL_OUT');
 
@@ -71,7 +71,7 @@ void main() {
                     backgroundColor: AppColors.of(ctx).surface,
                     body: Padding(
                       padding: const EdgeInsets.all(20),
-                      child: RoyalCourtStill(royal: royal),
+                      child: RoyalShowcase(royal: royal),
                     ),
                   ),
                 ),
@@ -79,8 +79,10 @@ void main() {
             ),
           ),
         );
-        // Land mid-wave, where the character is facing the reader and standing
-        // still — the frame a contact sheet is judged on.
+        // Swipe to the still (page two of the showcase), then land mid-wave —
+        // the frame a contact sheet is judged on.
+        await tester.pump();
+        await tester.drag(find.byType(PageView), const Offset(-400, 0));
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 3300));
         expect(tester.takeException(), isNull,

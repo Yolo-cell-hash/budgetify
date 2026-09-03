@@ -22,13 +22,21 @@ class RoyalPreviewStage extends StatefulWidget {
     super.key,
     required this.royal,
     this.height = 132,
+    this.scale = 1,
   });
 
   final RoyalAvatar royal;
 
   /// Stage height. The figure is drawn at its own box size inside this, so a
-  /// taller stage gives the character more air, never a bigger character.
+  /// taller stage gives the character more air, never a bigger character —
+  /// [scale] is what makes the character itself bigger.
   final double height;
+
+  /// Multiplies the character's box. 1 is the size the reaction host draws at,
+  /// which is right for a strip tucked between other content; a showcase that
+  /// gives the reel a whole page wants the figure to actually fill it, or the
+  /// extra height reads as empty room rather than presence.
+  final double scale;
 
   @override
   State<RoyalPreviewStage> createState() => _RoyalPreviewStageState();
@@ -161,8 +169,8 @@ class _RoyalPreviewStageState extends State<RoyalPreviewStage>
               : kRoyalStandBox;
           return Center(
             child: SizedBox(
-              width: box.width,
-              height: box.height,
+              width: box.width * widget.scale,
+              height: box.height * widget.scale,
               child: CustomPaint(
                 painter: RoyalCharacterPainter(
                   royal: widget.royal,
