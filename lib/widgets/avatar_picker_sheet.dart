@@ -7,10 +7,12 @@ import 'package:provider/provider.dart';
 
 import '../l10n/l10n.dart';
 
+import '../models/achievement.dart';
 import '../models/plus_offers.dart';
 import '../models/plus_products.dart';
 import '../providers/app_preferences.dart';
 import '../providers/theme_provider.dart';
+import '../screens/trophy_room_screen.dart' show gamiFormat;
 import '../services/app_icon_service.dart';
 import '../services/billing_service.dart';
 import '../services/entitlement_service.dart';
@@ -18,7 +20,9 @@ import '../services/gamification_service.dart';
 import 'app_dialog.dart';
 import 'app_toast.dart';
 import 'avatars.dart';
+import 'badge_medallion.dart';
 import 'royal_avatars.dart';
+import 'royal_court_still.dart';
 import 'royal_preview_stage.dart';
 
 /// Edit the profile's avatar (emoji or procedural pixel) + accent + username.
@@ -32,6 +36,15 @@ import 'royal_preview_stage.dart';
 /// the host can persist it; buying goes straight to [BillingService], which
 /// records ownership itself. The currently-equipped royal (if any) is always
 /// treated as unlocked, so nobody loses their face.
+///
+/// ELITE characters are gated too, on achievement badges rather than money.
+/// [stats] is the snapshot every badge is evaluated against, so the sheet can
+/// say both whether a character is open and how far off it still is. Pass null
+/// only where stats genuinely aren't to hand — the section then reads as fully
+/// locked, which is honest but joyless, so prefer passing them.
+/// [legacyEliteSlots] are the elites the user was already wearing when the tier
+/// was re-gated (`GamificationService.legacyEliteSlots()`); they stay open
+/// whatever the badges say.
 Future<GamiProfile?> showAvatarPicker(
   BuildContext context,
   GamiProfile initial, {
@@ -39,6 +52,8 @@ Future<GamiProfile?> showAvatarPicker(
   int royalPicksAvailable = 0,
   Future<void> Function(String royalId)? onUnlockRoyal,
   bool scrollToRoyalty = false,
+  GamiStats? stats,
+  Set<int> legacyEliteSlots = const {},
   DateTime Function()? nowSource,
 }) {
   return showModalBottomSheet<GamiProfile>(
@@ -51,6 +66,8 @@ Future<GamiProfile?> showAvatarPicker(
       royalPicksAvailable: royalPicksAvailable,
       onUnlockRoyal: onUnlockRoyal,
       scrollToRoyalty: scrollToRoyalty,
+      stats: stats,
+      legacyEliteSlots: legacyEliteSlots,
       nowSource: nowSource,
     ),
   );
@@ -115,6 +132,13 @@ class _AvatarPickerSheet extends StatefulWidget {
   final Future<void> Function(String royalId)? onUnlockRoyal;
   final bool scrollToRoyalty;
 
+  /// The achievement snapshot the ELITE section is gated on. Null means "no
+  /// stats to hand" — every elite reads as locked, with no progress to show.
+  final GamiStats? stats;
+
+  /// Elite sprite slots banked before the tier was re-gated — open regardless.
+  final Set<int> legacyEliteSlots;
+
   /// Injectable clock. A royal's price depends on the calendar (offer
   /// windows), so a test must be able to pin the date — otherwise the same
   /// suite would quote a different price at Diwali than in July. Null in
@@ -127,6 +151,8 @@ class _AvatarPickerSheet extends StatefulWidget {
     this.royalPicksAvailable = 0,
     this.onUnlockRoyal,
     this.scrollToRoyalty = false,
+    this.stats,
+    this.legacyEliteSlots = const {},
     this.nowSource,
   });
 
@@ -137,6 +163,33 @@ class _AvatarPickerSheet extends StatefulWidget {
 class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
   // Royals the user may equip — only those unlocked with a streak pick.
   late final Set<String> _unlocked = {...widget.unlockedRoyals};
+
+  /// Every achievement badge already earned. The ELITE section reads nothing
+  /// else: a character is open exactly when its badge is in here.
+  late final Set<String> _earnedBadges =
+      widget.stats == null ? const <String>{} : earnedBadgeIds(widget.stats!);
+
+  /// Elites banked before the gate (see `GamificationService.legacyEliteSlots`)
+  /// plus, belt and braces, whatever the profile walked in wearing — the host
+  /// records that on load, but a caller that skipped the service should still
+  /// never grey out the user's own face.
+  late final Set<int> _legacyElites = {
+    ...widget.legacyEliteSlots,
+    ?_initialEliteSlot(),
+  };
+
+  int? _initialEliteSlot() {
+    if (widget.initial.avatarKind != 'pixel') return null;
+    final seed = int.tryParse(widget.initial.avatarValue);
+    return seed != null && eliteAvatarAt(seed) != null ? seed : null;
+  }
+
+  bool _eliteUnlocked(EliteAvatar e) =>
+      _earnedBadges.contains(e.badgeId) ||
+      _legacyElites.contains(e.spriteIndex);
+
+  /// How many elites are open, for the section's own status line.
+  int get _eliteUnlockedCount => kEliteAvatars.where(_eliteUnlocked).length;
 
   // The roster is pixel-only; a legacy emoji profile opens on its migration
   // sprite. A royal that isn't unlocked (e.g. one restored from a pre-gating
@@ -398,7 +451,7 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
                   _option(colors, '$seed', '$seed' == _value),
               ],
             ),
-            // Elite characters: the showpiece art, in its own category.
+            // Elite characters: showpiece art, each behind its own badge.
             const SizedBox(height: 16),
             Row(
               children: [
@@ -408,6 +461,25 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
                   Icons.workspace_premium_rounded,
                   size: 14,
                   color: colors.brandAccent,
+                ),
+                const Spacer(),
+                // The scoreboard. A row of ten locked circles reads as "these
+                // are not for you"; "3 / 10 earned" reads as a score with more
+                // of it to get — the whole difference between a wall and a
+                // ladder is knowing where you are on it.
+                Text(
+                  context.l10n.eliteEarnedCount(
+                    _eliteUnlockedCount,
+                    kEliteAvatars.length,
+                  ),
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.2,
+                    color: _eliteUnlockedCount == kEliteAvatars.length
+                        ? colors.brandAccent
+                        : colors.textTertiary,
+                  ),
                 ),
               ],
             ),
@@ -765,6 +837,33 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
                   color: colors.textTertiary,
                 ),
               ),
+              const SizedBox(height: 18),
+              // ...and where that character ends up. The reel above shows the
+              // performance; this shows the app it performs in, because the
+              // court's other half is a THEME and a theme has nothing to show
+              // on a velvet rectangle. Same reasoning as the reel — a buyer
+              // who cannot see it is being asked to pay for a description —
+              // so it runs on the locked sheet too.
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Row(
+                  children: [
+                    Text(
+                      ctx.l10n.royalStillLabel,
+                      style: TextStyle(
+                        fontSize: 11,
+                        letterSpacing: 1.4,
+                        fontWeight: FontWeight.w700,
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Icon(Icons.smartphone_rounded, size: 14, color: accent),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              RoyalCourtStill(royal: r),
               const SizedBox(height: 14),
               // Unlocked royals get the app-wide theme toggle + Equip. A
               // still-locked royal shows either a free Unlock action (a pick
@@ -1198,31 +1297,66 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
     );
   }
 
-  /// An elite character tile — always selectable, named under the art.
+  /// An elite tile. Earned ones equip on tap; locked ones are dimmed under a
+  /// lock and open [_showEliteSheet], which names the badge and shows how far
+  /// off it is.
+  ///
+  /// The art stays VISIBLE behind the dim rather than becoming a silhouette. A
+  /// locked reward nobody can see is a reward nobody can want, and wanting it
+  /// is the entire mechanism.
   Widget _eliteOption(AppColors colors, EliteAvatar e) {
     final value = '${e.spriteIndex}';
     final selected = _value == value;
+    final unlocked = _eliteUnlocked(e);
     return GestureDetector(
-      onTap: () => setState(() => _value = value),
+      onTap: () {
+        if (unlocked) {
+          setState(() => _value = value);
+        } else {
+          _showEliteSheet(e);
+        }
+      },
       child: SizedBox(
         width: 56,
         child: Column(
           children: [
-            Container(
-              padding: const EdgeInsets.all(3),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: selected ? colors.brandAccent : Colors.transparent,
-                  width: 2.5,
+            Stack(
+              alignment: Alignment.bottomRight,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: selected ? colors.brandAccent : Colors.transparent,
+                      width: 2.5,
+                    ),
+                  ),
+                  child: Opacity(
+                    opacity: unlocked ? 1 : 0.32,
+                    child: AvatarView(
+                      kind: 'pixel',
+                      value: value,
+                      size: 46,
+                      ring: false,
+                    ),
+                  ),
                 ),
-              ),
-              child: AvatarView(
-                kind: 'pixel',
-                value: value,
-                size: 46,
-                ring: false,
-              ),
+                if (!unlocked)
+                  Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: colors.cardAlt,
+                      border: Border.all(color: colors.border),
+                    ),
+                    child: Icon(
+                      Icons.lock_rounded,
+                      size: 11,
+                      color: colors.textSecondary,
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(height: 4),
             Text(
@@ -1233,7 +1367,7 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
               style: TextStyle(
                 fontSize: 9,
                 fontWeight: FontWeight.w600,
-                color: colors.textSecondary,
+                color: unlocked ? colors.textSecondary : colors.textTertiary,
               ),
             ),
           ],
@@ -1241,4 +1375,159 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
       ),
     );
   }
+
+  /// The locked elite's sheet: the art being held back, the badge that opens
+  /// it, and live progress toward that badge.
+  ///
+  /// A toast was the old answer and it was the wrong shape — one line, gone in
+  /// three seconds, no sense of distance. What turns a lock into a goal is
+  /// seeing how close you already are, so the medallion, the requirement and
+  /// the bar all sit on one surface the user can stay with.
+  Future<void> _showEliteSheet(EliteAvatar e) async {
+    final badge = badgeById(e.badgeId);
+    // Roster/catalog drift: say nothing rather than open an empty sheet. The
+    // avatars suite asserts every elite badge resolves, so this is unreachable
+    // in a shipped build.
+    if (badge == null) return;
+    final group = badge.group;
+    final tier = group.tiers[badge.tierIndex];
+    final progress =
+        widget.stats == null ? null : evaluateGroup(group, widget.stats!);
+    // Progress toward THIS tier, not the group's next unearned one: someone
+    // already past tier 2 is all the way to a tier-1 elite, and a bar that
+    // restarted at every rung would understate what they have done.
+    final value = progress?.value ?? 0;
+    final toward = (value / tier.threshold.toDouble()).clamp(0.0, 1.0);
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      // The art, the medallion, two paragraphs, a bar and a button outgrow the
+      // default 9/16-of-screen cap on a short phone (and at any large text
+      // scale), which puts Close below a fold the user cannot see to scroll.
+      isScrollControlled: true,
+      builder: (ctx) {
+        final colors = AppColors.of(ctx);
+        return Container(
+          padding: const EdgeInsets.fromLTRB(24, 14, 24, 28),
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            border: Border.all(color: colors.border),
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: colors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                // The prize and the price side by side: the character being
+                // withheld, and the medal that releases it.
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Opacity(
+                      opacity: 0.4,
+                      child: AvatarView(
+                        kind: 'pixel',
+                        value: '${e.spriteIndex}',
+                        size: 68,
+                        ring: false,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Icon(Icons.lock_rounded,
+                        size: 18, color: colors.textTertiary),
+                    const SizedBox(width: 12),
+                    BadgeMedallion(
+                      rarity: tier.rarity,
+                      emblem: group.emblem,
+                      earned: false,
+                      size: 68,
+                      animate: false,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  ctx.l10n.eliteAvatarName(e.id),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.2,
+                    color: colors.text,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  ctx.l10n.eliteAvatarLock(
+                    ctx.l10n.achievementName(group.id),
+                    ctx.l10n.tierBadgeLabel(tier.label),
+                  ),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.4,
+                    color: colors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  ctx.l10n.achievementBlurb(group.id),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    height: 1.35,
+                    color: colors.textTertiary,
+                  ),
+                ),
+                if (progress != null) ...[
+                  const SizedBox(height: 16),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: toward,
+                      minHeight: 7,
+                      backgroundColor: colors.cardAlt,
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(colors.brandAccent),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    ctx.l10n.eliteAvatarProgress(
+                      gamiFormat(value, group.unit),
+                      gamiFormat(tier.threshold, group.unit),
+                    ),
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: Text(ctx.l10n.commonClose),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
 }

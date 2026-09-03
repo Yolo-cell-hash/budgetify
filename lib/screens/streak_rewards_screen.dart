@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../l10n/l10n.dart';
+import '../models/achievement.dart';
 import '../providers/theme_provider.dart';
 import '../services/app_events.dart';
 import '../services/gamification_service.dart';
@@ -32,6 +33,9 @@ class _StreakRewardsScreenState extends State<StreakRewardsScreen> {
   Map<DateTime, int> _appTime = const {};
   int _monthSeconds = 0;
   GamiProfile _profile = const GamiProfile();
+
+  /// Elite slots the user was already wearing when the tier was re-gated.
+  Set<int> _legacyElites = const {};
   Set<String> _unlockedRoyals = const {};
   // Streak-picked royals only — pick accounting must not count a royal
   // bought with money (unlockedRoyalIds unions purchases).
@@ -68,6 +72,8 @@ class _StreakRewardsScreenState extends State<StreakRewardsScreen> {
     final appTime = await _svc.appTimeByDay();
     final monthSecs = await _svc.monthAppSeconds();
     final profile = await _svc.loadProfile();
+    // After loadProfile — that is what banks an elite worn before the gate.
+    final legacyElites = await _svc.legacyEliteSlots();
     final unlockedRoyals = await _svc.unlockedRoyalIds();
     final picksSpent = (await _svc.streakPickedRoyalIds()).length;
     final royalPicks = await _svc.availableRoyalPicks();
@@ -80,6 +86,7 @@ class _StreakRewardsScreenState extends State<StreakRewardsScreen> {
         _appTime = appTime;
         _monthSeconds = monthSecs;
         _profile = profile;
+        _legacyElites = legacyElites;
         _unlockedRoyals = unlockedRoyals;
         _royalPicksSpent = picksSpent;
         _royalPicks = royalPicks;
@@ -88,9 +95,30 @@ class _StreakRewardsScreenState extends State<StreakRewardsScreen> {
     }
   }
 
+  /// The achievement snapshot the picker's ELITE section is gated on.
+  ///
+  /// Read HERE rather than in [_load] because it costs a full pass over the
+  /// transaction table, and this screen otherwise touches nothing but the
+  /// streak blob — it opens from Settings whether or not Gamified Budgets is
+  /// on. Paying that price on the one tap that opens a picker is right; paying
+  /// it every time somebody looks at their streak is not.
+  ///
+  /// Falls back to null on any failure. A locked ELITE row is a poor showing,
+  /// but the tap that got here was aimed at ROYALTY, and that part still works.
+  Future<GamiStats?> _pickerStats() async {
+    try {
+      return await _svc.computeStats();
+    } catch (e) {
+      debugPrint('StreakRewards: stats unreadable, elites read locked: $e');
+      return null;
+    }
+  }
+
   /// "Unlock Now" from a royal-pick milestone: open the picker straight at the
   /// ROYALTY section so the user can choose their royal, then refresh.
   Future<void> _openRoyaltyPicker() async {
+    final stats = await _pickerStats();
+    if (!mounted) return;
     final edited = await showAvatarPicker(
       context,
       _profile,
@@ -98,6 +126,8 @@ class _StreakRewardsScreenState extends State<StreakRewardsScreen> {
       royalPicksAvailable: _royalPicks,
       onUnlockRoyal: _svc.unlockRoyal,
       scrollToRoyalty: true,
+      stats: stats,
+      legacyEliteSlots: _legacyElites,
     );
     if (edited != null) {
       await _svc.saveProfile(edited);
