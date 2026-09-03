@@ -15,6 +15,7 @@
 #   0:30-0:37  game layer: 47-day streak, reward road, royals
 #   0:38-0:41  six languages
 #   0:42-0:51  privacy proof: cloud struck out, airplane mode, "0 trackers"
+#              (but the language slide is still fading until ~0:43)
 #   0:52-0:58  logo end card + "Get it free on Google Play"
 #
 # THE THREE CUTS
@@ -112,14 +113,43 @@ cut() {
   echo "  ${name}-16x9.mp4"
 }
 
+# THE FILM HAS NO HARD CUTS -- EVERY SCENE CHANGE IS A CROSSFADE. ffmpeg scene
+# detection finds nothing in it at any threshold, which is the tell. So an
+# in-point is only safe where the incoming scene has fully ARRIVED, not merely
+# where the section nominally starts, or the outgoing scene bleeds through as a
+# ghost for a few frames and the cut reads as a rendering fault.
+#
+# That is exactly what 42.5 did. It looks like the top of the privacy section,
+# and it is on the bar grid, but the six-languages slide is still ~50% opaque
+# there -- verified frame by frame: 42.25 full language, 42.50 half, 42.75
+# nearly gone, 43.00 privacy scene clean. Both the 30s and the privacy cut used
+# to start a segment on it, so both flashed the language slide.
+#
+# Verified-clean points, from frame-by-frame inspection:
+#   5.00  last full frame of "Your bank texts you everything" (5.25 is fading)
+#   12.50 "Budgetify is." established
+#   17.50 parse scene full (19.75 is fading)
+#   43.00 privacy scene clean, language fully gone
+#   45.00 cloud struck through, static and established
+#   50.50 privacy end state still full
+#   53.00 end-card logo already rising (52.50 is near-black)
+#   58.00 end card still full -- the film does not fade out
+#
+# Where beat alignment and a clean frame disagreed, the CLEAN FRAME WINS: a
+# 0.12s audio fade hides a half-beat splice, but nothing hides a ghost frame.
+
 echo "30s: problem -> product -> privacy -> CTA"
-cut budgetify-30s product 0:17.5 42.5:50 52.5:57.5
+# One seam, not two: running 45.0 straight to 57.5 rides the film's OWN
+# privacy-to-end-card crossfade instead of cutting across it.
+cut budgetify-30s product 0:17.5 45.0:57.5
 
 echo "15s: problem -> product -> CTA"
-cut budgetify-15s product 0:5 12.5:17.5 52.5:57.5
+# Ends on 53.0 rather than 52.5 so the last beat opens on the logo rising
+# instead of on ~0.3s of near-black, which read as a dropped frame.
+cut budgetify-15s product 0:5 12.5:17.5 53.0:58.0
 
 echo "privacy-15s: privacy proof -> CTA, one continuous segment"
-cut budgetify-privacy-15s privacy 42.5:57.5
+cut budgetify-privacy-15s privacy 43.0:58.0
 
 echo
 for f in "$OUT"/*.mp4; do
