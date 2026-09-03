@@ -90,7 +90,7 @@ Six languages. Works in airplane mode. Nothing to sign up for, ever.
 | Asset | Where |
 |-------|-------|
 | 20 images (8 concepts across 3 ratios) | `images/` |
-| 12 videos (4 ads × 9:16, 1:1, 16:9) | `video/` — upload to YouTube as **unlisted** first |
+| 20 videos (7 ads) | `video/` — upload to YouTube as **unlisted** first |
 | Feature graphic | `../playstore/feature-graphic.png` — Play pulls this into ads automatically |
 
 ---

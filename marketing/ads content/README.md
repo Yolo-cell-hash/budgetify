@@ -11,13 +11,13 @@ ads content/
   build-ad-videos.sh      cuts the 58s launch film to ad lengths
   build-video-plates.mjs  1920x1080 plates the 16:9 videos composite onto
   images/                 20 PNGs — 8 concepts, 7 landscape / 7 square / 6 portrait
-  build-zero-ad.mjs       renders the original "Zero" ad from scratch
-  video/                  12 MP4s — 4 ads x 9:16, 1:1 and 16:9
+  build-original-ads.mjs  renders the 4 original ads from scratch
+  video/                  20 MP4s — 3 film cuts + 4 originals (Google's cap)
   plates/                 2 PNGs — landscape backgrounds for the 16:9 cuts
 ```
 
 Rebuild with `node build-ad-images.mjs`, or
-`node build-video-plates.mjs && ./build-ad-videos.sh`.
+`node build-video-plates.mjs && ./build-ad-videos.sh`, or `node build-original-ads.mjs`.
 
 The **feature graphic** lives next door at `../playstore/feature-graphic.png`
 (`node ../playstore/build-feature-graphic.mjs`). It is a Play listing asset, but
@@ -111,7 +111,7 @@ here; you have no fraud signal and no quality signal inside the ads account.
 | Language | English + Hindi | App ships 6 languages; start with the two biggest |
 | Bidding | Target CPI, "All users" | Not "users likely to perform an in-app action" — that needs events |
 | Budget | See below | |
-| Assets | 5 headlines, 5 descriptions, 20 images, 12 videos | All in this folder |
+| Assets | 5 headlines, 5 descriptions, 20 images, 20 videos | All in this folder |
 
 ### Budget
 
@@ -185,7 +185,7 @@ that chrome. The only words in it are the app's own UI.
 phone shots collapse into one blurred rectangle at the size these actually get
 seen at. It closes on the app's own motto rather than an invented tagline.
 
-### Video — 4 ads × 3 orientations
+### Video — 7 ads, 20 files (Google's cap)
 
 Cut from the 58s launch film. Google recommends 10–30s for install campaigns;
 58s is a brand film, not an ad.
@@ -195,7 +195,10 @@ Cut from the 58s launch film. Google recommends 10–30s for install campaigns;
 | `budgetify-30s-*` | problem → product → **privacy** → CTA | product |
 | `budgetify-15s-*` | problem → product → CTA | product |
 | `budgetify-privacy-15s-*` | privacy proof → CTA, **one continuous segment** | privacy |
-| `budgetify-zero-15s-*` | original ad — **not cut from the film** | n/a |
+| `budgetify-zero-15s-*` | original — zero typed, zero trackers | n/a |
+| `budgetify-streak-15s-*` | original — the game layer, retention | n/a |
+| `budgetify-language-15s-*` | original — the motto in all six languages | n/a |
+| `budgetify-recurring-15s-*` | original — subscriptions and EMIs | n/a |
 
 Every in/out point is a multiple of 2.5s because the score runs at 96 BPM and
 one bar is 2.5s — the difference between a cut that sounds like an edit and one
@@ -216,19 +219,43 @@ the right. The film is never cropped or squeezed, and the space beside it does
 real work. Plates come from `build-video-plates.mjs`; the slot geometry there is
 a contract with `build-ad-videos.sh` — change one, change both.
 
-### `budgetify-zero-15s-*` — the original ad
+### The four originals
 
-Built from scratch by `build-zero-ad.mjs`, not cut from the film. The film is a
-58s brand piece with its own scene grammar; this is shaped as an ad from the
-first frame.
+Built from scratch by `build-original-ads.mjs`, not cut from the film. The film
+is a 58s brand piece with its own scene grammar; each of these is shaped as an
+ad from the first frame — one idea, four beats.
 
-**The idea:** every number in it is zero — zero typed, zero sign-ups, zero
-servers, zero trackers, zero ads. That puts the automatic claim and the privacy
-claim on one spine, which no cut of the film does.
+| Ad | The idea |
+|---|---|
+| `zero` | Every number in it is zero — typed, sign-ups, servers, trackers, ads. Puts the automatic claim and the privacy claim on **one spine**, which no cut of the film does. |
+| `streak` | The retention story: a 47-day streak, the royal court, 12 rewards / 15 titles / 8 themes. |
+| `language` | The app's own motto cycling through all six locales, then the Hindi UI. |
+| `recurring` | ₹24,096 a month leaves your account — the app finds the ones you forgot. |
 
-Four beats at 0 / 5.0 / 10.0 / 12.5 — all bar boundaries, since the score is
-96 BPM and a bar is 2.5s. The audio bed is the film's own opening 15s, so it
-sounds like the brand.
+All four share one scene grammar: hook → device with a gold sweep reading down
+it → chips that land on the beat → end card. Four beats at 0 / 5.0 / 10.0 /
+12.5, all bar boundaries, since the score is 96 BPM and a bar is 2.5s. The audio
+bed is the film's own opening 15s, so an original still sounds like the brand.
+
+**Theme comes from the app, not from eyeballing.** Every colour is a real token
+out of `lib/providers/theme_provider.dart` — `gold #C8A75E`, `goldDeep #A8843C`,
+`heroGradient #23273A → #131520`, `dark.background #0A0B0E`, `dark.text #F2F2EF`,
+`dark.textSecondary #9A9DA6`.
+
+**Every claim is counted from the code**, not from marketing memory:
+
+| Claim | Counted from |
+|---|---|
+| 12 streak rewards | `streak_reward.dart` — 12 `days:` milestones (3,5,7,10,14,18,24,30,36,45,52,60); Settings itself reads "of 12 rewards" |
+| 15 titles | `achievement.dart` — 15 `GamiTitle` entries |
+| 8 themes | `AppThemeVariant` — 8 variants |
+| 6 languages | `main.dart` `supportedLocales` — en, hi, mr, bn, te, ta |
+| the motto, in six | `app_strings.dart` `onboardWelcomeDesc` |
+| ₹24,096 / month | the "Monthly commitment" total on the very Recurring screen the ad then shows |
+
+`recurring` ships in **two** orientations rather than three: the ad group caps at
+20 videos, and as the fourth original it takes the two that carry the most video
+inventory (Shorts/portrait and in-stream) and skips square.
 
 It **reflows natively** into all three orientations rather than being cropped or
 composited into them: one unit scale driven by frame height (with a width guard)
