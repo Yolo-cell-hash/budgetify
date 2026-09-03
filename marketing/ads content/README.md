@@ -41,11 +41,18 @@ as campaign creative whether or not you upload anything here.
 
 **Still open, in the order it costs you money**
 
-1. **The store page, again.** The listing was last measured on 2026-08-08 at
-   **v1.44.3, 5+ installs, 0 ratings** (`../playstore/listing/README.md`); this
-   repo is on 1.83.0. Every rupee of ad spend is multiplied by that page's
-   conversion rate, and paid traffic lands on whatever is live, not on what is
-   built. Confirm what is actually on the store before the first impression.
+1. **Ratings, now that the page itself is fixed.** Confirmed 2026-09-03: the app
+   is on the **production track with the rewritten listing live**, which clears
+   the blocker this file opened with — the sequencing note further down
+   ("production release → publish the rewritten listing → collect first ratings
+   → then spend") is two-thirds done. What is left of it is the ratings. The
+   last count on record is **0** (2026-08-08, `../playstore/listing/README.md`),
+   and a page with no stars converts paid traffic worse than the same page with
+   twenty. It is the one remaining input to conversion that costs nothing to
+   improve, so improve it while the ad account is being set up rather than
+   after. Also re-run `aso_rank.py` — rank takes 2–4 weeks to settle after a
+   listing change, and spending into an unsettled listing makes the two effects
+   impossible to tell apart.
 2. **The video end card contradicts `copy.md`.** All four cuts close on **"Get it
    free on Google Play"**, and `copy.md` says in as many words not to claim
    *free*, because Plus is a real purchase. Both positions are defensible — the
@@ -112,23 +119,25 @@ spend. It is only bad if you budgeted ₹0 and expected ₹40,000 of traffic.
 **Verify your specific offer's threshold and window in Billing → Promotions
 before planning around a number.**
 
-### 2. Open testing can be advertised — but it will convert badly
+### 2. The page converts the click, and it still has no stars
 
-Good news first: Google explicitly supports **open testing ads** in App
-campaigns, so being on the open track is not a blocker. Your app has a public
-listing and already ranks #1 for its own name.
+*Updated 2026-09-03: the app is on production and the rewritten listing is live.
+The two blockers this section was written about are cleared; what follows is
+what is left of it.*
 
-The problem is what happens after the click. An open-testing listing tells the
-visitor they are joining a test. Paid traffic is colder than organic traffic and
-needs *more* reassurance, not less — and it lands on a page that says
-"unreleased", shows **0 ratings**, and carries a store description that is still
-the stale one until the rewritten listing goes live.
+Paid traffic is colder than organic traffic and needs **more** reassurance, not
+less. The page it lands on is now the good one — production, no "unreleased"
+banner, the rewritten description — but the last rating count on record is
+**zero**, and an install decision made by a stranger leans on other people's
+stars more than on anything the copy says.
 
-Every rupee of ad spend is multiplied by that page's conversion rate. Fixing the
-page is free. Buying traffic to a page you have not fixed is not.
+Every rupee of ad spend is multiplied by that page's conversion rate. Ratings
+are the cheapest remaining input to it, and the only one that takes calendar
+time rather than money, so start collecting them now and let the ad account
+setup happen alongside.
 
-**Sequence: production release → publish the rewritten listing → collect first
-ratings → then spend.**
+**Sequence: ~~production release~~ → ~~publish the rewritten listing~~ → collect
+first ratings → then spend.**
 
 ---
 
@@ -170,8 +179,8 @@ here; you have no fraud signal and no quality signal inside the ads account.
 | Type | App campaign → App installs | Only type your measurement supports |
 | Platform | Android | Play-only product |
 | Location | India | The parser is built for Indian bank and UPI SMS |
-| Language | English + Hindi | App ships 6 languages; start with the two biggest |
-| Ad groups | One per script | An App campaign mixes assets inside a group, so English and Hindi lines must not share one |
+| Language | **English only, first flight** | Decided 2026-09-03: one language, one ad group, one thing to read. Hindi copy is written and parked in `copy.md` |
+| Ad groups | One per script, when there is more than one | An App campaign mixes assets inside a group, so English and Hindi lines must never share one |
 | Bidding | Target CPI, "All users" | Not "users likely to perform an in-app action" — that needs events |
 | Budget | See below | |
 | Assets | 5 headlines + 5 descriptions per ad group, 20 images, 4 videos | All in this folder |
@@ -273,21 +282,23 @@ canvas. Worth doing before a serious flight — say the word and I will.
 
 ## What to spend on instead, first
 
-At 0 ratings and an unreleased-track listing, paid installs are the *expensive*
-way to get the next hundred users, and you cannot measure their quality. Cheaper
-moves, roughly in order of leverage:
+Paid installs are the *expensive* way to get the next hundred users, and you
+cannot measure their quality. Two of the four moves below are now done; the
+cheap ones that remain are still cheaper than the ads, and none of them stops
+the campaign from being built in parallel:
 
-1. **Production release + the rewritten listing.** Already written and waiting in
-   `marketing/playstore/listing/`. Rank takes 2–4 weeks to settle, so the clock
-   should start now rather than after the ad spend.
+1. ~~**Production release + the rewritten listing.**~~ Live as of 2026-09-03.
+   Rank takes 2–4 weeks to settle from that date — re-run `aso_rank.py` weekly
+   and expect the listing's own effect to still be moving when the ads start.
 2. **First 20 ratings.** The in-app prompt ships (v1.70.0) but only fires for
-   Play-installed builds after four weeks. Ask people directly.
+   Play-installed builds after four weeks. Ask people directly. This is now the
+   binding constraint on how well paid traffic converts.
 3. **The film, posted organically.** The 9:16 cuts are Shorts/Reels-native and
    cost nothing to post. A privacy-first Indian finance app is a story that
    communities like r/india and r/IndiaInvestments will actually engage with —
    the same wedge the ad copy uses.
-4. **Then paid**, with the store page fixed and a few ratings on it, so the money
-   lands on a page that converts.
+4. **Then paid**, with a few ratings on the page, so the money lands on a page
+   that converts.
 
 ---
 

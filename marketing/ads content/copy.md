@@ -90,6 +90,11 @@ Six languages. Works in airplane mode. Nothing to sign up for, ever.
 
 # हिन्दी — the second ad group
 
+> **Parked as of 2026-09-03.** The first flight runs English-only: one language
+> is one variable, and an App campaign already needs volume before its asset
+> report says anything. This section is ready to paste the day a Hindi ad group
+> is worth opening — it is not a to-do.
+
 The campaign targets India in **English and Hindi**, and until now every asset
 in this folder was English. A Hindi-language user served an English headline is
 a click you paid for and a page they bounce off.
