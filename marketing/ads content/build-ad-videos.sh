@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Cut the 58s launch film down to the lengths a Google App campaign actually
-# wants (10-30s), and produce the square variant alongside the native 9:16.
+# Cut the 58s launch film down to the lengths a Google App campaign wants
+# (10-30s), in all three orientations Google serves.
 #
-#   ./build-ad-videos.sh
+#   node build-video-plates.mjs && ./build-ad-videos.sh
 #
 # WHY THESE CUT POINTS: the film's score runs at 96 BPM, so one bar is 2.5s and
 # every cue in the film is snapped to that grid. Every in/out point below is a
@@ -17,13 +17,19 @@
 #   0:42-0:51  privacy proof: cloud struck out, airplane mode, "0 trackers"
 #   0:52-0:58  logo end card + "Get it free on Google Play"
 #
-# The 30s keeps problem -> product -> privacy -> CTA. The 15s drops the privacy
-# beat for length and runs problem -> product -> CTA.
+# THE THREE CUTS
+#   30s          problem -> product -> privacy -> CTA
+#   15s          problem -> product -> CTA
+#   privacy-15s  42.5-57.5 straight through -- privacy proof into the end card.
+#                One continuous segment, so it has NO seams at all, and it is
+#                the cut aimed at installs that stay rather than installs that
+#                are cheap.
 
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OUT="$HERE/video"
+PLATES="$HERE/plates"
 mkdir -p "$OUT"
 
 # ffmpeg-static is installed under the git-ignored render dir in the MAIN repo
@@ -49,22 +55,29 @@ done
 echo "ffmpeg: $FF"
 echo "source: $SRC"
 
-# The film's ground, sampled from the master. Used to pad the square variant so
+# The film's ground, sampled from the master, used to pad the square variant so
 # the bars read as part of the film rather than as black bars.
 INK="#0b0e18"
 
-# cut <name> <seg=start:end> [seg...]
+# Video slot inside the 16:9 plates. MUST match SLOT_* in build-video-plates.mjs.
+SLOT_W=552
+SLOT_H=980
+SLOT_X=1208
+SLOT_Y=50
+
+ENC=(-c:v libx264 -preset slow -crf 19 -pix_fmt yuv420p -r 60
+     -c:a aac -b:a 192k -movflags +faststart)
+
+# cut <name> <plate> <seg=start:end> [seg...]
 # Hard video cuts (the film cuts that way itself) with a 0.12s audio fade at
-# each seam, which is enough to kill the click without smearing the beat.
+# each seam, which kills the click without smearing the beat.
 cut() {
-  local name="$1"; shift
+  local name="$1" plate="$2"; shift 2
   local segs=("$@")
   local n=${#segs[@]}
-  local fc="" maps=""
-  local i=0
+  local fc="" maps="" i=0
   for seg in "${segs[@]}"; do
-    local s="${seg%%:*}" e="${seg##*:}"
-    local d
+    local s="${seg%%:*}" e="${seg##*:}" d
     d=$(echo "$e - $s" | bc -l)
     fc+="[0:v]trim=${s}:${e},setpts=PTS-STARTPTS[v${i}];"
     fc+="[0:a]atrim=${s}:${e},asetpts=PTS-STARTPTS,"
@@ -76,32 +89,41 @@ cut() {
 
   # 9:16 native -- the ratio the film was designed and rendered in.
   "$FF" -hide_banner -loglevel error -y -i "$SRC" \
-    -filter_complex "$fc" -map "[v]" -map "[a]" \
-    -c:v libx264 -preset slow -crf 19 -pix_fmt yuv420p -r 60 \
-    -c:a aac -b:a 192k -movflags +faststart \
+    -filter_complex "$fc" -map "[v]" -map "[a]" "${ENC[@]}" \
     "$OUT/${name}-9x16.mp4"
-  echo "  $OUT/${name}-9x16.mp4"
+  echo "  ${name}-9x16.mp4"
 
-  # 1:1 -- the 9:16 frame scaled to fit and padded onto the film's own ground.
-  # This is a reframe, not a re-render: a centre crop would cut the captions,
-  # which sit low in almost every beat.
+  # 1:1 -- scaled to fit and padded onto the film's own ground. A reframe, not
+  # a re-render: a centre crop would cut the captions, which sit low in almost
+  # every beat.
   "$FF" -hide_banner -loglevel error -y -i "$SRC" \
     -filter_complex "${fc};[v]scale=608:1080,pad=1080:1080:236:0:color=${INK}[vs]" \
-    -map "[vs]" -map "[a]" \
-    -c:v libx264 -preset slow -crf 19 -pix_fmt yuv420p -r 60 \
-    -c:a aac -b:a 192k -movflags +faststart \
+    -map "[vs]" -map "[a]" "${ENC[@]}" \
     "$OUT/${name}-1x1.mp4"
-  echo "  $OUT/${name}-1x1.mp4"
+  echo "  ${name}-1x1.mp4"
+
+  # 16:9 -- the untouched 9:16 cut composited into a designed landscape frame.
+  # Without this the campaign cannot serve on YouTube in-stream at all.
+  "$FF" -hide_banner -loglevel error -y \
+    -loop 1 -i "$PLATES/plate-${plate}.png" -i "$OUT/${name}-9x16.mp4" \
+    -filter_complex "[1:v]scale=${SLOT_W}:${SLOT_H}[v];[0:v][v]overlay=${SLOT_X}:${SLOT_Y}[out]" \
+    -map "[out]" -map 1:a -shortest "${ENC[@]}" \
+    "$OUT/${name}-16x9.mp4"
+  echo "  ${name}-16x9.mp4"
 }
 
 echo "30s: problem -> product -> privacy -> CTA"
-cut budgetify-30s 0:17.5 42.5:50 52.5:57.5
+cut budgetify-30s product 0:17.5 42.5:50 52.5:57.5
 
 echo "15s: problem -> product -> CTA"
-cut budgetify-15s 0:5 12.5:17.5 52.5:57.5
+cut budgetify-15s product 0:5 12.5:17.5 52.5:57.5
+
+echo "privacy-15s: privacy proof -> CTA, one continuous segment"
+cut budgetify-privacy-15s privacy 42.5:57.5
 
 echo
 for f in "$OUT"/*.mp4; do
-  printf '%-44s %s\n' "$(basename "$f")" \
+  printf '%-40s %-11s %s\n' "$(basename "$f")" \
+    "$("$FF" -hide_banner -i "$f" 2>&1 | grep -o '[0-9]\{3,\}x[0-9]\{3,\}' | head -1)" \
     "$("$FF" -hide_banner -i "$f" 2>&1 | awk -F, '/Duration/{print $1}' | awk '{print $2}')"
 done

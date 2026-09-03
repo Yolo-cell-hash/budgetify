@@ -9,11 +9,14 @@ ads content/
   validate.py             fails if any line is over Google's limit
   build-ad-images.mjs     composes the image assets from real app captures
   build-ad-videos.sh      cuts the 58s launch film to ad lengths
-  images/                 12 PNGs — 4 concepts x 3 ratios
-  video/                  4 MP4s — 15s and 30s, 9:16 and 1:1
+  build-video-plates.mjs  1920x1080 plates the 16:9 videos composite onto
+  images/                 20 PNGs — 8 concepts, 7 landscape / 7 square / 6 portrait
+  video/                  9 MP4s — 3 cuts x 9:16, 1:1 and 16:9
+  plates/                 2 PNGs — landscape backgrounds for the 16:9 cuts
 ```
 
-Rebuild either set with `node build-ad-images.mjs` / `./build-ad-videos.sh`.
+Rebuild with `node build-ad-images.mjs`, or
+`node build-video-plates.mjs && ./build-ad-videos.sh`.
 
 The **feature graphic** lives next door at `../playstore/feature-graphic.png`
 (`node ../playstore/build-feature-graphic.mjs`). It is a Play listing asset, but
@@ -107,7 +110,7 @@ here; you have no fraud signal and no quality signal inside the ads account.
 | Language | English + Hindi | App ships 6 languages; start with the two biggest |
 | Bidding | Target CPI, "All users" | Not "users likely to perform an in-app action" — that needs events |
 | Budget | See below | |
-| Assets | 5 headlines, 5 descriptions, 12 images, 4 videos | All in this folder |
+| Assets | 5 headlines, 5 descriptions, 20 images, 9 videos | All in this folder |
 
 ### Budget
 
@@ -181,28 +184,38 @@ that chrome. The only words in it are the app's own UI.
 phone shots collapse into one blurred rectangle at the size these actually get
 seen at. It closes on the app's own motto rather than an invented tagline.
 
-### Video — 2 lengths × 2 ratios
+### Video — 3 cuts × 3 orientations
 
 Cut from the 58s launch film. Google recommends 10–30s for install campaigns;
 58s is a brand film, not an ad.
 
-| File | Structure |
-|---|---|
-| `budgetify-30s-*` | problem → product → **privacy** → CTA |
-| `budgetify-15s-*` | problem → product → CTA |
+| Cut | Structure | Plate |
+|---|---|---|
+| `budgetify-30s-*` | problem → product → **privacy** → CTA | product |
+| `budgetify-15s-*` | problem → product → CTA | product |
+| `budgetify-privacy-15s-*` | privacy proof → CTA, **one continuous segment** | privacy |
 
-Every cut point is a multiple of 2.5s because the score runs at 96 BPM and one
-bar is 2.5s — the difference between a cut that sounds like an edit and one that
-sounds like a mistake. The 30s keeps the privacy beat, which is the reason to
-pick this app over a free tracker that phones home; the 15s trades it for length.
+Every in/out point is a multiple of 2.5s because the score runs at 96 BPM and
+one bar is 2.5s — the difference between a cut that sounds like an edit and one
+that sounds like a mistake. `privacy-15s` is 42.5–57.5 straight through, so it
+has no seams at all, and it is the cut aimed at the campaign's actual goal:
+installs that stay rather than installs that are cheap.
 
-**The 16:9 variant is missing on purpose.** The film is natively 1080×1920. A
-16:9 version made by letterboxing it would be two-thirds empty bars, and a
-centre crop would cut the captions, which sit low in nearly every beat. A real
-16:9 means re-rendering from `marketing/budgetify-launch-film.html` at that
-canvas. Worth doing before a serious flight — say the word and I will.
+**All three orientations now exist.** Google serves 9:16 to Shorts and portrait
+inventory, 1:1 to feeds, and 16:9 to YouTube in-stream — and without a 16:9
+asset the campaign cannot serve in-stream at all, which is a large share of App
+campaign inventory.
 
----
+The 16:9 is a **designed landscape frame, not a crop or a letterbox**. The film
+is natively 1080×1920: letterboxing leaves two-thirds of the frame as bars, and
+a centre crop severs the captions, which sit low in nearly every beat. So brand
+copy holds the left and the untouched 9:16 film plays inside a bordered panel on
+the right. The film is never cropped or squeezed, and the space beside it does
+real work. Plates come from `build-video-plates.mjs`; the slot geometry there is
+a contract with `build-ad-videos.sh` — change one, change both.
+
+**Upload order:** YouTube first (as **unlisted**), then paste the URLs into
+Google Ads. The Videos field takes a YouTube link, never an MP4 upload.
 
 ## What to spend on instead, first
 
