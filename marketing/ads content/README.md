@@ -1,15 +1,15 @@
 # Budgetify — marketing campaign
 
-Assets and plan for the Google Ads App campaign, built 2026-08-16. Nothing here
-is live: the campaign is staged, not started.
+Assets and plan for the Google Ads App campaign, built 2026-08-16 and reviewed
+2026-09-03. Nothing here is live: the campaign is staged, not started.
 
 ```
 ads content/
-  copy.md                 15 headlines, 11 descriptions, validated
+  copy.md                 English + Hindi + Hinglish copy, validated
   validate.py             fails if any line is over Google's limit
   build-ad-images.mjs     composes the image assets from real app captures
   build-ad-videos.sh      cuts the 58s launch film to ad lengths
-  images/                 12 PNGs — 4 concepts x 3 ratios
+  images/                 20 PNGs — 8 concepts, up to 3 ratios each
   video/                  4 MP4s — 15s and 30s, 9:16 and 1:1
 ```
 
@@ -20,6 +20,72 @@ The **feature graphic** lives next door at `../playstore/feature-graphic.png`
 an App campaign pulls it into ad placements automatically — which is why the ad
 preview showed a banner before a single image asset had been uploaded. It counts
 as campaign creative whether or not you upload anything here.
+
+---
+
+## Reviewed 2026-09-03
+
+**Changed in this pass**
+
+- **`02-reads-sms` now shows a bank SMS.** It did not. The concept whose entire
+  claim is "it reads your bank SMS" was cropped to the amount and the direction
+  arrow, and the `Original Message` panel — the raw ICICI text the parse came
+  from — sat below the frame in all three ratios. The crop moved from 96 to 570,
+  and the ad now carries the amount, the payee it resolved (`Zomato`), the
+  account, and the message it resolved them from, in one shot. That panel is the
+  product's whole argument; it should not have been the part left out.
+- **A Hindi ad group's copy exists.** The campaign targeted India in English and
+  Hindi and had English assets only. `copy.md` now carries five Hindi headlines,
+  five Hindi descriptions and alternates, plus a Hinglish set to test later.
+- Stale counts in this file and in `copy.md` (both still said 12 images).
+
+**Still open, in the order it costs you money**
+
+1. **The store page, again.** The listing was last measured on 2026-08-08 at
+   **v1.44.3, 5+ installs, 0 ratings** (`../playstore/listing/README.md`); this
+   repo is on 1.83.0. Every rupee of ad spend is multiplied by that page's
+   conversion rate, and paid traffic lands on whatever is live, not on what is
+   built. Confirm what is actually on the store before the first impression.
+2. **The video end card contradicts `copy.md`.** All four cuts close on **"Get it
+   free on Google Play"**, and `copy.md` says in as many words not to claim
+   *free*, because Plus is a real purchase. Both positions are defensible — the
+   download *is* free, and Play draws its own "Free" badge — but they cannot
+   both be the rule. Either relax the rule for the standard Play phrasing, or
+   re-render the end card. Do not ship them disagreeing.
+3. **`07-your-language` shows an untranslated string.** The Hindi capture behind
+   "Budgetify speaks your language" renders `₹66,830 saved of ₹95,000 income` in
+   English. `lib/widgets/savings_summary.dart` reaches for `context.l10n`
+   everywhere else but hardcodes two lines — that one and `Overspent by …`. It
+   is a small product bug, and a bad one to buy traffic for, since it is on
+   screen in the ad that promises localisation.
+4. **The demo persona is not the audience.** The seeded screens show ₹95,000
+   monthly income and a 70% savings rate. For a campaign aimed at people in
+   general, that is a top-percentile household, and the numbers quietly say "not
+   for you". Reseeding is not free — `../playstore/captures/` feeds the Play
+   screenshots too, so both sets get re-shot together — but it is the highest-
+   leverage creative change left.
+5. **No 16:9 video.** The four cuts are 9:16 and 1:1, so the campaign never
+   serves YouTube in-stream. A real 16:9 means re-rendering from
+   `marketing/budgetify-launch-film.html` at that canvas, not letterboxing.
+6. **The film source is not in git.** `budgetify-launch-film.html`,
+   `render-film.mjs` and `rebuild-from-transcript.py` are untracked and exist on
+   one machine. The `.mp4` master is ignored by design; the sources should not
+   be. Losing them means the ad cuts can never be re-made.
+
+**What an install is worth, honestly**
+
+Plus is ₹49/month, ₹499/year, ₹1499 lifetime, and every new install starts a
+**90-day trial** (`EntitlementService.trialDuration`). After Play's 15% cut, a
+yearly subscription nets about ₹424 and a lifetime about ₹1274. So at a ₹25
+target CPI, break-even is roughly **1 in 17 installs buying a year**, or 1 in 51
+buying lifetime — and the first rupee cannot arrive until the trial ends three
+months after the click. With no in-app telemetry you will not be able to measure
+any of it.
+
+That is not an argument against advertising. It is an argument for treating the
+budget as **the price of distribution and reviews**, deciding the number up
+front, and judging the campaign on Play Console's retained-installer curve —
+because nothing else about it is measurable this year.
 
 ---
 
@@ -105,9 +171,10 @@ here; you have no fraud signal and no quality signal inside the ads account.
 | Platform | Android | Play-only product |
 | Location | India | The parser is built for Indian bank and UPI SMS |
 | Language | English + Hindi | App ships 6 languages; start with the two biggest |
+| Ad groups | One per script | An App campaign mixes assets inside a group, so English and Hindi lines must not share one |
 | Bidding | Target CPI, "All users" | Not "users likely to perform an in-app action" — that needs events |
 | Budget | See below | |
-| Assets | 5 headlines, 5 descriptions, 12 images, 4 videos | All in this folder |
+| Assets | 5 headlines + 5 descriptions per ad group, 20 images, 4 videos | All in this folder |
 
 ### Budget
 

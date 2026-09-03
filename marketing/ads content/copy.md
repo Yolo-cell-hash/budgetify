@@ -4,6 +4,9 @@
 > One block below per field. Limits: headline **30**, description **90**.
 > `python3 validate.py` fails the set if anything runs over.
 
+This file holds **two ad groups' worth of copy**: English first, then Hindi.
+Keep them in separate ad groups — the reason is in the Hindi section below.
+
 An App campaign mixes these itself: any headline can appear beside any
 description, and often beside neither. So every line stands on its own — nothing
 continues a sentence started elsewhere, and nothing refers to "above" or "below".
@@ -85,13 +88,163 @@ Six languages. Works in airplane mode. Nothing to sign up for, ever.
 
 ---
 
+# हिन्दी — the second ad group
+
+The campaign targets India in **English and Hindi**, and until now every asset
+in this folder was English. A Hindi-language user served an English headline is
+a click you paid for and a page they bounce off.
+
+**These do not go in the same ad group as the English lines.** An App campaign
+mixes assets freely inside one ad group, so a shared group would serve a
+Devanagari headline over an English description. Two ad groups, one script each,
+and the asset report then tells you which language pulls.
+
+The lines below are the English five, translated — not new claims. Every one is
+already verified in the table at the bottom of this file, and every one matches
+the wording of the Hindi custom store listing in
+`../playstore/listing/localized.md`, so the ad and the page it lands on say the
+same thing in the same words.
+
+> **Character counts are the conservative reading.** Google counts Devanagari as
+> single-width, but a matra is its own code point, so `बैंक` is four characters,
+> not two. `validate.py` counts the same way. Nothing here is over 29, which
+> leaves room if Google's own counter disagrees by one.
+
+## Hindi headlines — paste one per field
+
+### Hindi headline 1 &nbsp;`25/30`
+
+```
+खर्च ट्रैकर, बिना इंटरनेट
+```
+
+### Hindi headline 2 &nbsp;`24/30`
+
+```
+बैंक SMS खुद पढ़ लेता है
+```
+
+### Hindi headline 3 &nbsp;`24/30`
+
+```
+आपका पैसा, आपके फ़ोन में
+```
+
+### Hindi headline 4 &nbsp;`24/30`
+
+```
+बजट ट्रैकर, बिना टाइपिंग
+```
+
+### Hindi headline 5 &nbsp;`27/30`
+
+```
+एयरप्लेन मोड में भी चलता है
+```
+
+`SMS`, `UPI` and `EMI` stay in Latin script on purpose — that is how they are
+written on every bank message an Indian phone receives, and transliterating them
+would make the ad less recognisable, not more local.
+
+## Hindi descriptions — paste one per field
+
+### Hindi description 1 &nbsp;`79/90`
+
+```
+आपके बैंक और UPI SMS पढ़कर हर लेन-देन अपने आप दर्ज करता है। कुछ टाइप नहीं करना।
+```
+
+### Hindi description 2 &nbsp;`83/90`
+
+```
+रिलीज़ बिल्ड में इंटरनेट परमिशन ही नहीं है। आपका डेटा फ़ोन से बाहर जा ही नहीं सकता।
+```
+
+### Hindi description 3 &nbsp;`77/90`
+
+```
+बजट, कैटेगरी, नेट वर्थ और रिकरिंग बिल — सब आपके फ़ोन पर, सब पूरी तरह ऑफ़लाइन।
+```
+
+### Hindi description 4 &nbsp;`78/90`
+
+```
+न अकाउंट, न क्लाउड, न विज्ञापन, न ट्रैकर। बस यह कि आपका पैसा असल में कहाँ गया।
+```
+
+### Hindi description 5 &nbsp;`72/90`
+
+```
+छह भाषाएँ। एयरप्लेन मोड में भी चलता है। साइन-अप करने की ज़रूरत कभी नहीं।
+```
+
+## Hindi alternate headlines
+
+```
+इंटरनेट परमिशन नहीं
+ऑफ़लाइन खर्च ट्रैकर
+हर रुपया अपने आप दर्ज
+UPI खर्च अपने आप ट्रैक
+बिना टाइप किए खर्च ट्रैक
+न अकाउंट, न क्लाउड, न ऐड
+बैंक SMS से खर्च ट्रैक करें
+आपका डेटा फ़ोन में ही रहता है
+```
+
+## Hindi alternate descriptions
+
+```
+कैटेगरी बजट तय करें और रोज़ की रफ़्तार देखें। न स्प्रेडशीट, न मैनुअल एंट्री।
+सब्सक्रिप्शन और EMI बिल आने से पहले पकड़ें। सब कुछ आपके फ़ोन पर ही रहता है।
+Excel, CSV या PDF में कभी भी एक्सपोर्ट करें। एक टैप में कुछ भी हटाएँ। सब आपका है।
+```
+
+---
+
+# Hinglish — the third ad group, if you want it
+
+Plenty of the audience sets its phone to English, thinks in Hindi, and types in
+Roman script. Those users are targeted by the **English** ad group and served
+English lines. Roman-script Hindi is a third bet, and it is a real one in India —
+but it is a bet, so treat it as a test with its own ad group rather than as
+copy you mix into either of the other two.
+
+Do not run this until English and Hindi have both had a fair run. Three ad
+groups split the same budget three ways, and an App campaign already needs
+volume to learn.
+
+### Hinglish headlines
+
+```
+Bank SMS se kharch track
+Bina type kiye kharch track
+Poori tarah offline tracker
+Har rupee apne aap track
+Na account, na cloud, na ads
+```
+
+### Hinglish descriptions
+
+```
+Aapke bank aur UPI SMS padhkar har transaction khud record karta hai.
+Release build mein internet permission hi nahi hai. Data phone se bahar nahi jata.
+Budget, category, net worth aur recurring bills — sab phone par, sab offline.
+```
+
+---
+
 ## Also uploaded with these
 
 | Asset | Where |
 |-------|-------|
-| 12 images (3 ratios × 4 concepts) | `images/` |
+| 20 images (8 concepts, up to 3 ratios each) | `images/` |
 | 4 videos (15s + 30s, 9:16 + 1:1) | `video/` — upload to YouTube as **unlisted** first |
 | Feature graphic | `../playstore/feature-graphic.png` — Play pulls this into ads automatically |
+
+The images carry English overlay text, so today they belong to the English ad
+group. The Hindi group can run on them anyway — Google draws its own headline
+over the creative and `05-product` has no words on it at all — but a Hindi set
+is the obvious next asset to build.
 
 ---
 

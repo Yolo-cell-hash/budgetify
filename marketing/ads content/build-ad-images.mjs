@@ -137,9 +137,19 @@ const CONCEPTS = [
     sub: "Budgetify reads the bank SMS you already get and files\neach transaction itself.",
   },
   {
+    // The crop is scrolled to the "Original Message" panel on purpose. At the
+    // Play screenshot's offset (96) the ad's shorter device panel ended just
+    // below the amount, so the one concept whose whole claim is "it reads your
+    // bank SMS" never showed a bank SMS. 570 starts just under the direction
+    // arrow and still lands the raw ICICI message inside the frame in all
+    // three ratios -- the amount, the payee it resolved, and the message it
+    // resolved them from, in one shot. It is the tightest of the three that
+    // decides this: the square shows only 1136 source pixels, so below ~560 the
+    // message's second line falls off the bottom edge and above ~600 the amount
+    // is cut by the top of the device panel.
     id: "02-reads-sms",
     file: "txn-detail-01.png",
-    offset: 96,
+    offset: 570,
     eyebrow: "How it works",
     headline: "It reads\nyour bank SMS.",
     wide: "It reads your bank SMS.\nYou do nothing.",
