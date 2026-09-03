@@ -143,7 +143,18 @@ Future<void> showThemePreviewSheet(
 class ThemeStill extends StatelessWidget {
   final AppThemeVariant variant;
 
-  const ThemeStill({super.key, required this.variant});
+  /// An optional restyling pass over [variant], applied exactly as
+  /// ThemeProvider applies it to the live app. Null leaves the variant as its
+  /// designers made it — which is what the Appearance picker wants.
+  ///
+  /// This exists for the royal court sheet, where the question is not "what
+  /// does this theme look like" but "what does this theme look like once a
+  /// royal has dressed it". Routing that through the SAME still is what keeps
+  /// the answer honest: the preview cannot flatter the dress, because it has
+  /// no colours of its own to flatter it with.
+  final ThemeDress? dress;
+
+  const ThemeStill({super.key, required this.variant, this.dress});
 
   // Demo figures. Indian digit grouping, chosen to exercise the hero's
   // positive/negative slots and a healthy (not overspent) savings bar.
@@ -161,13 +172,19 @@ class ThemeStill extends StatelessWidget {
           borderRadius: BorderRadius.circular(18),
           border: Border.all(color: outer.border),
         ),
-        // Inside this Theme everything resolves to the previewed variant.
+        // Inside this Theme everything resolves to the previewed variant —
+        // dressed, when a dress was handed in.
         child: Theme(
-          data: AppTheme.of(variant),
+          data: _themeData,
           child: Builder(builder: _still),
         ),
       ),
     );
+  }
+
+  ThemeData get _themeData {
+    final base = AppTheme.of(variant);
+    return dress?.call(variant, base) ?? base;
   }
 
   Widget _still(BuildContext context) {

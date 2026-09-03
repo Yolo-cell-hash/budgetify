@@ -43,6 +43,9 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
   /// Royal-pick milestones already paid out as Streak Freezes, because the
   /// whole court was owned by the time they landed.
   Set<String> _substitutedPicks = const {};
+
+  /// Elite slots the user was already wearing when the tier was re-gated.
+  Set<int> _legacyElites = const {};
   bool _loading = true;
 
   @override
@@ -67,6 +70,8 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
     final stats = await _svc.computeStats();
     final dates = await _svc.unlockDates();
     final unlockedRoyals = await _svc.unlockedRoyalIds();
+    // Read AFTER loadProfile — that is what banks a worn elite.
+    final legacyElites = await _svc.legacyEliteSlots();
     final picksSpent = (await _svc.streakPickedRoyalIds()).length;
     final royalPicks = await _svc.availableRoyalPicks();
     // Pay out any royal pick with nothing left to unlock (whole court bought),
@@ -79,6 +84,7 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
       _stats = stats;
       _unlockDates = dates;
       _unlockedRoyals = unlockedRoyals;
+      _legacyElites = legacyElites;
       _royalPicksSpent = picksSpent;
       _royalPicks = royalPicks;
       _substitutedPicks = substituted;
@@ -162,6 +168,11 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
       royalPicksAvailable: _royalPicks,
       onUnlockRoyal: _svc.unlockRoyal,
       scrollToRoyalty: scrollToRoyalty,
+      // Gates the ELITE section. Non-null here by construction: the picker
+      // only opens from the Profile tab, which does not render until _load
+      // has set the stats.
+      stats: _stats,
+      legacyEliteSlots: _legacyElites,
     );
     if (edited != null) {
       if (await applyDevRoyalPreview(edited, _unlockedRoyals)) {

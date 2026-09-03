@@ -11,6 +11,38 @@ Also available in the five languages the app ships alongside English:
 practice began; this file remains the full history and the one to write
 first.
 
+## [1.82.0] — 2026-09-03
+
+### Added
+
+- **See a royal on your own screens, not just on a stage.** Every royal's card
+  now carries a second preview underneath the animation loop: your dashboard,
+  dressed by that royal's court, with the character walking across it. A
+  Without / With switch flips between the app you have today and the app you
+  would have — the hero card's border and eyebrow, the "See All" links, the
+  bottom bar, the buttons, and your profile circle up in the corner. Nothing in
+  it is a mock-up: it is the same still the Appearance picker shows, handed the
+  same court colours that will dress the live app, in whichever of Light or
+  Dark you are reading in right now. It runs on the locked card too, because
+  that is the card where it matters.
+
+### Changed
+
+- **Elite avatars are earned again.** All ten Elite characters now open with an
+  achievement badge instead of being handed out at install: Shadow Blade for a
+  single fully-tagged month, Crimson Oni for a 30-day streak, Cyber Ronin for
+  using every spending category, on up to the Obsidian Warlord at a 200-day
+  streak. Ten different ladders, so no single habit opens the row, and the
+  section keeps a running score — "3 / 10 earned". Tapping a locked one shows
+  the character, the medal that releases it, and exactly how far off you are,
+  live. **If you are already wearing an Elite character, it stays yours** — the
+  gate applies to the ones you have not chosen, not to your own face.
+
+  These were gated once before, behind six of the hardest badges in the app (a
+  one-year streak, ₹1Cr net worth, 8,000 transactions), and were freed in
+  1.36.0 because nobody was ever going to clear that wall. This ladder starts
+  at a rung anyone reaches inside a month.
+
 ## [1.81.0] — 2026-09-03
 
 ### Added
