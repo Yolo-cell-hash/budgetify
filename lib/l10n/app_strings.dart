@@ -4232,12 +4232,43 @@ class AppStrings {
   // ── Elite avatars + mythic profile (Gamified Budgets) ──────────────────
   String get eliteAvatarsLabel => _t('ELITE', 'एलीट', 'एलिट', 'এলিট', 'ఎలైట్', 'எலைட்');
   String get eliteAvatarsDesc => _t(
-        'Legendary characters — the showpiece art of the roster.',
-        'महान किरदार — रोस्टर की सबसे शानदार कला।',
-        'दिग्गज पात्रे — रोस्टरमधील सर्वात देखणी कला.',
-        'কিংবদন্তি চরিত্র — রোস্টারের সেরা শিল্পকর্ম।',
-        'లెజెండరీ పాత్రలు — రోస్టర్‌లోని ప్రత్యేక కళాఖండాలు.',
-        'லெஜண்டரி கதாபாத்திரங்கள் — ரோஸ்டரின் சிறப்புக் கலை.',
+        'Legendary characters, each earned with an achievement badge.',
+        'महान किरदार, हर एक किसी न किसी उपलब्धि बैज से खुलता है।',
+        'दिग्गज पात्रे, प्रत्येक एका कामगिरी बॅजने मिळवलेले.',
+        'কিংবদন্তি চরিত্র, প্রতিটি একটি অর্জন ব্যাজ দিয়ে অর্জিত।',
+        'లెజెండరీ పాత్రలు, ప్రతి ఒక్కటీ ఒక సాధన బ్యాజ్‌తో సంపాదించేవి.',
+        'லெஜண்டரி கதாபாத்திரங்கள், ஒவ்வொன்றும் ஒரு சாதனை பாட்ஜினால் பெறப்படுவது.',
+      );
+
+  /// "3 / 10 earned" — the ELITE section's own scoreboard.
+  String eliteEarnedCount(int earned, int total) => _t(
+        '$earned / $total earned',
+        '$earned / $total मिले',
+        '$earned / $total मिळवले',
+        '$earned / $total অর্জিত',
+        '$earned / $total సంపాదించారు',
+        '$earned / $total பெற்றீர்கள்',
+      );
+
+  /// Which badge opens a locked elite — e.g. "Earn the Daily Streak · 30-Day
+  /// badge to wear this character."
+  String eliteAvatarLock(String groupName, String tierLabel) => _t(
+        'Earn the $groupName · $tierLabel badge to wear this character.',
+        'इस किरदार को पहनने के लिए $groupName · $tierLabel बैज कमाएँ।',
+        'हे पात्र वापरण्यासाठी $groupName · $tierLabel बॅज मिळवा.',
+        'এই চরিত্রটি পরতে $groupName · $tierLabel ব্যাজ অর্জন করুন।',
+        'ఈ పాత్రను ధరించడానికి $groupName · $tierLabel బ్యాజ్ సంపాదించండి.',
+        'இந்த கதாபாத்திரத்தை அணிய $groupName · $tierLabel பாட்ஜைப் பெறுங்கள்.',
+      );
+
+  /// Live distance to a locked elite's badge — e.g. "18 of 30".
+  String eliteAvatarProgress(String value, String target) => _t(
+        '$value of $target',
+        '$target में से $value',
+        '$target पैकी $value',
+        '$target-এর মধ্যে $value',
+        '$targetలో $value',
+        '$target-இல் $value',
       );
   String get profileCardEyebrow => _t('Budgetify Profile', 'बजेटिफ़ाई प्रोफ़ाइल', 'बजेटिफाय प्रोफाइल', 'বাজেটিফাই প্রোফাইল', 'బడ్జెటిఫై ప్రొఫైల్', 'பட்ஜெட்டிஃபை சுயவிவரம்');
   String get mythicTag => _t('Mythic', 'मिथिक', 'मिथिक', 'মিথিক', 'మిథిక్', 'மித்திக்');
@@ -4279,6 +4310,54 @@ class AppStrings {
         'মুকুটের জীবন্ত অবতার — চোখ পিটপিট করে, হাত নাড়ে, আর লাইট ও ডার্ক দুয়েতেই আপনার প্রোফাইলে নিজের দরবার নিয়ে আসে।',
         'కిరీటపు సజీవ అవతారాలు — కళ్ళు ఆర్పుతాయి, చేయి ఊపుతాయి, లైట్, డార్క్ రెండింటిలోనూ మీ ప్రొఫైల్‌కు తమ ఆస్థానాన్ని తెస్తాయి.',
         'கிரீடத்தின் உயிருள்ள அவதாரங்கள் — கண் சிமிட்டி, கை அசைத்து, லைட், டார்க் இரண்டிலும் உங்கள் சுயவிவரத்திற்கு தங்கள் அரசவையைக் கொண்டு வருகின்றன.',
+      );
+
+  // ── Royalty · the "on your screens" still ──────────────────────────────
+  String get royalStillLabel => _t(
+        'ON YOUR SCREENS',
+        'आपकी स्क्रीन पर',
+        'तुमच्या स्क्रीनवर',
+        'আপনার স্ক্রিনে',
+        'మీ స్క్రీన్‌లపై',
+        'உங்கள் திரைகளில்',
+      );
+  String get royalStillWithout => _t(
+        'Without',
+        'बिना',
+        'शिवाय',
+        'ছাড়া',
+        'లేకుండా',
+        'இல்லாமல்',
+      );
+  String royalStillWith(String name) => _t(
+        'With $name',
+        '$name के साथ',
+        '$name सोबत',
+        '$name সহ',
+        '$name తో',
+        '$name உடன்',
+      );
+  String royalStillDressedCaption(String name) => _t(
+        'Your dashboard with $name equipped — the court accent on every gold '
+            'detail, and the character walking your page.',
+        '$name को पहनने पर आपका डैशबोर्ड — हर सुनहरे हिस्से पर दरबार का रंग, '
+            'और आपके पेज पर चलता किरदार।',
+        '$name घातल्यावर तुमचा डॅशबोर्ड — प्रत्येक सोनेरी तपशिलावर दरबाराचा रंग, '
+            'आणि तुमच्या पानावर चालणारे पात्र.',
+        '$name পরলে আপনার ড্যাশবোর্ড — প্রতিটি সোনালি বিবরণে দরবারের রং, '
+            'আর আপনার পাতায় হেঁটে বেড়ানো চরিত্র।',
+        '$name ధరించినప్పుడు మీ డాష్‌బోర్డ్ — ప్రతి బంగారు వివరంపై ఆస్థాన రంగు, '
+            'మీ పేజీలో నడిచే పాత్ర.',
+        '$name அணிந்தால் உங்கள் டாஷ்போர்டு — ஒவ்வொரு தங்க விவரத்திலும் அரசவை '
+            'நிறம், உங்கள் பக்கத்தில் நடக்கும் கதாபாத்திரம்.',
+      );
+  String get royalStillPlainCaption => _t(
+        'Your dashboard as it is today.',
+        'आपका डैशबोर्ड आज जैसा है।',
+        'तुमचा डॅशबोर्ड आज जसा आहे तसा.',
+        'আপনার ড্যাশবোর্ড আজ যেমন আছে।',
+        'మీ డాష్‌బోర్డ్ ఈ రోజు ఎలా ఉందో అలా.',
+        'உங்கள் டாஷ்போர்டு இன்று இருப்பது போலவே.',
       );
 
   // ── Royalty · custom-animations toggle ─────────────────────────────────
