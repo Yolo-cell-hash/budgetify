@@ -11,7 +11,8 @@ ads content/
   build-ad-videos.sh      cuts the 58s launch film to ad lengths
   build-video-plates.mjs  1920x1080 plates the 16:9 videos composite onto
   images/                 20 PNGs — 8 concepts, 7 landscape / 7 square / 6 portrait
-  video/                  9 MP4s — 3 cuts x 9:16, 1:1 and 16:9
+  build-zero-ad.mjs       renders the original "Zero" ad from scratch
+  video/                  12 MP4s — 4 ads x 9:16, 1:1 and 16:9
   plates/                 2 PNGs — landscape backgrounds for the 16:9 cuts
 ```
 
@@ -110,7 +111,7 @@ here; you have no fraud signal and no quality signal inside the ads account.
 | Language | English + Hindi | App ships 6 languages; start with the two biggest |
 | Bidding | Target CPI, "All users" | Not "users likely to perform an in-app action" — that needs events |
 | Budget | See below | |
-| Assets | 5 headlines, 5 descriptions, 20 images, 9 videos | All in this folder |
+| Assets | 5 headlines, 5 descriptions, 20 images, 12 videos | All in this folder |
 
 ### Budget
 
@@ -184,7 +185,7 @@ that chrome. The only words in it are the app's own UI.
 phone shots collapse into one blurred rectangle at the size these actually get
 seen at. It closes on the app's own motto rather than an invented tagline.
 
-### Video — 3 cuts × 3 orientations
+### Video — 4 ads × 3 orientations
 
 Cut from the 58s launch film. Google recommends 10–30s for install campaigns;
 58s is a brand film, not an ad.
@@ -194,6 +195,7 @@ Cut from the 58s launch film. Google recommends 10–30s for install campaigns;
 | `budgetify-30s-*` | problem → product → **privacy** → CTA | product |
 | `budgetify-15s-*` | problem → product → CTA | product |
 | `budgetify-privacy-15s-*` | privacy proof → CTA, **one continuous segment** | privacy |
+| `budgetify-zero-15s-*` | original ad — **not cut from the film** | n/a |
 
 Every in/out point is a multiple of 2.5s because the score runs at 96 BPM and
 one bar is 2.5s — the difference between a cut that sounds like an edit and one
@@ -213,6 +215,29 @@ copy holds the left and the untouched 9:16 film plays inside a bordered panel on
 the right. The film is never cropped or squeezed, and the space beside it does
 real work. Plates come from `build-video-plates.mjs`; the slot geometry there is
 a contract with `build-ad-videos.sh` — change one, change both.
+
+### `budgetify-zero-15s-*` — the original ad
+
+Built from scratch by `build-zero-ad.mjs`, not cut from the film. The film is a
+58s brand piece with its own scene grammar; this is shaped as an ad from the
+first frame.
+
+**The idea:** every number in it is zero — zero typed, zero sign-ups, zero
+servers, zero trackers, zero ads. That puts the automatic claim and the privacy
+claim on one spine, which no cut of the film does.
+
+Four beats at 0 / 5.0 / 10.0 / 12.5 — all bar boundaries, since the score is
+96 BPM and a bar is 2.5s. The audio bed is the film's own opening 15s, so it
+sounds like the brand.
+
+It **reflows natively** into all three orientations rather than being cropped or
+composited into them: one unit scale driven by frame height (with a width guard)
+and a row/column switch for landscape. That is why it needs no plate.
+
+Rendering is deterministic — the page exposes `__seek(t)` and every property is
+a pure function of `t`, with no CSS animations and no wall clock. Frame N is
+exactly `t = N/fps`, so a re-render is byte-identical. 450 frames per
+orientation, about 20s each via headless Chrome.
 
 **Upload order:** YouTube first (as **unlisted**), then paste the URLs into
 Google Ads. The Videos field takes a YouTube link, never an MP4 upload.
