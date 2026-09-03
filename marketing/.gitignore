@@ -1,5 +1,14 @@
-.render/
+.render/*
 node_modules/
+
+# ...except the renderer itself, which is SOURCE, not build output. It has to
+# live inside .render/ because Node resolves bare imports (playwright-core,
+# ffmpeg-static) by walking up from the importing file, and the only
+# node_modules is the one in here -- move it up a level and it stops resolving.
+# Ignoring the directory outright (`.render/`) made negation impossible, so the
+# rule ignores its CONTENTS and re-includes this one file. Everything else in
+# here -- node_modules, frames, the cached audio -- stays ignored.
+!.render/render.mjs
 
 # The 58s launch film master is a build output of render-film.mjs (~13MB) and
 # is regenerated, so it stays out of git. This rule used to be a blanket
