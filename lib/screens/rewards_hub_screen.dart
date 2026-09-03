@@ -156,8 +156,8 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
 
   /// Open the avatar picker (optionally scrolled straight to ROYALTY), then
   /// refresh the royal-unlock state — a pick may have been spent inside.
-  /// Developer mode shows the whole court unlocked; equipping a royal the
-  /// user hasn't actually earned becomes a session-only preview.
+  /// Developer mode shows the whole court AND every elite unlocked; equipping
+  /// one the user hasn't actually earned becomes a session-only preview.
   Future<void> _openAvatarPicker({bool scrollToRoyalty = false}) async {
     final edited = await showAvatarPicker(
       context,
@@ -172,10 +172,16 @@ class _RewardsHubScreenState extends State<RewardsHubScreen> {
       // only opens from the Profile tab, which does not render until _load
       // has set the stats.
       stats: _stats,
-      legacyEliteSlots: _legacyElites,
+      legacyEliteSlots:
+          DevMode.isActive ? devAllEliteSlots : _legacyElites,
     );
     if (edited != null) {
-      if (await applyDevRoyalPreview(edited, _unlockedRoyals)) {
+      if (await applyDevRoyalPreview(
+        edited,
+        _unlockedRoyals,
+        reallyUnlockedElites:
+            reallyUnlockedEliteSlots(_stats, _legacyElites),
+      )) {
         if (mounted) setState(() => _profile = edited);
       } else {
         await _save(edited);

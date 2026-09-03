@@ -3,7 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/achievement.dart';
 import '../providers/theme_provider.dart';
+import '../widgets/avatars.dart';
 import '../widgets/royal_avatars.dart';
 import 'app_events.dart';
 import 'entitlement_service.dart';
@@ -204,20 +206,57 @@ class DevMode {
   }
 }
 
+/// Every ELITE sprite slot — what the picker is handed while dev mode is on,
+/// so all ten characters are equippable for preview. The exact counterpart of
+/// the `{for (final r in kRoyalAvatars) r.id}` the court gets.
+Set<int> get devAllEliteSlots =>
+    {for (final e in kEliteAvatars) e.spriteIndex};
+
+/// The elite slots the user has REALLY earned: badges plus anything banked
+/// before the tier was re-gated.
+///
+/// The bypass above shows all ten; this is what says which of them a save may
+/// legitimately persist. Without the distinction, equipping an elite in dev
+/// mode would run down the ordinary save path — and `loadProfile` banks a worn
+/// elite permanently, so trying one on would mint a real, forever entitlement
+/// out of a preview.
+Set<int> reallyUnlockedEliteSlots(GamiStats? stats, Set<int> banked) {
+  final earned = stats == null ? const <String>{} : earnedBadgeIds(stats);
+  return {
+    ...banked,
+    for (final e in kEliteAvatars)
+      if (earned.contains(e.badgeId)) e.spriteIndex,
+  };
+}
+
 /// Routes an avatar-picker result through the dev-mode preview when needed.
 ///
 /// If dev mode is on and [edited] equips a royal the user hasn't actually
-/// unlocked ([reallyUnlocked] is the persisted set), the equip becomes an
-/// override that is ALSO persisted as the dev overlay (so it survives a
-/// restart while dev mode stays on) and this returns true — the caller must
-/// NOT persist the profile. Otherwise any stale overlay is dropped (a real
-/// equip always wins) and the caller saves normally.
+/// unlocked ([reallyUnlocked] is the persisted set) — or an ELITE they have
+/// not really earned ([reallyUnlockedElites], from
+/// [reallyUnlockedEliteSlots]) — the equip becomes an override that is ALSO
+/// persisted as the dev overlay (so it survives a restart while dev mode stays
+/// on) and this returns true: the caller must NOT persist the profile.
+/// Otherwise any stale overlay is dropped (a real equip always wins) and the
+/// caller saves normally.
+///
+/// Elites were added to this in v1.82.0, when the tier went back behind
+/// achievement badges. Dev mode exists so every cosmetic is testable, and ten
+/// characters that could only be reached by actually running a 200-day streak
+/// would be exactly the hole it was built to fill — but they have to come
+/// through the OVERLAY, not the save path, for the reason spelled out on
+/// [reallyUnlockedEliteSlots].
 Future<bool> applyDevRoyalPreview(
-    GamiProfile edited, Set<String> reallyUnlocked) async {
-  final royal = royalAvatarAt(int.tryParse(edited.avatarValue) ?? -1);
+  GamiProfile edited,
+  Set<String> reallyUnlocked, {
+  Set<int> reallyUnlockedElites = const {},
+}) async {
+  final seed = int.tryParse(edited.avatarValue) ?? -1;
+  final royal = royalAvatarAt(seed);
+  final elite = eliteAvatarAt(seed);
   final preview = DevMode.isActive &&
-      royal != null &&
-      !reallyUnlocked.contains(royal.id);
+      ((royal != null && !reallyUnlocked.contains(royal.id)) ||
+          (elite != null && !reallyUnlockedElites.contains(seed)));
   if (preview) {
     GamificationService.sessionAvatarOverride = edited.avatarValue;
     // Persist the overlay so the equipped royal comes back on the next launch.

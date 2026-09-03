@@ -1,10 +1,12 @@
 import 'dart:convert';
 
+import 'package:budget_tracker/models/achievement.dart';
 import 'package:budget_tracker/models/plus_products.dart';
 import 'package:budget_tracker/providers/theme_provider.dart';
 import 'package:budget_tracker/services/dev_mode.dart';
 import 'package:budget_tracker/services/entitlement_service.dart';
 import 'package:budget_tracker/services/gamification_service.dart';
+import 'package:budget_tracker/widgets/avatars.dart';
 import 'package:budget_tracker/widgets/royal_avatars.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -105,6 +107,74 @@ void main() {
       expect(await applyDevRoyalPreview(profile, {prince.id}), isFalse);
       expect(GamificationService.sessionAvatarOverride, isNull);
       expect(prefs.getString('dev_mode_avatar'), isNull);
+    });
+
+    test('ELITE avatars preview too, and never leak into real entitlement',
+        () async {
+      // v1.82.0 put the elites back behind achievement badges. Dev mode exists
+      // so every cosmetic is testable, and ten characters reachable only by
+      // actually running a 200-day streak would be precisely the hole it was
+      // built to fill.
+      final hardest = kEliteAvatars.last; // Obsidian Warlord, 200-day streak
+      final easiest = kEliteAvatars.first; // Shadow Blade, one tagged month
+      final profile = const GamiProfile().copyWith(
+        avatarKind: 'pixel',
+        avatarValue: '${hardest.spriteIndex}',
+      );
+
+      // Dev mode off → an elite is an ordinary avatar, never a preview.
+      expect(await applyDevRoyalPreview(profile, const {}), isFalse);
+
+      DevMode.tryUnlock('budgetify.dev');
+
+      // Unearned elite → session preview, held in the dev overlay only. This
+      // is the leak that matters: the ordinary save path would persist it, and
+      // loadProfile banks a worn elite FOREVER, so trying one on in dev mode
+      // would mint a real entitlement out of a preview.
+      expect(await applyDevRoyalPreview(profile, const {}), isTrue);
+      expect(GamificationService.sessionAvatarOverride,
+          '${hardest.spriteIndex}');
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('dev_mode_avatar'), '${hardest.spriteIndex}');
+      expect(await GamificationService().legacyEliteSlots(), isEmpty,
+          reason: 'a preview must never bank an entitlement');
+
+      // An elite the user has genuinely earned → real save path, no overlay.
+      final earnedStats = GamiStats(
+        fullyTaggedMonths:
+            badgeById(easiest.badgeId)!.group.tiers[0].threshold.toInt(),
+      );
+      expect(
+        await applyDevRoyalPreview(
+          const GamiProfile().copyWith(
+            avatarKind: 'pixel',
+            avatarValue: '${easiest.spriteIndex}',
+          ),
+          const {},
+          reallyUnlockedElites:
+              reallyUnlockedEliteSlots(earnedStats, const {}),
+        ),
+        isFalse,
+      );
+      expect(GamificationService.sessionAvatarOverride, isNull);
+    });
+
+    test('reallyUnlockedEliteSlots reads badges and the banked ledger', () {
+      final first = kEliteAvatars.first; // one fully-tagged month
+      expect(reallyUnlockedEliteSlots(null, const {}), isEmpty);
+      // Banked before the gate, with no stats at all.
+      expect(reallyUnlockedEliteSlots(null, {99}), {99});
+      // Earned by badge.
+      expect(
+        reallyUnlockedEliteSlots(const GamiStats(fullyTaggedMonths: 1), const {}),
+        contains(first.spriteIndex),
+      );
+      // The bypass hands the picker every slot; this is deliberately NOT that.
+      expect(devAllEliteSlots.length, kEliteAvatars.length);
+      expect(
+        reallyUnlockedEliteSlots(const GamiStats(), const {}),
+        isNot(equals(devAllEliteSlots)),
+      );
     });
 
     test('the preview overlay (avatar + theme) is restored on the next launch',

@@ -118,8 +118,8 @@ class _StreakRewardsScreenState extends State<StreakRewardsScreen> {
 
   /// "Unlock Now" from a royal-pick milestone: open the picker straight at the
   /// ROYALTY section so the user can choose their royal, then refresh.
-  /// Developer mode shows the whole court unlocked; equipping an unearned
-  /// royal becomes a session-only preview (never persisted).
+  /// Developer mode shows the whole court AND every elite unlocked; equipping
+  /// an unearned one becomes a session-only preview (never persisted).
   Future<void> _openRoyaltyPicker() async {
     final stats = await _pickerStats();
     if (!mounted) return;
@@ -133,10 +133,15 @@ class _StreakRewardsScreenState extends State<StreakRewardsScreen> {
       onUnlockRoyal: _svc.unlockRoyal,
       scrollToRoyalty: true,
       stats: stats,
-      legacyEliteSlots: _legacyElites,
+      legacyEliteSlots:
+          DevMode.isActive ? devAllEliteSlots : _legacyElites,
     );
     if (edited != null) {
-      if (!await applyDevRoyalPreview(edited, _unlockedRoyals)) {
+      if (!await applyDevRoyalPreview(
+        edited,
+        _unlockedRoyals,
+        reallyUnlockedElites: reallyUnlockedEliteSlots(stats, _legacyElites),
+      )) {
         await _svc.saveProfile(edited);
       }
       // Both paths: a developer-mode preview must be able to exercise the
