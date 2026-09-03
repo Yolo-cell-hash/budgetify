@@ -529,8 +529,11 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
       // Two switches now: the app-wide court theme AND the global
-      // custom-animations toggle (which lives in this court sheet).
-      expect(find.byType(SwitchListTile), findsNWidgets(2));
+      // custom-animations toggle (which lives in this court sheet). Plain
+      // Switches inside the settings card since v1.83.0 — a SwitchListTile
+      // carries its own 48dp slab plus a full paragraph, and three of them
+      // were most of a sheet that has to fit on one screen.
+      expect(find.byType(Switch), findsNWidgets(2));
       expect(find.text('Apply app-wide Crimson theme'), findsOneWidget);
       expect(find.text('Enable Custom Animations'), findsOneWidget);
       expect(find.text('The Sovereign'), findsWidgets);
@@ -539,11 +542,13 @@ void main() {
       // Flip the theme toggle off, equip him, then save the picker. The
       // sheet now carries the animation reel above these controls, so scroll
       // the switch into view rather than tapping where it used to sit.
-      final themeSwitch =
-          find.widgetWithText(SwitchListTile, 'Apply app-wide Crimson theme');
-      await tester.ensureVisible(themeSwitch);
+      final themeSwitch = find.ancestor(
+        of: find.text('Apply app-wide Crimson theme'),
+        matching: find.byType(Row),
+      );
+      await tester.ensureVisible(themeSwitch.first);
       await tester.pump();
-      await tester.tap(themeSwitch);
+      await tester.tap(find.byType(Switch).first);
       await tester.pump();
       await tester.ensureVisible(find.text('Equip'));
       await tester.pump();
@@ -620,10 +625,14 @@ void main() {
         await tester.pump(const Duration(milliseconds: 400));
 
         final where = '$variant';
+        // The both-modes CLAIM is sales copy and belongs on a locked sheet.
+        // This royal is owned, so the sheet makes the same point by
+        // demonstration instead — the live row below — and saying it twice
+        // cost 36dp on the one sheet with none to spare. See _royalHeader.
         expect(
           find.textContaining('Reigns in Light and Dark'),
-          findsOneWidget,
-          reason: '$where: the both-modes pill should be on the sheet',
+          findsNothing,
+          reason: '$where: an owner is shown the live dress, not promised it',
         );
         // The court is live right here...
         expect(

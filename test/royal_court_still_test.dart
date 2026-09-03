@@ -10,13 +10,15 @@ import 'package:budget_tracker/providers/theme_provider.dart';
 import 'package:budget_tracker/widgets/royal_avatars.dart';
 import 'package:budget_tracker/widgets/royal_character.dart';
 import 'package:budget_tracker/widgets/royal_court_still.dart';
+import 'package:budget_tracker/widgets/royal_showcase.dart';
 import 'package:budget_tracker/widgets/theme_preview_sheet.dart';
 
 /// The third thing a buyer is owed: *what does my app look like afterwards.*
 ///
 /// The reel answers "what does this character do". It cannot answer the other
 /// half of what the ROYALTY tier sells — a THEME — because a chibi on a velvet
-/// rectangle is a figure with no ground. [RoyalCourtStill] gives it a ground:
+/// rectangle is a figure with no ground. [RoyalCourtStillFrame] gives it a
+/// ground:
 /// the Appearance picker's own dashboard still, handed the court's real
 /// [ThemeDress].
 ///
@@ -178,8 +180,13 @@ void main() {
 
   group('the A/B', () {
     testWidgets('flips the still between the two apps', (tester) async {
-      await tester.pumpWidget(host(RoyalCourtStill(royal: royal)));
+      // Driven through the showcase, which owns the A/B now: the still page
+      // is page two, so swipe to it first.
+      await tester.pumpWidget(host(RoyalShowcase(royal: royal)));
       await tester.pump();
+      await tester.drag(find.byType(PageView), const Offset(-400, 0));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
 
       // Opens on the dressed side: they came to look at the royal.
       final court = stillColors(tester).brandAccent;
@@ -190,7 +197,6 @@ void main() {
       await tester.pump(const Duration(milliseconds: 200));
       expect(stillColors(tester).brandAccent, isNot(court));
       expect(painted(tester), isNull);
-      expect(find.text(en.royalStillPlainCaption), findsOneWidget);
 
       await tester.tap(
         find.text(en.royalStillWith(en.royalAvatarName(royal.id))),

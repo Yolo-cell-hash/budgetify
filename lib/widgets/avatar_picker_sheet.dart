@@ -22,8 +22,7 @@ import 'app_toast.dart';
 import 'avatars.dart';
 import 'badge_medallion.dart';
 import 'royal_avatars.dart';
-import 'royal_court_still.dart';
-import 'royal_preview_stage.dart';
+import 'royal_showcase.dart';
 
 /// Edit the profile's avatar (emoji or procedural pixel) + accent + username.
 /// Returns the edited [GamiProfile], or null if cancelled.
@@ -124,6 +123,15 @@ Future<void> confirmRoyalAppIcon(
   if (await AppIconService.relaunch()) return;
   await SystemNavigator.pop(); // platform couldn't relaunch — close instead
 }
+
+/// Whether the court sheet draws its Android-only "match app icon" row.
+///
+/// A seam, not a feature: that row exists only on Android, so every layout
+/// measurement taken on a desktop test host was 53dp short of the tallest
+/// sheet the app actually ships — which is precisely the configuration a
+/// fits-on-one-screen guarantee has to be proved against.
+@visibleForTesting
+bool debugForceRoyalAppIconRow = false;
 
 class _AvatarPickerSheet extends StatefulWidget {
   final GamiProfile initial;
@@ -455,7 +463,13 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
             const SizedBox(height: 16),
             Row(
               children: [
-                _sectionLabel(colors, context.l10n.eliteAvatarsLabel),
+                // Flexible both ways: at a large accessibility text scale on a
+                // narrow phone, a fixed label plus a fixed score overran the
+                // row. Neither string's width is ours to predict — both are
+                // translated into six languages.
+                Flexible(
+                  child: _sectionLabel(colors, context.l10n.eliteAvatarsLabel),
+                ),
                 const SizedBox(width: 6),
                 Icon(
                   Icons.workspace_premium_rounded,
@@ -463,22 +477,27 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
                   color: colors.brandAccent,
                 ),
                 const Spacer(),
+                const SizedBox(width: 6),
                 // The scoreboard. A row of ten locked circles reads as "these
                 // are not for you"; "3 / 10 earned" reads as a score with more
                 // of it to get — the whole difference between a wall and a
                 // ladder is knowing where you are on it.
-                Text(
-                  context.l10n.eliteEarnedCount(
-                    _eliteUnlockedCount,
-                    kEliteAvatars.length,
-                  ),
-                  style: TextStyle(
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.2,
-                    color: _eliteUnlockedCount == kEliteAvatars.length
-                        ? colors.brandAccent
-                        : colors.textTertiary,
+                Flexible(
+                  child: Text(
+                    context.l10n.eliteEarnedCount(
+                      _eliteUnlockedCount,
+                      kEliteAvatars.length,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.2,
+                      color: _eliteUnlockedCount == kEliteAvatars.length
+                          ? colors.brandAccent
+                          : colors.textTertiary,
+                    ),
                   ),
                 ),
               ],
@@ -632,6 +651,7 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
 
     Widget switchButton(bool toLight) => Align(
       alignment: Alignment.centerLeft,
+      widthFactor: 1,
       child: TextButton.icon(
         onPressed: () => theme.setVariant(
           toLight ? AppThemeVariant.light : AppThemeVariant.dark,
@@ -647,6 +667,8 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
         ),
         label: Text(
           ctx.l10n.royalSwitchMode(toLight),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: const TextStyle(fontSize: 12.5),
         ),
       ),
@@ -656,31 +678,37 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
       // A reward theme: the court steps aside here. Offer the primary that
       // matches the brightness they're already reading in.
       return Padding(
-        padding: const EdgeInsets.only(top: 2),
+        padding: const EdgeInsets.symmetric(vertical: 2),
         child: switchButton(Theme.of(ctx).brightness == Brightness.light),
       );
     }
+    // Confirmation and offer on ONE line. Stacked they ran 62dp inside a
+    // settings card that has three other rows to fit; side by side they say
+    // the same two things in 38.
     return Padding(
-      padding: const EdgeInsets.only(top: 6),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      // Both halves are Flexible and both can ellipsize. Neither string is
+      // ours to size — they are translated into six languages, and the German
+      // -length case of an Indic script will overrun any fixed split.
+      child: Row(
         children: [
-          Row(
-            children: [
-              Icon(Icons.check_circle_rounded, size: 14, color: accent),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  ctx.l10n.royalCourtLive(onLight),
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    color: AppColors.of(ctx).textSecondary,
-                  ),
-                ),
+          Icon(Icons.check_circle_rounded, size: 14, color: accent),
+          const SizedBox(width: 6),
+          Flexible(
+            flex: 5,
+            child: Text(
+              ctx.l10n.royalCourtLive(onLight),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11.5,
+                height: 1.25,
+                color: AppColors.of(ctx).textSecondary,
               ),
-            ],
+            ),
           ),
-          switchButton(!onLight),
+          const SizedBox(width: 4),
+          Flexible(flex: 6, child: switchButton(!onLight)),
         ],
       ),
     );
@@ -693,6 +721,14 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
     await showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
+      // The court sheet is a product page, not a menu: capped at the default
+      // 9/16 of the screen it showed 39% of itself and hid the price. Material
+      // is explicit that a sheet should take the height its content needs, and
+      // the body below is built to stop growing once it has it.
+      isScrollControlled: true,
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.92,
+      ),
       // A modal CAPTURES its Theme at push time (InheritedTheme.capture), so
       // the sheet would keep painting in whichever mode it opened in while
       // the app behind it changed — and the row inside it exists precisely to
@@ -716,6 +752,16 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
   /// The court sheet's contents, under the live app theme (see the Theme wrap
   /// in [_showRoyalSheet]). [setSheetState] rebuilds the sheet for the toggles
   /// that live on it.
+  ///
+  /// Three bands, and the split is the whole point: an identity HEADER, a
+  /// scrolling MIDDLE, and a footer that never scrolls away. Everything used to
+  /// be one long column inside a half-height sheet — 1204dp of content in a
+  /// 470dp window on an ordinary phone — so the price and the button that
+  /// charges it were both two scrolls below the fold. Pinning the decision to
+  /// the bottom is what every commerce sheet does, and it is the only structure
+  /// that stays honest at a text scale or a screen size we did not measure:
+  /// whatever else has to give, the reader can always see what this costs and
+  /// how to say yes or no.
   Widget _royalSheetBody(
     BuildContext ctx,
     RoyalAvatar r,
@@ -736,8 +782,9 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
     final equipped = _value == value;
     final unlocked = _isRoyalUnlocked(r);
     final unlockable = !unlocked && _picks > 0;
+
     return Container(
-      padding: const EdgeInsets.fromLTRB(24, 14, 24, 28),
+      padding: const EdgeInsets.fromLTRB(24, 14, 24, 22),
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
@@ -746,29 +793,92 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
       // Flutter 3.44 asserts if a ListTile's nearest Material ancestor is
       // further away than a DecoratedBox with a background — the tile
       // would paint its ink splashes behind this sheet's own fill. A
-      // transparent Material INSIDE the decoration gives the two
-      // SwitchListTiles below somewhere to splash without changing how
-      // anything looks.
+      // transparent Material INSIDE the decoration gives the switches
+      // below somewhere to splash without changing how anything looks.
       child: Material(
         type: MaterialType.transparency,
-        // Scrolls on short screens — the lore + note + toggle stack can
-        // outgrow a small viewport (or a large text scale).
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: colors.border,
-                  borderRadius: BorderRadius.circular(2),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: colors.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 14),
+            _royalHeader(
+              ctx,
+              r,
+              value,
+              colors,
+              accent,
+              showDualMode: !unlocked,
+            ),
+            const SizedBox(height: 12),
+            // The scrolling band. Loose, so the sheet is content-height when
+            // everything fits and only starts scrolling when it genuinely
+            // cannot — the footer below keeps its place either way.
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    RoyalShowcase(royal: r),
+                    if (unlocked) ...[
+                      const SizedBox(height: 10),
+                      _royalSettings(ctx, r, colors, accent, setSheetState),
+                    ],
+                  ],
                 ),
               ),
-              const SizedBox(height: 16),
-              // The royal presents itself — spawn flourish included.
-              AvatarView(kind: 'pixel', value: value, size: 92, ring: false),
-              const SizedBox(height: 10),
+            ),
+            const SizedBox(height: 14),
+            _royalFooter(
+              ctx,
+              r,
+              colors,
+              accent,
+              onAccent,
+              unlocked: unlocked,
+              unlockable: unlockable,
+              equipped: equipped,
+              value: value,
+              setSheetState: setSheetState,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Who this is: the face, the name, the lore and the both-modes promise, on
+  /// one row instead of four stacked centre-aligned blocks.
+  ///
+  /// The circle used to be 92dp and alone above the name. It is the same
+  /// character the showcase below draws twice over, so at that size it was
+  /// spending 170dp of a 470dp window to say something the next widget says
+  /// better. Shrunk and set beside the name it still does its real job —
+  /// telling you what lands on your profile — for a third of the room.
+  Widget _royalHeader(
+    BuildContext ctx,
+    RoyalAvatar r,
+    String value,
+    AppColors colors,
+    Color accent, {
+    required bool showDualMode,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AvatarView(kind: 'pixel', value: value, size: 54, ring: false),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Text(
                 ctx.l10n.royalAvatarName(r.id),
                 style: TextStyle(
@@ -778,336 +888,38 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
                   color: accent,
                 ),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 3),
               Text(
                 ctx.l10n.royalAvatarLore(r.id),
-                textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 13,
-                  height: 1.4,
+                  fontSize: 12.5,
+                  height: 1.32,
                   color: colors.textSecondary,
                 ),
               ),
-              const SizedBox(height: 10),
-              // Court note: the dress follows BOTH primary themes, so
-              // this pill promises reach rather than naming one mode.
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: accent.withValues(alpha: 0.35)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
+              // The court dresses BOTH primaries, so this promises reach
+              // rather than naming one mode. A hairline row now rather than a
+              // filled pill: the sheet already carries an accent border, a
+              // gold name and an accent CTA, and a fourth accent block was
+              // one flourish past premium.
+              //
+              // Sales copy, so it is dropped for an owner: the settings card
+              // below carries the LIVE version of the same fact ("its court is
+              // live on your Dark theme"), and saying it twice cost 36dp on
+              // the one sheet that has none to spare.
+              if (showDualMode) ...[
+                const SizedBox(height: 7),
+                Row(
                   children: [
-                    // Half-lit disc — the one icon that reads as "both".
-                    Icon(Icons.brightness_6_rounded, size: 14, color: accent),
+                    Icon(Icons.brightness_6_rounded, size: 13, color: accent),
                     const SizedBox(width: 6),
-                    Flexible(
+                    Expanded(
                       child: Text(
                         ctx.l10n.royalDualModeNote,
                         style: TextStyle(
                           fontSize: 11.5,
+                          height: 1.25,
                           fontWeight: FontWeight.w600,
-                          color: colors.text,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              // What the money is actually for. The circle above is the face
-              // that lands on the profile; this is the character that walks
-              // the app, and a buyer who has not seen it is being asked to
-              // pay for a description. Runs on the locked sheet as well —
-              // that is the sheet where it earns its space.
-              RoyalPreviewStage(royal: r),
-              const SizedBox(height: 6),
-              Text(
-                ctx.l10n.royalPreviewCaption,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 11.5,
-                  height: 1.3,
-                  color: colors.textTertiary,
-                ),
-              ),
-              const SizedBox(height: 18),
-              // ...and where that character ends up. The reel above shows the
-              // performance; this shows the app it performs in, because the
-              // court's other half is a THEME and a theme has nothing to show
-              // on a velvet rectangle. Same reasoning as the reel — a buyer
-              // who cannot see it is being asked to pay for a description —
-              // so it runs on the locked sheet too.
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Row(
-                  children: [
-                    Text(
-                      ctx.l10n.royalStillLabel,
-                      style: TextStyle(
-                        fontSize: 11,
-                        letterSpacing: 1.4,
-                        fontWeight: FontWeight.w700,
-                        color: colors.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Icon(Icons.smartphone_rounded, size: 14, color: accent),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 10),
-              RoyalCourtStill(royal: r),
-              const SizedBox(height: 14),
-              // Unlocked royals get the app-wide theme toggle + Equip. A
-              // still-locked royal shows either a free Unlock action (a pick
-              // is waiting) or its price and a buy action.
-              if (unlocked) ...[
-                // "Apply app-wide <court> theme" — the royal's own wording.
-                SwitchListTile(
-                  value: _applyRoyalTheme,
-                  onChanged: (v) {
-                    setState(() => _applyRoyalTheme = v);
-                    setSheetState(() {});
-                  },
-                  activeThumbColor: accent,
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(
-                    ctx.l10n.royalThemeToggle(r.id),
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: colors.text,
-                    ),
-                  ),
-                ),
-                // Full-body theatrics (off by default): the royal roaming,
-                // peeking and attacking the screen. Global and persisted
-                // immediately via AppPreferences — not part of this
-                // profile, so Save/Cancel doesn't touch it. The circle
-                // avatar keeps blinking and waving either way.
-                SwitchListTile(
-                  value: ctx.watch<AppPreferences>().royalCustomAnimations,
-                  onChanged: (v) {
-                    ctx.read<AppPreferences>().setRoyalCustomAnimations(v);
-                    setSheetState(() {});
-                  },
-                  activeThumbColor: accent,
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(
-                    ctx.l10n.royalCustomAnimationsTitle,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: colors.text,
-                    ),
-                  ),
-                  subtitle: Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(
-                      ctx.l10n.royalCustomAnimationsDesc,
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        height: 1.3,
-                        color: colors.textTertiary,
-                      ),
-                    ),
-                  ),
-                ),
-                // Opt-in: match the Android launcher icon to this royal's
-                // gem. The switch only records the preference; the icon is
-                // swapped (after a confirm, since it closes the app) when the
-                // avatar is saved. Shown on every royal's sheet by design.
-                if (Platform.isAndroid)
-                  SwitchListTile(
-                    value: ctx.watch<AppPreferences>().royalAppIcon,
-                    // Records the preference and NOTHING else. Applying it
-                    // waits for Save, which goes through
-                    // [confirmRoyalAppIcon] and asks first.
-                    //
-                    // A previous pass reconciled the icon the moment the
-                    // switch moved, on the theory that the swap is silent
-                    // because the native side passes DONT_KILL_APP. It is not:
-                    // disabling the launcher component the running task is
-                    // attached to tears the task down anyway on real devices,
-                    // so flicking the switch force-closed the app — before any
-                    // confirmation, and for an avatar the user had not chosen
-                    // to keep yet. There is no such thing as a quiet icon
-                    // swap, which is why every one of them now sits behind the
-                    // confirm-and-relaunch path.
-                    onChanged: (v) {
-                      ctx.read<AppPreferences>().setRoyalAppIcon(v);
-                      setSheetState(() {});
-                    },
-                    activeThumbColor: accent,
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(
-                      ctx.l10n.royalAppIconTitle,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: colors.text,
-                      ),
-                    ),
-                    subtitle: Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Text(
-                        ctx.l10n.royalAppIconDesc,
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          height: 1.3,
-                          color: colors.textTertiary,
-                        ),
-                      ),
-                    ),
-                  ),
-                // Where the court stands on the active theme, and a
-                // one-tap hop to see it in the other mode.
-                _modeSwitchRow(ctx, r, accent),
-                const SizedBox(height: 8),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: equipped
-                        ? null
-                        : () {
-                            setState(() => _value = value);
-                            Navigator.pop(ctx);
-                          },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: accent,
-                      foregroundColor: onAccent,
-                      disabledBackgroundColor: accent.withValues(alpha: 0.35),
-                    ),
-                    icon: Icon(
-                      equipped
-                          ? Icons.check_rounded
-                          : Icons.workspace_premium_rounded,
-                      size: 18,
-                    ),
-                    label: Text(
-                      equipped ? ctx.l10n.equippedRoyal : ctx.l10n.equipRoyal,
-                    ),
-                  ),
-                ),
-              ] else if (unlockable) ...[
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () async {
-                      await _unlockRoyal(r);
-                      if (!ctx.mounted) return;
-                      Navigator.pop(ctx);
-                      if (mounted) {
-                        showAppToast(
-                          context,
-                          message: context.l10nRead.royalUnlockedToast(
-                            context.l10nRead.royalAvatarName(r.id),
-                          ),
-                          type: AppToastType.success,
-                        );
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: accent,
-                      foregroundColor: onAccent,
-                    ),
-                    icon: const Icon(Icons.lock_open_rounded, size: 18),
-                    label: Text(ctx.l10n.unlockRoyalCta),
-                  ),
-                ),
-              ] else ...[
-                // Locked with no pick to spend, so this royal is bought:
-                // price first, then the action, then the free route — which
-                // never stops being open, and is the reason this sheet reads
-                // as an offer rather than a toll gate.
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
-                  children: [
-                    // The everyday price, struck through — drawn only when
-                    // Play confirms it is really about to charge less.
-                    if (_royalDiscountIsReal(r)) ...[
-                      Text(
-                        _inr.format(kRoyalAvatarPriceInr),
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: colors.textSecondary,
-                          decoration: TextDecoration.lineThrough,
-                          decorationColor: colors.textSecondary,
-                          decorationThickness: 2.2,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                    ],
-                    Text(
-                      _royalPrice(r),
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w800,
-                        color: accent,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  ctx.l10n.royalPriceCaption,
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    color: colors.textTertiary,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _buying
-                        ? null
-                        : () => _buyRoyal(ctx, r, setSheetState),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: accent,
-                      foregroundColor: onAccent,
-                      disabledBackgroundColor: accent.withValues(alpha: 0.35),
-                    ),
-                    icon: _buying
-                        ? SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                onAccent,
-                              ),
-                            ),
-                          )
-                        : const Icon(Icons.lock_open_rounded, size: 18),
-                    label: Text(ctx.l10n.buyRoyalCta(_royalPrice(r))),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.local_fire_department_rounded,
-                      size: 16,
-                      color: colors.textSecondary,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        ctx.l10n.royalLockedSheetNote,
-                        style: TextStyle(
-                          fontSize: 12,
-                          height: 1.35,
                           color: colors.textSecondary,
                         ),
                       ),
@@ -1118,7 +930,320 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
             ],
           ),
         ),
+      ],
+    );
+  }
+
+  /// The per-royal controls, for a royal the user already owns.
+  ///
+  /// Grouped into one bordered card with compact rows. As SwitchListTiles they
+  /// ran 58dp, 150dp and 58dp — the middle one alone was a third of the
+  /// visible sheet — because each carried a full explanatory paragraph. The
+  /// explanations stay, at caption size, under titles that are already almost
+  /// self-describing.
+  Widget _royalSettings(
+    BuildContext ctx,
+    RoyalAvatar r,
+    AppColors colors,
+    Color accent,
+    StateSetter setSheetState,
+  ) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        color: colors.cardAlt.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: colors.border),
       ),
+      child: Column(
+        children: [
+          // "Apply app-wide <court> theme" — the royal's own wording.
+          _settingRow(
+            colors: colors,
+            accent: accent,
+            title: ctx.l10n.royalThemeToggle(r.id),
+            value: _applyRoyalTheme,
+            onChanged: (v) {
+              setState(() => _applyRoyalTheme = v);
+              setSheetState(() {});
+            },
+          ),
+          _settingDivider(colors),
+          // Full-body theatrics (off by default): the royal roaming, peeking
+          // and attacking the screen. Global and persisted immediately via
+          // AppPreferences — not part of this profile, so Save/Cancel doesn't
+          // touch it. The circle avatar keeps blinking and waving either way.
+          _settingRow(
+            colors: colors,
+            accent: accent,
+            title: ctx.l10n.royalCustomAnimationsTitle,
+            subtitle: ctx.l10n.royalCustomAnimationsDesc,
+            value: ctx.watch<AppPreferences>().royalCustomAnimations,
+            onChanged: (v) {
+              ctx.read<AppPreferences>().setRoyalCustomAnimations(v);
+              setSheetState(() {});
+            },
+          ),
+          // Opt-in: match the Android launcher icon to this royal's gem. The
+          // switch only records the preference; the icon is swapped (after a
+          // confirm, since it closes the app) when the avatar is saved.
+          //
+          // A previous pass reconciled the icon the moment the switch moved,
+          // on the theory that the swap is silent because the native side
+          // passes DONT_KILL_APP. It is not: disabling the launcher component
+          // the running task is attached to tears the task down anyway on real
+          // devices, so flicking the switch force-closed the app — before any
+          // confirmation, and for an avatar the user had not chosen to keep
+          // yet. There is no such thing as a quiet icon swap, which is why
+          // every one of them now sits behind the confirm-and-relaunch path.
+          if (Platform.isAndroid || debugForceRoyalAppIconRow) ...[
+            _settingDivider(colors),
+            _settingRow(
+              colors: colors,
+              accent: accent,
+              title: ctx.l10n.royalAppIconTitle,
+              value: ctx.watch<AppPreferences>().royalAppIcon,
+              onChanged: (v) {
+                ctx.read<AppPreferences>().setRoyalAppIcon(v);
+                setSheetState(() {});
+              },
+            ),
+          ],
+          _settingDivider(colors),
+          // Where the court stands on the active theme, and a one-tap hop to
+          // see it in the other mode.
+          _modeSwitchRow(ctx, r, accent),
+        ],
+      ),
+    );
+  }
+
+  Widget _settingDivider(AppColors colors) =>
+      Divider(height: 1, thickness: 1, color: colors.border);
+
+  /// One compact switch row: title, an optional caption, and the switch.
+  Widget _settingRow({
+    required AppColors colors,
+    required Color accent,
+    required String title,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+    String? subtitle,
+  }) {
+    return Padding(
+      // 4, not 8: four rows of a switch, a title and a caption is the tallest
+      // thing on the owned sheet, and every dp of row padding is multiplied by
+      // four. The rows still clear 48dp, so nothing loses a tap target.
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    color: colors.text,
+                  ),
+                ),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    // Three, not two: at two the one caption that has real
+                    // work to do — saying WHERE the animations happen — was
+                    // cut off mid-sentence, and the sheet has the room.
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      height: 1.25,
+                      color: colors.textTertiary,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          // Dense so the row is set by its text, not by the switch's own
+          // 48dp tap slab.
+          Transform.scale(
+            scale: 0.85,
+            child: Switch(
+              value: value,
+              onChanged: onChanged,
+              activeThumbColor: accent,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// The band that never scrolls: what this costs (or what you own) and the
+  /// one action that follows from it.
+  Widget _royalFooter(
+    BuildContext ctx,
+    RoyalAvatar r,
+    AppColors colors,
+    Color accent,
+    Color onAccent, {
+    required bool unlocked,
+    required bool unlockable,
+    required bool equipped,
+    required String value,
+    required StateSetter setSheetState,
+  }) {
+    if (unlocked) {
+      return SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          onPressed: equipped
+              ? null
+              : () {
+                  setState(() => _value = value);
+                  Navigator.pop(ctx);
+                },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: accent,
+            foregroundColor: onAccent,
+            disabledBackgroundColor: accent.withValues(alpha: 0.35),
+          ),
+          icon: Icon(
+            equipped ? Icons.check_rounded : Icons.workspace_premium_rounded,
+            size: 18,
+          ),
+          label: Text(equipped ? ctx.l10n.equippedRoyal : ctx.l10n.equipRoyal),
+        ),
+      );
+    }
+
+    if (unlockable) {
+      return SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          onPressed: () async {
+            await _unlockRoyal(r);
+            if (!ctx.mounted) return;
+            Navigator.pop(ctx);
+            if (mounted) {
+              showAppToast(
+                context,
+                message: context.l10nRead.royalUnlockedToast(
+                  context.l10nRead.royalAvatarName(r.id),
+                ),
+                type: AppToastType.success,
+              );
+            }
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: accent,
+            foregroundColor: onAccent,
+          ),
+          icon: const Icon(Icons.lock_open_rounded, size: 18),
+          label: Text(ctx.l10n.unlockRoyalCta),
+        ),
+      );
+    }
+
+    // Locked with no pick to spend, so this royal is bought. The price sits on
+    // its own line and AGAIN inside the button, which is not redundancy: the
+    // pick path and the buy path are the same shape, and a button reading
+    // "Unlock & equip" while it is about to charge money hides the charge. The
+    // free route stays underneath, and it is the reason this reads as an offer
+    // rather than a toll gate.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            Text(
+              _royalPrice(r),
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+                color: accent,
+              ),
+            ),
+            // The everyday price, struck through — drawn only when Play
+            // confirms it is really about to charge less.
+            if (_royalDiscountIsReal(r)) ...[
+              const SizedBox(width: 8),
+              Text(
+                _inr.format(kRoyalAvatarPriceInr),
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: colors.textTertiary,
+                  decoration: TextDecoration.lineThrough,
+                  decorationColor: colors.textTertiary,
+                  decorationThickness: 2.2,
+                ),
+              ),
+            ],
+            const Spacer(),
+            Text(
+              ctx.l10n.royalPriceCaption,
+              style: TextStyle(fontSize: 11, color: colors.textTertiary),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: _buying ? null : () => _buyRoyal(ctx, r, setSheetState),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: accent,
+              foregroundColor: onAccent,
+              disabledBackgroundColor: accent.withValues(alpha: 0.35),
+            ),
+            icon: _buying
+                ? SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(onAccent),
+                    ),
+                  )
+                : const Icon(Icons.lock_open_rounded, size: 18),
+            label: Text(
+              ctx.l10n.buyRoyalCta(_royalPrice(r)),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Icon(
+              Icons.local_fire_department_rounded,
+              size: 14,
+              color: colors.textTertiary,
+            ),
+            const SizedBox(width: 7),
+            Expanded(
+              child: Text(
+                ctx.l10n.royalLockedSheetNote,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  height: 1.3,
+                  color: colors.textTertiary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -1529,5 +1654,4 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
       },
     );
   }
-
 }

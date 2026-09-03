@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../l10n/l10n.dart';
 import '../providers/theme_provider.dart';
 import 'avatars.dart';
 import 'royal_avatars.dart';
@@ -31,119 +30,10 @@ import 'theme_preview_sheet.dart';
 /// figures the still has always carried, which are there so the preview
 /// composes on a fresh install with no data.
 ///
-/// The A/B switch is the point of the whole widget. One dressed still is a
-/// pretty picture; the pair is the only way to see WHICH parts of the screen
-/// the court actually touches.
-class RoyalCourtStill extends StatefulWidget {
-  const RoyalCourtStill({super.key, required this.royal});
-
-  final RoyalAvatar royal;
-
-  @override
-  State<RoyalCourtStill> createState() => _RoyalCourtStillState();
-}
-
-class _RoyalCourtStillState extends State<RoyalCourtStill> {
-  /// Which side of the A/B the user is looking at. Starts dressed: they opened
-  /// a royal's sheet, so the royal is what they came to see.
-  bool _dressed = true;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = AppColors.of(context);
-    final onLight = Theme.of(context).brightness == Brightness.light;
-    final accent =
-        onLight ? widget.royal.theme.accentDeep : widget.royal.theme.accent;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _switcher(colors, accent),
-        const SizedBox(height: 10),
-        // The still is only redrawn, never re-laid-out, when the switch flips:
-        // both sides are the same widget at the same size, so the eye can
-        // compare them without hunting for what moved.
-        RoyalCourtStillFrame(
-          royal: widget.royal,
-          dressed: _dressed,
-        ),
-        const SizedBox(height: 8),
-        Text(
-          _dressed
-              ? context.l10n.royalStillDressedCaption(
-                  context.l10n.royalAvatarName(widget.royal.id),
-                )
-              : context.l10n.royalStillPlainCaption,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 11.5,
-            height: 1.3,
-            color: colors.textTertiary,
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// A two-up segmented switch. Deliberately not a toggle: both states need a
-  /// visible label, because "off" here means *the app you already have* and
-  /// that is half the comparison rather than an absence.
-  Widget _switcher(AppColors colors, Color accent) {
-    Widget half(String label, bool dressedSide) {
-      final on = _dressed == dressedSide;
-      return Expanded(
-        child: GestureDetector(
-          onTap: () => setState(() => _dressed = dressedSide),
-          behavior: HitTestBehavior.opaque,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 160),
-            padding: const EdgeInsets.symmetric(vertical: 7),
-            decoration: BoxDecoration(
-              color: on ? accent.withValues(alpha: 0.16) : Colors.transparent,
-              borderRadius: BorderRadius.circular(9),
-              border: Border.all(
-                color: on ? accent.withValues(alpha: 0.55) : Colors.transparent,
-              ),
-            ),
-            child: Text(
-              label,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w700,
-                color: on ? accent : colors.textTertiary,
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: colors.cardAlt,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colors.border),
-      ),
-      child: Row(
-        children: [
-          half(context.l10n.royalStillWithout, false),
-          const SizedBox(width: 4),
-          half(
-            context.l10n.royalStillWith(
-              context.l10n.royalAvatarName(widget.royal.id),
-            ),
-            true,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
+/// The Without/With comparison that goes with it lives in `RoyalShowcase`,
+/// which owns the page this frame sits on — one dressed still is a pretty
+/// picture, and the pair is the only way to see WHICH parts of the screen the
+/// court actually touches.
 /// The still itself, with the royal's header circle and its bottom-lane
 /// stroll. Split out from [RoyalCourtStill] so a render proof (or a test) can
 /// pin one side of the A/B without driving the switch.
@@ -152,6 +42,7 @@ class RoyalCourtStillFrame extends StatefulWidget {
     super.key,
     required this.royal,
     required this.dressed,
+    this.maxHeight,
   });
 
   final RoyalAvatar royal;
@@ -159,6 +50,13 @@ class RoyalCourtStillFrame extends StatefulWidget {
   /// False shows the app as it is today — same still, no court dress, no
   /// character. That side is not a lesser preview; it is the control.
   final bool dressed;
+
+  /// Ceiling for the still, when the host has a fixed frame to fill. The still
+  /// is content-sized (~379dp at sheet width), so a host with less room scales
+  /// it down PROPORTIONALLY rather than cropping it — a cropped dashboard
+  /// stops being a picture of a screen, which is the only thing it is for.
+  /// Null leaves it at natural size.
+  final double? maxHeight;
 
   @override
   State<RoyalCourtStillFrame> createState() => _RoyalCourtStillFrameState();
@@ -209,7 +107,7 @@ class _RoyalCourtStillFrameState extends State<RoyalCourtStillFrame>
     // ask; the court sheet's own mode row is how they see the other one.
     final variant = context.watch<ThemeProvider>().variant;
 
-    return Stack(
+    final still = Stack(
       children: [
         ThemeStill(variant: variant, dress: _dress),
         // The header circle. Positioned rather than threaded through
@@ -234,6 +132,25 @@ class _RoyalCourtStillFrameState extends State<RoyalCourtStillFrame>
             child: IgnorePointer(child: _stroll()),
           ),
       ],
+    );
+
+    final cap = widget.maxHeight;
+    if (cap == null) return still;
+    // Measure at the width we are given, then scale the whole still — chrome,
+    // character and all — to the height allowed. FittedBox alone would letterbox
+    // against the parent's own constraints; laying the still out at its natural
+    // height first and scaling that is what keeps it filling the frame's width.
+    return LayoutBuilder(
+      builder: (ctx, box) => ClipRect(
+        child: SizedBox(
+          height: cap,
+          child: FittedBox(
+            fit: BoxFit.contain,
+            alignment: Alignment.topCenter,
+            child: SizedBox(width: box.maxWidth, child: still),
+          ),
+        ),
+      ),
     );
   }
 
