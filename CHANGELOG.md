@@ -11,6 +11,42 @@ Also available in the five languages the app ships alongside English:
 practice began; this file remains the full history and the one to write
 first.
 
+## [1.83.0] — 2026-09-03
+
+### Changed
+
+- **A royal's card now fits on one screen.** It had grown three pictures of the
+  same character — a circle, an animation loop and a dashboard preview — stacked
+  inside a panel that opens at half the screen height. On an ordinary phone that
+  was more than twice as much card as there was room for: the price and the
+  button that charges it were both two scrolls down, and you had to go looking
+  for what a royal cost.
+
+  The character and the preview are now one frame you swipe between, with the
+  Without/With comparison living on the preview page where it belongs. The name,
+  the lore and the face share a single row. The price and the action sit in a
+  band at the bottom that never scrolls away. Nothing was removed — the card
+  simply stopped saying the same thing three times.
+
+  Measured on a 1080×2400 phone, both the buy card and the fully-loaded owned
+  card (three switches, the theme row and Equip) now open with nothing below the
+  fold at all. On a small screen at a large accessibility text size the middle
+  still scrolls, and the price and button stay put while it does.
+
+- **The character preview is much bigger.** It had a strip; it has a stage now,
+  and the royal is drawn nearly twice the size to fill it. If you are being
+  asked to pay for a character, you should be able to see it.
+
+- **The owned card's switches are compact.** Each was a full list tile with its
+  own paragraph — one of them alone took a third of the visible card. Same
+  switches, same explanations, grouped into one panel.
+
+### Fixed
+
+- The ELITE row's "3 / 10 earned" score could run off the edge of the screen at
+  large accessibility text sizes on a narrow phone. So could the "See it in the
+  Light theme" link on a royal's card.
+
 ## [1.82.0] — 2026-09-03
 
 ### Added
