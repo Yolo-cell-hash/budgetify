@@ -6,7 +6,7 @@ import '../models/achievement.dart';
 import '../models/holding.dart';
 import '../models/streak_reward.dart';
 import '../models/transaction_model.dart';
-import '../widgets/avatars.dart' show legacyEmojiSeed;
+import '../widgets/avatars.dart' show eliteAvatarAt, legacyEmojiSeed;
 import '../widgets/royal_avatars.dart' show kRoyalAvatars, royalAvatarAt;
 import 'database_service.dart';
 import 'entitlement_service.dart';
@@ -191,6 +191,18 @@ class GamificationService {
       blob['profile'] = profile.toMap();
       await _write(blob);
     }
+    // ELITE characters go the other way: an elite already being worn when the
+    // tier was re-gated is banked, permanently. See [legacyEliteSlots].
+    final seed = profile.avatarKind == 'pixel'
+        ? int.tryParse(profile.avatarValue)
+        : null;
+    if (seed != null && eliteAvatarAt(seed) != null) {
+      final legacy = _legacy(blob);
+      if (legacy.add(seed)) {
+        blob[_legacyElitesKey] = legacy.toList();
+        await _write(blob);
+      }
+    }
     return profile;
   }
 
@@ -205,6 +217,28 @@ class GamificationService {
     await _write(blob);
     onProfileSaved?.call(profile);
   }
+
+  // ── Elite avatars worn before the gate ───────────────────────────────
+  // Elites were ungated between v1.36.0 and v1.82.0. Anyone who chose one in
+  // that window has no badge for it, and taking it back would read as a bug or
+  // a shakedown — so the gate applies to what they have NOT chosen, not to
+  // their own face.
+  //
+  // This has to be BANKED rather than inferred from the current avatar, or the
+  // reprieve becomes a trap: try a free character for an afternoon, save, and
+  // the elite you had legitimately worn for two months is gone with no warning
+  // and no way back. Recorded on load, so it lands before the picker can open;
+  // rides encrypted backups like every other key in this blob.
+
+  static const String _legacyElitesKey = 'legacyElites';
+
+  static Set<int> _legacy(Map<String, dynamic> blob) =>
+      ((blob[_legacyElitesKey] as List?)?.cast<num>() ?? const <num>[])
+          .map((n) => n.toInt())
+          .toSet();
+
+  /// Elite sprite slots kept open regardless of badges.
+  Future<Set<int>> legacyEliteSlots() async => _legacy(await _read());
 
   // ── Streak (daily usage) ─────────────────────────────────────────────
   /// One streak freeze is earned for every this-many days of streak.

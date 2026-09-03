@@ -614,33 +614,63 @@ final List<int> kFreePixelSeeds = [
     if (!_eliteSlots.contains(_extraStart + i)) _extraStart + i,
 ];
 
-/// An elite pixel character: prestige art shown in its own picker section.
+/// An elite pixel character: prestige art EARNED, not handed out.
 /// [spriteIndex] is its slot in the shared sprite list (persisted in
-/// profiles — append-only). All elite characters are unlocked for everyone;
-/// the category only marks out the showpiece art.
+/// profiles — append-only), [badgeId] the achievement badge that opens it.
+///
+/// Elites shipped gated, were unlocked for everyone in v1.36.0, and are gated
+/// again here. Handing all ten out on day one made the ELITE row a second free
+/// row with better art: nothing in it was ever a reward, so nothing in it ever
+/// felt like one. The tier only means something while wearing one says how you
+/// got it.
 class EliteAvatar {
   final String id;
   final int spriteIndex;
+
+  /// The badge that unlocks this character, as `groupId.tierIndex` — the ids
+  /// [kAchievementGroups] mints via `AchievementGroup.badgeId`.
+  final String badgeId;
+
   const EliteAvatar({
     required this.id,
     required this.spriteIndex,
+    required this.badgeId,
   });
 }
 
 /// The elite roster. The first six live in the base sprite list (slots
 /// 12-17); the four newcomers live in the post-royal block (slots 32-35).
 /// Order here is display order in the picker's ELITE section.
+///
+/// **The ladder.** Sprite order doubles as difficulty order, so the section
+/// reads left-to-right as a climb: a copper first rung anyone reaches inside a
+/// month, then silvers and golds, then one platinum at the end. The original
+/// gating asked for six DIAMOND badges (a 1-year streak, ₹1Cr net worth, 8,000
+/// transactions) and that is why it was scrapped rather than tuned — a wall
+/// nobody clears is indistinguishable from a wall with nothing behind it. Ten
+/// different ladders are used on purpose too: no single habit opens the whole
+/// row, and every elite names a distinct thing the user did.
 const List<EliteAvatar> kEliteAvatars = [
-  EliteAvatar(id: 'shadowblade', spriteIndex: 12),
-  EliteAvatar(id: 'crimsononi', spriteIndex: 13),
-  EliteAvatar(id: 'cyberronin', spriteIndex: 14),
-  EliteAvatar(id: 'dragonlord', spriteIndex: 15),
-  EliteAvatar(id: 'voidmonarch', spriteIndex: 16),
-  EliteAvatar(id: 'phoenix', spriteIndex: 17),
-  EliteAvatar(id: 'frostvalkyrie', spriteIndex: 32),
-  EliteAvatar(id: 'astralsorceress', spriteIndex: 33),
-  EliteAvatar(id: 'solarpriestess', spriteIndex: 34),
-  EliteAvatar(id: 'obsidianwarlord', spriteIndex: 35),
+  // Copper — one month with every transaction categorised.
+  EliteAvatar(id: 'shadowblade', spriteIndex: 12, badgeId: 'tagged.0'),
+  // Bronze — a 30-day streak.
+  EliteAvatar(id: 'crimsononi', spriteIndex: 13, badgeId: 'streak.1'),
+  // Gold, but reachable by intent — every spending category used once.
+  EliteAvatar(id: 'cyberronin', spriteIndex: 14, badgeId: 'explorer.2'),
+  // Silver — three months finished inside the overall budget.
+  EliteAvatar(id: 'dragonlord', spriteIndex: 15, badgeId: 'budget.1'),
+  // Silver — 30 no-spend days banked.
+  EliteAvatar(id: 'voidmonarch', spriteIndex: 16, badgeId: 'nospend.1'),
+  // Silver — three savings goals funded to the top.
+  EliteAvatar(id: 'phoenix', spriteIndex: 17, badgeId: 'goals.1'),
+  // Gold — six months saving 20%+ of income.
+  EliteAvatar(id: 'frostvalkyrie', spriteIndex: 32, badgeId: 'saver.2'),
+  // Gold — a year of money history.
+  EliteAvatar(id: 'astralsorceress', spriteIndex: 33, badgeId: 'history.3'),
+  // Gold — ₹25L tracked net worth.
+  EliteAvatar(id: 'solarpriestess', spriteIndex: 34, badgeId: 'networth.3'),
+  // Platinum — a 200-day streak. The one that takes most of a year.
+  EliteAvatar(id: 'obsidianwarlord', spriteIndex: 35, badgeId: 'streak.4'),
 ];
 
 /// Number of original free (always available) pixel characters in the base
