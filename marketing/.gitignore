@@ -1,0 +1,9 @@
+.render/
+node_modules/
+
+# The 58s launch film master is a build output of render-film.mjs (~13MB) and
+# is regenerated, so it stays out of git. This rule used to be a blanket
+# `*.mp4`, which also swallowed the ad cuts under "ads content/video" -- and
+# swallowed them SILENTLY, because a `git add` of an ignored path is a no-op
+# rather than an error. Those cuts are deliverables and are tracked.
+budgetify-launch-film*.mp4
